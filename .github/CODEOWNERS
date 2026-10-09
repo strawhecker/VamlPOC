@@ -1,0 +1,22 @@
+# CODEOWNERS for CardiMapper
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# All files in the repository
+#* @Accupulse-Mapping/core-team
+
+# C++ source and header files
+#*.cpp @Accupulse-Mapping/cpp-team
+#*.h   @Accupulse-Mapping/cpp-team
+
+# .NET projects
+#*.csproj @Accupulse-Mapping/dotnet-team
+#*.cs     @Accupulse-Mapping/dotnet-team
+
+# GitHub Actions workflows
+#.github/workflows/* @Accupulse-Mapping/devops-team
+
+# Documentation
+#/docs/* @Accupulse-Mapping/docs-team
+
+# Specific maintainers (add your actual usernames if needed)
+# *.md @yourusername

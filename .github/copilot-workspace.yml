@@ -1,0 +1,40 @@
+name: CardiMapper Copilot workspace
+description: Workspace config for Copilot to index solutions and projects in this repository.
+
+workspace:
+  include:
+    - "**/*.sln"
+    - "**/*.csproj"
+    - "**/*.vcxproj"
+    - "**/*.cpp"
+    - "**/*.h"
+  exclude:
+    - "bin/**"
+    - "obj/**"
+    - ".git/**"
+    - ".vs/**"
+    - "node_modules/**"
+    - "**/*.user"
+    - "**/*.suo"
+
+languages:
+  dotnet:
+    targetFramework: "net8.0"
+    restore: true
+    solutionPatterns:
+      - "**/*.sln"
+  cpp:
+    standard: "c++20"
+    compileCommands: false
+
+tasks:
+  - name: Build (Debug)
+    run: "powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1 -BuildConfig Debug"
+    cwd: "."
+  - name: Build (Release)
+    run: "powershell -NoProfile -ExecutionPolicy Bypass -File build.ps1 -BuildConfig Release"
+    cwd: "."
+
+notes:
+  - "This workspace indexes all solutions and projects; it gives explicit hints for .NET 8 (net8.0) and C++20."
+  - "A safe, commented CODEOWNERS template is provided at `.github/CODEOWNERS` - edit and uncomment lines to enable ownership rules."
