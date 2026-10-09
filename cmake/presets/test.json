@@ -3,6 +3,7 @@
   "include": ["build.json"],
   "testPresets": [
     { "name": "msvc-debug",   "configurePreset": "msvc-debug",   "output": { "outputOnFailure": true } },
+    { "name": "msvc-debug-shared", "configurePreset": "msvc-debug-shared", "output": { "outputOnFailure": true } },
     { "name": "msvc-release", "configurePreset": "msvc-release", "output": { "outputOnFailure": true } },
     { "name": "clang-debug",  "configurePreset": "clang-debug",  "output": { "outputOnFailure": true } },
     { "name": "windows-clang-debug", "configurePreset": "windows-clang-debug", "output": { "outputOnFailure": true } }

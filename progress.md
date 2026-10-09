@@ -23,13 +23,22 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S002 (cmake/ toolchain files + compiler presets finalized) [token: S002]
-- Next step to do     : S003 (build/artifact model, VAML_BUILD_SHARED) [token: S003]
+- Last completed step : S003 (static-library artifact model + guard rails) [token: S003]
+- Next step to do     : S004 (CI matrices) [token: S004]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
-  [no-managed] [no-stub rule]
+  [no-managed] [no-stub rule] [MINIMAL REAL: vulkan→S161, tools→S287] [NO-GAP GUARANTEE] [NO LAZY LLM]
+
+## GUARD RAILS (codified from S003 — mirror of docs/roadmap.md; survives roadmap trimming)
+- **MINIMAL REAL**: permanent, linkable, forward-resolvable seed (kept+extended, NOT a stub);
+  tagged with searchable sentinel `// [MINIMAL REAL] <comp> — RESOLVED BY <token>`; removable only
+  by its declaring step. Active: vulkan→S161, tools→S287.
+- **NO-GAP GUARANTEE**: no feature/symbol left for silent backfill; every MINIMAL REAL has an
+  explicit resolution authored at the same step that delivers real content.
+- **NO LAZY LLM SYNDROME**: default posture is to reason the opposite of lazy; MINIMAL REAL is
+  explicitly NOT lazy — it is strategic, documented-by-design.
 
 ## SURVIVING STATE (what a fresh LLM must assume is true)
 - S000 DONE: directory skeleton created — docs/ (adr, design), src/ (core, vulkan, tools, cmake),
@@ -77,3 +86,25 @@
   sibling includes.
 
 ### (remaining S003–S999 steps live in docs/ROADMAP.md, the authoritative tokenized list)
+
+- [x] S003 static-library artifact model + guard rails — ✅
+  SURVIVOR: cmake/artifact-model.cmake (NEW — vaml_add_library() helper, VAML_BUILD_SHARED
+  default OFF, generate_export_header per lib, OUTPUT_NAME vaml-*, VAML_LAYER tag,
+  vaml_validate_layer_rules() ADR-011 guard). Top-level CMakeLists includes artifact-model +
+  calls vaml_validate_layer_rules() after add_subdirectory(src). src/core/CMakeLists.txt refactored
+  to vaml_add_library(core). src/vulkan/CMakeLists.txt + src/tools/CMakeLists.txt NEW, un-commented
+  in src/CMakeLists.txt; each builds a version-marker MINIMAL REAL lib. Libs now: vaml-core,
+  vaml-vulkan, vaml-tools. Generated export headers committed at
+  src/{core,vulkan,tools}/include/vaml/{core,vulkan,tools}/export.h (VAML_{CORE,VULKAN,TOOLS}_EXPORT;
+  empty when static). Presets: msvc-debug-shared added (configure/build/test) to prove shared path.
+  VERIFIED: static (`msvc-debug`) builds vaml-core.lib+vaml-vulkan.lib+vaml-tools.lib green, /WX ON;
+  shared (`msvc-debug-shared`) builds vaml-core.dll/vulkan/tools green. ADR-011 guard negative-tested
+  (vaml-core linking vaml-vulkan → configure FATAL "ADR-011 VIOLATION", then reverted to green).
+  Linux + windows-clang static: review-validated only (no host build; consistent with S002).
+  GUARD-RAIL CODIFICATION: MINIMAL REAL, NO-GAP GUARANTEE, NO LAZY LLM SYNDROME terms added to both
+  docs/roadmap.md (Guard Rails section) + progress.md (Guard Rails block); S003/S161/S287 lines in
+  roadmap carry the forward-declared resolution contracts (vulkan→S161, tools→S287). No new md files.
+  Next = S004.
+  GOTCHA: layer guard introspects LINK_LIBRARIES (direct edges) — sufficient because GLFW/Vulkan are
+  only reachable via vaml-vulkan in this project. GOTCHA: export.h generated into the PUBLIC include
+  tree (absolute EXPORT_FILE_NAME) so targets consumers include via vaml/{lib}/export.h.

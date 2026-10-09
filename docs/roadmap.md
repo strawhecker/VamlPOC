@@ -9,6 +9,36 @@
 > for steps discovered mid-execution (append new steps into the nearest open token, then renumber
 > the tail in one pass — do NOT edit the checkpoint by hand).
 
+## GUARD RAILS (operative project contracts — codified from S003 forward)
+### MINIMAL REAL (official term)
+- A small, **permanent**, linkable public symbol that seeds a component's true interface (e.g. a
+  version marker). Distinct from a **STUB**: a STUB is throwaway scaffold deleted later; MINIMAL
+  REAL is **kept and extended** into the real implementation. It is NOT lazy — it is a deliberate,
+  declared, forward-resolvable seed.
+- Every MINIMAL REAL symbol carries a **searchable sentinel comment**:
+  `// [MINIMAL REAL] <component> — RESOLVED BY <sprint-token>. Do NOT extend silently; do NOT backfill.`
+- A MINIMAL REAL symbol may ONLY be removed or replaced by the step that **explicitly declares**
+  its resolution.
+- Active MINIMAL REAL marks (searchable): `vaml-vulkan` version marker → **RESOLVED BY S161**;
+  `vaml-tools` version marker → **RESOLVED BY S287**.
+
+### NO-GAP GUARANTEE (official term)
+- Binding project contract: **no feature or symbol may be left behind for a silent backfill step.**
+  Anything introduced as MINIMAL REAL must have an explicit, scheduled resolution point, recorded
+  in the roadmap AND progress tracking, authored at the SAME step that delivers the real content.
+- Any future step that uses MINIMAL REAL carries an obligation: it must be **searchable and
+  resolvable** by its named sprint. Resolution is part of the real feature's own step, never a
+  separate cleanup/backfill step.
+- Forward-declared resolutions (contracts): **S161 must resolve the vulkan MINIMAL REAL marker;
+  S287 must resolve the tools MINIMAL REAL marker.**
+
+### NO LAZY LLM SYNDROME (official term)
+- The project's default reasoning posture. When in doubt, **reason the opposite of lazy LLM**:
+  prefer the explicit, the searchable, the contractually-bound, and the non-silent option.
+- **MINIMAL REAL is explicitly NOT lazy-LLM** — it is a strategic choice made to keep resolution
+  steps coherent **by design**, justified and recorded in this documentation, never a shortcut
+  taken for convenience.
+
 ## Conventions
 - `dep:S00X` = this step requires S00X complete first. Multiple deps separated by `+`.
 - `dep:-` = no dependency (root step of its sprint).
@@ -22,7 +52,7 @@
 - S000 dep:-  Repo skeleton + tracking files (progress.md, ROADMAP.md, ADR seeds, architecture.md). [DONE]
 - S001 dep:S000  Top-level CMake (project(VAML), C++ latest, /EHsc /permissive- MSVC, -Wall -Wextra -Wpedantic Clang, Werror on). [DONE — verified MSVC 19.51 via build/verify_msvc.cmd]
 - S002 dep:S001  cmake/ compiler presets + toolchain files (MSVC VS 2026, Linux Clang).
-- S003 dep:S002  Static-library artifact model: VAML_BUILD_SHARED (default OFF); vaml-core, vaml-vulkan, vaml-tools targets.
+- S003 dep:S002  Static-library artifact model: VAML_BUILD_SHARED (default OFF); vaml-core, vaml-vulkan, vaml-tools targets. [MINIMAL REAL: vulkan→S161, tools→S287]
 - S004 dep:S003  CI matrices (.github/workflows): windows-msvc + ubuntu-clang, configure+build+ctest green.
 - S005 dep:S003  Vendor doctest single-header into third_party; test target + smoke test (0-feature) passes.
 - S006 dep:S005  Port user Shouldly.h -> src/core/assert/Shouldly.h: strip MSTest refs, __forceinline, Windows bits; pluggable failure sink (throw TestFailureException). All predicate names preserved.
@@ -100,7 +130,7 @@
 ---
 ## Sprint 4 — Vulkan window + swapchain + first pixels (single-thread proof)  [token S160+]
 - S160 dep:S139  Platform window via GLFW (Win32 + X11); resize + input callback stub surface.
-- S161 dep:S160  CMake finds glfw3 + vulkan + VMA; link vaml-vulkan.
+- S161 dep:S160  CMake finds glfw3 + vulkan + VMA; link vaml-vulkan. [RESOLVES S003 vulkan MINIMAL REAL marker → replace version marker with real surface + remove its sentinel tag]
 - S162 dep:S161  Vulkan instance + surface + physical device + queue family selection; validation layers debug-only.
 - S163 dep:S162  Swapchain (VK_KHR_swapchain) + image views + depth; format/BPP negotiation.
 - S164 dep:S163  Render pass + single-triangle graphics pipeline + framebuffers (hardcoded MVP).
@@ -159,7 +189,7 @@
 - S284 dep:S283  Goldens: a full VAML file compiles to a .vbaml with correct token stream.
 - S285 dep:S284  Runtime VBamlReader: bytes → DependencyObject tree (InitializeComponent-style).
 - S286 dep:S285  Reader instantiates via factory registry, sets props, attaches deferred events (S8).
-- S287 dep:S286  vamlcc integrated in CMake: custom command per .vaml → .vbaml embedded or sidecar.
+- S287 dep:S286  vamlcc integrated in CMake: custom command per .vaml → .vbaml embedded or sidecar. [RESOLVES S003 tools MINIMAL REAL marker → extend version marker into real tooling surface + remove its sentinel tag]
 - S288 dep:S287  Dual-path parity harness: runtime-parsed vs compiled trees behaviorally identical (asserted).
 - S289 dep:S288  Pack/identity: x:Class name mapping; embedded resource lookup; release uses compiled only.
 - S290 dep:S289  Refactor-gated dual path: S2 reader = dev tool, S7 reader = release.

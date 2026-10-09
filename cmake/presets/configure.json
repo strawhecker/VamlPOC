@@ -13,6 +13,15 @@
       }
     },
     {
+      "name": "msvc-debug-shared",
+      "displayName": "MSVC Debug Shared (VS 2026, VAML_BUILD_SHARED=ON)",
+      "inherits": "msvc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "VAML_BUILD_SHARED": "ON"
+      }
+    },
+    {
       "name": "msvc-release",
       "displayName": "MSVC Release (VS 2026)",
       "inherits": "base",

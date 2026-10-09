@@ -38,16 +38,17 @@ endif()
 # sub-builds) applies identical strict flags from a single module home.
 # ============================================================================
 include(cmake/compiler-policy.cmake)
-
-# Convenience: every target must call vaml_apply_compiler_policy.
-# Enforced by convention; S002 keeps the policy centralized in the module.
+# S003: artifact model (VAML_BUILD_SHARED, vaml_add_library, export headers,
+# ADR-011 layer validation). All VAML libraries are created through this module.
+include(cmake/artifact-model.cmake)
 
 # ============================================================================
 # Directory aggregation — library/tool sources live under src/ (see ROADMAP).
-# The actual static/shared artifact model is S003; here we just add subdirs so
-# the hierarchy resolves in the IDE and the build is green from the first step.
+# vaml_add_library() (S003) is the only way targets are produced; the layer
+# rules (ADR-011) are validated here AFTER every subdirectory is configured.
 # ============================================================================
 add_subdirectory(src)
+vaml_validate_layer_rules()
 
 # The POC application is a separate tree (VamlPOC/) with its own VS project;
 # wiring it into CMake arrives with S003/S004. At S001 we intentionally do NOT

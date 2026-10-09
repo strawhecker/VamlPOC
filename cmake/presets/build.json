@@ -3,6 +3,7 @@
   "include": ["configure.json"],
   "buildPresets": [
     { "name": "msvc-debug",   "configurePreset": "msvc-debug",   "jobs": 0 },
+    { "name": "msvc-debug-shared", "configurePreset": "msvc-debug-shared", "jobs": 0 },
     { "name": "msvc-release", "configurePreset": "msvc-release", "jobs": 0 },
     { "name": "clang-debug",  "configurePreset": "clang-debug",  "jobs": 0 },
     { "name": "windows-clang-debug", "configurePreset": "windows-clang-debug", "jobs": 0 }
