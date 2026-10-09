@@ -20,7 +20,7 @@
 ---
 ## Sprint 0 — Repo, toolchain, CI, test harness   (goal: green skeleton, no feature code)
 - S000 dep:-  Repo skeleton + tracking files (progress.md, ROADMAP.md, ADR seeds, architecture.md). [DONE]
-- S001 dep:S000  Top-level CMake (project(VAML), C++ latest, /EHsc /permissive- MSVC, -Wall -Wextra -Wpedantic Clang, Werror on).
+- S001 dep:S000  Top-level CMake (project(VAML), C++ latest, /EHsc /permissive- MSVC, -Wall -Wextra -Wpedantic Clang, Werror on). [DONE — verified MSVC 19.51 via build/verify_msvc.cmd]
 - S002 dep:S001  cmake/ compiler presets + toolchain files (MSVC VS 2026, Linux Clang).
 - S003 dep:S002  Static-library artifact model: VAML_BUILD_SHARED (default OFF); vaml-core, vaml-vulkan, vaml-tools targets.
 - S004 dep:S003  CI matrices (.github/workflows): windows-msvc + ubuntu-clang, configure+build+ctest green.
