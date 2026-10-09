@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S003 (static-library artifact model + guard rails) [token: S003]
-- Next step to do     : S004 (CI matrices) [token: S004]
+- Last completed step : S004 (CI matrices) [token: S004]
+- Next step to do     : S005 (vendor doctest + test harness) [token: S005]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -108,3 +108,24 @@
   GOTCHA: layer guard introspects LINK_LIBRARIES (direct edges) — sufficient because GLFW/Vulkan are
   only reachable via vaml-vulkan in this project. GOTCHA: export.h generated into the PUBLIC include
   tree (absolute EXPORT_FILE_NAME) so targets consumers include via vaml/{lib}/export.h.
+- [x] S004 CI matrices (.github/workflows) — ✅
+  SURVIVOR: .github/workflows/ci.yml (NEW, sole deliverable of S004). Single matrix-driven file, two
+  live jobs exactly matching ADR-007 core matrix: windows-msvc (windows-latest, VS 2026 cl.exe) ->
+  preset msvc-debug; ubuntu-clang (ubuntu-latest, clang++) -> preset clang-debug. Both jobs run the
+  identical checkout -> install toolchain -> cmake --preset -> cmake --build --preset -> ctest
+  --preset --output-on-failure sequence, reusing S002/S003 presets verbatim (msvc-debug/clang-debug
+  are named identically across configure/build/test). MSVC lane: microsoft/setup-msbuild (cl.exe +
+  vcvars on PATH) + choco install ninja -y; Linux: apt clang + ninja-build. Guards: per-job
+  timeout-minutes=30, warnings-as-errors ON via presets, no pinned runner labels (rolling -latest,
+  keeps MSVC lane on same VS as local dev + follows platform). NO windows-clang lane in any form;
+  NOT commented into YAML (toolchain seed stays unbuilt in cmake/toolchains/). Non-goals: no
+  artifacts, no coverage, no packaging (future sprints own those). VERIFICATION: MSVC lane
+  reproducible locally against the same msvc-debug preset (VS 2026) — re-ran clean, catches preset
+  name typos pre-push. Ubuntu lane = no-build-on-host; acceptance is GH Actions on push/PR (free for
+  public repos). All preset names in the workflow cross-checked against configure/build/test.json.
+  Roadmap S004 line marked [DONE]. No build-system/feature code changed. Next = S005.
+  GOTCHA: a workflow depends on preset NAMES being identical across configure/build/test JSON —
+  CI calls only --preset <name>, never CMake directly, so a rename in presets silently breaks a lane
+  (checked: msvc-debug + clang-debug are consistent). GOTCHA: MSVC lane needs the VS dev shell env
+  (cl.exe), so setup-msbuild MUST precede cmake --preset; base.json sets Ninja generator so Ninja
+  must be installed (choco) before configure.

@@ -1,0 +1,78 @@
+# VAML POC — CI matrix (S004)
+#
+# Two lanes, exactly matching ADR-007's core compiler matrix:
+#   windows-msvc : Windows (rolling `windows-latest`, VS 2026 cl.exe) -> preset msvc-debug
+#   ubuntu-clang : Linux (rolling `ubuntu-latest`, clang++)          -> preset clang-debug
+#
+# Both lanes run the identical configure -> build -> ctest sequence, reusing the
+# S002/S003 CMake presets verbatim (no build logic duplicated here). Warnings are
+# escalated to errors by the presets (VAML_WARNINGS_AS_ERRORS=ON), so a single
+# warning fails the lane. If the matrix is extended later (e.g. a windows-clang
+# job), add it here as a real job — do not leave dead/commented lanes.
+#
+# Market: public repo -> GitHub-hosted runners are free. No self-hosted runners,
+# no pinned image labels (rolling -latest keeps the MSVC lane on the same VS as
+# local dev and follows future platform migrations).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows-msvc:
+    name: Windows MSVC (VS 2026)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up MSBuild (cl.exe / vcvars on PATH)
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Install Ninja
+        shell: pwsh
+        run: choco install ninja -y
+
+      - name: Configure (msvc-debug preset)
+        shell: pwsh
+        run: cmake --preset msvc-debug
+
+      - name: Build (msvc-debug preset)
+        shell: pwsh
+        run: cmake --build --preset msvc-debug
+
+      - name: Test (ctest --preset msvc-debug)
+        shell: pwsh
+        run: ctest --preset msvc-debug
+
+  ubuntu-clang:
+    name: Ubuntu Clang
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Clang and Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang ninja-build
+
+      - name: Configure (clang-debug preset)
+        run: cmake --preset clang-debug
+
+      - name: Build (clang-debug preset)
+        run: cmake --build --preset clang-debug
+
+      - name: Test (ctest --preset clang-debug)
+        run: ctest --preset clang-debug
