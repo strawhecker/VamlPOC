@@ -1,55 +1,5 @@
 {
   "version": 6,
   "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
-  "configurePresets": [
-    {
-      "name": "base",
-      "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "VAML_WARNINGS_AS_ERRORS": "ON"
-      }
-    },
-    {
-      "name": "msvc-debug",
-      "displayName": "MSVC Debug (VS 2026)",
-      "inherits": "base",
-      "architecture": { "value": "x64", "strategy": "external" },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_COMPILER": "cl"
-      }
-    },
-    {
-      "name": "msvc-release",
-      "displayName": "MSVC Release (VS 2026)",
-      "inherits": "base",
-      "architecture": { "value": "x64", "strategy": "external" },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_CXX_COMPILER": "cl"
-      }
-    },
-    {
-      "name": "clang-debug",
-      "displayName": "Clang Debug (Linux/Win, ADR-007)",
-      "inherits": "base",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_CXX_COMPILER": "clang++"
-      }
-    }
-  ],
-  "buildPresets": [
-    { "name": "msvc-debug",   "configurePreset": "msvc-debug",   "jobs": 0 },
-    { "name": "msvc-release", "configurePreset": "msvc-release", "jobs": 0 },
-    { "name": "clang-debug",  "configurePreset": "clang-debug",  "jobs": 0 }
-  ],
-  "testPresets": [
-    { "name": "msvc-debug",   "configurePreset": "msvc-debug",   "output": { "outputOnFailure": true } },
-    { "name": "msvc-release", "configurePreset": "msvc-release", "output": { "outputOnFailure": true } },
-    { "name": "clang-debug",  "configurePreset": "clang-debug",  "output": { "outputOnFailure": true } }
-  ]
+  "include": ["cmake/presets/test.json"]
 }

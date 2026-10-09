@@ -1,0 +1,45 @@
+{
+  "version": 6,
+  "include": ["base.json"],
+  "configurePresets": [
+    {
+      "name": "msvc-debug",
+      "displayName": "MSVC Debug (VS 2026)",
+      "inherits": "base",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "toolchainFile": "${sourceDir}/cmake/toolchains/msvc-vs2026.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "msvc-release",
+      "displayName": "MSVC Release (VS 2026)",
+      "inherits": "base",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "toolchainFile": "${sourceDir}/cmake/toolchains/msvc-vs2026.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "clang-debug",
+      "displayName": "Clang Debug (Linux, ADR-007)",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/linux-clang.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "windows-clang-debug",
+      "displayName": "Clang Debug (Windows, clang-cl)",
+      "inherits": "base",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "toolchainFile": "${sourceDir}/cmake/toolchains/windows-clang.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ]
+}

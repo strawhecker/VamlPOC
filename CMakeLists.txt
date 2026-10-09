@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.24)
 
 # ============================================================================
 # VAML — top-level build
-# S001: project(), C++ language level, and the warning/error policy shared by
-# every target. Target/artifact structure lands in S003 (VAML_BUILD_SHARED etc.),
-# but the language + compiler-policy baseline is defined HERE so it is consistent.
+# S001: project(), C++ language level. The warning/error policy shared by every
+# target now lives in cmake/compiler-policy.cmake (S002). Target/artifact
+# structure lands in S003 (VAML_BUILD_SHARED etc.).
 # Governing docs: docs/ROADMAP.md (S001), docs/adr/ADR-LOG.md (ADR-004, ADR-007).
 # ============================================================================
 
@@ -34,35 +34,13 @@ endif()
 # ============================================================================
 # Compiler / warning policy  (ADR-004: no exceptions in release hot paths is a
 # per-target concern; the POLICY here is: warnings-as-errors + strict flags).
+# S002: policy moved to cmake/compiler-policy.cmake so every target (and future
+# sub-builds) applies identical strict flags from a single module home.
 # ============================================================================
-set(VAML_WARNINGS_AS_ERRORS ON CACHE BOOL "Treat warnings as errors")
-
-function(vaml_apply_compiler_policy target)
-    if(MSVC)
-        target_compile_options(${target} PRIVATE
-            /W4                      # Level 4 warnings (project-wide standard)
-            /permissive-             # strict standards conformance
-            /EHsc                    # C++ exceptions, extern "C" nothrow
-            /Zc:preprocessor         # conformant preprocessor
-            /Zc:__cplusplus          # correct __cplusplus value
-        )
-        if(VAML_WARNINGS_AS_ERRORS)
-            target_compile_options(${target} PRIVATE /WX)
-        endif()
-        # Suppress benign MSVC noise that is not real conformance issues.
-        target_compile_options(${target} PRIVATE /wd4100)   # unreferenced formal (managed per-site)
-    else()
-        target_compile_options(${target} PRIVATE
-            -Wall -Wextra -Wpedantic
-        )
-        if(VAML_WARNINGS_AS_ERRORS)
-            target_compile_options(${target} PRIVATE -Werror)
-        endif()
-    endif()
-endfunction()
+include(cmake/compiler-policy.cmake)
 
 # Convenience: every target must call vaml_apply_compiler_policy.
-# Enforced by convention; S001 keeps the policy centralized here.
+# Enforced by convention; S002 keeps the policy centralized in the module.
 
 # ============================================================================
 # Directory aggregation — library/tool sources live under src/ (see ROADMAP).

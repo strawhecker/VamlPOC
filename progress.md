@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S001 (top-level CMake + policy + vaml-core baseline) [token: S001]
-- Next step to do     : S002 (cmake/ toolchain files + compiler presets finalized) [token: S002]
+- Last completed step : S002 (cmake/ toolchain files + compiler presets finalized) [token: S002]
+- Next step to do     : S003 (build/artifact model, VAML_BUILD_SHARED) [token: S003]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -61,5 +61,19 @@
   src/version.cpp, CMakePresets.json (msvc/clang), .gitignore, build/verify_msvc.cmd. Build verified
   MSVC 19.51 warnings-as-errors → vaml-core.lib links. No Vulkan at S001 (correct, ADR-011).
   GOTCHA: use vcvars64.bat before cl; use VS-bundled cmake.exe + ninja.exe (not on base PATH).
+- [x] S002 cmake/ toolchain files + compiler presets (MSVC VS2026, Linux Clang) — ✅
+  SURVIVOR: policy extracted to cmake/compiler-policy.cmake (vaml_apply_compiler_policy, flags
+  byte-identical to S001: MSVC /W4 /permissive- /EHsc /Zc:* /WX + /wd4100; Clang -Wall -Wextra
+  -Wpedantic -Werror). Toolchains: cmake/toolchains/{msvc-vs2026,linux-clang,windows-clang}.cmake.
+  Presets split into cmake/presets/{base,configure,build,test}.json (Alt B) with a nested include
+  CHAIN (base<-configure<-build<-test, root includes cmake/presets/test.json) — siblings do NOT
+  cross-inherit in CMake. Root CMakePresets.json is a thin include stub. Presets anchored to
+  toolchainFiles: msvc-debug/release->msvc-vs2026, clang-debug->linux-clang,
+  windows-clang-debug->windows-clang. VERIFIED: clean configure --preset msvc-debug via include
+  chain + toolchainFile -> MSVC 19.51, /WX active, vaml-core.lib builds green. Linux + windows-clang
+  toolchains are static (no-build-on-host; review-validated only). Next = S003.
+  GOTCHA: Ninja generator does NOT support CMAKE_GENERATOR_TOOLSET (MSVC toolchain file must NOT pin
+  a toolset; vcvars64 selects it). GOTCHA: preset inheritance must be a nested include chain, not
+  sibling includes.
 
-### (remaining S002–S999 steps live in docs/ROADMAP.md, the authoritative tokenized list)
+### (remaining S003–S999 steps live in docs/ROADMAP.md, the authoritative tokenized list)
