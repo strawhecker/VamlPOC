@@ -1,8 +1,8 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : commitit — CI fix (Option A: ilammy/msvc-dev-cmd) staged for commit+push
-- last_commit     : none this step (pending commit+push). Prior commit: 979ef05 on main (S005).
-- plan_repo_state : working tree modified: .github/workflows/ci.yml (MSVC dev env fix); session-context.md (this record). No commits made yet.
+- last_command    : commitit — CI fix committed and pushed as e761716
+- last_commit     : e761716 on main (ci fix: msvc-dev-cmd places cl.exe on PATH). Prior: 979ef05 (S005).
+- plan_repo_state : e761716 (ci fix) committed + pushed to origin/main. session-context.md now records that state (this record). Working tree otherwise clean.
 - plan_digest     : S006 — port user Shouldly.h -> src/core/include/vaml/assert/Shouldly.h
                     (header-only, namespace vaml::test): strip MSTest/__forceinline/Windows bits;
                     pluggable failure sink (throw TestFailureException). All predicate names preserved.
