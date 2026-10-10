@@ -1,6 +1,13 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit (S005)
+- last_command    : commitit (S005) — committed + pushed on Windows repo
+- last_commit     : 979ef05 on main, pushed to origin (9343df6..979ef05). Message = active S005 plan
+                    text verbatim (option B). 11 files, +7263/-48. Includes the three pre-existing
+                    uncommitted export.h changes (VAML_*_DEPRECATED -> __declspec(deprecated) so
+                    generated export headers are MSVC-acceptable), which S005's MSVC-green depends on.
+- plan_repo_state : after push, only session-context.md is modified (this commitit record). Verify/CI
+                    scripts build/verify_s005.cmd + verify_s005_shared.cmd live under build/ (gitignored
+                    like the S004 script) — present on disk, not tracked.
 - plan_digest     : S005 — vendor doctest single-header into third_party (v2.4.11, verbatim);
                     test target vaml-core-tests links vaml-core + doctest smoke test (0-feature);
                     CTest PASS on both MSVC (VS 2026) and Clang (Ubuntu VM). No product symbols.
