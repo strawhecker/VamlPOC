@@ -34,8 +34,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up MSBuild (cl.exe / vcvars on PATH)
-        uses: microsoft/setup-msbuild@v2
+      # Load the VS developer environment (vcvars64) and export PATH so cl.exe is
+      # available in every subsequent step. setup-msbuild only adds MSBuild.exe to
+      # PATH (not cl.exe), which is why configure previously could not find `cl`.
+      - name: Set up MSVC dev environment (cl.exe / vcvars on PATH)
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Ninja
         shell: pwsh
