@@ -31,4 +31,17 @@
     - LOCAL VERIFICATION: drove the real msvc-debug preset via build/verify_s004.cmd (create -> VS
       dev shell -> cmake --preset/build/test) — configure + build green; ctest reports no tests yet
       (doctest harness is S005); ctest returns exit 0 for zero matches so the CI lane stays green.
-      Ubuntu lane remains no-build-on-host (acceptance in GH Actions).
+    - UBUNTU LANE VERIFIED ON REAL LINUX (new): reached the Ubuntu VM over SSH
+      (ssh -i E:\GitRepos\VamlPOC\vaml_ci_key robert@192.168.198.129, VMware NAT subnet 192.168.198.0/24,
+      hostname vaml, Ubuntu 26.04 resolute, x86_64, 2 CPU / 3.3G RAM). Installed clang 21.1.8,
+      ninja 1.13.2, cmake 4.2.3, build-essential, git (sudo via robert; PASSWORDSHARED-NOTSTORED).
+      Cloned public origin https://github.com/strawhecker/VamlPOC.git at S004 (e6d689e). Ran the real
+      ubuntu-clang lane: cmake --preset clang-debug -> build -> test. CONFIGURE green (Clang 21.1.8,
+      Ninja -> build/clang-debug). BUILD green: [1-6/6] compiled+linked vaml-core/vaml-tools/vaml-vulkan
+      static libs, ZERO warnings/errors. ctest: no tests yet (S005), exit 0 -> lane green. Generated
+      export.h present in each lib's public include tree. -> ubuntu-clang lane is no longer
+      no-build-on-host; it is verified pre-push, GH Actions remains the authority.
+    - SSH ACCESS MODEL: keypair at E:\GitRepos\VamlPOC\vaml_ci_key (PRIVATE stays on Windows, never
+      transferred) / vaml_ci_key.pub (PUBLIC, in VM ~/.ssh/authorized_keys). VM user robert. Password
+      used for sudo-gated installs only; do not log it. VM reachable on home LAN via 192.168.198.129;
+      Tailscale exists on Windows (100.114.10.67) for traveling VPN later.
