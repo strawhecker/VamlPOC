@@ -132,19 +132,20 @@
 - S160 dep:S139  Platform window via GLFW (Win32 + X11); resize + input callback stub surface.
 - S161 dep:S160  CMake finds glfw3 + vulkan + VMA; link vaml-vulkan. [RESOLVES S003 vulkan MINIMAL REAL marker → replace version marker with real surface + remove its sentinel tag]
 - S162 dep:S161  Vulkan instance + surface + physical device + queue family selection; validation layers debug-only.
-- S163 dep:S162  Swapchain (VK_KHR_swapchain) + image views + depth; format/BPP negotiation.
-- S164 dep:S163  Render pass + single-triangle graphics pipeline + framebuffers (hardcoded MVP).
-- S165 dep:S164  Command buffers + sync (semaphores/fences) + main-thread draw loop; clear + triangle visible.
-- S166 dep:S165  Resize-safe swapchain recreation; no validation errors in debug.
-- S167 dep:S166  MSAA sample-count negotiation + multisampled triangle.
-- S168 dep:S167  Vulkan RAII wrappers (device/queue/swapchain/command-pool/framebuffer) — no raw vk* owned outside device.cpp.
-- S169 dep:S168  RAII destruction-order clean at close; no leaks, no staging.
-- S170 dep:S169  REFACTOR GATE(S4): triangle renders, no validation errors, resize-safe, RAII clean.
-- S171 dep:S170  SURVIVOR + checkpoint advance to S200.
+- S163 dep:S162  Best-GPU auto-selection: score ALL physical devices (DISCRETE>INTEGRATED>OTHER; device-local memory; apiVersion tiebreak); filter to present-capable families; VAML_PREFERRED_GPU name override; log full ranked list at init. Identical code in VamlPOC.cpp + VamlPOC-linux/main.cpp; two-GPU Windows proves multi-adapter selection; single-GPU Linux proves ranking+override path. [both apps, not CI]
+- S164 dep:S163  Swapchain (VK_KHR_swapchain) + image views + depth; format/BPP negotiation.
+- S165 dep:S164  Render pass + single-triangle graphics pipeline + framebuffers (hardcoded MVP).
+- S166 dep:S165  Command buffers + sync (semaphores/fences) + main-thread draw loop; clear + triangle visible.
+- S167 dep:S166  Resize-safe swapchain recreation; no validation errors in debug.
+- S168 dep:S167  MSAA sample-count negotiation + multisampled triangle.
+- S169 dep:S168  Vulkan RAII wrappers (device/queue/swapchain/command-pool/framebuffer) — no raw vk* owned outside device.cpp.
+- S170 dep:S169  RAII destruction-order clean at close; no leaks, no staging.
+- S171 dep:S170  REFACTOR GATE(S4): triangle renders, no validation errors, resize-safe, RAII clean.
+- S172 dep:S171  SURVIVOR + checkpoint advance to S200.
 
 ---
 ## Sprint 5 — Vulkan UI renderer (retained scene → GPU)  (goal: VAML-declared UI on screen)  [token S200+]
-- S200 dep:S171  Quad renderer: vertex/index buffers, textured quads, uniform MVP/UI scale, alpha blend, SRGB.
+- S200 dep:S172  Quad renderer: vertex/index buffers, textured quads, uniform MVP/UI scale, alpha blend, SRGB.
 - S201 dep:S200  Draw N quads from CPU list each frame; blend + SRGB tests.
 - S202 dep:S201  Texture atlas + image upload (staging → device-local); sub-region invalidation.
 - S203 dep:S202  Embedded bitmap-font loader + ASCII 32–126 glyph atlas build.
