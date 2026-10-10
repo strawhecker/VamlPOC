@@ -52,20 +52,28 @@ namespace test
     class TestFailureException : public std::exception
     {
     public:
-        explicit TestFailureException(char const* const message)
-            : std::exception(message)
+        explicit TestFailureException(char const* message)
+            : message_(message)
         {
         }
 
         explicit TestFailureException(std::string const& message)
-            : std::exception(message.c_str())
+            : message_(message)
         {
         }
+
+        char const* what() const noexcept override
+        {
+            return message_.c_str();
+        }
+
+    private:
+        std::string message_;
     };
 
-    using FailureSink = void (*)(char const* const message);
+    using FailureSink = void (*)(char const* message);
 
-    inline void DefaultFailureSink(char const* const message)
+    inline void DefaultFailureSink(char const* message)
     {
         throw TestFailureException(message);
     }
@@ -94,7 +102,7 @@ namespace test
     }
 
     template <typename T>
-    void ThrowAwesomelyStr(T const& _actual, T const& _expected, char const* const _customMessage, char const* const comparor)
+    void ThrowAwesomelyStr(T const& _actual, T const& _expected, char const* _customMessage, char const* comparor)
     {
         std::stringstream ss;
         ss
@@ -113,7 +121,7 @@ namespace test
     }
 
     template <typename T>
-    void ThrowAwesomelyRef(T const& _actual, T const& _expected, char const* const _customMessage, char const* const comparor)
+    void ThrowAwesomelyRef(T const& _actual, T const& _expected, char const* _customMessage, char const* comparor)
     {
         std::stringstream ss;
         ss
@@ -132,7 +140,7 @@ namespace test
     }
 
     template <typename T>
-    void ThrowAwesomelyPtr(T const* const _actual, T const* const _expected, char const* const _customMessage, char const* const comparor)
+    void ThrowAwesomelyPtr(T const* const _actual, T const* const _expected, char const* _customMessage, char const* comparor)
     {
         std::stringstream ss;
         ss
@@ -151,7 +159,7 @@ namespace test
     }
 
     template <typename T>
-    void ThrowAwesomelyVal(T _actual, T _expected, char const* const _customMessage, char const* const comparor)
+    void ThrowAwesomelyVal(T _actual, T _expected, char const* _customMessage, char const* comparor)
     {
         std::stringstream ss;
         ss
@@ -177,124 +185,124 @@ namespace test
     struct ShouldlyVal
     {
         T actual;
-        char const* const line;
+        char const* line;
 
-        ShouldlyVal(T t, char const* const _line)
+        ShouldlyVal(T t, char const* _line)
             : actual(t)
             , line(_line)
         {
         }
 
-        inline void ShouldBe(T expected, std::function<char const* const()> customMessageMaker)
+        inline void ShouldBe(T expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual == expected))
                 ThrowAwesomelyVal<T>(actual, expected, customMessageMaker(), "equal");
         }
 
-        inline void ShouldBe(T expected, char const* const customMessage)
+        inline void ShouldBe(T expected, char const* customMessage)
         {
-            ShouldBe(expected, [&]() -> char const* const { return customMessage; });
+            ShouldBe(expected, [&]() -> char const* { return customMessage; });
         }
 
         inline void ShouldBe(T expected)
         {
-            ShouldBe(expected, [&]() -> char const* const { return line; });
+            ShouldBe(expected, [&]() -> char const* { return line; });
         }
 
-        void ShouldNotBe(T expected, std::function<char const* const()> customMessageMaker)
+        void ShouldNotBe(T expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual != expected))
                 ThrowAwesomelyVal<T>(actual, expected, customMessageMaker(), "not equal");
         }
 
-        void ShouldNotBe(T expected, char const* const customMessage)
+        void ShouldNotBe(T expected, char const* customMessage)
         {
-            ShouldNotBe(expected, [&]() -> char const* const { return customMessage; });
+            ShouldNotBe(expected, [&]() -> char const* { return customMessage; });
         }
 
         inline void ShouldNotBe(T expected)
         {
-            ShouldNotBe(expected, [&]() -> char const* const { return line; });
+            ShouldNotBe(expected, [&]() -> char const* { return line; });
         }
 
-        void ShouldBeGreaterThan(T expected, std::function<char const* const()> customMessageMaker)
+        void ShouldBeGreaterThan(T expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual > expected))
                 ThrowAwesomelyVal<T>(actual, expected, customMessageMaker(), "greater than");
         }
 
-        void ShouldBeGreaterThan(T expected, char const* const customMessage)
+        void ShouldBeGreaterThan(T expected, char const* customMessage)
         {
-            ShouldBeGreaterThan(expected, [&]() -> char const* const { return customMessage; });
+            ShouldBeGreaterThan(expected, [&]() -> char const* { return customMessage; });
         }
 
         inline void ShouldBeGreaterThan(T expected)
         {
-            ShouldBeGreaterThan(expected, [&]() -> char const* const { return line; });
+            ShouldBeGreaterThan(expected, [&]() -> char const* { return line; });
         }
 
-        void ShouldBeLessThan(T expected, std::function<char const* const()> customMessageMaker)
+        void ShouldBeLessThan(T expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual < expected))
                 ThrowAwesomelyVal<T>(actual, expected, customMessageMaker(), "less than");
         }
 
-        void ShouldBeLessThan(T expected, char const* const customMessage)
+        void ShouldBeLessThan(T expected, char const* customMessage)
         {
-            ShouldBeLessThan(expected, [&]() -> char const* const { return customMessage; });
+            ShouldBeLessThan(expected, [&]() -> char const* { return customMessage; });
         }
 
         inline void ShouldBeLessThan(T expected)
         {
-            ShouldBeLessThan(expected, [&]() -> char const* const { return line; });
+            ShouldBeLessThan(expected, [&]() -> char const* { return line; });
         }
 
-        void ShouldBeGreaterThanOrEqualTo(T expected, std::function<char const* const()> customMessageMaker)
+        void ShouldBeGreaterThanOrEqualTo(T expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual >= expected))
                 ThrowAwesomelyVal<T>(actual, expected, customMessageMaker(), "greater than");
         }
 
-        void ShouldBeGreaterThanOrEqualTo(T expected, char const* const customMessage)
+        void ShouldBeGreaterThanOrEqualTo(T expected, char const* customMessage)
         {
-            ShouldBeGreaterThanOrEqualTo(expected, [&]() -> char const* const { return customMessage; });
+            ShouldBeGreaterThanOrEqualTo(expected, [&]() -> char const* { return customMessage; });
         }
 
         inline void ShouldBeGreaterThanOrEqualTo(T expected)
         {
-            ShouldBeGreaterThanOrEqualTo(expected, [&]() -> char const* const { return line; });
+            ShouldBeGreaterThanOrEqualTo(expected, [&]() -> char const* { return line; });
         }
 
-        void ShouldBeLessThanOrEqualTo(T expected, std::function<char const* const()> customMessageMaker)
+        void ShouldBeLessThanOrEqualTo(T expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual <= expected))
                 ThrowAwesomelyVal<T>(actual, expected, customMessageMaker(), "less than");
         }
 
-        void ShouldBeLessThanOrEqualTo(T expected, char const* const customMessage)
+        void ShouldBeLessThanOrEqualTo(T expected, char const* customMessage)
         {
-            ShouldBeLessThanOrEqualTo(expected, [&]() -> char const* const { return customMessage; });
+            ShouldBeLessThanOrEqualTo(expected, [&]() -> char const* { return customMessage; });
         }
 
         inline void ShouldBeLessThanOrEqualTo(T expected)
         {
-            ShouldBeLessThanOrEqualTo(expected, [&]() -> char const* const { return line; });
+            ShouldBeLessThanOrEqualTo(expected, [&]() -> char const* { return line; });
         }
 
-        void ShouldBeInRangeTo(T expected, std::function<char const* const()> customMessageMaker, T range)
+        void ShouldBeInRangeTo(T expected, std::function<char const*()> customMessageMaker, T range)
         {
             if (!(actual >= expected - range && actual <= expected + range))
                 ThrowAwesomelyVal<T>(actual, expected, customMessageMaker(), "range than");
         }
 
-        void ShouldBeInRangeTo(T expected, char const* const customMessage, T range)
+        void ShouldBeInRangeTo(T expected, char const* customMessage, T range)
         {
-            ShouldBeInRangeTo(expected, [&]() -> char const* const { return customMessage; }, range);
+            ShouldBeInRangeTo(expected, [&]() -> char const* { return customMessage; }, range);
         }
 
         inline void ShouldBeInRangeTo(T expected, T range)
         {
-            ShouldBeInRangeTo(expected, [&]() -> char const* const { return line; }, range);
+            ShouldBeInRangeTo(expected, [&]() -> char const* { return line; }, range);
         }
     };
 
@@ -302,34 +310,34 @@ namespace test
     struct ShouldlyRef
     {
         T const& actual;
-        char const* const line;
+        char const* line;
 
-        ShouldlyRef(T const& t, char const* const _line)
+        ShouldlyRef(T const& t, char const* _line)
             : actual(t)
             , line(_line)
         {
         }
 
-        void ShouldBe(T const& expected, std::function<char const* const()> customMessageMaker)
+        void ShouldBe(T const& expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual == expected))
                 ThrowAwesomelyRef<T>(actual, expected, customMessageMaker(), "equal");
         }
 
-        void ShouldBe(T const& expected, char const* const customMessage)
+        void ShouldBe(T const& expected, char const* customMessage)
         {
-            ShouldBe(expected, [&]() -> char const* const { return customMessage; });
+            ShouldBe(expected, [&]() -> char const* { return customMessage; });
         }
 
-        void ShouldNotBe(T const& expected, std::function<char const* const()> customMessageMaker)
+        void ShouldNotBe(T const& expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual != expected))
                 ThrowAwesomelyRef<T>(actual, expected, customMessageMaker(), "not equal");
         }
 
-        void ShouldNotBe(T const& expected, char const* const customMessage)
+        void ShouldNotBe(T const& expected, char const* customMessage)
         {
-            ShouldNotBe(expected, [&]() -> char const* const { return customMessage; });
+            ShouldNotBe(expected, [&]() -> char const* { return customMessage; });
         }
     };
 
@@ -337,44 +345,44 @@ namespace test
     struct ShouldlyStr
     {
         T const& actual;
-        char const* const line;
+        char const* line;
 
-        ShouldlyStr(T const& t, char const* const _line)
+        ShouldlyStr(T const& t, char const* _line)
             : actual(t)
             , line(_line)
         {
         }
 
-        void ShouldBe(T const& expected, std::function<char const* const()> customMessageMaker)
+        void ShouldBe(T const& expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual == expected))
                 ThrowAwesomelyStr<T>(actual, expected, customMessageMaker(), "equal");
         }
 
-        void ShouldBe(T const& expected, char const* const customMessage)
+        void ShouldBe(T const& expected, char const* customMessage)
         {
-            ShouldBe(expected, [&]() -> char const* const { return customMessage; });
+            ShouldBe(expected, [&]() -> char const* { return customMessage; });
         }
 
         void ShouldBe(T const& expected)
         {
-            ShouldBe(expected, [&]() -> char const* const { return line; });
+            ShouldBe(expected, [&]() -> char const* { return line; });
         }
 
-        void ShouldNotBe(T const& expected, std::function<char const* const()> customMessageMaker)
+        void ShouldNotBe(T const& expected, std::function<char const*()> customMessageMaker)
         {
             if (!(actual != expected))
                 ThrowAwesomelyStr<T>(actual, expected, customMessageMaker(), "not equal");
         }
 
-        void ShouldNotBe(T const& expected, char const* const customMessage)
+        void ShouldNotBe(T const& expected, char const* customMessage)
         {
-            ShouldNotBe(expected, [&]() -> char const* const { return customMessage; });
+            ShouldNotBe(expected, [&]() -> char const* { return customMessage; });
         }
 
         void ShouldNotBe(T const& expected)
         {
-            ShouldNotBe(expected, [&]() -> char const* const { return line; });
+            ShouldNotBe(expected, [&]() -> char const* { return line; });
         }
     };
 
@@ -382,44 +390,44 @@ namespace test
     struct ShouldlyPtr
     {
         T const* const actual;
-        char const* const line;
+        char const* line;
 
-        ShouldlyPtr(T const* const t, char const* const _line)
+        ShouldlyPtr(T const* const t, char const* _line)
             : actual(t)
             , line(_line)
         {
         }
 
-        void ShouldBeNull(std::function<char const* const()> customMessageMaker)
+        void ShouldBeNull(std::function<char const*()> customMessageMaker)
         {
             if (!(actual == nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "equal");
         }
 
-        void ShouldBeNull(char const* const customMessage)
+        void ShouldBeNull(char const* customMessage)
         {
-            ShouldBeNull([&]() -> char const* const { return customMessage; });
+            ShouldBeNull([&]() -> char const* { return customMessage; });
         }
 
         void ShouldBeNull()
         {
-            ShouldBeNull([&]() -> char const* const { return line; });
+            ShouldBeNull([&]() -> char const* { return line; });
         }
 
-        void ShouldNotBeNull(std::function<char const* const()> customMessageMaker)
+        void ShouldNotBeNull(std::function<char const*()> customMessageMaker)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
         }
 
-        void ShouldNotBeNull(char const* const customMessage)
+        void ShouldNotBeNull(char const* customMessage)
         {
-            ShouldNotBeNull([&]() -> char const* const { return customMessage; });
+            ShouldNotBeNull([&]() -> char const* { return customMessage; });
         }
 
         void ShouldNotBeNull()
         {
-            ShouldNotBeNull([&]() -> char const* const { return line; });
+            ShouldNotBeNull([&]() -> char const* { return line; });
         }
     };
 
@@ -428,66 +436,66 @@ namespace test
     {
         T const* const actual;
         size_t const len;
-        char const* const line;
+        char const* line;
 
-        ShouldlyAry(T const* const t, size_t const n, char const* const _line)
+        ShouldlyAry(T const* const t, size_t const n, char const* _line)
             : actual(t)
             , len(n)
             , line(_line)
         {
         }
 
-        void ShouldBeNull(std::function<char const* const()> customMessageMaker)
+        void ShouldBeNull(std::function<char const*()> customMessageMaker)
         {
             if (!(actual == nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "equal");
         }
 
-        void ShouldBeNull(char const* const customMessage)
+        void ShouldBeNull(char const* customMessage)
         {
-            ShouldBeNull([&]() -> char const* const { return customMessage; });
+            ShouldBeNull([&]() -> char const* { return customMessage; });
         }
 
         void ShouldBeNull()
         {
-            ShouldBeNull([&]() -> char const* const { return line; });
+            ShouldBeNull([&]() -> char const* { return line; });
         }
 
-        void ShouldNotBeNull(std::function<char const* const()> customMessageMaker)
+        void ShouldNotBeNull(std::function<char const*()> customMessageMaker)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
         }
 
-        void ShouldNotBeNull(char const* const customMessage)
+        void ShouldNotBeNull(char const* customMessage)
         {
-            ShouldNotBeNull([&]() -> char const* const { return customMessage; });
+            ShouldNotBeNull([&]() -> char const* { return customMessage; });
         }
 
         void ShouldNotBeNull()
         {
-            ShouldNotBeNull([&]() -> char const* const { return line; });
+            ShouldNotBeNull([&]() -> char const* { return line; });
         }
 
-        void ShouldBeNullOrEmpty(std::function<char const* const()> customMessageMaker)
+        void ShouldBeNullOrEmpty(std::function<char const*()> customMessageMaker)
         {
-            if (!(actual == nullptr))
-                ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "equal");
-            if (!(len == 0))
+            // "null OR empty": passes iff the pointer is null OR the length is zero.
+            // (The original required BOTH -- a bug the owner asked to correct here.)
+            if (!(actual == nullptr || len == 0))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)0, customMessageMaker(), "equal");
         }
 
-        void ShouldBeNullOrEmpty(char const* const customMessage)
+        void ShouldBeNullOrEmpty(char const* customMessage)
         {
-            ShouldBeNullOrEmpty([&]() -> char const* const { return customMessage; });
+            ShouldBeNullOrEmpty([&]() -> char const* { return customMessage; });
         }
 
         void ShouldBeNullOrEmpty()
         {
-            ShouldBeNullOrEmpty([&]() -> char const* const { return line; });
+            ShouldBeNullOrEmpty([&]() -> char const* { return line; });
         }
 
-        void ShouldNotBeNullOrEmpty(std::function<char const* const()> customMessageMaker)
+        void ShouldNotBeNullOrEmpty(std::function<char const*()> customMessageMaker)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
@@ -497,15 +505,15 @@ namespace test
 
         void ShouldNotBeNullOrEmpty()
         {
-            ShouldNotBeNullOrEmpty([&]() -> char const* const { return line; });
+            ShouldNotBeNullOrEmpty([&]() -> char const* { return line; });
         }
 
-        void ShouldNotBeNullOrEmpty(char const* const customMessage)
+        void ShouldNotBeNullOrEmpty(char const* customMessage)
         {
-            ShouldNotBeNullOrEmpty([&]() -> char const* const { return customMessage; });
+            ShouldNotBeNullOrEmpty([&]() -> char const* { return customMessage; });
         }
 
-        void ShouldNotBeNullOrEmptyOrBe(T const def, std::function<char const* const()> customMessageMaker)
+        void ShouldNotBeNullOrEmptyOrBe(T const def, std::function<char const*()> customMessageMaker)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
@@ -523,17 +531,17 @@ namespace test
             }
         }
 
-        void ShouldNotBeNullOrEmptyOrBe(T const def, char const* const customMessage)
+        void ShouldNotBeNullOrEmptyOrBe(T const def, char const* customMessage)
         {
-            ShouldNotBeNullOrEmptyOrBe(def, [&]() -> char const* const { return customMessage; });
+            ShouldNotBeNullOrEmptyOrBe(def, [&]() -> char const* { return customMessage; });
         }
 
         void ShouldNotBeNullOrEmptyOrBe(T const def)
         {
-            ShouldNotBeNullOrEmptyOrBe(def, [&]() -> char const* const { return line; });
+            ShouldNotBeNullOrEmptyOrBe(def, [&]() -> char const* { return line; });
         }
 
-        void ShouldNotBeNullOrEmptyButBe(T const def, std::function<char const* const()> customMessageMaker)
+        void ShouldNotBeNullOrEmptyButBe(T const def, std::function<char const*()> customMessageMaker)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
@@ -551,14 +559,14 @@ namespace test
             }
         }
 
-        void ShouldNotBeNullOrEmptyButBe(T const def, char const* const customMessage)
+        void ShouldNotBeNullOrEmptyButBe(T const def, char const* customMessage)
         {
-            ShouldNotBeNullOrEmptyButBe(def, [&]() -> char const* const { return customMessage; });
+            ShouldNotBeNullOrEmptyButBe(def, [&]() -> char const* { return customMessage; });
         }
 
         void ShouldNotBeNullOrEmptyButBe(T const def)
         {
-            ShouldNotBeNullOrEmptyButBe(def, [&]() -> char const* const { return line; });
+            ShouldNotBeNullOrEmptyButBe(def, [&]() -> char const* { return line; });
         }
 
         inline bool Diff(T value1, T value2, T const e = (T)1e-6, T regularize = 0, T diff = 0)
@@ -579,7 +587,7 @@ namespace test
             return false;
         }
 
-        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const def, std::function<char const* const()> customMessageMaker, T const e = (T)1, double regularize = 0, double diff = 0)
+        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const def, std::function<char const*()> customMessageMaker, T const e = (T)1, double regularize = 0, double diff = 0)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
@@ -594,7 +602,7 @@ namespace test
                     continue;
 
                 diff = -log10(std::abs(actual[i] / regularize - def / regularize));
-                if (fpclassify(diff) == FP_ZERO)
+                if (std::fpclassify(diff) == FP_ZERO)
                     complain = Diff(actual[i], def);
                 else if (!std::isnormal(diff))
                     continue;
@@ -610,17 +618,17 @@ namespace test
             }
         }
 
-        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const def, char const* const customMessage, T const e = (T)6)
+        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const def, char const* customMessage, T const e = (T)6)
         {
-            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* const { return customMessage; }, e);
+            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* { return customMessage; }, e);
         }
 
         void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const def, T const e = (T)6)
         {
-            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* const { return line; }, e);
+            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* { return line; }, e);
         }
 
-        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const* const def, std::function<char const* const()> customMessageMaker, T const e = (T)1, double regularize = 0, double diff = 0)
+        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const* const def, std::function<char const*()> customMessageMaker, T const e = (T)1, double regularize = 0, double diff = 0)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
@@ -635,7 +643,7 @@ namespace test
                     continue;
 
                 diff = -log10(std::abs(actual[i] / regularize - def[i] / regularize));
-                if (fpclassify(diff) == FP_ZERO)
+                if (std::fpclassify(diff) == FP_ZERO)
                     complain = Diff(actual[i], def[i]);
                 else if (!std::isnormal(diff))
                     continue;
@@ -652,17 +660,17 @@ namespace test
             }
         }
 
-        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const* const def, char const* const customMessage, T const e = (T)6)
+        void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const* const def, char const* customMessage, T const e = (T)6)
         {
-            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* const { return customMessage; }, e);
+            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* { return customMessage; }, e);
         }
 
         void ShouldNotBeNullOrEmptyButBeNearlyEqual(T const* const def, T const e = (T)6)
         {
-            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* const { return line; }, e);
+            ShouldNotBeNullOrEmptyButBeNearlyEqual(def, [&]() -> char const* { return line; }, e);
         }
 
-        void ShouldNotBeNullOrEmptyButMatchContents(T const* const comp, std::function<char const* const()> customMessageMaker)
+        void ShouldNotBeNullOrEmptyButMatchContents(T const* const comp, std::function<char const*()> customMessageMaker)
         {
             if (!(actual != nullptr))
                 ThrowAwesomelyVal((unsigned long long)actual, (unsigned long long)nullptr, customMessageMaker(), "not equal");
@@ -680,14 +688,14 @@ namespace test
             }
         }
 
-        void ShouldNotBeNullOrEmptyButMatchContents(T const* const comp, char const* const customMessage)
+        void ShouldNotBeNullOrEmptyButMatchContents(T const* const comp, char const* customMessage)
         {
-            ShouldNotBeNullOrEmptyButMatchContents(comp, [&]() -> char const* const { return customMessage; });
+            ShouldNotBeNullOrEmptyButMatchContents(comp, [&]() -> char const* { return customMessage; });
         }
 
         void ShouldNotBeNullOrEmptyButMatchContents(T const* const comp)
         {
-            ShouldNotBeNullOrEmptyButMatchContents(comp, [&]() -> char const* const { return line; });
+            ShouldNotBeNullOrEmptyButMatchContents(comp, [&]() -> char const* { return line; });
         }
     };
 
@@ -714,7 +722,7 @@ namespace test
     }
 
     template <typename T>
-    inline auto Array(T const* const t, size_t const n, char const* const line)
+    inline auto Array(T const* const t, size_t const n, char const* line)
     {
         return ShouldlyAry<T>(t, n, line);
     }

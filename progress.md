@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S006 (port Shouldly.h -> src/core/include/vaml/assert/Shouldly.h) [token: S006]
-- Next step to do     : S007 (Shouldly.h compiles under MSVC + Clang; assertion round-trip tests) [token: S007]
+- Last completed step : S007 (Shouldly.h compiles under MSVC + Clang; assertion round-trip tests) [token: S007]
+- Next step to do     : S008 (REFACTOR GATE(S0)) [token: S008]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -187,3 +187,40 @@
   ShouldlyIntegral/ShouldlyString/ShouldlyPointer/ShouldlyArray or pass a line explicitly.
   GOTCHA: on Windows, `cl` requires the VS dev shell (vcvars64.bat) — call it inside the same cmd that
   runs cl (a bare `cmd /c "... && cl"` does NOT persist the vcvars env across separate cmd invocations).
+- [x] S007 Shouldly.h compiles under MSVC + Clang; assertion round-trip tests — ✅
+  SURVIVOR: test/unit/shouldly_test.cpp (NEW — the compile-gate + round-trip test deliverable).
+  Includes <vaml/assert/Shouldly.h> + doctest (main/impl owned by smoke_test.cpp; DOCTEST_CONFIG_
+  IMPLEMENT_WITH_MAIN lives ONLY there to avoid duplicate-main at link). TEST STRUCTURE: a
+  thread-local capture-sink RAII helper `CaptureOn` (installs a collecting FailureSink via
+  failure_sink(), restores the prior sink on scope exit, clears the thread-local buffer) -> the
+  "round-trip" (predicate -> ReportFailure -> sink -> captured formatted message). 14 test cases:
+  (A) pass-vectors for Integral/String/Pointer/Array asserting NOTHING is captured; (B) fail-vectors
+  per predicate asserting the captured message carries the expected fragment (e.g. "should be equal",
+  "greater than", "range", "[i]" for elementwise); (C) Diff helper both directions on a double array;
+  (D) default-sink contract: with NO custom sink a failing predicate throws TestFailureException
+  (CHECK_THROWS_AS). Covered predicates: ShouldBe, ShouldNotBe, ShouldBeGreater/LessThan,
+  Greater/LessThanOrEqualTo, InRangeTo, BeNull, NotBeNull, BeNullOrEmpty, NotBeNullOrEmpty,
+  NotBeNullOrEmptyOrBe/ButBe/ButBeNearlyEqual(value+pointer)/ButMatchContents, Diff.
+  test/unit/CMakeLists.txt (MOD): added shouldly_test.cpp to vaml-core-tests sources (no new flags;
+  doctest already SYSTEM-excluded + -Wno-error=#warnings). build/verify_s007.cmd (NEW): clone of
+  verify_s005 — clean PATH -> vcvars64 -> cmake --preset msvc-debug -> build -> ctest.
+  HEADER FIXES (S007 DOES touch Shouldly.h — sanctioned plan-scoped portability+bug fixes, each the
+  "compile gate S006 deferred"): (1) BUG: ShouldBeNullOrEmpty required BOTH null AND len==0; intent
+  is "null OR empty" — collapsed the two sequential ifs to one `if (!(actual==nullptr || len==0))`.
+  (2) TestFailureException(const char*) relied on MSVC-only std::exception(char const*) ctor — now
+  stores std::string message_ + overrides what() (portable to libstdc++). (3) Remove meaningless
+  top-level const on `char const* const` RETURN types (Clang -Wignored-qualifiers). (4) Qualified
+  std::fpclassify + std::isnormal (MSVC leaked cmath names into global scope; libstdc++ does not);
+  FP_ZERO is a C MACRO (keep bare, not std::FP_ZERO — naive std:: prefix broke both compilers).
+  VERIFIED BOTH COMPILERS: msvc-debug (VS 2026) via verify_s007.cmd GREEN (1/1 ctest PASS, 15 test
+  cases listed = 14 Shouldly + smoke, all green); REAL LINUX clang-debug on Ubuntu VM via shared
+  folder /mnt/hgfs/VamlPOC (clang 21.1.8) GREEN (1/1 ctest PASS). No new product symbols; this test
+  file is permanent test infra (NOT a STUB / NOT MINIMAL REAL, recorded). Next = S008.
+  GOTCHA: cannot declare a zero-length array in standard C++ (`int x[0]` ill-formed) — use a non-null
+  pointer with len 0 to exercise the empty/len==0 path. GOTCHA: `ShouldBeNullOrEmpty` is "null OR
+  empty", NOT "null AND empty" — my first pass-case wrongly assumed AND; the OR semantics is the
+  correct original intent. GOTCHA: FP_ZERO is a preprocessor macro (math.h: `#define FP_ZERO 2`), NOT
+  a std:: member; `std::FP_ZERO` is ill-formed everywhere (both MSVC C2589 and Clang error) — only
+  fpclassify/isnormal take the std:: qualification. GOTCHA: MSVC accepted unqualified fpclassify/
+  isnormal (they leak into global scope), so /W4 /WX was blind to the non-portable call — the Linux
+  Clang lane is what surfaced it; keep the Clang lane authoritative for portability.

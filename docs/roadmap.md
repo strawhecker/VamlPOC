@@ -56,7 +56,7 @@
 - S004 dep:S003  CI matrices (.github/workflows): windows-msvc + ubuntu-clang, configure+build+ctest green. [DONE — .github/workflows/ci.yml: rolling windows-latest (VS 2026)/ubuntu-latest, reuses msvc-debug + clang-debug presets]
 - S005 dep:S003  Vendor doctest single-header into third_party; test target + smoke test (0-feature) passes. [DONE — third_party/doctest v2.4.11 single header; vaml-core-tests exec links vaml-core; smoke_test.cpp; CTest PASS on MSVC (VS 2026) + Clang (Ubuntu VM)]
 - S006 dep:S005  Port user Shouldly.h -> src/core/include/vaml/assert/Shouldly.h (namespace vaml::test): strip MSTest refs, __forceinline, Windows bits; pluggable failure sink (throw TestFailureException). All predicate names preserved. [DONE — S006 is a no-build-by-contract step; compile gate belongs to S007]
-- S007 dep:S006  Shouldly.h compiles under MSVC + Clang; assertion round-trip tests.
+- S007 dep:S006  Shouldly.h compiles under MSVC + Clang; assertion round-trip tests. [DONE — test/unit/shouldly_test.cpp exercises every predicate pass+fail; fixed ShouldBeNullOrEmpty to "null OR empty" bug; portability fixes in header (exception ctor, ignored-qualifiers, std::fpclassify/FP_ZERO/isnormal); verified MSVC + real Linux Clang, ctest green]
 - S008 dep:S004  REFACTOR GATE(S0): no dead code, headers internal-only, static-link default verified, clean PR.
 - S009 dep:S008  SURVIVOR block written to progress.md for Sprint 0.
 

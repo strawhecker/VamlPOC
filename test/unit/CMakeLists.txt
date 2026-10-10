@@ -8,6 +8,7 @@
 # infrastructure, not a STUB / MINIMAL REAL marker.
 add_executable(vaml-core-tests
     smoke_test.cpp
+    shouldly_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
