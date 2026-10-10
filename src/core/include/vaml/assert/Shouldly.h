@@ -12,8 +12,8 @@
 //   * Removed MSVC-only __forceinline / __inline hints (plain inline instead).
 //   * Removed dead/commented code (the commented-out Actual overloads, the unused DynString and
 //     is_str helpers, and AwesomelyException -- superseded by TestFailureException).
-//   * Kept the portable #pragma push_macro("max")/undef max guard (defends against the Windows
-//     `max` macro, byte-identical behavior on MSVC + Clang).
+//   * Avoids the Windows `max` macro portably via the parenthesized-call form `(std::max)`
+//     (no push_macro/undef guard needed; identical on MSVC + Clang).
 //
 // All predicate names are preserved (see the struct bodies below): ShouldBe, ShouldNotBe,
 // ShouldBeGreaterThan, ShouldBeLessThan, ShouldBeGreaterThanOrEqualTo,
@@ -36,9 +36,6 @@
 #include <sstream>
 #include <string>
 #include <type_traits>
-
-#pragma push_macro("max")
-#undef max
 
 namespace vaml
 {
@@ -566,7 +563,7 @@ namespace test
 
         inline bool Diff(T value1, T value2, T const e = (T)1e-6, T regularize = 0, T diff = 0)
         {
-            regularize = std::max(std::abs(value1), std::abs(value2));
+            regularize = (std::max)(std::abs(value1), std::abs(value2));
             if (regularize > 0)
             {
                 diff = std::abs(value1 - value2);
@@ -592,7 +589,7 @@ namespace test
             for (size_t i = 0; i < len; ++i)
             {
                 bool complain = false;
-                regularize = std::max(std::abs(actual[i]), std::abs(def));
+                regularize = (std::max)(std::abs(actual[i]), std::abs(def));
                 if (!regularize)
                     continue;
 
@@ -633,7 +630,7 @@ namespace test
             for (size_t i = 0; i < len; ++i)
             {
                 bool complain = false;
-                regularize = std::max(std::abs(actual[i]), std::abs(def[i]));
+                regularize = (std::max)(std::abs(actual[i]), std::abs(def[i]));
                 if (!regularize)
                     continue;
 
@@ -728,7 +725,5 @@ namespace test
 #define ShouldlyString(stuff) vaml::test::String(stuff, #stuff)
 #define ShouldlyPointer(stuff) vaml::test::Pointer(stuff, #stuff)
 #define ShouldlyArray(stuff, num) vaml::test::Array(stuff, num, #stuff)
-
-#pragma pop_macro("max")
 
 #endif // VAML_CORE_ASSERT_SHOULDLY_H
