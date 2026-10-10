@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S005 (vendor doctest + test harness) [token: S005]
-- Next step to do     : S006 (port Shouldly.h -> src/core/assert) [token: S006]
+- Last completed step : S006 (port Shouldly.h -> src/core/include/vaml/assert/Shouldly.h) [token: S006]
+- Next step to do     : S007 (Shouldly.h compiles under MSVC + Clang; assertion round-trip tests) [token: S007]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -159,3 +159,31 @@
   GOTCHA: build must be run from a clean PATH + vcvars64 (VS-bundled cmake/ninja); a stale
   msvc-debug cache created under a Cygwin PATH must be deleted before reconfigure (cygdrive path
   mismatch in CMakeCache.txt).
+- [x] S006 port user Shouldly.h -> src/core/include/vaml/assert/Shouldly.h (namespace vaml::test) — ✅
+  SURVIVOR: src/core/include/vaml/assert/Shouldly.h (NEW — header-only port of the user's
+  PiuGlobalsCpp::NsShouldly Shouldly file; the spec's "src/core/assert/Shouldly.h" lands at
+  src/core/include/vaml/assert/Shouldly.h to match the project's public-include convention).
+  Namespace vaml::test (NOT vaml::assert — `assert` is a function-like macro from <cassert>, so
+  `namespace assert {}` is ill-formed if <cassert> loads; `assert` as a dir name is fine).
+  STRIPPED: MSTest (Microsoft::...::Assert::Fail + wide-string AssertStdString path), Windows bits
+  (_wcsdup/wchar_t/free conversions + SHOULDLY_USES_AWESOMELY toggle -> failure now unconditional),
+  __forceinline/__inline hints (plain inline), dead/commented code (commented-out Actual overloads,
+  unused DynString + is_str helpers, AwesomelyException superseded). KEPT: portable
+  #pragma push_macro("max")/#undef max guard. ADDED (only API): TestFailureException : std::exception,
+  FailureSink, DefaultFailureSink (throw TestFailureException), failure_sink() (thread_local-static-
+  backed settable singleton ref), ReportFailure(string) -> routes to failure_sink()(). All predicate
+  names preserved: ShouldBe, ShouldNotBe, ShouldBeGreaterThan, ShouldBeLessThan,
+  ShouldBeGreaterThanOrEqualTo, ShouldBeLessThanOrEqualTo, ShouldBeInRangeTo, ShouldBeNull,
+  ShouldNotBeNull, ShouldBeNullOrEmpty, ShouldNotBeNullOrEmpty, ShouldNotBeNullOrEmptyOrBe,
+  ShouldNotBeNullOrEmptyButBe, ShouldNotBeNullOrEmptyButBeNearlyEqual, ShouldNotBeNullOrEmptyButMatchContents
+  + Diff; factories Integral/String/Pointer/Array + macros ShouldlyIntegral/ShouldlyString/
+  ShouldlyPointer/ShouldlyArray (retargeted to vaml::test). No CMake change (header lands in existing
+  public include root already on vaml-core-tests' include path; header-only -> nothing links).
+  S006 is a NO-BUILD-BY-CONTRACT step (compile gate belongs to S007); still SILENT-COMPILE-CHECKED on
+  MSVC (VS 2026 cl 19.51, /W4 /permissive- /EHsc /WX /std:c++20, throwaway TU incl. failing-predicate
+  throw path + custom-sink path) -> W4/WX clean; throwaway files deleted. Next = S007.
+  GOTCHA: the Shouldly factory helper functions REQUIRE the `line` argument (the *_macros supply it via
+  `#stuff`); calling Integral/String/Pointer/Array directly without a line fails to overload — use
+  ShouldlyIntegral/ShouldlyString/ShouldlyPointer/ShouldlyArray or pass a line explicitly.
+  GOTCHA: on Windows, `cl` requires the VS dev shell (vcvars64.bat) — call it inside the same cmd that
+  runs cl (a bare `cmd /c "... && cl"` does NOT persist the vcvars env across separate cmd invocations).
