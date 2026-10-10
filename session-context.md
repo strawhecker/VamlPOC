@@ -1,47 +1,40 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit (S004)
-- plan_digest     : S004 — CI matrices (.github/workflows): single ci.yml, two live jobs
-                    (windows-msvc -> msvc-debug, ubuntu-clang -> clang-debug), rolling -latest
-                    runners (windows-latest = VS 2026 cl.exe = local dev), reusing S002/S003
-                    presets verbatim, configure+build+ctest green. No windows-clang lane in any
-                    form. Non-goals: no artifacts/coverage/packaging.
+- last_command    : implementit (S005)
+- plan_digest     : S005 — vendor doctest single-header into third_party (v2.4.11, verbatim);
+                    test target vaml-core-tests links vaml-core + doctest smoke test (0-feature);
+                    CTest PASS on both MSVC (VS 2026) and Clang (Ubuntu VM). No product symbols.
 - files_touched   :
-    CREATED  .github/workflows/ci.yml   (sole deliverable of S004)
-    MODIFIED docs/roadmap.md   (S004 line marked [DONE] + CI detail)
-    MODIFIED progress.md       (CHECKPOINT S003->S004 + STEP LOG entry)
+    CREATED  third_party/doctest/doctest.h   (doctest v2.4.11 single header, vendored verbatim)
+    CREATED  test/CMakeLists.txt             (add_subdirectory(unit))
+    CREATED  test/unit/CMakeLists.txt        (vaml-core-tests exec; SYSTEM third_party; /external:W0 /
+                                              -Wno-error=#warnings for vendored headers; add_test)
+    CREATED  test/unit/smoke_test.cpp        (DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN; TEST_CASE("smoke")
+                                              3 CHECKs incl. vaml::version().major==0)
+    CREATED  build/verify_s005.cmd           (PATH reset + vcvars64 + msvc-debug configure/build/ctest)
+    CREATED  build/verify_s005_shared.cmd    (PATH reset + msvc-debug-shared configure regression)
+    MODIFIED CMakeLists.txt                  (enable_testing() + add_subdirectory(test))
+    MODIFIED docs/roadmap.md                 (S005 line marked [DONE])
+    MODIFIED progress.md                     (CHECKPOINT S004->S005 + STEP LOG S005 survivor)
     MODIFIED session-context.md (this file)
-- build_status    : No build-system/feature code changed in S004 (YAML-only + md tracking). MSVC
-                    lane (preset msvc-debug) re-validated locally green — any preset-name typo in
-                    the workflow is caught pre-push. Ubuntu lane = no-build-on-host; acceptance is
-                    GH Actions on push/PR (free for public repos). CI green is the acceptance test.
-- next_step       : S005 (vendor doctest single-header + test harness + smoke test)
+- build_status    : GREEN BOTH COMPILERS. msvc-debug (VS 2026 cl 19.51) configure+build+ctest:
+                    vaml-core/vulkan/tools libs + vaml-core-tests.exe build warnings-/WX-clean;
+                    CTest 1/1 PASS (doctest 2.4.11, 3/3 assertions). msvc-debug-shared configures
+                    (no S003 regression). clang-debug REAL LINUX (Ubuntu VM, clang 21.1.8, cmake
+                    4.2.3 via /mnt/hgfs/VamlPOC shared folder): configure+build+ctest green, 1/1 PASS.
+- next_step       : S006 (port Shouldly.h -> src/core/assert/Shouldly.h on the doctest harness)
 - notes           :
-    - No git commands, no commits, no new non-plan md files (per protocol).
-    - Workflow presets cross-checked against cmake/presets/{configure,build,test}.json: msvc-debug
-      and clang-debug are named identically across all three JSON files (required — CI calls only
-      --preset <name>, never CMake directly).
-    - MSVC lane needs cl.exe on PATH -> microsoft/setup-msbuild must precede cmake --preset;
-      base.json sets Ninja generator -> choco install ninja -y precedes configure.
-    - Rolling -latest, no pinned labels: keeps MSVC lane on same VS as local dev and follows future
-      migrations (explicitly decided; windows-2022/vs2026 pins rejected).
-    - NO windows-clang lane in the workflow (toolchain seed stays unbuilt in cmake/toolchains/);
-      no dead/commented lanes per the workflow's header comment.
-    - GUARD RAILS unchanged (MINIMAL REAL, NO-GAP, NO LAZY LLM) — still active: vulkan -> S161, tools -> S287.
-    - LOCAL VERIFICATION: drove the real msvc-debug preset via build/verify_s004.cmd (create -> VS
-      dev shell -> cmake --preset/build/test) — configure + build green; ctest reports no tests yet
-      (doctest harness is S005); ctest returns exit 0 for zero matches so the CI lane stays green.
-    - UBUNTU LANE VERIFIED ON REAL LINUX (new): reached the Ubuntu VM over SSH
-      (ssh -i E:\GitRepos\VamlPOC\vaml_ci_key robert@192.168.198.129, VMware NAT subnet 192.168.198.0/24,
-      hostname vaml, Ubuntu 26.04 resolute, x86_64, 2 CPU / 3.3G RAM). Installed clang 21.1.8,
-      ninja 1.13.2, cmake 4.2.3, build-essential, git (sudo via robert; PASSWORDSHARED-NOTSTORED).
-      Cloned public origin https://github.com/strawhecker/VamlPOC.git at S004 (e6d689e). Ran the real
-      ubuntu-clang lane: cmake --preset clang-debug -> build -> test. CONFIGURE green (Clang 21.1.8,
-      Ninja -> build/clang-debug). BUILD green: [1-6/6] compiled+linked vaml-core/vaml-tools/vaml-vulkan
-      static libs, ZERO warnings/errors. ctest: no tests yet (S005), exit 0 -> lane green. Generated
-      export.h present in each lib's public include tree. -> ubuntu-clang lane is no longer
-      no-build-on-host; it is verified pre-push, GH Actions remains the authority.
-    - SSH ACCESS MODEL: keypair at E:\GitRepos\VamlPOC\vaml_ci_key (PRIVATE stays on Windows, never
-      transferred) / vaml_ci_key.pub (PUBLIC, in VM ~/.ssh/authorized_keys). VM user robert. Password
-      used for sudo-gated installs only; do not log it. VM reachable on home LAN via 192.168.198.129;
-      Tailscale exists on Windows (100.114.10.67) for traveling VPN later.
+    - doctest pinned http://raw.githubusercontent.com/doctest/doctest/v2.4.11/doctest/doctest.h;
+      SHA-256 44FAA038E9C3F9728EFBDA143748D01124EA0A27F4BF78F35A15D8FAB2E039FB recorded in progress.md.
+    - Vendored/3rd-party headers must be excluded from the strict /WX bar on BOTH compilers:
+      MSVC -> third_party as SYSTEM include + /external:W0 (doctest C5285 std::tuple false-positive);
+      Clang -> -isystem silences normal system-header warnings but `#warning` is ALWAYS reported, so
+      add -Wno-error=#warnings (doctest includes <ciso646> carrying a benign C++20 `#warning`).
+    - CMake arg containing `#` must be QUOTED ("-Wno-error=#warnings") or CMake treats it as a comment
+      -> "Function missing ending )" parse error.
+    - Build must run from a clean PATH + vcvars64 so VS-bundled cmake/ninja win over the Cygwin PATH;
+      a stale msvc-debug CMakeCache created under a Cygwin PATH must be deleted before reconfigure.
+    - SSH key is at C:\Users\straw\.ssh\vaml_ci_key (NOT E:\GitRepos\VamlPOC\vaml_ci_key as a stale
+      S004 note said). Shared-folder path on VM is /mnt/hgfs/VamlPOC (live mirror of E:\GitRepos\VamlPOC).
+    - No git commands, no commits, no new non-plan/operational md files (per protocol). This step
+      introduced no STUB / MINIMAL REAL marker (doctest = permanent test infra, 0 product symbols).

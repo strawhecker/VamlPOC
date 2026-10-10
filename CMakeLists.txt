@@ -50,6 +50,14 @@ include(cmake/artifact-model.cmake)
 add_subdirectory(src)
 vaml_validate_layer_rules()
 
+# ============================================================================
+# Tests (S005)
+# enable_testing() makes `ctest --preset <x>` meaningful (test discovery +
+# run under CTest). The test subtree contributes no symbols to any VAML library.
+# ============================================================================
+enable_testing()
+add_subdirectory(test)
+
 # The POC application is a separate tree (VamlPOC/) with its own VS project;
 # wiring it into CMake arrives with S003/S004. At S001 we intentionally do NOT
 # add_subdirectory(VamlPOC) — keep S001 = language + policy + library baseline.

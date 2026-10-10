@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S004 (CI matrices) [token: S004]
-- Next step to do     : S005 (vendor doctest + test harness) [token: S005]
+- Last completed step : S005 (vendor doctest + test harness) [token: S005]
+- Next step to do     : S006 (port Shouldly.h -> src/core/assert) [token: S006]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -129,3 +129,33 @@
   (checked: msvc-debug + clang-debug are consistent). GOTCHA: MSVC lane needs the VS dev shell env
   (cl.exe), so setup-msbuild MUST precede cmake --preset; base.json sets Ninja generator so Ninja
   must be installed (choco) before configure.
+- [x] S005 vendor doctest + test harness + 0-feature smoke test — ✅
+  SURVIVOR: third_party/doctest/doctest.h (NEW — official doctest SINGLE HEADER, pinned v2.4.11,
+  vendored VERBATIM, no upstream edits; SHA-256
+  44FAA038E9C3F9728EFBDA143748D01124EA0A27F4BF78F35A15D8FAB2E039FB — regenerate from the
+  https://raw.githubusercontent.com/doctest/doctest/v2.4.11/doctest/doctest.h tag, never hand-edit).
+  test/CMakeLists.txt + test/unit/CMakeLists.txt (+NEW): single EXECUTABLE vaml-core-tests
+  from smoke_test.cpp, links vaml-core (proves consumer-link), vaml_apply_compiler_policy(),
+  registered via add_test(NAME vaml-core-tests). test/unit/smoke_test.cpp (NEW):
+  DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN + TEST_CASE("smoke") with 3 CHECKs (true, version().major==0,
+  engine_name()) — exercises doctest + the vaml-core version symbol; 0-feature by design.
+  Top-level CMakeLists.txt (MOD): enable_testing() + add_subdirectory(test) after
+  vaml_validate_layer_rules(); test subtree contributes no library symbols. verify_s005.cmd +
+  verify_s005_shared.cmd (NEW in build/, mirror S004 pattern; resets PATH so VS-bundled cmake/ninja
+  win over Cygwin PATH). VERIFIED BOTH COMPILERS: msvc-debug (VS 2026) configure+build+ctest green
+  (1/1 PASS, doctest 2.4.11, 3/3 assertions), and REAL LINUX clang-debug on the Ubuntu VM
+  (clang 21.1.8, cmake 4.2.3) via shared folder /mnt/hgfs/VamlPOC green (1/1 PASS). msvc-debug-shared
+  still configures (no S003 regression). NOT a STUB / NOT MINIMAL REAL: doctest is permanent test
+  infra, 0 product symbols introduced, so no sentinel + no resolution token (recorded here so it is
+  not mistaken for a silent backfill). Per-case discovery via doctest_discover_tests deferred as a
+  documented follow-up, not a silent omission. Next = S006.
+  GOTCHA: vendored/3rd-party headers must be EXCLUDED from the strict /WX bar on both compilers.
+  MSVC: mark third_party SYSTEM + /external:W0 (doctest triggers benign C5285 std::tuple
+  specialization false-positive on new MSVC). Clang: -isystem already silences normal warnings but
+  `#warning` directives are ALWAYS reported — upstream doctest includes compiler <ciso646> (carries
+  a benign C++20 `#warning`; doctest uses it only for libc++ detection, we use libstdc++) so add
+  -Wno-error=#warnings to the test target. GOTCHA: in CMakeLists, quote CMake arguments containing
+  `#` (`"-Wno-error=#warnings"`) or CMake parses them as comments → "Function missing ending )".
+  GOTCHA: build must be run from a clean PATH + vcvars64 (VS-bundled cmake/ninja); a stale
+  msvc-debug cache created under a Cygwin PATH must be deleted before reconfigure (cygdrive path
+  mismatch in CMakeCache.txt).
