@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S008 (REFACTOR GATE(S0)) [token: S008]
-- Next step to do     : S009 [token: S009]
+- Last completed step : S009 (SURVIVOR block for Sprint 0) [token: S009]
+- Next step to do     : S030 [token: S030]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -54,6 +54,34 @@
 - Build system: NOT started (S001 is the first code step).
 - Property system, parser, Vulkan, binding, etc.: NOT started. See ROADMAP.md for the full S000–S999
   tokenized step list. The "no-stub" rule means a step is only ✅ when its behavior is real and tested.
+
+---
+
+---
+
+## SPRINT 0 — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S009 wrap)
+- **Goal met (S000–S008): green skeleton, zero feature code.** Repo, toolchain, CI, and test
+  harness are real and verified; no product feature (property system, parser, renderer, etc.) is
+  started. All Sprint-0 gates are ✅.
+- **Artifacts / libraries:** three STATIC libs — `vaml-core`, `vaml-vulkan`, `vaml-tools`
+  (`VAML_BUILD_SHARED` default OFF; shared path proven but not the default). Artifact model +
+  ADR-011 layer rule enforced in `cmake/artifact-model.cmake` (`vaml_add_library`, generate_export_header,
+  `VAML_LAYER`, `vaml_validate_layer_rules`). Include-surface convention: internal impl headers under
+  `src/<lib>/src`, ONLY public API under `src/<lib>/include/vaml/<lib>`.
+- **Test harness:** vendored doctest single-header (v2.4.11) + ported `Shouldly.h`
+  (`vaml::test` facade) with pluggable failure sink. `vaml-core-tests` EXECUTABLE =
+  `smoke_test.cpp` + `shouldly_test.cpp`; `ctest` green 1/1.
+- **Build lanes (both verified live):** MSVC VS 2026 (`msvc-debug` / `msvc-debug-shared`,
+  warnings-as-errors ON) and real Ubuntu VM Clang 21.1.8 (`clang-debug`) via shared folder
+  `/mnt/hgfs/VamlPOC` (cmake 4.2.3, ninja). Presets: `cmake/presets/{base,configure,build,test}.json`
+  nested include chain; toolchains under `cmake/toolchains/`. MSVC lane driven via `build/verify_s*.cmd`
+  (clean PATH + vcvars64). CI: `.github/workflows/ci.yml` (windows-msvc + ubuntu-clang).
+- **MINIMAL REAL seeds carried forward UNRESOLVED (never backfilled in S0):**
+  `vaml-vulkan` version marker → **S161**; `vaml-tools` version marker → **S287**. No other
+  MINIMAL REAL active. Both carry searchable sentinel comments.
+- **Invariants intact:** [ADR-001..012], layer-rule (core has NO Vulkan/GLFW deps), no-managed,
+  no-stub, NO-GAP GUARANTEE, NO LAZY LLM SYNDROME.
+- **Next = S030** (Sprint 1, Property system core — first token of the real feature work).
 
 ---
 
@@ -244,3 +272,12 @@
   GOTCHA: drive the MSVC lane through build/verify_s*.cmd (clean PATH + vcvars64 -> VS-bundled
   cmake/ninja win over any Cygwin PATH); a stale msvc-debug CMakeCache containing a /cygdrive path
   must be wiped before reconfigure.
+- [x] S009 SURVIVOR wrap (Sprint 0) — ✅
+  SURVIVOR: this step is documentation-only (no build, per plan). Added the consolidated
+  `## SPRINT 0 — SURVIVOR` block above (distills S000–S008 into the surviving-state picture a fresh
+  LLM resumes from: green skeleton, 3 STATIC libs, ADR-011 artifact model, vendored doctest+vaml::test
+  harness, MSVC+Linux Clang lanes both verified, MINIMAL REAL vulkan→S161 + tools→S287 unresolved,
+  invariants intact). Regenerated `## CHECKPOINT` (last completed = S009; next = S030; PENDING none).
+  Marked roadmap S009 `[DONE]`. No new md files (directive); no MINIMAL REAL introduced or resolved;
+  NO-GAP GUARANTEE remains satisfied (both active seeds still carry explicit resolution tokens).
+  Next = S030.

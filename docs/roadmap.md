@@ -58,7 +58,7 @@
 - S006 dep:S005  Port user Shouldly.h -> src/core/include/vaml/assert/Shouldly.h (namespace vaml::test): strip MSTest refs, __forceinline, Windows bits; pluggable failure sink (throw TestFailureException). All predicate names preserved. [DONE — S006 is a no-build-by-contract step; compile gate belongs to S007]
 - S007 dep:S006  Shouldly.h compiles under MSVC + Clang; assertion round-trip tests. [DONE — test/unit/shouldly_test.cpp exercises every predicate pass+fail; fixed ShouldBeNullOrEmpty to "null OR empty" bug; portability fixes in header (exception ctor, ignored-qualifiers, std::fpclassify/FP_ZERO/isnormal); verified MSVC + real Linux Clang, ctest green]
 - S008 dep:S004  REFACTOR GATE(S0): no dead code, headers internal-only, static-link default verified, clean PR. [DONE — removed superseded build/verify_msvc.cmd; added include-surface convention + static-model STATUS log to cmake/artifact-model.cmake; MSVC + Linux Clang build + ctest green]
-- S009 dep:S008  SURVIVOR block written to progress.md for Sprint 0.
+- S009 dep:S008  SURVIVOR block written to progress.md for Sprint 0. [DONE — consolidated SPRINT 0 SURVIVOR block + regenerated checkpoint (next = S030); docs-only, no build]
 
 ---
 ## Sprint 1 — Property system core  (goal: full DP semantics; the heart)  [token S030+]
