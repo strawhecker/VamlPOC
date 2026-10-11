@@ -1,8 +1,7 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
 - last_command    : commitit S009 (commit with plan — verbatim plan text as commit message)
-- last_commit     : will be updated post-push below (S007/S008/S009 all being committed together)
-- plan_repo_state : S009 implementit complete — awaiting commit+push (this commit).
+- plan_repo_state : S009 implementit complete — awaited commit+push; now committed + pushed (034fa2f, origin/main).
 - plan_digest     : S009 — SURVIVOR block for Sprint 0 (docs-only, no build, per plan).
                     - Added consolidated `## SPRINT 0 — SURVIVOR` block to progress.md (distills
                       S000–S008 into one surviving-state picture: green skeleton, 3 STATIC libs
