@@ -11,7 +11,8 @@ render; consumer-driven static-or-shared distribution for IP-hiding; no C#/manag
 Non-goals (POC): accessibility, i18n, GPU-driven advanced batching, huge control set, XAML binary compat.
 
 ## 2. Repo layout (see also the POC structure dictated by the user)
-- docs/        — ROADMAP.md (S000–S999), adr/, design/, architecture seed (this file).
+- docs/        — ROADMAP.md (S000–S999), adr/, design/, architecture seed (this file),
+                 guide/ (commercial user guide: authoring a VAML app in C++, Sprint 18, S940–S953).
 - src/         — the reusable C++ framework + tools (the IP); subfolders split libs/tools.
   - core/      — vaml-core: property, markup, layout, scene, binding, style, controls, assert (no Vulkan).
   - vulkan/    — vaml-vulkan: window, swapchain, renderer backend (only layer touching Vulkan/GLFW).

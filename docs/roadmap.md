@@ -318,10 +318,45 @@
 - S927 dep:S926  Post-1.0 roadmap drafted (advanced controls, GPU compute, etc.).
 - S928 dep:S927  Documentation site skeleton (from docs/).
 - S929 dep:S928  Community/contribution guide.
-- S930 dep:S929  Roadmap v1.1 planning; reserve S931–S999 for post-release work.
+- S930 dep:S929  Roadmap v1.1 planning; guide sprint is Sprint 18 (S940+); reserve S990–S999 for post-release work.
 
 ---
-## Reserved / tail (S931–S999)
+## Sprint 18 — Commercial user guide: authoring a VAML app in C++ (goal: v1.0 commercial guide covering ONLY the C#→C++ application gap)  [token S940+]
+- S940 dep:S930  Guide charter + outline + audience + style guide; docs/guide/README.md.
+      Rules: every chapter declares its evidence source = an exact ROADMAP token; no chapter cites an
+      unimplemented API (NO-LAZY-LLM gate).
+- S941 dep:S940  Ch.1 Hello VAML (01-hello-vaml.md): bootstrap a consumer app from scratch (CMake +
+      preset, link vaml-core/vulkan, static vs shared). C# analog: "New WPF project". Full compilable TU.
+- S942 dep:S941  Ch.2 Markup (02-markup.md): the exact VAML dialect an author writes — elements, properties,
+      attached props, resources, styles, templates, x:Name/x:Class, {Binding}/{StaticResource}. Snippets must
+      pass vamlcc.
+- S943 dep:S942  Ch.3 MVVM core in C++ — THE HEART OF THE GAP (03-mvvm-core.md): ObservableObject::Set +
+      PropertyChanged vs INotifyPropertyChanged; RelayCommand CanExecute/Changed vs ICommand; header/cpp
+      split; value vs reference semantics; ownership (unique_ptr/shared_ptr/raw) vs GC at DI seams; move-only
+      discipline. Gate: every class snippet is a full TU compiled in CI.
+- S944 dep:S943  Ch.4 Bindings & commands (04-bindings-commands.md): PropertyPath syntax, one/one-time/two-way,
+      C++ converter vs IValueConverter, fallback, two-way TextBox→VM, detach/lifetime.
+- S945 dep:S944  Ch.5 Events & input (05-events-input.md): Click="OnClick" wiring + handler declaration on the
+      x:Class owner, routed/bubbling-tunnel/handled, focus/keyboard, async continuation vs async/await (Task/Executor).
+- S946 dep:S945  Ch.6 Layout, styles, templates, controls (06-layout-styles-controls.md): shipped control set,
+      styling, ControlTemplate authored in VAML.
+- S947 dep:S946  Ch.7 Compiled path & release (07-compiled-vbaml-release.md): vamlcc in CMake, InitializeComponent
+      analog, dual path, static vs shared, single-exe shipping.
+- S948 dep:S947  Ch.8 Threading model (08-threading.md): render thread vs UI thread, marshalling, thread-affinity,
+      and why lifetime/ownership differs from C#.
+- S949 dep:S948  Ch.9 Full worked example (09-worked-example.md): the POC/sample app (mirrors S440–445) as a
+      walkthrough, C# sketch vs VAML C++ side-by-side per section.
+- S950 dep:S949  Appendices (appendix-a-glossary.md, appendix-b-cheatsheet.md): C#/XAML term → VAML C++ term
+      mapping table + one-page quick reference.
+- S951 dep:S950  GUIDE GATE: doc→CI job extracts every code block, compiles+runs it, resolves every API reference
+      against a real public header symbol; zero snippets using unimplemented features.
+- S952 dep:S951  Ship: mount guide into S928 docs-site skeleton, version-tag with v1.0, index from S923 tutorial docs.
+- S953 dep:S952  REFACTOR GATE(S18): docs-only sprint — no dead code; guide build green both platforms; link-check
+      green. SURVIVOR + close-out.
+- S954–S989  Reserved for guide v2 / extra appendix material.
+
+---
+## Reserved / tail (S990–S999)
 - Reserved tokens for post-1.0 discoveries and next-plan increments. Append new steps here in
   dependency order as work is scoped; never hand-edit the checkpoint in progress.md.
 

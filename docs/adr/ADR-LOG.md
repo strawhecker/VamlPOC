@@ -98,4 +98,17 @@
 - Consequences: Renderer must meet R1–R9; ceremony contained in RAII (S168); validation gates (S214/S726);
   Sprint 14 delivers the full GPU-driven form. Added to the design/ADR cross-reference set.
 
+## ADR-013 — User guide: `docs/guide/` is the commercial user guide (C#→VAML C++ application gap), authored
+##         as a "For Dummies"-style hand-holding reference, tracked under Sprint 18 (S940–S953)
+- Status: ACCEPTED (planning)
+- Context: The open doc gap is the application-tier C++ that replaces C#/WPF/MVVM code — not C++ and not
+  general VAML/XAML, both of which have ample materials. The project's own guard rails (evidence-not-spec,
+  S480/S448) require the guide to cite exact roadmap tokens and never document unimplemented API.
+- Decision: Author `docs/guide/*.md` (README front-matter + Parts I–V chapters + appendices) faithful to the
+  "For Dummies" series conventions. Deletes/adds of guide files are frozen after Sprint 18 scaffold (the
+  "no new md files" budget); future work edits in place. The guide CI gate is S951 (compile every snippet),
+  ship/index S952, refactor gate + close-out S953.
+- Consequences: Guide naming/prose follows the Dummies shape; every evidence token must resolve to a real
+  roadmap step or a stabilized public-facade symbol (S920/S921); content is filled as the API stabilizes.
+
 ## END OF ADR LOG (seed)
