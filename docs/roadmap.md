@@ -50,14 +50,14 @@
 ---
 ## Sprint 0 — Repo, toolchain, CI, test harness   (goal: green skeleton, no feature code)
 - S000 dep:-  Repo skeleton + tracking files (progress.md, ROADMAP.md, ADR seeds, architecture.md). [DONE]
-- S001 dep:S000  Top-level CMake (project(VAML), C++ latest, /EHsc /permissive- MSVC, -Wall -Wextra -Wpedantic Clang, Werror on). [DONE — verified MSVC 19.51 via build/verify_msvc.cmd]
+- S001 dep:S000  Top-level CMake (project(VAML), C++ latest, /EHsc /permissive- MSVC, -Wall -Wextra -Wpedantic Clang, Werror on). [DONE — verified MSVC 19.51 via preset-driven verify scripts (S008 removed the superseded build/verify_msvc.cmd)]
 - S002 dep:S001  cmake/ compiler presets + toolchain files (MSVC VS 2026, Linux Clang).
 - S003 dep:S002  Static-library artifact model: VAML_BUILD_SHARED (default OFF); vaml-core, vaml-vulkan, vaml-tools targets. [MINIMAL REAL: vulkan→S161, tools→S287]
 - S004 dep:S003  CI matrices (.github/workflows): windows-msvc + ubuntu-clang, configure+build+ctest green. [DONE — .github/workflows/ci.yml: rolling windows-latest (VS 2026)/ubuntu-latest, reuses msvc-debug + clang-debug presets]
 - S005 dep:S003  Vendor doctest single-header into third_party; test target + smoke test (0-feature) passes. [DONE — third_party/doctest v2.4.11 single header; vaml-core-tests exec links vaml-core; smoke_test.cpp; CTest PASS on MSVC (VS 2026) + Clang (Ubuntu VM)]
 - S006 dep:S005  Port user Shouldly.h -> src/core/include/vaml/assert/Shouldly.h (namespace vaml::test): strip MSTest refs, __forceinline, Windows bits; pluggable failure sink (throw TestFailureException). All predicate names preserved. [DONE — S006 is a no-build-by-contract step; compile gate belongs to S007]
 - S007 dep:S006  Shouldly.h compiles under MSVC + Clang; assertion round-trip tests. [DONE — test/unit/shouldly_test.cpp exercises every predicate pass+fail; fixed ShouldBeNullOrEmpty to "null OR empty" bug; portability fixes in header (exception ctor, ignored-qualifiers, std::fpclassify/FP_ZERO/isnormal); verified MSVC + real Linux Clang, ctest green]
-- S008 dep:S004  REFACTOR GATE(S0): no dead code, headers internal-only, static-link default verified, clean PR.
+- S008 dep:S004  REFACTOR GATE(S0): no dead code, headers internal-only, static-link default verified, clean PR. [DONE — removed superseded build/verify_msvc.cmd; added include-surface convention + static-model STATUS log to cmake/artifact-model.cmake; MSVC + Linux Clang build + ctest green]
 - S009 dep:S008  SURVIVOR block written to progress.md for Sprint 0.
 
 ---

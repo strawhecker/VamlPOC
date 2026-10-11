@@ -18,6 +18,19 @@ include(GenerateExportHeader)
 # vaml_add_library() (core, vulkan, tools) to a shared library in one move.
 option(VAML_BUILD_SHARED "Build VAML libraries as SHARED (dll/so); default OFF = static libs" OFF)
 
+# Resolve the effective artifact model once and log it (S008 gate: makes the
+# static-by-default provable from configure output, no hard failure).
+if(VAML_BUILD_SHARED)
+    set(VAML_ARTIFACT_MODEL "SHARED")
+else()
+    set(VAML_ARTIFACT_MODEL "STATIC")
+endif()
+message(STATUS "VAML artifact model: ${VAML_ARTIFACT_MODEL} (default: static per ADR-003)")
+
+# Include-surface convention (S008 gate): internal implementation headers live
+# under src/<lib>/src; ONLY the public API lives under src/<lib>/include/vaml/<lib>.
+# No internal header may be placed in a public include root. See docs/roadmap.md.
+
 # Map a target name to its canonical output name (vaml-core, vaml-vulkan, ...).
 function(vaml_artifact_output_name target_name out_var)
     set(${out_var} "vaml-${target_name}" PARENT_SCOPE)

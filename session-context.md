@@ -1,37 +1,39 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S007 (no commits; no new md files)
-- last_commit     : e761716 on main (S006 era). S007 not committed (no-commit directive).
-- plan_repo_state : S007 work uncommitted (working tree dirty by design — no commit asked).
-- plan_digest     : S007 — Shouldly.h compiles under MSVC + Clang; assertion round-trip tests.
-                    NEW test/unit/shouldly_test.cpp (14 cases: pass/fail round-trip via capture sink,
-                    Diff, default-sink-throws) + build/verify_s007.cmd; CMakeLists adds the TU.
-                    Header fixes surfaced by the compile gate: ShouldBeNullOrEmpty OR-bug, portable
-                    TestFailureException::what(), drop ignored-qualifiers return consts,
-                    std::fpclassify/std::isnormal (FP_ZERO stays a bare macro). Both lanes green.
+- last_command    : implementit S008 (no commits; no new md files)
+- last_commit     : e761716 on main (S006 era). S007 and S008 not committed (no-commit directive).
+- plan_repo_state : S008 work uncommitted (working tree dirty by design — no commit asked).
+- plan_digest     : S008 — REFACTOR GATE(S0): no dead code, headers internal-only, static-link default
+                    verified, clean PR.
+                    - Dead code: removed superseded build/verify_msvc.cmd (S001-era raw -G Ninja harness,
+                      duplicated by preset-driven verify_s004/s005/s005_shared/s007.cmd).
+                    - Headers internal-only: no internal header leaks into public include roots; added an
+                      include-surface convention note to cmake/artifact-model.cmake (impl under src/<lib>/src,
+                      public API under include/vaml/<lib>). NO header moves in S0 (Shouldly.h kept as public
+                      test facade; vulkan/tools keep MINIMAL REAL version.h seeds until S161/S287).
+                    - Static-link default verified: added message(STATUS "VAML artifact model: STATIC");
+                      both lanes printed STATIC and produced static .lib/.a; VAML_BUILD_SHARED stays OFF.
+                    - Clean PR: tracked change-set = cmake/artifact-model.cmake + docs/roadmap.md only.
 - files_touched   :
-    CREATED  test/unit/shouldly_test.cpp     (compile gate + assertion round-trip tests, capture-sink RAII)
-    CREATED  build/verify_s007.cmd           (MSVC lane clone of verify_s005)
-    MODIFIED test/unit/CMakeLists.txt        (added shouldly_test.cpp to vaml-core-tests)
-    MODIFIED src/core/include/vaml/assert/Shouldly.h  (sanctioned plan-scoped portability+bug fixes:
-             ShouldBeNullOrEmpty OR; TestFailureException::what(); return-qualifier consts; std:: math)
-    MODIFIED docs/roadmap.md                 (S007 [DONE])
-    MODIFIED progress.md                     (CHECKPOINT S007->S008 + STEP LOG S007 survivor)
-    MODIFIED session-context.md              (this file)
-- build_status    : msvc-debug (VS 2026) GREEN via verify_s007.cmd — build + link ok, ctest 1/1 PASS
-                    (15 cases: 14 shouldly_* + smoke). REAL LINUX clang-debug on Ubuntu VM
-                    (clang 21.1.8) via /mnt/hgfs/VamlPOC GREEN — ctest 1/1 PASS. Both compilers clean.
-- next_step       : S008 (REFACTOR GATE(S0): no dead code, headers internal-only, static-link default
-                    verified, clean PR)
+    DELETED   build/verify_msvc.cmd           (dead, superseded S001 harness — removed, was gitignored/untracked)
+    MODIFIED  cmake/artifact-model.cmake      (S008: resolved VAML_ARTIFACT_MODEL + message(STATUS) log;
+                                               include-surface convention comment)
+    MODIFIED  docs/roadmap.md                 (S008 [DONE]; S001 note now references preset verify scripts)
+    MODIFIED  session-context.md              (this file)
+    UNTOUCHED src/{core,vulkan,tools}/include/vaml/*/export.h  (showed as dirty only from pre-existing
+               CRLF/LF autocrlf touch — zero content diff vs HEAD)
+- build_status    : msvc-debug (VS 2026) GREEN via verify_s007.cmd — configure "VAML artifact model:
+                    STATIC", static vaml-{core,vulkan,tools}.lib linked, ctest 1/1 PASS. REAL LINUX
+                    clang-debug on Ubuntu VM (clang 21.1.8) via /mnt/hgfs/VamlPOC GREEN — STATIC .a,
+                    ctest 1/1 PASS. Only Clang warnings are pre-existing upstream <ciso646> deprecation
+                    from vendored third_party/doctest under GCC-15 libstdc++, not VamlPOC source.
+- next_step       : S009
 - notes           :
-    - S007 is the S006-deferred compile gate made real: Shouldly.h compiles as a genuine TU under
-      /W4 /WX (MSVC) and -Wall -Wextra -Wpedantic -Werror (Clang).
-    - USER-FOUND BUG FIXED: ShouldBeNullOrEmpty intended "null OR empty" but required BOTH — collapsed
-      to one `if (!(actual==nullptr || len==0))`. Owner confirmed the original was the bug.
-    - FP_ZERO is a C MACRO (math.h `#define FP_ZERO 2`), NOT std:: — naive `std::FP_ZERO` is ill-formed
-      on BOTH compilers (MSVC C2589 + Clang). Only fpclassify/isnormal take std::.
-    - MSVC /W4 /WX was BLIND to unqualified fpclassify/isnormal (MSVC leaks cmath names to global);
-      only the Linux Clang lane surfaced that. Keep Clang authoritative for portability.
-    - Test file owns NO doctest main (smoke_test.cpp has DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN) to avoid
-      duplicate main. Zero-length arrays are ill-formed (use non-null ptr + len 0 for the empty path).
+    - S008 is a pure REFACTOR GATE; no new symbols and no MINIMAL REAL introduced. Vulkan/tools MINIMAL
+      REAL seeds resolved later (S161/S287), never extended here.
+    - Sprint-0 SURVIVOR/checkpoint write intentionally NOT done in S008 — deferred to S009 (Q4 decision).
+    - The msvc-debug cache had a stale /cygdrive path baked in (created under a Cygwin-PATH shell);
+      wiped build/msvc-debug once, then re-ran via verify_s007.cmd's clean-PATH + vcvars env. Always drive
+      MSVC lane through build/verify_s*.cmd so VS-bundled cmake/ninja win over Cygwin PATH.
+    - export.h files are tracked but content-identical; the dirty flag is autocrlf noise only.
     - No new non-plan/operational md files (per directive); commits pending explicit commitit directive.

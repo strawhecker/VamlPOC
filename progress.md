@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S007 (Shouldly.h compiles under MSVC + Clang; assertion round-trip tests) [token: S007]
-- Next step to do     : S008 (REFACTOR GATE(S0)) [token: S008]
+- Last completed step : S008 (REFACTOR GATE(S0)) [token: S008]
+- Next step to do     : S009 [token: S009]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -224,3 +224,23 @@
   fpclassify/isnormal take the std:: qualification. GOTCHA: MSVC accepted unqualified fpclassify/
   isnormal (they leak into global scope), so /W4 /WX was blind to the non-portable call — the Linux
   Clang lane is what surfaced it; keep the Clang lane authoritative for portability.
+- [x] S008 REFACTOR GATE(S0): no dead code, headers internal-only, static-link default verified, clean PR — ✅
+  SURVIVOR: DELETED build/verify_msvc.cmd (superseded S001-era raw `-G Ninja` + direct-flag harness,
+  fully duplicated by the preset-driven verify_s004/s005/s005_shared/s007.cmd; was gitignored/untracked).
+  MODIFIED cmake/artifact-model.cmake (S008): resolve VAML_ARTIFACT_MODEL (STATIC/SHARED) + `message(
+  STATUS "VAML artifact model: ..." )` so the static-by-default is provable from configure output (no
+  hard FATAL); added include-surface convention comment — internal impl headers live under
+  src/<lib>/src, ONLY public API under src/<lib>/include/vaml/<lib> (write-rule ONLY, NO header moves
+  in S0; Shouldly.h stays the public vaml::test facade; vulkan/tools keep MINIMAL REAL version.h seeds
+  until S161/S287). MODIFIED docs/roadmap.md: S008 [DONE]; S001 note now cites preset verify scripts.
+  VERIFIED BOTH COMPILERS: msvc-debug (VS 2026) via verify_s007.cmd GREEN — configure prints
+  "VAML artifact model: STATIC", static vaml-{core,vulkan,tools}.lib, ctest 1/1 PASS; REAL LINUX
+  clang-debug on Ubuntu VM (clang 21.1.8) via /mnt/hgfs/VamlPOC GREEN — STATIC .a, ctest 1/1 PASS.
+  Only Clang warnings = pre-existing upstream <ciso646> deprecation from vendored
+  third_party/doctest under GCC-15 libstdc++ (not VamlPOC source, not introduced here). Tracked
+  change-set = cmake/artifact-model.cmake + docs/roadmap.md only (export.h dirty flags are pre-existing
+  CRLF/LF autocrlf noise — zero content diff vs HEAD). NO new md files (directive). Sprint-0
+  SURVIVOR/checkpoint wrap is S009's job; this entry is a minimal non-duplicative record. Next = S009.
+  GOTCHA: drive the MSVC lane through build/verify_s*.cmd (clean PATH + vcvars64 -> VS-bundled
+  cmake/ninja win over any Cygwin PATH); a stale msvc-debug CMakeCache containing a /cygdrive path
+  must be wiped before reconfigure.
