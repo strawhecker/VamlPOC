@@ -20,7 +20,8 @@
 - A MINIMAL REAL symbol may ONLY be removed or replaced by the step that **explicitly declares**
   its resolution.
 - Active MINIMAL REAL marks (searchable): `vaml-vulkan` version marker → **RESOLVED BY S161**;
-  `vaml-tools` version marker → **RESOLVED BY S287**.
+  `vaml-tools` version marker → **RESOLVED BY S287**; `Color` (S030) → **RESOLVED BY S089**;
+  `Thickness` (S030) → **RESOLVED BY S089**.
 
 ### NO-GAP GUARANTEE (official term)
 - Binding project contract: **no feature or symbol may be left behind for a silent backfill step.**
@@ -30,7 +31,8 @@
   resolvable** by its named sprint. Resolution is part of the real feature's own step, never a
   separate cleanup/backfill step.
 - Forward-declared resolutions (contracts): **S161 must resolve the vulkan MINIMAL REAL marker;
-  S287 must resolve the tools MINIMAL REAL marker.**
+  S287 must resolve the tools MINIMAL REAL marker. S089 must resolve the Color + Thickness
+  MINIMAL REAL markers (introduced by S030).**
 
 ### NO LAZY LLM SYNDROME (official term)
 - The project's default reasoning posture. When in doubt, **reason the opposite of lazy LLM**:
@@ -62,7 +64,7 @@
 
 ---
 ## Sprint 1 — Property system core  (goal: full DP semantics; the heart)  [token S030+]
-- S030 dep:S009  Typeless Value: bool/int32/int64/float/double/string/Color/Thickness/Brush-id/untyped-ptr/Null + type tag + type-safe get().
+- S030 dep:S009  Typeless Value: bool/int32/int64/float/double/string/Color/Thickness/Brush-id/untyped-ptr/Null + type tag + type-safe get(). [DONE — src/core/include/vaml/core/{Color,Thickness,Value}.h + src/core/src/Value.cpp; factories map to 11 tags; get<T> type-safe; equality + copy/move; msvc-debug build + ctest green]
 - S031 dep:S030  Value round-trip + type-mismatch-throws tests.
 - S032 dep:S031  PropertyKey (name, type, owner-type id, flags) + PropertyRegistry (name→key, dedupe detection).
 - S033 dep:S032  Registry: register/lookup/duplicate-throws tests; constexpr-safe static id.
@@ -94,7 +96,7 @@
 - S086 dep:S085  Parser round-trips a realistic VAML document into the tree (tests).
 - S087 dep:S086  ElementFactoryRegistry: typeName→factory<unique_ptr<DependencyObject>>; startup registration.
 - S088 dep:S087  Resolve "Button"→instance; unknown type → structured error naming type+line.
-- S089 dep:S088  Value converter registry: "42"→int, "10,20"→Thickness, "#FF0000"→Color, "true"→bool.
+- S089 dep:S088  Value converter registry: "42"→int, "10,20"→Thickness, "#FF0000"→Color, "true"→bool. [RESOLVES S030 Color + Thickness MINIMAL REAL markers → give them full string-parsing semantics + remove their sentinel tags]
 - S090 dep:S089  Unknown literal → error; converter registry tests.
 - S091 dep:S090  Runtime VamlReader::Load(text/ParsedElement→live tree): build children, set props.
 - S092 dep:S091  VamlReader defers markup-extension values (S2 tag) + event hooks (S8); records x:Name registry.

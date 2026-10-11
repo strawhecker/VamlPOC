@@ -5,6 +5,7 @@
 # API is real (non-stub). Property system begins at S030 (Sprint 1).
 vaml_add_library(core
     src/version.cpp
+    src/Value.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()
