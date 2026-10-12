@@ -1,100 +1,65 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S039 (no commits; no NEW md files)
-- plan_repo_state : S039 complete — **BOTH CI LANES GREEN**: msvc-debug (VS 2026) build warning-clean +
-                    ctest 1/1 PASS (121 cases / 674 asserts); ubuntu-clang (Ubuntu VM, clang 21, shared
+- last_command    : implementit S040 (no commits; no NEW md files)
+- plan_repo_state : S040 complete — **BOTH CI LANES GREEN**: msvc-debug (VS 2026) build warning-clean +
+                    ctest 1/1 PASS (127 cases / 684 asserts); ubuntu-clang (Ubuntu VM, clang 21, shared
                     folder /mnt/hgfs/VamlPOC) build + ctest 1/1 PASS. No commit+push performed (per
-                    command). **The S036-re-scope global static registry + DependencyProperty::Register
-                    landing site is AUTHORD here (S039), consumed by effective-value resolution — the
-                    first real consumer of a global property table. vaml::DependencyProperty (Register/
-                    TryGet/Get) + PropertyRegistry::global() + PropertyFlags::InheritOnly +
-                    DependencyObject::GetEffectiveValue (local ?? inherited-from-parent ?? default;
-                    inherit-only ignores own local) land together. Read-side only; write/cascade = S040.**
-- plan_digest     : S039 (dep:S038) — Effective-value resolution: local ?? inherited-from-parent ??
-                    default; inherit-only flags. AUTHORS the S036 re-scope: global static registry +
-                    DependencyProperty::Register landing site (S034-recorded, previously "S036's
-                    concern"), now with a real consumer. New REAL public vaml::DependencyProperty
-                    (pimpl'd, NOT MINIMAL REAL / NOT a stub): Register(name,type,owner,metadata)
-                    inserts a PropertyKey into PropertyRegistry::global() (Meyers singleton, name-unique
-                    -> PropertyAlreadyRegistered unchanged) + a companion static table full
-                    (key,metadata); TryGet/Get (null / PropertyNotFound); property_id()/metadata()/
-                    flags(). PropertyFlags + InheritOnly = 1<<3. DependencyObject::GetEffectiveValue(id):
-                    NOT Inherits -> local ?? default; Inherits -> local ?? inherited-from-parent ?? default;
-                    InheritOnly -> inherited-from-parent ?? default (own local IGNORED). Get delegates to
-                    GetEffectiveValue (backward compatible — no existing test uses Inherits/InheritOnly).
-                    Inheritance descriptor from GLOBAL DependencyProperty; local value from per-object
-                    store. New single non-owning set_parent()/parent() (read-side seed, NO-GAP: S040
-                    cascade + S120 visual tree consume it). READ-SIDE ONLY — Set/ProcessPendingChanges
-                    UNTOUCHED (write/cascade = S040, recorded NOT silent). Services of this step are
-                    NOT MINIMAL REAL; S040 is its explicit consumer (NO backfill). Files (S039):
-                    - src/core/include/vaml/core/DependencyProperty.h (NEW).
-                    - src/core/src/DependencyProperty.cpp (NEW).
-                    - src/core/src/PropertyRegistry.{h,cpp} (MOD): + static global() Meyers singleton.
-                    - src/core/include/vaml/core/PropertyFlags.h (MOD): + InheritOnly = 1 << 3.
-                    - src/core/src/PropertyKey.cpp (MOD): describe() lists InheritOnly.
-                    - src/core/include/vaml/core/DependencyObject.h (MOD): GetEffectiveValue declared;
-                      parent link (set_parent/parent); Get delegates. Header comment: S039 contract.
-                    - src/core/src/DependencyObject.cpp (MOD): GetEffectiveValue impl; Get delegates;
-                      set_parent/parent; private static nearest_ancestor_local (tolerant upward scan).
-                    - test/unit/DependencyProperty_test.cpp (NEW): S039 global-registry proof (5 cases).
-                    - test/unit/EffectiveValue_test.cpp (NEW): S039 resolution proof (8 cases).
-                    - src/core/CMakeLists.txt (MOD): + src/DependencyProperty.cpp.
-                    - test/unit/CMakeLists.txt (MOD): + DependencyProperty_test.cpp + EffectiveValue_test.cpp.
-                    - build/verify_s039.cmd (NEW): msvc-debug verify lane.
-                    - docs/roadmap.md (MOD): S039 [DONE], re-scope resolution note.
-                    - progress.md (MOD): S039 SURVIVOR + checkpoint advance to S040.
+                    command). **S040 is TEST-ONLY (zero new product symbols): it PROVES the S039-deferred
+                    write/cascade side is real via the read-side pull model (GetEffectiveValue walks the
+                    ancestor chain fresh on each read). New dimensions vs S039: parent change AFTER
+                    attach (dynamic ordering) + local-vs-inherited interaction (child Set vs inherited
+                    old). 6 TEST_CASEs: cascade-after-attach; multi-level; local-wins; InheritOnly
+                    recompute; child-Set-vs-inherited-old; parent-reverts. Push notification of
+                    descendants is explicitly S041's scope (recorded, NOT silent) — S040 builds NO
+                    descendant tracking.**
+- plan_digest     : S040 (dep:S039) — Inheritance cascade: parent change recomputes child effective value
+                    WITHOUT child write (test). TEST-ONLY, zero new product symbols. The S039 pull model
+                    already realizes the cascade (parent Set is reflected by every descendant with no
+                    child write because GetEffectiveValue walks the ancestor chain fresh per read);
+                    S040 proves the two genuinely new dimensions S039 did not exercise: (1) dynamic
+                    ordering — parent change AFTER child attach; (2) local-vs-inherited interaction —
+                    child Set vs inherited old. S041 owns the explicit push-notification/ChangeQueue
+                    pipeline, so S040 MUST NOT build descendant tracking/notifications (stepping on
+                    S041's scope, recorded NOT silent). Files (S040):
+                    - test/unit/InheritanceCascade_test.cpp (NEW): 6 TEST_CASEs, Shouldly vocabulary,
+                      mirrors EffectiveValue_test.cpp harness (hostInherited + kInh flags).
+                    - test/unit/CMakeLists.txt (MOD): + InheritanceCascade_test.cpp.
+                    - build/verify_s040.cmd (NEW): msvc-debug verify lane (verify_s039 pattern).
+                    - docs/roadmap.md (MOD): S040 [DONE] with full detail.
+                    - progress.md (MOD): S040 SURVIVOR + checkpoint advance to S041.
                     - session-context.md (this).
 - files_touched   :
-    ADDED    src/core/include/vaml/core/DependencyProperty.h
-    ADDED    src/core/src/DependencyProperty.cpp
-    ADDED    test/unit/DependencyProperty_test.cpp
-    ADDED    test/unit/EffectiveValue_test.cpp
-    MODIFIED src/core/include/vaml/core/PropertyRegistry.h
-    MODIFIED src/core/src/PropertyRegistry.cpp
-    MODIFIED src/core/include/vaml/core/PropertyFlags.h
-    MODIFIED src/core/src/PropertyKey.cpp
-    MODIFIED src/core/include/vaml/core/DependencyObject.h
-    MODIFIED src/core/src/DependencyObject.cpp
-    MODIFIED src/core/CMakeLists.txt
+    ADDED    test/unit/InheritanceCascade_test.cpp
     MODIFIED test/unit/CMakeLists.txt
-    ADDED    build/verify_s039.cmd
+    ADDED    build/verify_s040.cmd
     MODIFIED docs/roadmap.md
     MODIFIED progress.md
-    MODIFIED session-context.md (this — S039 completion)
+    MODIFIED session-context.md (this — S040 completion)
 - build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) configure+build warning-
-                    clean + ctest 1/1 PASS (121 cases / 674 asserts). ubuntu-clang: clang-debug (Ubuntu VM
+                    clean + ctest 1/1 PASS (127 cases / 684 asserts). ubuntu-clang: clang-debug (Ubuntu VM
                     192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS. Only
                     Clang warnings = pre-existing upstream <ciso646> doctest deprecation from third_party
                     (not this TU; already non-error). (windows-clang-debug is NOT a lane — not built/
                     tested/flagged per standing rule.)
-- next_step       : S040+ (dependent-step queue). S040 = inheritance cascade: parent change recomputes
-                    child effective value WITHOUT child write (test). CONSUMES the S039 parent-link seed +
-                    global property table; this is the WRITE/cascade side of S039's read-side resolution
-                    (S039 recorded it as S040's job, NOT silent). S041 generalizes the S037 per-object
-                    queue into the per-thread ChangeQueue + notification processor AND consumes
-                    ChangeRecorder (S038) for deferred notification.
+- next_step       : S041 (dependent-step queue). S041 = Change notification pipeline: ChangeQueue
+                    (per-thread) + processor drains in registration order. CONSUMES the S037 per-object
+                    queue generalization + ChangeRecorder (S038) for deferred notification. Push
+                    notification of descendants (explicitly NOT built in S040 — recorded) lands here.
 - notes           :
-    - S039 GATE MET on both lanes. This is the authored, RESOLVED S036 re-scope: global static registry
-      + DependencyProperty::Register landing site, delivered HERE at S039 where effective-value
-      resolution is its first real consumer (recorded in roadmap/progress, NOT silent). S036 deliberately
-      delivered OBJECT-SCOPED registration only — no speculative surface then.
-    - Effective-value resolution (read-side, pull model): GetEffectiveValue(id) = local ??
-      inherited-from-parent ?? default; InheritOnly (new flag) = own local override does NOT contribute
-      (value only from the ancestor chain). Get() delegates to GetEffectiveValue — backward compatible
-      because no existing test uses Inherits/InheritOnly (their semantics are unchanged).
-    - Inheritance descriptor (flags+default) sourced from the GLOBAL DependencyProperty; local value from
-      the object's per-object store. Internal nearest_ancestor_local is a private static member (same-
-      class pimpl access) doing a straight upward local-override scan — exactly equivalent to recursing
-      each ancestor's effective value, tolerant (never throws for an ancestor lacking the property).
-    - Parent link (set_parent/parent) is a REAL read-side seed, NOT lazy / NO-GAP: S040 (cascade) + S120
-      (visual tree) consume it; setting it triggers NO cascade in S039 (write side is S040).
-    - No MINIMAL REAL markers introduced or resolved this step; DependencyProperty is NOT a stub/MINIMAL
-      REAL (complete + fully-tested, consumer is S039's own resolution, per NO-GAP/NO-LAZY).
-    - GOTCHA (fixed pre-build): DependencyProperty::Register is GLOBALLY name-unique, so the test helper
-      registers each inherited property's global descriptor exactly ONCE (suite-local static set) and
-      only mirrors onto each object's store. GOTCHA (fixed at build): header declares class Impl but cpp
-      said struct Impl -> MSVC C4099 (warnings-as-errors); cpp now uses class Impl.
+    - S040 GATE MET on both lanes. Test-only proof of the S039-deferred write/cascade side: because
+      GetEffectiveValue re-resolves the ancestor chain on EVERY read, a parent Set is automatically
+      reflected by every descendant with no child write. S040 verifies exactly this contract.
+    - Genuinely new dimensions vs S039: (1) dynamic ordering — parent change AFTER the child is attached
+      (S039 only set up a chain then read once, static); (2) local-vs-inherited interaction — child Set
+      vs inherited old, incl. local-wins (child local override not swept) and InheritOnly recompute
+      (own local ignored, so parent change DOES recompute).
+    - CONTRACT boundary (recorded NO-GAP, NOT silent): S040 builds NO descendant tracking / notification
+      — that is S041's explicit scope (ChangeQueue + notification processor). This is the S100-boundary
+      move that keeps each step coherent.
+    - No MINIMAL REAL markers introduced or resolved this step (test-only). NO-GAP satisfied: S040
+      consumes the S039 parent-link seed + global table and resolves the S039-recorded "write/cascade
+      side" by proof, never a silent backfill.
     - No NEW md files produced beyond the two operational docs (directive honored). No commits made
       (per command).
-    - COMMITIT STATUS: commit+push of S032..S039 (incl. S036_1..S036_5) is outstanding, awaiting your
-      authorization. After commit+push: repo is the committed good state; next step S040+.
+    - COMMITIT STATUS: commit+push of S032..S040 (incl. S036_1..S036_5) is outstanding, awaiting your
+      authorization. After commit+push: repo is the committed good state; next step S041+.

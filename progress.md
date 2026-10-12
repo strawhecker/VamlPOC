@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S039 (Effective-value resolution: local ?? inherited-from-parent ?? default; inherit-only flags) [token: S039]
-- Next step to do     : S040 [token: S040]
-- PENDING work        : none (S039 complete; S040 is next).
+- Last completed step : S040 (Inheritance cascade: parent change recomputes child effective value without child write — test) [token: S040]
+- Next step to do     : S041 [token: S041]
+- PENDING work        : none (S040 complete; S041 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -746,3 +746,41 @@
   child write; child Set vs inherited old) consumes the parent-link seed + global table —
   authored at S040, never a silent backfill; S120 (visual tree) consumes the parent link. No MINIMAL
   REAL introduced/resolved. No NEW md files (directive honored). Next = S040.
+
+- [x] S040 Inheritance cascade: parent change recomputes child effective value without child write — ✅ (test)
+  SURVIVOR: `test/unit/InheritanceCascade_test.cpp` (NEW) + `test/unit/CMakeLists.txt` (MOD
+  +InheritanceCascade_test.cpp) + `build/verify_s040.cmd` (NEW, verify_s039-pattern msvc-debug lane)
+  + `docs/roadmap.md` (MOD S040 [DONE]) + `session-context.md` (MOD). TEST-ONLY step (ZERO new product
+  symbols) — the S039 pull model already delivers correct cascade semantics; S040 PROVES the S039-
+  deferred write/cascade side is real and exercises the genuinely new dimensions S039 did not show:
+  (1) dynamic ordering — parent change AFTER the child is attached (S039 only set the chain up then
+  read once, static); (2) local-vs-inherited interaction ("child Set vs inherited old"). CONTRACT
+  boundary (recorded NO-GAP, NOT silent): S040 does NOT build descendant tracking / notifications —
+  that is S041's explicit scope (ChangeQueue + notification processor). Test harness mirrors
+  EffectiveValue_test.cpp: hostInherited() registers the GLOBAL DependencyProperty descriptor once per
+  name (name-unique → PropertyAlreadyRegistered avoided via suite-local static set) + mirrors onto each
+  object's own store; kInh = PropertyFlags::Inherits. 6 TEST_CASEs (doctest + Shouldly vocabulary
+  SHOULD/ShouldThrow):
+  (1) CASCADE AFTER ATTACH — child.set_parent(parent) FIRST, then parent.Set(11) → child effective 11,
+  then parent.Set(22) → child effective 22; no child Set ever called (recompute is purely the read-side
+  pull over an empty child local store).
+  (2) MULTI-LEVEL — 3-level chain wired in place (leaf→g3→g2→g1), THEN g1.Set(5) → leaf 5; g1.Set(9)
+  → leaf 9 (intermediate g2/g3 hold no local, leaf follows; no child write).
+  (3) LOCAL-WINS — child sets its own local 7 BEFORE parent changes; parent then Set(99) → child
+  effective STAYS 7 (cascade respects a real local override, does not sweep it).
+  (4) INHERITONLY RECOMPUTE — Inherits|InheritOnly property; child Set(100) is IGNORED; parent.Set(3) →
+  child 3; parent.Set(4) → child 4 (own local never contributes, parent change DOES recompute).
+  (5) CHILD SET VS INHERITED OLD — child first inherits parent 20, then writes its own local 31 (child
+  Set vs inherited old); a LATER parent.Set(44) must NOT clobber the child write → child effective STAYS
+  31.
+  (6) PARENT REVERTS — parent Set(8) → child 8, parent Set(0) → child 0, parent Set(6) → child 6; child
+  tracks both moves purely through the read-side pull, no child Set anywhere.
+  VERIFIED BOTH CI LANES: msvc-debug (VS 2026) via verify_s040.cmd — configure/build warning-clean,
+  ctest 1/1 PASS (100% tests passed; 127 cases / 684 asserts); ubuntu-clang (Ubuntu VM clang 21, shared
+  folder /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (only pre-existing upstream <ciso646>
+  doctest deprecation from third_party — not this TU, already non-error in test CMake).
+  windows-clang-debug is NOT a lane (not built/tested/flagged per standing rule). NO-GAP accounting:
+  S040 consumes the S039 parent-link seed + global DependencyProperty table and verifies the
+  S039-deferred "write/cascade side" is real — resolved here by proof, not silently dropped. Push
+  notification of descendants is explicitly S041's scope (recorded, NOT silent). No MINIMAL REAL
+  introduced/resolved. No NEW md files (directive honored). Next = S041.
