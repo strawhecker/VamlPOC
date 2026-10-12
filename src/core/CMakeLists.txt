@@ -9,6 +9,7 @@ vaml_add_library(core
     src/PropertyFlags.cpp
     src/PropertyKey.cpp
     src/PropertyRegistry.cpp
+    src/PropertyMetadata.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()

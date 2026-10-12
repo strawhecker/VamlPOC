@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S033 (Registry exhaustive tests + constexpr-safe static id) [token: S033]
-- Next step to do     : S034 [token: S034]
+- Last completed step : S034 (PropertyMetadata) [token: S034]
+- Next step to do     : S035 [token: S035]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -345,6 +345,36 @@
   flags + adds metadata (defaults/callbacks); S039/S043 consume owner-id + Inherits. Two deferred design
   decisions recorded (not silent): (a) global name-uniqueness scope, (b) global static registry instance →
   both S033. No MINIMAL REAL introduced/resolved. Next = S033.
+- [x] S034 PropertyMetadata { defaultValue; flags; changed cb; coerce; validate } — ✅
+  SURVIVOR: `src/core/include/vaml/core/PropertyMetadata.h` (NEW) + `src/core/src/PropertyMetadata.cpp`
+  (NEW) + `test/unit/PropertyMetadata_test.cpp` (NEW). Move-only (copy deleted, proven by static_assert)
+  metadata bundle under an Impl pimpl (hides std::function ABI + enforces move-only at the public
+  boundary). Field surface mirrors the roadmap exactly: defaultValue (Value) fixes BOTH S039's fallback
+  AND the metadata's bound type = defaultValue.type(); flags (PropertyFlags recomposes S032's
+  inherits|readonly|bindsTwoWayByDefault as a validating carrier, never a competing source of truth);
+  changed cb (old,new); coerce Value(Value); validate Value->bool. Construction: canonical factory
+  `WithDefault(Value, PropertyFlags)` (REQUIRED — no default-constructible empty metadata), then
+  &&-qualified return-by-value builder hooks `with_coerce` / `with_validate` / `with_changed` (each
+  installs one callback and returns a NEW metadata, leaving the source untouched). Passthrough defaults:
+  absent coerce=identity, absent validate=always-accept, absent changed=no-op (branch-free common path
+  for S036). TYPE-BOUND: coerce/validate/notifyChanged throw vaml::ValueTypeMismatch (S030 contract) when
+  passed a Value whose tag != boundType — NO-LAZY guard against a callback receiving a wrong-type Value.
+  Test TU: move-only static_asserts + move ctor/assign; WithDefault seeds default+bound type+flags;
+  flags carrier round-trips each of the 3 bits; coerce absent=identity / present=transforms; validate
+  absent=accept / present=accept+reject; changed cb no-op when absent / fires (old,new) when installed;
+  single builder chain composes all three hooks; wrong-tag throws from all three entry points + correct
+  tag still passes post-throw (throw path is read-only); builder return-by-value leaves source untouched.
+  CMakeLists (MOD): core +PropertyMetadata.cpp; test/unit +PropertyMetadata_test.cpp.
+  build/verify_s034.cmd (NEW): verify_s033-pattern msvc-debug lane. VERIFIED BOTH COMPILERS: msvc-debug
+  (VS 2026) ctest 1/1 PASS; REAL LINUX clang-debug (Ubuntu VM clang 21.1.8) build green, ctest 1/1 PASS.
+  Only Clang warnings = pre-existing upstream <ciso646> doctest deprecation (degraded by design, not this
+  TU). NO-GAP accounting: S034 delivers the metadata TYPE + its own unit semantics; the actual
+  coercion/validation/changed INVOCATION at Set-time and the global static registry +
+  DependencyProperty::Register LANDING SITE are S036's concern (S036 = DependencyObject with a local
+  value store that needs a registered DP) — recorded non-silently, deliberately resolving the S032(b)/S033
+  recorded deferral. S035 tests every field (default applied, cb-only-on-real-change, coerce applied,
+  validate rejects). No MINIMAL REAL introduced/resolved. Next = S035.
+
 - [x] S033 Registry exhaustive tests + constexpr-safe static id — ✅ (see roadmap S033 line for full detail)
   SURVIVOR: `src/core/include/vaml/core/PropertyId.h` (NEW — header-only constexpr-safe static id).
   PropertyId wraps the property NAME as a `std::string_view` bound to a string literal: `constexpr`-safe
