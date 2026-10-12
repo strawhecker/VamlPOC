@@ -18,6 +18,7 @@ add_executable(vaml-core-tests
     PropertyMetadata_semantics_test.cpp
     DependencyObject_test.cpp
     DependencyObject_marshalling_test.cpp
+    ChangeRecorder_test.cpp
     StringMaker_test.cpp
 )
 

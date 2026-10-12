@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S036_5 (migrate DependencyObject_test + final gate) — S036_1..S036_5 PLAN COMPLETE [token: S036_5]
-- Next step to do     : S037 [token: S037]
-- PENDING work        : none (all S036_* sub-steps complete; S037 is next).
+- Last completed step : S038 (ChangeRecorder: pending per-property changes for deferred notification) [token: S038]
+- Next step to do     : S039 [token: S039]
+- PENDING work        : none (S038 complete; S039 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -648,3 +648,39 @@
   of scope, not introduced here) — full dual-compiler verification of the S036_* suite is deferred to
   S041+ gates / an explicit later dual-compiler run (recorded, not silent). No MINIMAL REAL introduced
   or resolved. Next = S037.
+
+- [x] S038 ChangeRecorder: pending per-property changes for deferred notification — ✅
+  SURVIVOR: `src/core/include/vaml/core/ChangeRecorder.h` (NEW) + `src/core/src/ChangeRecorder.cpp`
+  (NEW) + `test/unit/ChangeRecorder_test.cpp` (NEW) + `build/verify_s038.cmd` (NEW, clone of
+  verify_s037-pattern msvc-debug lane) + `src/core/CMakeLists.txt` (MOD +ChangeRecorder.cpp) +
+  `test/unit/CMakeLists.txt` (MOD +ChangeRecorder_test.cpp) + `docs/roadmap.md` (MOD S038 [DONE],
+  S042 REALIZED-EARLY annotation). REAL public symbol `vaml::ChangeRecorder` (NOT MINIMAL REAL, NOT a
+  stub — complete, fully-tested, with an explicitly scheduled consumer S041; recorded NO-GAP). Pimpl'd
+  (Impl + unique_ptr, move-only copy-deleted) so the header exposes no std::unordered_map / std::function
+  value. API: `record(PropertyId, Value old, Value new)` — pending per-property notification; a repeat
+  for the SAME property COALESCES (first `old` kept, latest `new` adopted, one notification per property);
+  `has_pending(id)`; `pending_count()` (distinct-property depth); `flush(NotifyFn)` — emit one
+  notify(id,old,new) per pending property in FIRST-RECORD order, then clear, return the emit count;
+  `clear()`. DESIGN (recorded in header + roadmap, NO LAZY LLM): DELIBERATELY SINGLE-THREADED (a
+  pipeline-internal deferral device — the cross-thread ChangeQueue/mutex is S041's job, NOT baked here);
+  S038 stays out of S041's scope and does NOT rewire DependencyObject's synchronous callbacks (would
+  break the S037 marshalling tests, which is S041's work). COALESCING realized-early (S042 outcome
+  delivered at the primitive here; S042 annotated REALIZED-EARLY per the S036_1..S036_5 → S047 precedent
+  and remains the formal end-to-end integration gate). Owned-name gotcha honored (S036/S037): records key
+  on an OWNED std::string copy of PropertyId::name(), never the non-owning string_view; insertion-ordered
+  vector+name-map (never unordered_map iteration order) → stable first-record flush order. flush is
+  snapshot-then-emit (a notify handler that re-record()s lands in a fresh recorder, NOT double-emitted
+  this pass; mirrors S037's swap-out). Cross-thread contract unchanged (S037 owns the mutex queue). Tests
+  (doctest, Shouldly vocabulary, 8 TEST_CASEs): record — pending_count increments, has_pending true,
+  distinct props coexist; per-property coalescing — two records same prop => 1 pending, first old (1) +
+  latest new (8); three records same prop => earliest old (0) + newest new (3); flush order — once per
+  property in first-record order (Width/Height/Depth) with correct (old,new), returns count, recorder
+  cleared, 2nd flush = 0; record-during-flush — re-record lands in fresh state (1 emit this pass) then
+  flushes next call; clear — drops all, flush after clear = 0; empty flush — 0, callback invoked for
+  nothing; owned-name — record survives the registering key's death + same-name value coalesces.
+  VERIFIED BOTH CI LANES: msvc-debug (VS 2026) via verify_s038.cmd — configure/build warning-clean,
+  ctest 1/1 PASS (100% tests passed); ubuntu-clang (Ubuntu VM clang 21, shared folder /mnt/hgfs/VamlPOC)
+  configure/build + ctest 1/1 PASS (only pre-existing upstream <ciso646> doctest deprecation warning
+  from third_party, not this TU). windows-clang-debug is NOT a lane (not built/tested/flagged per
+  standing rule). No MINIMAL REAL introduced/resolved (nothing to backfill; ChangeRecorder's S041
+  consumer is S041's own step). No NEW md files (directive honored). Next = S039.
