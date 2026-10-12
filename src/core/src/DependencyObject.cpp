@@ -12,6 +12,8 @@
 
 #include "vaml/core/DependencyObject.h"
 
+#include "vaml/core/DependencyProperty.h" // global descriptor for S039 inheritance
+
 #include <deque>
 #include <mutex>
 #include <string>
@@ -55,6 +57,11 @@ struct DependencyObject::Impl
     // std::string makes lookups stable against both SSO and heap-backed names.
     std::unordered_map<std::string, PropEntry> store;
     std::thread::id                            affinity = std::this_thread::get_id();
+
+    // S039 parent link (loose, non-owning). Used by effective-value resolution
+    // to walk the ancestor chain. Defaults to nullptr (no parent); set_parent
+    // installs it. Intentionally no cascade on set here (S040 owns that).
+    DependencyObject* parent = nullptr;
 
     // S037: the ONE genuinely cross-thread datum — protected by queue_mutex.
     // Written by any thread (wrong-thread Set), drained by the affinity thread
@@ -110,15 +117,91 @@ const PropertyKey& DependencyObject::register_property(PropertyKey key, Property
 VAML_CORE_EXPORT
 Value DependencyObject::Get(PropertyId id) const
 {
+    return GetEffectiveValue(id);
+}
+
+VAML_CORE_EXPORT
+Value DependencyObject::GetEffectiveValue(PropertyId id) const
+{
     const auto it = impl_->store.find(std::string(id.name()));
     if (it == impl_->store.end())
     {
-        throw PropertyNotFound("DependencyObject::Get: no property registered with this id");
+        throw PropertyNotFound("DependencyObject::GetEffectiveValue: no property registered with this id");
     }
 
     const Impl::PropEntry& entry = it->second;
-    // "Default applied": empty local == no override -> return defaultValue().
-    return entry.local.isNull() ? entry.metadata.defaultValue() : entry.local;
+    const PropertyMetadata& md = entry.metadata;
+
+    // The inheritance descriptor (flags + default) is the GLOBAL DependencyProperty's
+    // when the property is globally registered (S039's real consumer); falling
+    // back to this object's own metadata keeps object-scoped S036 registration
+    // working identically (no global entry -> object metadata governs).
+    const DependencyProperty* globalDp = DependencyProperty::TryGet(id.name());
+
+    const PropertyFlags localFlags = md.flags();
+    const bool inherits =
+        has_flag(localFlags, PropertyFlags::Inherits)
+        || (globalDp != nullptr && has_flag(globalDp->flags(), PropertyFlags::Inherits));
+    const bool inheritOnly =
+        has_flag(localFlags, PropertyFlags::InheritOnly)
+        || (globalDp != nullptr && has_flag(globalDp->flags(), PropertyFlags::InheritOnly));
+
+    const Value local = entry.local.isNull() ? Value::Null() : entry.local;
+    const Value defaultValue = md.defaultValue();
+
+    // NOT an inheriting property: local ?? default (unchanged S036 semantics).
+    if (!inherits)
+    {
+        return local.isNull() ? defaultValue : local;
+    }
+
+    // Inheriting property: resolve the inherited value from the ancestor chain
+    // (tolerant — never throws for an ancestor lacking the property).
+    const Value inherited = nearest_ancestor_local(*this, std::string(id.name()));
+
+    if (inheritOnly)
+    {
+        // InheritOnly: the object's OWN local override does NOT contribute.
+        // Value is the inherited value, else default.
+        return inherited.isNull() ? defaultValue : inherited;
+    }
+
+    // Plain Inherits: local ?? inherited ?? default.
+    return local.isNull() ? (inherited.isNull() ? defaultValue : inherited) : local;
+}
+
+VAML_CORE_EXPORT
+void DependencyObject::set_parent(DependencyObject* parent) noexcept
+{
+    impl_->parent = parent;
+}
+
+VAML_CORE_EXPORT
+DependencyObject* DependencyObject::parent() const noexcept
+{
+    return impl_->parent;
+}
+
+VAML_CORE_EXPORT
+Value DependencyObject::nearest_ancestor_local(const DependencyObject& self, const std::string& name)
+{
+    // Straight upward scan for the nearest ancestor with a LOCAL override. A
+    // plain-Inherits property's net value is "nearest ancestor with a local
+    // override else default", because an intermediate ancestor with no local
+    // defers to ITS own ancestor anyway — so this is exactly equivalent to
+    // recursing into each ancestor's effective value, without the throw hazard
+    // and re-deriving a single descriptor (flags/default come from the caller).
+    const DependencyObject* cur = self.parent();
+    while (cur != nullptr)
+    {
+        const auto it = cur->impl_->store.find(name);
+        if (it != cur->impl_->store.end() && !it->second.local.isNull())
+        {
+            return it->second.local;
+        }
+        cur = cur->parent();
+    }
+    return Value::Null();
 }
 
 VAML_CORE_EXPORT

@@ -1,6 +1,17 @@
 #pragma once
 // VAML DependencyObject — the base value-holder for the dependency-property
-// system. S036 (dep:S035) + S037 (dep:S036_5, marshalling foundation).
+// system. S036 (dep:S035) + S037 (dep:S036_5, marshalling foundation) +
+// S039 (dep:S038, effective-value resolution).
+//
+// S039 title contract (read-side, pull model):
+//   8. GetEffectiveValue() — locals ?? inherited-from-parent ?? default, and
+//      the InheritOnly flag (own local override does not contribute). `Get`
+//      delegates to it (backward compatible: no existing test uses Inherits/
+//      InheritOnly, so local??default semantics are unchanged for them).
+//   9. Parent link — single non-owning parent; seed consumed by S040 (cascade)
+//      and S120 (visual tree). NO-GAP, NOT lazy.
+//   Set/ProcessPendingChanges are UNTOUCHED here (read-side only); the
+//   write/cascade side is S040 (recorded, NOT silent).
 //
 // S036 title contract:
 //   1. local value store        — a per-object store keyed by PropertyId;
@@ -136,9 +147,26 @@ public:
     //     that disagree on the value type).
     const PropertyKey& register_property(PropertyKey key, PropertyMetadata metadata);
 
-    // Reads the property's current effective value: the local override if one
-    // has been stored, else metadata.defaultValue() ("default applied").
-    // Returns BY VALUE. Throws PropertyNotFound for an unregistered PropertyId.
+    // Reads the property's current EFFECTIVE value. S039 is the read-side
+    // resolution primitive; `Get` delegates to it. Resolution order:
+    //   - NOT Inherits:          local ?? default
+    //   - Inherits (no InheritOnly): local ?? inherited-from-parent ?? default
+    //   - InheritOnly:           inherited-from-parent ?? default
+    //                            (the object's OWN local override does NOT
+    //                             contribute)
+    // The inheritance descriptor (flags + default) is sourced from the global
+    // DependencyProperty table when the property is globally registered,
+    // else from this object's own store metadata. The local value always
+    // comes from this object's per-object store. Returns BY VALUE. Throws
+    // PropertyNotFound for an unregistered PropertyId (the internal parent
+    // chain walk is tolerant — an ancestor lacking the property contributes
+    // nothing, it never throws).
+    [[nodiscard]] Value GetEffectiveValue(PropertyId id) const;
+
+    // Reads the property's effective value (S039). Equivalent to
+    // GetEffectiveValue(id) — the two are synonyms; Get is retained for the
+    // S036/S037 call sites and reads the same resolved value. Returns BY
+    // VALUE. Throws PropertyNotFound for an unregistered PropertyId.
     [[nodiscard]] Value Get(PropertyId id) const;
 
     // Writes `input` through the S035 pipeline (coerce -> validate(coerced) ->
@@ -173,7 +201,26 @@ public:
         return thread_affinity_id() == std::this_thread::get_id();
     }
 
+    // --- Parent link (S039 read-side seed; NOT lazy, NO-GAP) -------------
+    // The single non-owning parent used by S039's effective-value resolution
+    // to walk the ancestor chain ("inherited-from-parent"). This is a REAL,
+    // deliberate seed: S040 (inheritance cascade / write recompute) and S120
+    // (UIElement -> visual tree, create/attach/detach children) both consume
+    // it. It is deliberately a LOOSE (non-owning) pointer: a DependencyObject
+    // never owns its parent. Setting it does NOT trigger a cascade in S039 —
+    // S039 is read-side only; S040 owns the write/cascade side (recorded,
+    // NOT silent).
+    void set_parent(DependencyObject* parent) noexcept;
+    [[nodiscard]] DependencyObject* parent() const noexcept;
+
 private:
+    // S039 tolerant ancestor walk: returns the NEAREST ancestor of `self` with a
+    // non-null LOCAL override for `name`, else Value::Null. Never throws (an
+    // ancestor that does not register the property, or has no local, contributes
+    // nothing). A same-class member so it may read the pimpl of any instance on
+    // the parent chain.
+    static Value nearest_ancestor_local(const DependencyObject& self, const std::string& name);
+
     struct Impl; // pimpl: hides std::unordered_map + PropertyMetadata
     std::unique_ptr<Impl> impl_;
 };

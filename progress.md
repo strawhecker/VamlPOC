@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S038 (ChangeRecorder: pending per-property changes for deferred notification) [token: S038]
-- Next step to do     : S039 [token: S039]
-- PENDING work        : none (S038 complete; S039 is next).
+- Last completed step : S039 (Effective-value resolution: local ?? inherited-from-parent ?? default; inherit-only flags) [token: S039]
+- Next step to do     : S040 [token: S040]
+- PENDING work        : none (S039 complete; S040 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -684,3 +684,65 @@
   from third_party, not this TU). windows-clang-debug is NOT a lane (not built/tested/flagged per
   standing rule). No MINIMAL REAL introduced/resolved (nothing to backfill; ChangeRecorder's S041
   consumer is S041's own step). No NEW md files (directive honored). Next = S039.
+
+- [x] S039 Effective-value resolution: local ?? inherited-from-parent ?? default; inherit-only flags — ✅
+  SURVIVOR: `src/core/include/vaml/core/DependencyProperty.h` (NEW) + `src/core/src/DependencyProperty.cpp`
+  (NEW) + `src/core/include/vaml/core/PropertyRegistry.h` (MOD +global()) +
+  `src/core/src/PropertyRegistry.cpp` (MOD +global() Meyers singleton) +
+  `src/core/include/vaml/core/PropertyFlags.h` (MOD +InheritOnly=1<<3) +
+  `src/core/src/PropertyKey.cpp` (MOD describe() +InheritOnly) +
+  `src/core/include/vaml/core/DependencyObject.h` + `src/core/src/DependencyObject.cpp` (MOD:
+  GetEffectiveValue + parent link + Get delegates) + `test/unit/DependencyProperty_test.cpp` (NEW) +
+  `test/unit/EffectiveValue_test.cpp` (NEW) + `build/verify_s039.cmd` (NEW, verify_s038-pattern
+  msvc-debug lane) + src/core/CMakeLists.txt + test/unit/CMakeLists.txt (MOD) + docs/roadmap.md (MOD
+  S039 [DONE]) + session-context.md (MOD). AUTHORS the recorded S036 RE-SCOPE: the global static
+  registry + `DependencyProperty::Register` landing site (S034-recorded, previously "S036's concern").
+  New REAL public symbol `vaml::DependencyProperty` (NOT MINIMAL REAL / NOT a stub — fully implemented,
+  tested, first real consumer is S039's own effective-value resolution): pimpl'd (class Impl +
+  unique_ptr), `Register(std::string_view name, ValueType type, std::string_view ownerTypeId,
+  PropertyMetadata)` inserts a PropertyKey into the new `PropertyRegistry::global()` (static-local
+  Meyers singleton, thread-safe init, name-unique → PropertyAlreadyRegistered on duplicate, store
+  unchanged) + a companion function-local-static table holding the full (key, metadata) definition
+  incl. flags (Inherits / InheritOnly) + default; `TryGet(name)` (null) / `Get(name)` (throws
+  PropertyNotFound); `property_id()` (wraps the OWNED name → lifetime-safe view),
+  `metadata()` / `flags()`. Type coherence guard: Register() throws ValueTypeMismatch when
+  type != metadata.boundType(). `PropertyFlags` gains `InheritOnly = 1 << 3` (independent bit;
+  meaningful only with Inherits) + describe() lists it. `DependencyObject::GetEffectiveValue(PropertyId)`
+  (READ-SIDE pull model; the real S039 primitive): NOT Inherits → local ?? default (unchanged S036
+  semantics); Inherits (no InheritOnly) → local ?? inherited-from-parent ?? default; InheritOnly →
+  inherited-from-parent ?? default (own local override does NOT contribute). Inheritance descriptor
+  (flags+default) sourced from the GLOBAL DependencyProperty where globally registered, falling back
+  to the object's own metadata for object-scoped S036 registration; local value always from the
+  object's per-object store. `Get` delegates to GetEffectiveValue (backward compatible — no existing
+  test uses Inherits/InheritOnly). Internal `nearest_ancestor_local` is a private static member
+  (same-class access to pimpl) — a straight upward scan for the nearest ancestor with a LOCAL
+  override, which is exactly equivalent to recursing each ancestor's effective value (an intermediate
+  ancestor with no local defers to ITS ancestor) without the throw hazard; TOLERANT by contract (an
+  ancestor that does not register the property, or has no local, contributes nothing — never throws);
+  public GetEffectiveValue still throws PropertyNotFound for an unregistered id. Added single
+  non-owning `set_parent(DependencyObject*)/parent()` link (read-side seed, NOT lazy, NO-GAP: S040
+  inheritance cascade + S120 UIElement/visual tree consume it; setting it triggers NO cascade — write/
+  cascade side is S040, recorded NOT silent). Tests (doctest, Shouldly vocabulary):
+  DependencyProperty_test.cpp (5 TEST_CASEs): Register installs globally + TryGet/Get retrieve it +
+  property_id/flags/default round-trip; name-unique re-register throws PropertyAlreadyRegistered,
+  original kept; type-coherence throws ValueTypeMismatch, nothing stored; TryGet null / Get throws
+  PropertyNotFound for unregistered; flags() round-trips Inherits|InheritOnly.
+  EffectiveValue_test.cpp (8 TEST_CASEs): non-inheriting local ?? default (Get delegates);
+  plain Inherits 1-level child inherits parent's local; multi-level inherits great-grandparent;
+  nearest-ancestor-with-value (intermediate empty local defers to IT ancestor); InheritOnly ignores
+  OWN local override + still inherits from chain; InheritOnly with no ancestor → default;
+  empty parent chain → default; GetEffectiveValue throws PropertyNotFound for unregistered. GOTCHA
+  (fixed pre-build): DependencyProperty::Register is GLOBALLY name-unique, so the test helper
+  registers each inherited property's global descriptor EXACTLY ONCE (tracked via a suite-local
+  static set) and only mirrors onto each object's own store — repeated hostInherited() across
+  objects no longer re-throws PropertyAlreadyRegistered. GOTCHA (fixed at build): header declares
+  `class Impl;` but cpp defined `struct Impl` → MSVC C4099 (warnings-as-errors) — cpp now uses
+  `class Impl`. VERIFIED BOTH CI LANES: msvc-debug (VS 2026) via verify_s039.cmd — configure/build
+  warning-clean, ctest 1/1 PASS (100% tests passed; 121 cases / 674 asserts); ubuntu-clang (Ubuntu VM
+  clang 21, shared folder /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (only pre-existing
+  upstream <ciso646> doctest deprecation from third_party — not this TU, already non-error in test
+  CMake). windows-clang-debug is NOT a lane (not built/tested/flagged per standing rule). NO-GAP
+  accounting: S040 = write/cascade side (parent change → recompute child effective value without
+  child write; child Set vs inherited old) consumes the parent-link seed + global table —
+  authored at S040, never a silent backfill; S120 (visual tree) consumes the parent link. No MINIMAL
+  REAL introduced/resolved. No NEW md files (directive honored). Next = S040.

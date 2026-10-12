@@ -108,4 +108,16 @@ std::size_t PropertyRegistry::size() const noexcept
     return impl_->size();
 }
 
+VAML_CORE_EXPORT
+PropertyRegistry& PropertyRegistry::global() noexcept
+{
+    // Meyers singleton: function-local static is constructed on first use and
+    // destroyed in reverse construction order at program exit. This is the
+    // global name -> key dedupe master consumed by DependencyProperty::Register
+    // (S039). No static-init-order fiasco (function-local static init is
+    // thread-safe in C++11+).
+    static PropertyRegistry instance;
+    return instance;
+}
+
 } // namespace vaml

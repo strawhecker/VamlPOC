@@ -85,6 +85,15 @@ public:
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }
 
+    // S039: the process-wide static name -> key dedupe master. This is the
+    // landing site for DependencyProperty::Register (S039) — the first real
+    // consumer of a GLOBAL property table (the S036 re-scope, recorded NOT
+    // silent). Object-scoped instances (default ctor) remain for per-object
+    // registration; this accessor returns the shared singleton used by
+    // global DependencyProperty registration. Thread-safe construction
+    // (Meyers function-local static).
+    [[nodiscard]] static PropertyRegistry& global() noexcept;
+
 private:
     class Impl;                 // pimpl: hides std::unordered_map
     std::unique_ptr<Impl> impl_;

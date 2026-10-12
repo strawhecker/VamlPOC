@@ -19,6 +19,8 @@ add_executable(vaml-core-tests
     DependencyObject_test.cpp
     DependencyObject_marshalling_test.cpp
     ChangeRecorder_test.cpp
+    DependencyProperty_test.cpp
+    EffectiveValue_test.cpp
     StringMaker_test.cpp
 )
 

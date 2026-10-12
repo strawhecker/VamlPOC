@@ -68,6 +68,10 @@ std::string PropertyKey::describe() const
         {
             os << (!first ? "|" : "") << "BindsTwoWayByDefault";
         }
+        if (has_flag(flags_, PropertyFlags::InheritOnly))
+        {
+            os << (!first ? "|" : "") << "InheritOnly";
+        }
         os << "]";
     }
 

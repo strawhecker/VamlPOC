@@ -11,6 +11,7 @@ vaml_add_library(core
     src/PropertyRegistry.cpp
     src/PropertyMetadata.cpp
     src/DependencyObject.cpp
+    src/DependencyProperty.cpp
     src/ChangeRecorder.cpp
 )
 
