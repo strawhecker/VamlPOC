@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S031 (Value round-trip + type-mismatch-throws tests) [token: S031]
-- Next step to do     : S032 [token: S032]
+- Last completed step : S032 (PropertyKey + PropertyRegistry) [token: S032]
+- Next step to do     : S033 [token: S033]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -317,3 +317,31 @@
   GOTCHA: `get<T>()` is `[[nodiscard]]` (S030) — `CHECK_THROWS_AS(a.get<T>(), ...)` discards the
   return → MSVC C4834 (warnings-as-errors). Fix: wrap the expression `(void)a.get<T>()` inside
   CHECK_THROWS_AS; applied to all throw-paths.
+- [x] S032 PropertyKey + PropertyRegistry — ✅ (see roadmap S032 line for full detail)
+  SURVIVOR: `src/core/include/vaml/core/{PropertyFlags,PropertyKey,PropertyRegistry}.h` +
+  `src/core/src/{PropertyFlags,PropertyKey,PropertyRegistry}.cpp` + `test/unit/PropertyKeyRegistry_test.cpp`.
+  All three are REAL public symbols (NOT MINIMAL REAL — no sentinel, no resolution token). PropertyFlags =
+  enum class:uint32_t with None|Inherits(1<<0)|ReadOnly(1<<1)|BindsTwoWayByDefault(1<<2) — exactly the
+  roadmap's S032/S034 flag set; free functions `operator|` + `has_flag` (independent-bit semantics),
+  defined out-of-line in PropertyFlags.cpp. PropertyKey = immutable (name, type:ValueType, ownerTypeId:string,
+  flags) tuple; getters; operator==/!= on all four fields; describe() renders a human-readable line with a
+  stable type tag name (mirrors Value.cpp enum order). Design decisions recorded: owner-id is a std::string
+  type-name (no cheap portable runtime type_of in C++; supports S043 attached-prop owner≠class; S033's
+  constexpr-safe static id layers on without changing fields); unique on NAME globally (WPF-style), ownerTypeId
+  stays identity metadata inside the key, not a second registry dimension. PropertyRegistry = instance-based,
+  pimpl'd (class Impl behind unique_ptr hides std::unordered_map — ABI + include-surface stable); register_key
+  (uniques by name; throws PropertyAlreadyRegistered:logic_error on collision, map unchanged, returns stored
+  const ref), try_find (→ptr or nullptr, noexcept), find (→stored key or throws PropertyNotFound:out_of_range),
+  size/empty. Exceptions declared in header, definitions in .cpp. A global static registry + constexpr-safe
+  static id/lookup is an S033 concern, NOT baked here (recorded, not silent). Test TU covers: PropertyFlags
+  OR+has_flag; PropertyKey getters + per-field equality + different ValueType tags (Int32/Thickness/String) +
+  describe(); Registry register/find/try_find/size; dedupe — duplicate NAME throws PropertyAlreadyRegistered
+  and leaves the map unchanged (size stable, original still findable); multiple distinct names coexist.
+  CMakeLists: +3 core sources; test/unit +PropertyKeyRegistry_test.cpp. build/verify_s032.cmd (NEW): clone of
+  verify_s031 pattern. VERIFIED BOTH COMPILERS: msvc-debug (VS 2026) ctest 1/1 PASS (was blocked by discarded
+  [[nodiscard]] register_key return → `(void)` cast fix); REAL LINUX clang-debug (Ubuntu VM clang 21.1.8)
+  build green, ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646> doctest deprecation.
+  NO-GAP accounting: S033 = exhaustive register/lookup/dedupe-throws + constexpr-safe static id; S034 consumes
+  flags + adds metadata (defaults/callbacks); S039/S043 consume owner-id + Inherits. Two deferred design
+  decisions recorded (not silent): (a) global name-uniqueness scope, (b) global static registry instance →
+  both S033. No MINIMAL REAL introduced/resolved. Next = S033.
