@@ -1,53 +1,65 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S035 (no commits; no NEW md files)
-- plan_repo_state : S035 implementit complete — msvc-debug (VS 2026) build green + ctest 1/1 PASS.
-                    No commit+push performed (per command). Files below are the full S035 change-set.
-- plan_digest     : S035 dep:S034 — Metadata tests: default applied, cb fires only on real change,
-                    coerce applied, validate rejects. Pure TEST step (no product symbol). Deliverable =
-                    doctest-scope MiniStore<T> harness (test TU-local, permanent test infra, NOT STUB /
-                    NOT MINIMAL REAL) that models the S036 Set-time apply pipeline: construction seeds
-                    current = defaultValue(); trySet runs coerce → validate(coerced) → fire-changed-cb
-                    only-on-real-change → store; outcome APPLIED/REJECTED/NO_CHANGE + records every cb
-                    (old,new). Test cases: default applied (fresh holder reads default; set==default is
-                    NO_CHANGE, no cb); coerce applied (stored value is the coerced value, cb sees coerced
-                    new); coerce-before-validate ordering (raw fails validate, passes once coerced — proves
-                    validate sees coerced value); validate rejects (store unchanged, cb not fired); cb
-                    fires only on real change (identical set → NO_CHANGE; N distinct → N fires with correct
-                    (old,new)); absent callbacks = passthrough (store-as-given, no spurious fires);
-                    type-bound (wrong-tag proposed throws ValueTypeMismatch, store untouched).
+- last_command    : implementit S036 (no commits; no NEW md files)
+- plan_repo_state : S036 implementit complete — msvc-debug (VS 2026) build green + ctest 1/1 PASS.
+                    No commit+push performed (per command). Files below are the full S036 change-set.
+- plan_digest     : S036 dep:S035 — DependencyObject base: local value store, Get/Set, per-prop mastery,
+                    thread-affinity marker. Satisfies the S035 apply pipeline (coerce → validate(on
+                    coerced) → fire changed cb only on real change → store; MiniStore harness in
+                    PropertyMetadata_semantics_test.cpp is the spec). DESIGN accepted: option A —
+                    object-scoped registration. A global static registry + DependencyProperty::Register
+                    (S034-recorded "S036's concern") is re-scoped to S039 (recorded, NOT silent), where
+                    effective-value resolution is the first real consumer.
                     Files:
-                    - test/unit/PropertyMetadata_semantics_test.cpp (NEW)
-                    - test/unit/CMakeLists.txt (MOD): +PropertyMetadata_semantics_test.cpp
-                    - build/verify_s035.cmd (NEW): verify_s034-pattern msvc-debug lane.
-                    Wire-up: docs/roadmap.md (S035 [DONE] + S036 annotated with S035→S036 contract),
-                    progress.md (S035 SURVIVOR + checkpoint → S036), session-context.md (this).
-                    DESIGN hand-off to S036: DependencyObject::Set must reproduce coerce → validate(on
-                    coerced) → fire changed cb only on real change → store; MiniStore is the reference
-                    spec (recorded searchable, not silent).
-                    Verification: msvc-debug (VS 2026) ctest 1/1 PASS (66 cases incl. this TU's 7).
+                    - src/core/include/vaml/core/DependencyObject.h (NEW)
+                    - src/core/src/DependencyObject.cpp           (NEW)
+                    - test/unit/DependencyObject_test.cpp         (NEW, 11 S036 cases)
+                    - build/verify_s036.cmd                       (NEW, verify_s035-pattern msvc-debug lane)
+                    - src/core/CMakeLists.txt                     (MOD): +DependencyObject.cpp
+                    - test/unit/CMakeLists.txt                    (MOD): +DependencyObject_test.cpp
+                    API: register_property(PropertyKey, PropertyMetadata) → stored-key ref, name-dedupe
+                    throws PropertyAlreadyRegistered-unchanged, type-coherence guard → ValueTypeMismatch;
+                    Get(PropertyId) → Value by value, PropertyNotFound if unregistered, default-applied
+                    fallback; Set(PropertyId, const Value&) → SetResult{APPLIED,REJECTED,NO_CHANGE}
+                    reproducing S035 pipeline verbatim (oldEffective = local-else-default; wrong-tag →
+                    ValueTypeMismatch); thread-affinity marker thread_affinity_id() +
+                    is_affine_to_current_thread() (created-thread recorded; wrong-thread QUEUING → S037).
+                    Wire-up: docs/roadmap.md (S036 [DONE]; S037 annotated with S036 thread-affinity
+                    consumer; S039 re-scope note), progress.md (S036 SURVIVOR + checkpoint → S037),
+                    session-context.md (this).
+                    Verification: msvc-debug (VS 2026) ctest 1/1 PASS (100% tests passed).
 - files_touched   :
-    ADD      test/unit/PropertyMetadata_semantics_test.cpp (MiniStore harness + 7 apply-semantics cases)
-    MODIFIED test/unit/CMakeLists.txt                    (+PropertyMetadata_semantics_test.cpp)
-    ADD      build/verify_s035.cmd                       (verify_s034-pattern msvc-debug lane)
-    MODIFIED docs/roadmap.md                             (S035 [DONE]; S036 annotated with apply contract)
-    MODIFIED progress.md                                 (S035 SURVIVOR + checkpoint → S036)
-    MODIFIED session-context.md                          (this file — completion status)
-- build_status    : GREEN — msvc-debug (VS 2026) ctest 1/1 PASS. (Last known good prior: S034.)
-- next_step       : S036 (DependencyObject base: local value store, Get/Set, per-prop mastery,
-                    thread-affinity marker) — must satisfy the S035 apply pipeline.
+    ADD      src/core/include/vaml/core/DependencyObject.h  (public DependencyObject API, pimpl'd)
+    ADD      src/core/src/DependencyObject.cpp              (register/get/set pipeline + affinity)
+    ADD      test/unit/DependencyObject_test.cpp            (11 apply/per-prop/dedupe/affinity cases)
+    ADD      build/verify_s036.cmd                          (verify_s035-pattern msvc-debug lane)
+    MODIFIED src/core/CMakeLists.txt                        (+src/DependencyObject.cpp)
+    MODIFIED test/unit/CMakeLists.txt                       (+DependencyObject_test.cpp)
+    MODIFIED docs/roadmap.md                                (S036 [DONE]; S037 annot; S039 re-scope note)
+    MODIFIED progress.md                                    (S036 SURVIVOR + checkpoint → S037)
+    MODIFIED session-context.md                             (this file — completion status)
+- build_status    : GREEN — msvc-debug (VS 2026) configure+build+ctest 1/1 PASS (100% tests passed).
+                    (Last known good prior: S035.)
+- next_step       : S037 (Set/Get local values; wrong-thread write queued-not-applied tests (marshalling
+                    foundation)) — consumes S036's thread-affinity marker.
 - notes           :
-    - S035 is a pure TEST step by plan: no product symbol added. The value-holder is S036's
-      DependencyObject; the MiniStore harness is test infrastructure (same class as the vendored
-      doctest/Shouldly harness), so it carries no MINIMAL REAL sentinel and is never shipped — NO-GAP
-      satisfied because the real Set feature is already scheduled at S036.
-    - The harness is the reference SPEC for S036::Set: it pins coerce → validate(coerced) →
-      fire-on-real-change → store ordering and exact cb (old,new) behavior, recorded searchably in
-      roadmap + progress so S036 cannot silently diverge.
-    - IMPORTANT in-development fix (fixed pre-build, not a shipped defect): the first coerce-before-
-      validate draft coerced -5→0 while the default was already 0, so the outcome was correctly
-      NO_CHANGE (not the intended APPLIED) — corrected to coerce -3→5 against default 0 so the ordering
-      proof is a real change.
+    - S036 introduces a REAL permanent public symbol vaml::DependencyObject (NOT MINIMAL REAL, no
+      sentinel — every member is genuine surface with scheduled consumers: S037 marshalling, S039
+      effective-value, S041 notification).
+    - DESIGN re-scope (recorded, NOT silent): the global static registry + DependencyProperty::Register
+      landing site (S034 recorded it as "S036's concern") is authored at S039 instead. S036 delivers
+      object-scoped registration because a global static registry in S036 would be speculative surface
+      with no consumer until S039's effective-value resolution. NO-GAP satisfied (documented re-scope,
+      not silent backfill); roadmap S039 line carries the response note.
+    - GOTCHA (recorded in roadmap+progress): the internal store keys on an OWNED std::string (copied
+      name), NOT on PropertyId — a PropertyId is a non-owning std::string_view that dangles once the
+      registering PropertyKey dies (SSO+heap names both failed until the owned-string key). Get/Set
+      re-derive std::string(id.name()) for lookup.
+    - GOTCHA: Value has NO public default ctor → PropEntry::local initializes to Value::Null() (not {}).
+    - GOTCHA: Set is [[nodiscard]] by design → tests that discard it cast to (void) (MSVC C4834 /WX).
+    - windows-clang-debug preset was attempted but fails on EVERY TU (incl. untouched version.cpp) on a
+      pre-existing `/Zc:preprocessor`-unused clang-cl incompatibility — cross-cutting preset issue wholly
+      out of S036 scope, NOT introduced here; the maintained verify lane for this step is msvc-debug.
     - No NEW md files produced beyond plan deliverables (directive honored). No commits made (per command).
-    - COMMITIT STATUS: commit + push of all S032 + S033 + S034 + S035 files is outstanding, awaiting
-      your authorization. After commit+push: repo is the committed good state; next step S036.
+    - COMMITIT STATUS: commit + push of all S032 + S033 + S034 + S035 + S036 files is outstanding,
+      awaiting your authorization. After commit+push: repo is the committed good state; next step S037.

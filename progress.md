@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S035 (Metadata apply-semantics tests) [token: S035]
-- Next step to do     : S036 [token: S036]
+- Last completed step : S036 (DependencyObject base: local value store, Get/Set, per-prop mastery, thread-affinity marker) [token: S036]
+- Next step to do     : S037 [token: S037]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -437,3 +437,44 @@
   recorded non-silently as an explicit S034 concern, resolving the S032 recording. NO-GAP: PropertyId is
   real + fully tested (no sentinel); nothing left for silent backfill; deferral searchable in roadmap+progress.
   No MINIMAL REAL introduced/resolved. Next = S034.
+ 
+- [x] S036 DependencyObject base: local value store, Get/Set, per-prop mastery, thread-affinity marker. — ✅
+  SURVIVOR: `src/core/include/vaml/core/DependencyObject.h` (NEW) + `src/core/src/DependencyObject.cpp`
+  (NEW) + `test/unit/DependencyObject_test.cpp` (NEW) + `build/verify_s036.cmd` (NEW, clone of
+  verify_s035-pattern msvc-debug lane). REAL public symbol `vaml::DependencyObject` (NOT MINIMAL REAL,
+  no sentinel — every member is genuine permanent surface with scheduled consumers). API: (a)
+  `register_property(PropertyKey, PropertyMetadata)` → returns const ref to STORED key; installs
+  (metadata, defaultValue) keyed by the property NAME; name dedupe throws `PropertyAlreadyRegistered`
+  leaving store unchanged; type-coherence guard key.type()≠metadata.boundType() → `ValueTypeMismatch`.
+  (b) `Get(PropertyId)` → Value BY VALUE (no ref-invalidation hazard for S037 marshalling/S039
+  effective-value); unregistered id throws `PropertyNotFound`; absent local = "default applied" → falls
+  back to metadata.defaultValue(). (c) `Set(PropertyId, const Value&)` → `SetResult::{APPLIED,REJECTED,
+  NO_CHANGE}` reproducing the S035 pipeline VERBATIM: coerce → validate(on the COERCED value) → fire
+  changed cb (oldEffective, coerced) ONLY on a real change → store; oldEffective = local-override-else-
+  default; wrong-tag input throws `ValueTypeMismatch`. (d) thread-affinity marker: ctor records
+  `std::this_thread::get_id()`; exposes `thread_affinity_id()` + `is_affine_to_current_thread()` (real,
+  consumed by S037 wrong-thread detection). Storage pimpl'd (class Impl + unique_ptr → header exposes no
+  unordered_map / no move-only PropertyMetadata). GOTCHA (recorded): the internal store keys on an OWNED
+  std::string (copied name), NOT on `PropertyId` — a PropertyId is a non-owning std::string_view that
+  dangles as soon as the registering PropertyKey (its storage source) dies; SSO+heap names both failed
+  until the owned-string key. This is why Get/Set re-derive `std::string(id.name())` for lookup. Tests
+  (doctest, 11 S036 TEST_CASEs): default-applied; coerce applied (coerced value validated+stored, cb sees
+  coerced new); coerce-BEFORE-validate ordering; validate rejects (store unchanged, no cb); cb-fires-ONLY-
+  on-real-change (same-value → NO_CHANGE, distinct → fires once each); passthrough; type-bound wrong-tag
+  throws (store untouched); per-prop mastery (two props coexist independently); dedupe throws-unchanged
+  (local override preserved); Get-by-value (string copies independent); thread-affinity (affine on
+  creating thread; a worker-created object records the worker id ≠ this thread). CMakeLists (MOD): core
+  +`src/DependencyObject.cpp`; test/unit +`DependencyObject_test.cpp`. GOTCHA: `Value` has NO public
+  default ctor → the `PropEntry::local` member initializes to `Value::Null()` (not `{}`). GOTCHA: `Set`
+  is `[[nodiscard]]` by design (result must be read) → tests that discard it cast to `(void)` to satisfy
+  MSVC C4834 under /WX. DESIGN re-scope (recorded, NOT silent): the global static registry +
+  `DependencyProperty::Register` landing site (S034 recorded it as "S036's concern") is authored at S039
+  instead — S036 delivers OBJECT-SCOPED registration only, because a global static registry in S036 would
+  be speculative surface with no consumer until S039's effective-value resolution; roadmap S039 line
+  carries this response note + S037 line annotated with its S036 thread-affinity consumer contract.
+  VERIFIED: msvc-debug (VS 2026) via verify_s036.cmd — configure/build warning-clean, ctest 1/1 PASS
+  (100% tests passed; 79 total cases / 529 asserts across the suite incl. 11 new S036 cases). The
+  windows-clang-debug preset was attempted but fails on EVERY TU (incl. untouched version.cpp) on a
+  pre-existing `/Zc:preprocessor`-unused clang-cl incompatibility — a cross-cutting preset issue wholly
+  out of S036 scope, NOT introduced here; the maintained verify lane for this step is msvc-debug (green).
+  No MINIMAL REAL introduced/resolved. Next = S037.
