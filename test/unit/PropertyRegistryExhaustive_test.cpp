@@ -4,9 +4,20 @@
 // all duplicate-throws rejection forms leaving the registry unchanged, missing-
 // lookup on empty + non-empty registries, and move semantics.
 
+// S036_4: migrated to the Shouldly-for-doctest assertion vocabulary
+// (SHOULD(...) seam + ShouldlyString + ShouldThrow). The lone REQUIRE (a
+// not-null identity gate before deref) is preserved as-is: REQUIRE aborts the
+// case when the pointer is null, guarding the subsequent deref — the correct
+// severity for a precondition, equivalent to CHECK_NOTHROW -> SHOULD + a
+// continue; the null-pointer assert itself is a REQUIRED guard, not an
+// assertion we want to continue past. It is the only REQUIRE in the suite.
+
 // doctest's main comes from smoke_test.cpp (DO doctest IMPLEMENT_WITH_MAIN).
 // This TU only declares tests — must NOT re-define implementation.
 #include "doctest/doctest.h"
+
+#include "vaml_test_stringmakers.h"       // S036_2 StringMaker + S036_4 operator<<
+#include <vaml/assert/Shouldly.h>         // ShouldlyString / ShouldThrow (SHOULD seam, S036_1)
 
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyFlags.h"
@@ -25,6 +36,7 @@ using vaml::PropertyKey;
 using vaml::PropertyNotFound;
 using vaml::PropertyRegistry;
 using vaml::ValueType;
+using vaml::test::ShouldThrow;
 
 namespace {
 
@@ -52,23 +64,23 @@ TEST_CASE("S033 PropertyRegistry: bulk register across types/flags/owners then l
 
     for (const auto& k : keys)
     {
-        CHECK_NOTHROW((void)reg.register_key(k));
+        (void)reg.register_key(k);
     }
-    CHECK(reg.size() == keys.size());
-    CHECK_FALSE(reg.empty());
+    SHOULD(ShouldlyString(reg.size()).ShouldBe(keys.size()));
+    SHOULD(ShouldlyString(reg.empty()).ShouldNotBe(true));
 
     // Every name -> exact stored key (all fields intact).
     for (const auto& k : keys)
     {
         const PropertyKey& stored = reg.find(k.name());
-        CHECK(stored == k);
-        CHECK(reg.try_find(k.name()) == &stored);
+        SHOULD(ShouldlyString(stored).ShouldBe(k));
+        SHOULD(ShouldlyString(reg.try_find(k.name())).ShouldBe(&stored));
     }
 
     // Sizes stay monotonic; a rejected duplicate does not grow.
     const std::size_t before = reg.size();
-    CHECK_THROWS_AS((void)reg.register_key(make_key("Width")), PropertyAlreadyRegistered);
-    CHECK(reg.size() == before);
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)reg.register_key(make_key("Width")); }));
+    SHOULD(ShouldlyString(reg.size()).ShouldBe(before));
 }
 
 TEST_CASE("S033 PropertyRegistry: duplicate-throws — every rejection form leaves registry unchanged")
@@ -84,47 +96,41 @@ TEST_CASE("S033 PropertyRegistry: duplicate-throws — every rejection form leav
     const PropertyKey* ptrBefore = reg.try_find("Width");
 
     // (a) same name, different type
-    CHECK_THROWS_AS((void)reg.register_key(make_key("Width", ValueType::Double, "Button")),
-                    PropertyAlreadyRegistered);
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)reg.register_key(make_key("Width", ValueType::Double, "Button")); }));
     // (b) same name, different owner
-    CHECK_THROWS_AS((void)reg.register_key(make_key("Width", ValueType::Int32, "Panel")),
-                    PropertyAlreadyRegistered);
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)reg.register_key(make_key("Width", ValueType::Int32, "Panel")); }));
     // (c) same name, different flags
-    CHECK_THROWS_AS((void)reg.register_key(make_key("Width", ValueType::Int32, "Button",
-                                                    PropertyFlags::Inherits)),
-                    PropertyAlreadyRegistered);
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)reg.register_key(make_key("Width", ValueType::Int32, "Button", PropertyFlags::Inherits)); }));
     // (d) same name, byte-identical key object
-    CHECK_THROWS_AS((void)reg.register_key(make_key("Width", ValueType::Int32, "Button",
-                                                    PropertyFlags::None)),
-                    PropertyAlreadyRegistered);
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)reg.register_key(make_key("Width", ValueType::Int32, "Button", PropertyFlags::None)); }));
 
     // Registry unchanged: size, stored pointer identity, and id all intact.
-    CHECK(reg.size() == sizeBefore);
-    CHECK(reg.try_find("Width") == ptrBefore);
-    CHECK(reg.id_of("Width") == idBefore);
-    CHECK(reg.find("Width").type() == ValueType::Int32); // original type survived
+    SHOULD(ShouldlyString(reg.size()).ShouldBe(sizeBefore));
+    SHOULD(ShouldlyString(reg.try_find("Width")).ShouldBe(ptrBefore));
+    SHOULD(ShouldlyString(reg.id_of("Width")).ShouldBe(idBefore));
+    SHOULD(ShouldlyString(reg.find("Width").type()).ShouldBe(ValueType::Int32)); // original type survived
 }
 
 TEST_CASE("S033 PropertyRegistry: missing-lookup — empty and non-empty")
 {
     // Empty registry.
     PropertyRegistry empty;
-    CHECK(empty.empty());
-    REQUIRE(empty.try_find("Width") == nullptr);  // never throws
-    CHECK_THROWS_AS((void)empty.find("Width"), PropertyNotFound);
-    CHECK_THROWS_AS((void)empty.id_of("Width"), PropertyNotFound);
-    CHECK_FALSE(empty.try_id("Width").valid());
+    SHOULD(ShouldlyString(empty.empty()).ShouldBe(true));
+    REQUIRE(empty.try_find("Width") == nullptr);  // precondition guard (never throws)
+    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)empty.find("Width"); }));
+    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)empty.id_of("Width"); }));
+    SHOULD(ShouldlyString(empty.try_id("Width").valid()).ShouldNotBe(true));
 
     // Non-empty registry, missing name.
     PropertyRegistry reg;
     (void)reg.register_key(make_key("Width", ValueType::Int32, "Button"));
     REQUIRE(reg.try_find("Missing") == nullptr);
-    CHECK_THROWS_AS((void)reg.find("Missing"), PropertyNotFound);
-    CHECK_THROWS_AS((void)reg.id_of("Missing"), PropertyNotFound);
-    CHECK_FALSE(reg.try_id("Missing").valid());
+    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)reg.find("Missing"); }));
+    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)reg.id_of("Missing"); }));
+    SHOULD(ShouldlyString(reg.try_id("Missing").valid()).ShouldNotBe(true));
 
     // The present name still resolves (missing-lookup never corrupts).
-    CHECK(reg.try_find("Width") != nullptr);
+    SHOULD(ShouldlyString(reg.try_find("Width") != nullptr).ShouldBe(true));
 }
 
 TEST_CASE("S033 PropertyRegistry: move semantics preserve mappings and dedupe")
@@ -136,19 +142,19 @@ TEST_CASE("S033 PropertyRegistry: move semantics preserve mappings and dedupe")
 
     // Move-construct.
     PropertyRegistry dst{std::move(src)};
-    CHECK(dst.size() == 2);
-    CHECK(dst.find("Width").type() == ValueType::Int32);
-    CHECK(dst.find("Margin").type() == ValueType::Thickness);
-    CHECK(dst.try_id("Width") == PropertyId::of("Width"));
+    SHOULD(ShouldlyString(dst.size()).ShouldBe(2));
+    SHOULD(ShouldlyString(dst.find("Width").type()).ShouldBe(ValueType::Int32));
+    SHOULD(ShouldlyString(dst.find("Margin").type()).ShouldBe(ValueType::Thickness));
+    SHOULD(ShouldlyString(dst.try_id("Width")).ShouldBe(PropertyId::of("Width")));
 
     // Dedupe behaviour survives the move.
-    CHECK_THROWS_AS((void)dst.register_key(make_key("Width")), PropertyAlreadyRegistered);
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)dst.register_key(make_key("Width")); }));
 
     // Move-assign onto a fresh registry.
     PropertyRegistry other;
     (void)other.register_key(make_key("Temp", ValueType::Bool, "X"));
     other = std::move(dst);
-    CHECK(other.size() == 2);
-    CHECK_THROWS_AS((void)other.register_key(make_key("Margin")), PropertyAlreadyRegistered);
-    CHECK(other.try_find("Temp") == nullptr); // old content gone
+    SHOULD(ShouldlyString(other.size()).ShouldBe(2));
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)other.register_key(make_key("Margin")); }));
+    SHOULD(ShouldlyString(other.try_find("Temp")).ShouldBe(nullptr)); // old content gone
 }

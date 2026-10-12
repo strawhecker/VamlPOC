@@ -1,4 +1,4 @@
-# VAML — PROGRESS / LLM CONTINUATION FILE  (SINGLE SOURCE OF TRUTH)
+﻿# VAML — PROGRESS / LLM CONTINUATION FILE  (SINGLE SOURCE OF TRUTH)
 
 > ## HOW TO RESUME (an LLM must read this first, with no prior context)
 > 1. Read ONLY this header block + the two `## CHECKPOINT` lines below.
@@ -23,10 +23,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S036_3 (ShouldThrow<Ex> typed-exception assertion category) [token: S036_3]
-- Next step to do     : S036_4 [token: S036_4]
-- PENDING work        : S036_4 (migrate feature tests), S036_5 (migrate DependencyObject_test +
-  final gate) — then S037.
+- Last completed step : S036_4 (migrate Value/roundtrip/PropertyId/PropertyKeyRegistry/PropertyRegistryExhaustive/PropertyMetadata feature tests to Shouldly-for-doctest vocabulary) [token: S036_4]
+- Next step to do     : S036_5 [token: S036_5]
+- PENDING work        : S036_5 (migrate DependencyObject_test + final gate) — then S037.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -571,3 +570,49 @@
   Maintained verify lane msvc-debug (green); windows-clang-debug preset remains broken on EVERY TU
   (pre-existing /Zc:preprocessor clang-cl incompatibility, cross-cutting, out of scope, NOT introduced
   here). No MINIMAL REAL introduced/resolved. Next = S036_4 (migrate feature tests).
+ 
+- [x] S036_4 Migrate Value / roundtrip / PropertyId / PropertyKeyRegistry / PropertyRegistryExhaustive /
+  PropertyMetadata feature tests from CHECK* to the Shouldly-for-doctest vocabulary. — ✅
+  SURVIVOR: `test/unit/vaml_test_stringmakers.h` (MOD, +operator<< overloads) + the six migrated
+  test files (Value_test, Value_roundtrip_test, PropertyId_test, PropertyKeyRegistry_test,
+  PropertyRegistryExhaustive_test, PropertyMetadata_test) all rewritten to the Shouldly vocabulary.
+  PRE-REQ (the IMPLEMENT BLOCKER surfaced + user ACCEPTED): the plan's literal "migrate CHECK== to
+  SHOULD(Shouldly...)" is NOT buildable without formatter support — Shouldly's stream-path formatter
+  (ShouldlyStr -> ThrowAwesomelyStr) renders a failure via `std::stringstream << actual`, and the
+  domain types (Value/ValueType/Color/Thickness/SetResult/PropertyId) had no operator<<. Resolution:
+  added test-side `operator<<` overloads in `vaml_test_stringmakers.h` (namespace vaml so ADL finds
+  them) reusing the exact S036_2 readable-text intent ("<Int32 42>", "SetResult::APPLIED",
+  "PropertyId(Width)", "RGBA(...)", "Insets(...)"); +`operator<<(ostream, PropertyKey)` delegating to
+  `k.describe()` (PropertyKey had none). Kept TEST-SIDE (not core): Value/Color/Thickness headers stay
+  lean + S089 Color/Thickness are MINIMAL REAL ("do NOT extend silently") — the formatting surface is
+  deliberately out of production headers. MIGRATION PATTERN (uniform across all 6 files): equality
+  `CHECK(a==b)` -> `SHOULD(ShouldlyString(a).ShouldBe(b))`; inequality `CHECK_FALSE(a)`/`CHECK(x!=y)`
+  -> `SHOULD(ShouldlyString(x).ShouldNotBe(y))` / bool -> `ShouldNotBe(true)`; flag checks
+  `CHECK(has_flag(...))` -> `SHOULD(ShouldlyString(has_flag(...)).ShouldBe(true))`; typed-exception
+  `CHECK_THROWS_AS((void)f(),Ex)` -> `SHOULD(ShouldThrow<Ex>([&]{ (void)f(); }))`; missing-string
+  contains-checks -> `ShouldlyString(d.find("X")!=npos).ShouldBe(true)`. SAMCTIONED non-migrated
+  survivors (deliberate, documented in each file): (a) 3 REQUIRE precondition guards (null-deref
+  gates BEFORE dereferencing a try_find pointer in PropertyKeyRegistry_test x1 + PropertyRegistry
+  Exhaustive_test x2) — these MUST abort the case on null, so REQUIRE is the correct severity;
+  (b) StringMaker_test.cpp's CHECKs — they assert the raw doctest::String text produced by the S036_2
+  StringMaker itself (an infrastructure test of the stringifier; migrating it to Shouldly would change
+  the very output under test). smoke_test.cpp (the doctest runner/main) untouched. PROCESS (the user's
+  option-B restart, honored): the FIRST S036_4 attempt used regex bulk-edits on Value_roundtrip_test
+  .cpp and was discovered unverified + rolled back (git checkout) at user direction; this completed
+  run is the CONSERVATIVE approach — one file at a time, full read then full rewrite (not regex
+  surgery), each verified by a build gate; PropertyId_test.cpp (22 sites, simplest types) migrated
+  FIRST as the proven template before scaling. GOTCHA (build-fixed): operator<<(Color/Thickness) must
+  be DEFINED ABOVE operator<<(Value) in the header because operator<<(Value) calls v.get<Color>() /
+  v.get<Thickness>() (C3861 referencing a later definition) — reordered so Color/Thickness precede
+  Value. GOTCHA: ShouldlyStr<T> requires actual + expected to be the SAME type T (both T const&), so
+  `ShouldlyString(std::string(x)).ShouldBe(std::string("..."))` (NOT a const char* rhs), and pointer
+  null-checks became `ShouldlyString(p == nullptr).ShouldBe(true)` / `!= nullptr` rather than
+  ShouldNotBe(nullptr) (nullptr_t vs T* mismatch). Status of migration target (S036_4 goal): ZERO
+  CHECK* remain in the 6 feature files except the sanctioned REQUIRE guards; no CHECK_THROWS_AS /
+  CHECK_NOTHROW / CHECK_THROWS_WITH anywhere in the migrated files; verbose failure info now carried
+  by the ShouldThrow<Ex> (actual-type+message) + ShouldlyString predicates. VERIFIED: msvc-debug (VS
+  2026) configure/build warning-clean, ctest 1/1 PASS (100% tests passed) after EACH file and after
+  the final gate. Maintained verify lane msvc-debug (green); windows-clang-debug preset remains
+  broken on EVERY TU (pre-existing /Zc:preprocessor clang-cl incompatibility, cross-cutting, out of
+  scope, NOT introduced here). No MINIMAL REAL introduced/resolved. Next = S036_5 (migrate
+  DependencyObject_test.cpp — the S036 proof — as the capstone + final gate).

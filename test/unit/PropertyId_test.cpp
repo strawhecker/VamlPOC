@@ -8,6 +8,9 @@
 // This TU only declares tests — must NOT re-define implementation.
 #include "doctest/doctest.h"
 
+#include "vaml_test_stringmakers.h"       // S036_2 StringMaker + S036_4 operator<<
+#include <vaml/assert/Shouldly.h>         // ShouldlyString / ShouldThrow (SHOULD seam, S036_1)
+
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyRegistry.h"
 
@@ -18,6 +21,7 @@ using vaml::PropertyId;
 using vaml::PropertyKey;
 using vaml::PropertyRegistry;
 using vaml::ValueType;
+using vaml::test::ShouldThrow;
 
 namespace {
 
@@ -44,38 +48,36 @@ PropertyKey make_key(const std::string& name, ValueType type = ValueType::Int32,
 
 TEST_CASE("S033 PropertyId: of() is constexpr-safe and binds the name")
 {
-    // The compile-time value and the runtime value agree. (Compare the name
-    // via std::string — doctest stringifies operands with ostream, which a raw
-    // std::string_view operand cannot satisfy without <ostream>.)
+    // The compile-time value and the runtime value agree.
     PropertyId id = PropertyId::of("Width");
-    CHECK(std::string(id.name()) == "Width");
-    CHECK(id.valid());
+    SHOULD(ShouldlyString(std::string(id.name())).ShouldBe(std::string("Width")));
+    SHOULD(ShouldlyString(id.valid()).ShouldBe(true));
 }
 
 TEST_CASE("S033 PropertyId: equality is by name; default id is invalid")
 {
-    CHECK(PropertyId::of("Width") == PropertyId::of("Width"));
-    CHECK(PropertyId::of("Width") != PropertyId::of("Height"));
-    CHECK_FALSE(PropertyId::of("Width") == PropertyId::of("Height"));
-    CHECK_FALSE(PropertyId::of("Width") != PropertyId::of("Width"));
+    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldBe(PropertyId::of("Width")));
+    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldNotBe(PropertyId::of("Height")));
+    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldNotBe(PropertyId::of("Height")));
+    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldBe(PropertyId::of("Width")));
 
     // Default-constructed id is invalid and unequal to any named id.
     PropertyId def;
-    CHECK_FALSE(def.valid());
-    CHECK(def.name().empty());
-    CHECK(def != PropertyId::of("Width"));
-    CHECK(def == PropertyId{}); // two default ids compare equal
+    SHOULD(ShouldlyString(def.valid()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(def.name().empty()).ShouldBe(true));
+    SHOULD(ShouldlyString(def).ShouldNotBe(PropertyId::of("Width")));
+    SHOULD(ShouldlyString(def).ShouldBe(PropertyId{})); // two default ids compare equal
 }
 
 TEST_CASE("S033 PropertyId: std::hash is consistent with equality")
 {
     const std::hash<PropertyId> h;
     // Equal ids hash equal.
-    CHECK(h(PropertyId::of("Width")) == h(PropertyId::of("Width")));
-    CHECK(h(PropertyId{}) == h(PropertyId{}));
-    // Distinct ids hash (over a sample) to distinct values — and at minimum
-    // the same-id invariant holds; equal-inputs-always-equal is the contract.
-    CHECK(h(PropertyId::of("Width")) != h(PropertyId::of("Height")));
+    SHOULD(ShouldlyString(h(PropertyId::of("Width"))).ShouldBe(h(PropertyId::of("Width"))));
+    SHOULD(ShouldlyString(h(PropertyId{})).ShouldBe(h(PropertyId{})));
+    // Distinct ids hash (over a sample) to distinct values — equal-inputs-
+    // always-equal is the contract.
+    SHOULD(ShouldlyString(h(PropertyId::of("Width"))).ShouldNotBe(h(PropertyId::of("Height"))));
 }
 
 TEST_CASE("S033 PropertyId: registry id_of/try_id round the name-keyed store")
@@ -84,12 +86,12 @@ TEST_CASE("S033 PropertyId: registry id_of/try_id round the name-keyed store")
     (void)reg.register_key(make_key("Width", ValueType::Int32, "Button"));
 
     // id_of of a registered name equals the compile-time id of that literal.
-    CHECK(reg.id_of("Width") == PropertyId::of("Width"));
-    CHECK(reg.id_of("Width").valid());
+    SHOULD(ShouldlyString(reg.id_of("Width")).ShouldBe(PropertyId::of("Width")));
+    SHOULD(ShouldlyString(reg.id_of("Width").valid()).ShouldBe(true));
 
     // try_id agrees.
-    CHECK(reg.try_id("Width") == PropertyId::of("Width"));
-    CHECK(reg.try_id("Width").valid());
+    SHOULD(ShouldlyString(reg.try_id("Width")).ShouldBe(PropertyId::of("Width")));
+    SHOULD(ShouldlyString(reg.try_id("Width").valid()).ShouldBe(true));
 }
 
 TEST_CASE("S033 PropertyId: id_of/try_id on an unregistered name")
@@ -98,13 +100,14 @@ TEST_CASE("S033 PropertyId: id_of/try_id on an unregistered name")
     (void)reg.register_key(make_key("Width", ValueType::Int32, "Button"));
 
     // id_of throws PropertyNotFound; try_id never throws and yields an
-    // invalid id.
-    CHECK_THROWS_AS((void)reg.id_of("Missing"), vaml::PropertyNotFound);
-    CHECK_FALSE(reg.try_id("Missing").valid());
-    CHECK(reg.try_id("Missing").name().empty());
+    // invalid id. (ShouldThrow OUT-EXPOSES doctest: wrong/missing throw
+    // reports the actual type + message.)
+    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] { (void)reg.id_of("Missing"); }));
+    SHOULD(ShouldlyString(reg.try_id("Missing").valid()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(reg.try_id("Missing").name().empty()).ShouldBe(true));
 
     // On an empty registry the same holds.
     PropertyRegistry empty;
-    CHECK_THROWS_AS((void)empty.id_of("Anything"), vaml::PropertyNotFound);
-    CHECK_FALSE(empty.try_id("Anything").valid());
+    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] { (void)empty.id_of("Anything"); }));
+    SHOULD(ShouldlyString(empty.try_id("Anything").valid()).ShouldNotBe(true));
 }

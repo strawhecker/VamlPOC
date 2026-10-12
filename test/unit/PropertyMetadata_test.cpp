@@ -10,9 +10,15 @@
 // ValueTypeMismatch (S030 contract) from coerce/validate/notifyChanged.
 // Copy is statically deleted (move-only) — proven via static_assert.
 
+// S036_4: migrated to the Shouldly-for-doctest assertion vocabulary
+// (SHOULD(...) seam + ShouldlyString + ShouldThrow).
+
 // doctest's main comes from smoke_test.cpp (DO doctest IMPLEMENT_WITH_MAIN).
 // This TU only declares tests — must NOT re-define implementation.
 #include "doctest/doctest.h"
+
+#include "vaml_test_stringmakers.h"       // S036_2 StringMaker + S036_4 operator<<
+#include <vaml/assert/Shouldly.h>         // ShouldlyString / ShouldThrow (SHOULD seam, S036_1)
 
 #include "vaml/core/PropertyMetadata.h"
 
@@ -23,6 +29,7 @@ using vaml::PropertyMetadata;
 using vaml::Value;
 using vaml::ValueType;
 using vaml::ValueTypeMismatch;
+using vaml::test::ShouldThrow;
 
 TEST_CASE("S034 PropertyMetadata: move-only by contract")
 {
@@ -39,10 +46,10 @@ TEST_CASE("S034 PropertyMetadata: move-only by contract")
     // Move constructs/assigns fine and keeps the moved-to value live.
     auto m = PropertyMetadata::WithDefault(Value::Int32(5), PropertyFlags::None);
     auto moved = std::move(m);                                       // move ctor
-    CHECK(moved.defaultValue() == Value::Int32(5));
+    SHOULD(ShouldlyString(moved.defaultValue()).ShouldBe(Value::Int32(5)));
     PropertyMetadata assigned = PropertyMetadata::WithDefault(Value::Bool(true), PropertyFlags::ReadOnly);
     assigned = std::move(moved);                                     // move assign
-    CHECK(assigned.defaultValue() == Value::Int32(5));
+    SHOULD(ShouldlyString(assigned.defaultValue()).ShouldBe(Value::Int32(5)));
 }
 
 TEST_CASE("S034 PropertyMetadata: WithDefault seeds default + bound type + flags")
@@ -51,17 +58,17 @@ TEST_CASE("S034 PropertyMetadata: WithDefault seeds default + bound type + flags
         Value::Int32(7),
         PropertyFlags::Inherits | PropertyFlags::BindsTwoWayByDefault);
 
-    CHECK(md.defaultValue() == Value::Int32(7));
-    CHECK(md.boundType() == ValueType::Int32);   // bound to default's tag
-    CHECK(md.boundType() == md.defaultValue().type());
-    CHECK(has_flag(md.flags(), PropertyFlags::Inherits));
-    CHECK(has_flag(md.flags(), PropertyFlags::BindsTwoWayByDefault));
-    CHECK_FALSE(has_flag(md.flags(), PropertyFlags::ReadOnly));
+    SHOULD(ShouldlyString(md.defaultValue()).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(md.boundType()).ShouldBe(ValueType::Int32));   // bound to default's tag
+    SHOULD(ShouldlyString(md.boundType()).ShouldBe(md.defaultValue().type()));
+    SHOULD(ShouldlyString(has_flag(md.flags(), PropertyFlags::Inherits)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(md.flags(), PropertyFlags::BindsTwoWayByDefault)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(md.flags(), PropertyFlags::ReadOnly)).ShouldNotBe(true));
 
     // Passthrough defaults: absent callbacks.
-    CHECK_FALSE(md.has_coerce());
-    CHECK_FALSE(md.has_validate());
-    CHECK_FALSE(md.has_changed());
+    SHOULD(ShouldlyString(md.has_coerce()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(md.has_validate()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(md.has_changed()).ShouldNotBe(true));
 }
 
 TEST_CASE("S034 PropertyMetadata: flags agree with the PropertyKey carrier (validating carrier)")
@@ -71,17 +78,17 @@ TEST_CASE("S034 PropertyMetadata: flags agree with the PropertyKey carrier (vali
     // carrier faithfully reports what it was given — the full agreement
     // enforcement is S036's register(). Each of the three bits round-trips.
     const auto i = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::Inherits);
-    CHECK(has_flag(i.flags(), PropertyFlags::Inherits));
-    CHECK_FALSE(has_flag(i.flags(), PropertyFlags::ReadOnly));
-    CHECK_FALSE(has_flag(i.flags(), PropertyFlags::BindsTwoWayByDefault));
+    SHOULD(ShouldlyString(has_flag(i.flags(), PropertyFlags::Inherits)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(i.flags(), PropertyFlags::ReadOnly)).ShouldNotBe(true));
+    SHOULD(ShouldlyString(has_flag(i.flags(), PropertyFlags::BindsTwoWayByDefault)).ShouldNotBe(true));
 
     const auto r = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::ReadOnly);
-    CHECK(has_flag(r.flags(), PropertyFlags::ReadOnly));
-    CHECK_FALSE(has_flag(r.flags(), PropertyFlags::Inherits));
+    SHOULD(ShouldlyString(has_flag(r.flags(), PropertyFlags::ReadOnly)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(r.flags(), PropertyFlags::Inherits)).ShouldNotBe(true));
 
     const auto b = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::BindsTwoWayByDefault);
-    CHECK(has_flag(b.flags(), PropertyFlags::BindsTwoWayByDefault));
-    CHECK_FALSE(has_flag(b.flags(), PropertyFlags::Inherits));
+    SHOULD(ShouldlyString(has_flag(b.flags(), PropertyFlags::BindsTwoWayByDefault)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(b.flags(), PropertyFlags::Inherits)).ShouldNotBe(true));
 }
 
 TEST_CASE("S034 PropertyMetadata: coerce — absent = identity, present = transforms")
@@ -89,32 +96,32 @@ TEST_CASE("S034 PropertyMetadata: coerce — absent = identity, present = transf
     // Passthrough: absent coerce returns the input unchanged (branch-free
     // common path for S036).
     const auto plain = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None);
-    CHECK_FALSE(plain.has_coerce());
-    CHECK(plain.coerce(Value::Int32(42)) == Value::Int32(42));
+    SHOULD(ShouldlyString(plain.has_coerce()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(plain.coerce(Value::Int32(42))).ShouldBe(Value::Int32(42)));
 
     // Installed coerce transforms the value.
     const auto md = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None)
         .with_coerce([](const Value& v) { return Value::Int32(v.get<std::int32_t>() + 100); });
-    CHECK(md.has_coerce());
-    CHECK(md.coerce(Value::Int32(42)) == Value::Int32(142));
+    SHOULD(ShouldlyString(md.has_coerce()).ShouldBe(true));
+    SHOULD(ShouldlyString(md.coerce(Value::Int32(42))).ShouldBe(Value::Int32(142)));
     // Source metadata untouched by the && builder? The builder consumed `plain`-like
     // temporary; verify the coerce still bound + works on a fresh call.
-    CHECK(md.coerce(Value::Int32(1)) == Value::Int32(101));
+    SHOULD(ShouldlyString(md.coerce(Value::Int32(1))).ShouldBe(Value::Int32(101)));
 }
 
 TEST_CASE("S034 PropertyMetadata: validate — absent accepts, present rejects/accepts")
 {
     // Passthrough: absent validate always accepts.
     const auto plain = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None);
-    CHECK_FALSE(plain.has_validate());
-    CHECK(plain.validate(Value::Int32(5)));
+    SHOULD(ShouldlyString(plain.has_validate()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(plain.validate(Value::Int32(5))).ShouldBe(true));
 
     // Installed validate: true = accepted, false = rejected.
     auto vd = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None)
         .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0; });
-    CHECK(vd.has_validate());
-    CHECK(vd.validate(Value::Int32(10)));
-    CHECK_FALSE(vd.validate(Value::Int32(-3)));
+    SHOULD(ShouldlyString(vd.has_validate()).ShouldBe(true));
+    SHOULD(ShouldlyString(vd.validate(Value::Int32(10))).ShouldBe(true));
+    SHOULD(ShouldlyString(vd.validate(Value::Int32(-3))).ShouldNotBe(true));
 }
 
 TEST_CASE("S034 PropertyMetadata: changed cb — fires only when installed, receives (old,new)")
@@ -122,7 +129,7 @@ TEST_CASE("S034 PropertyMetadata: changed cb — fires only when installed, rece
     // Absent changed cb is a no-op (does not throw).
     const auto plain = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None);
     plain.notifyChanged(Value::Int32(1), Value::Int32(2)); // no throw
-    CHECK_FALSE(plain.has_changed());
+    SHOULD(ShouldlyString(plain.has_changed()).ShouldNotBe(true));
 
     // Installed changed cb receives exactly (old,new).
     std::int32_t seenOld = 0, seenNew = 0;
@@ -133,11 +140,11 @@ TEST_CASE("S034 PropertyMetadata: changed cb — fires only when installed, rece
             seenNew   = n.get<std::int32_t>();
             ++fireCount;
         });
-    CHECK(cd.has_changed());
+    SHOULD(ShouldlyString(cd.has_changed()).ShouldBe(true));
     cd.notifyChanged(Value::Int32(10), Value::Int32(20));
-    CHECK(fireCount == 1);
-    CHECK(seenOld == 10);
-    CHECK(seenNew == 20);
+    SHOULD(ShouldlyString(fireCount).ShouldBe(1));
+    SHOULD(ShouldlyString(seenOld).ShouldBe(10));
+    SHOULD(ShouldlyString(seenNew).ShouldBe(20));
 }
 
 TEST_CASE("S034 PropertyMetadata: coerce + validate + changed can be composed on one builder chain")
@@ -149,16 +156,16 @@ TEST_CASE("S034 PropertyMetadata: coerce + validate + changed can be composed on
         .with_validate([](const Value& v) { return v.get<std::int32_t>() <= 100; })
         .with_changed([](const Value&, const Value&) {});
 
-    CHECK(has_flag(md.flags(), PropertyFlags::ReadOnly));
-    CHECK(md.has_coerce());
-    CHECK(md.has_validate());
-    CHECK(md.has_changed());
+    SHOULD(ShouldlyString(has_flag(md.flags(), PropertyFlags::ReadOnly)).ShouldBe(true));
+    SHOULD(ShouldlyString(md.has_coerce()).ShouldBe(true));
+    SHOULD(ShouldlyString(md.has_validate()).ShouldBe(true));
+    SHOULD(ShouldlyString(md.has_changed()).ShouldBe(true));
 
     // All three behaviors live on the same metadata.
-    CHECK(md.coerce(Value::Int32(-5)) == Value::Int32(0));   // clamped by coerce
-    CHECK(md.coerce(Value::Int32(50)) == Value::Int32(50));
-    CHECK(md.validate(Value::Int32(150)) == false);          // out of range
-    CHECK(md.validate(Value::Int32(50)) == true);
+    SHOULD(ShouldlyString(md.coerce(Value::Int32(-5))).ShouldBe(Value::Int32(0)));   // clamped by coerce
+    SHOULD(ShouldlyString(md.coerce(Value::Int32(50))).ShouldBe(Value::Int32(50)));
+    SHOULD(ShouldlyString(md.validate(Value::Int32(150))).ShouldNotBe(true));        // out of range
+    SHOULD(ShouldlyString(md.validate(Value::Int32(50))).ShouldBe(true));
     md.notifyChanged(Value::Int32(0), Value::Int32(50));     // no throw
 }
 
@@ -171,13 +178,13 @@ TEST_CASE("S034 PropertyMetadata: wrong-tag Value throws ValueTypeMismatch (type
 
     // The metadata is bound to Int32; every entry point rejects a String Value.
     const Value wrongTag = Value::Double(2.5); // != Int32
-    CHECK_THROWS_AS((void)md.coerce(wrongTag), ValueTypeMismatch);
-    CHECK_THROWS_AS((void)md.validate(wrongTag), ValueTypeMismatch);
-    CHECK_THROWS_AS(md.notifyChanged(Value::Int32(1), wrongTag), ValueTypeMismatch);
-    CHECK_THROWS_AS(md.notifyChanged(wrongTag, Value::Int32(1)), ValueTypeMismatch);
+    SHOULD(ShouldThrow<ValueTypeMismatch>([&] { (void)md.coerce(wrongTag); }));
+    SHOULD(ShouldThrow<ValueTypeMismatch>([&] { (void)md.validate(wrongTag); }));
+    SHOULD(ShouldThrow<ValueTypeMismatch>([&] { md.notifyChanged(Value::Int32(1), wrongTag); }));
+    SHOULD(ShouldThrow<ValueTypeMismatch>([&] { md.notifyChanged(wrongTag, Value::Int32(1)); }));
 
     // Correct-tag values still pass post-throw (throw path is a read-only test).
-    CHECK(md.coerce(Value::Int32(3)) == Value::Int32(4));
+    SHOULD(ShouldlyString(md.coerce(Value::Int32(3))).ShouldBe(Value::Int32(4)));
 }
 
 TEST_CASE("S034 PropertyMetadata: builder is return-by-value, source untouched for temporaries")
@@ -188,7 +195,7 @@ TEST_CASE("S034 PropertyMetadata: builder is return-by-value, source untouched f
     auto source = PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None);
     auto result = std::move(source).with_validate([](const Value& v) { return v.get<std::int32_t>() != 0; });
 
-    CHECK(result.has_validate());
-    CHECK_FALSE(result.validate(Value::Int32(0)));
-    CHECK(result.validate(Value::Int32(9)));
+    SHOULD(ShouldlyString(result.has_validate()).ShouldBe(true));
+    SHOULD(ShouldlyString(result.validate(Value::Int32(0))).ShouldNotBe(true));
+    SHOULD(ShouldlyString(result.validate(Value::Int32(9))).ShouldBe(true));
 }

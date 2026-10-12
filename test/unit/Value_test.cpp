@@ -2,10 +2,16 @@
 // equality for all 11 payloads). The type-mismatch-throws suite is S031
 // (roadmap makes rounding + mismatch its own step).
 
+// S036_4: migrated to the Shouldly-for-doctest assertion vocabulary
+// (SHOULD(...) seam + ShouldlyString overloads).
+
 // NOTE: doctest's implementation (main) is defined by smoke_test.cpp via
 // DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN. This TU only declares tests — it must
 // NOT re-define it (would duplicate main/doctest statics).
 #include "doctest/doctest.h"
+
+#include "vaml_test_stringmakers.h"       // S036_2 StringMaker + S036_4 operator<<
+#include <vaml/assert/Shouldly.h>         // ShouldlyString (SHOULD seam, S036_1)
 
 #include "vaml/core/Value.h"
 
@@ -21,49 +27,49 @@ using vaml::ValueType;
 TEST_CASE("S030 Value: Null factory maps to Null tag and isNull")
 {
     const Value v = Value::Null();
-    CHECK(v.type() == ValueType::Null);
-    CHECK(v.isNull());
+    SHOULD(ShouldlyString(v.type()).ShouldBe(ValueType::Null));
+    SHOULD(ShouldlyString(v.isNull()).ShouldBe(true));
 }
 
 TEST_CASE("S030 Value: scalar factories map to their tags")
 {
-    CHECK(Value::Bool(true).type() == ValueType::Bool);
-    CHECK(Value::Int32(7).type() == ValueType::Int32);
-    CHECK(Value::Int64(7).type() == ValueType::Int64);
-    CHECK(Value::Float(1.5f).type() == ValueType::Float);
-    CHECK(Value::Double(1.5).type() == ValueType::Double);
-    CHECK(Value::BrushId(3).type() == ValueType::BrushId);
+    SHOULD(ShouldlyString(Value::Bool(true).type()).ShouldBe(ValueType::Bool));
+    SHOULD(ShouldlyString(Value::Int32(7).type()).ShouldBe(ValueType::Int32));
+    SHOULD(ShouldlyString(Value::Int64(7).type()).ShouldBe(ValueType::Int64));
+    SHOULD(ShouldlyString(Value::Float(1.5f).type()).ShouldBe(ValueType::Float));
+    SHOULD(ShouldlyString(Value::Double(1.5).type()).ShouldBe(ValueType::Double));
+    SHOULD(ShouldlyString(Value::BrushId(3).type()).ShouldBe(ValueType::BrushId));
 }
 
 TEST_CASE("S030 Value: String/Color/Thickness/UntypedPtr map to their tags")
 {
-    CHECK(Value::String("hi").type() == ValueType::String);
-    CHECK(Value::Color(Color{255, 0, 0, 255}).type() == ValueType::Color);
-    CHECK(Value::Thickness(Thickness{1.0f, 2.0f, 3.0f, 4.0f}).type() == ValueType::Thickness);
+    SHOULD(ShouldlyString(Value::String("hi").type()).ShouldBe(ValueType::String));
+    SHOULD(ShouldlyString(Value::Color(Color{255, 0, 0, 255}).type()).ShouldBe(ValueType::Color));
+    SHOULD(ShouldlyString(Value::Thickness(Thickness{1.0f, 2.0f, 3.0f, 4.0f}).type()).ShouldBe(ValueType::Thickness));
     int x = 0;
-    CHECK(Value::UntypedPtr(&x).type() == ValueType::UntypedPtr);
+    SHOULD(ShouldlyString(Value::UntypedPtr(&x).type()).ShouldBe(ValueType::UntypedPtr));
 }
 
 TEST_CASE("S030 Value: only Null isNull, non-Null payloads are not null")
 {
-    CHECK(Value::Null().isNull());
-    CHECK_FALSE(Value::Bool(false).isNull());
-    CHECK_FALSE(Value::Int32(0).isNull());
-    CHECK_FALSE(Value::String("").isNull());
+    SHOULD(ShouldlyString(Value::Null().isNull()).ShouldBe(true));
+    SHOULD(ShouldlyString(Value::Bool(false).isNull()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(Value::Int32(0).isNull()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(Value::String("").isNull()).ShouldNotBe(true));
 }
 
 TEST_CASE("S030 Value: get<T> round-trips every payload type")
 {
-    CHECK(Value::Bool(true).get<bool>() == true);
-    CHECK(Value::Int32(-42).get<std::int32_t>() == -42);
-    CHECK(Value::Int64(-42).get<std::int64_t>() == -42);
-    CHECK(Value::Float(3.25f).get<float>() == 3.25f);
-    CHECK(Value::Double(3.25).get<double>() == 3.25);
-    CHECK(Value::String("abc").get<std::string>() == "abc");
-    CHECK(Value::Color(Color{10, 20, 30, 40}).get<Color>() == Color{10, 20, 30, 40});
-    CHECK(Value::Thickness(Thickness{1, 2, 3, 4}).get<Thickness>() == Thickness{1, 2, 3, 4});
+    SHOULD(ShouldlyString(Value::Bool(true).get<bool>()).ShouldBe(true));
+    SHOULD(ShouldlyString(Value::Int32(-42).get<std::int32_t>()).ShouldBe(-42));
+    SHOULD(ShouldlyString(Value::Int64(-42).get<std::int64_t>()).ShouldBe(-42));
+    SHOULD(ShouldlyString(Value::Float(3.25f).get<float>()).ShouldBe(3.25f));
+    SHOULD(ShouldlyString(Value::Double(3.25).get<double>()).ShouldBe(3.25));
+    SHOULD(ShouldlyString(Value::String("abc").get<std::string>()).ShouldBe(std::string("abc")));
+    SHOULD(ShouldlyString(Value::Color(Color{10, 20, 30, 40}).get<Color>()).ShouldBe(Color{10, 20, 30, 40}));
+    SHOULD(ShouldlyString(Value::Thickness(Thickness{1, 2, 3, 4}).get<Thickness>()).ShouldBe(Thickness{1, 2, 3, 4}));
     void* p = nullptr;
-    CHECK(Value::UntypedPtr(&p).get<void*>() == &p);
+    SHOULD(ShouldlyString(Value::UntypedPtr(&p).get<void*>()).ShouldBe(&p));
 }
 
 TEST_CASE("S030 Value: BrushId is an int32 payload readable via get<int32_t>")
@@ -71,49 +77,49 @@ TEST_CASE("S030 Value: BrushId is an int32 payload readable via get<int32_t>")
     // BrushId carries a tagged scalar id; retrieval accepts the Int32 payload
     // type. The distinct tag is preserved (S031 owns the mismatch suite).
     const Value v = Value::BrushId(99);
-    CHECK(v.type() == ValueType::BrushId);
-    CHECK(v.get<std::int32_t>() == 99);
+    SHOULD(ShouldlyString(v.type()).ShouldBe(ValueType::BrushId));
+    SHOULD(ShouldlyString(v.get<std::int32_t>()).ShouldBe(99));
 }
 
 TEST_CASE("S030 Value: equality — same tag + same payload")
 {
-    CHECK(Value::Null() == Value::Null());
-    CHECK(Value::Bool(true) == Value::Bool(true));
-    CHECK(Value::Int32(5) == Value::Int32(5));
-    CHECK(Value::Int64(5) == Value::Int64(5));
-    CHECK(Value::Float(1.5f) == Value::Float(1.5f));
-    CHECK(Value::Double(1.5) == Value::Double(1.5));
-    CHECK(Value::String("xyz") == Value::String("xyz"));
-    CHECK(Value::Color(Color{1, 2, 3, 4}) == Value::Color(Color{1, 2, 3, 4}));
-    CHECK(Value::Thickness(Thickness{1, 2, 3, 4}) == Value::Thickness(Thickness{1, 2, 3, 4}));
+    SHOULD(ShouldlyString(Value::Null()).ShouldBe(Value::Null()));
+    SHOULD(ShouldlyString(Value::Bool(true)).ShouldBe(Value::Bool(true)));
+    SHOULD(ShouldlyString(Value::Int32(5)).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(Value::Int64(5)).ShouldBe(Value::Int64(5)));
+    SHOULD(ShouldlyString(Value::Float(1.5f)).ShouldBe(Value::Float(1.5f)));
+    SHOULD(ShouldlyString(Value::Double(1.5)).ShouldBe(Value::Double(1.5)));
+    SHOULD(ShouldlyString(Value::String("xyz")).ShouldBe(Value::String("xyz")));
+    SHOULD(ShouldlyString(Value::Color(Color{1, 2, 3, 4})).ShouldBe(Value::Color(Color{1, 2, 3, 4})));
+    SHOULD(ShouldlyString(Value::Thickness(Thickness{1, 2, 3, 4})).ShouldBe(Value::Thickness(Thickness{1, 2, 3, 4})));
     void* p = nullptr;
-    CHECK(Value::UntypedPtr(&p) == Value::UntypedPtr(&p));
+    SHOULD(ShouldlyString(Value::UntypedPtr(&p)).ShouldBe(Value::UntypedPtr(&p)));
 }
 
 TEST_CASE("S030 Value: inequality — differing tags or differing payloads")
 {
-    CHECK_FALSE(Value::Int32(5) == Value::Int64(5));      // tag differs
-    CHECK_FALSE(Value::Bool(true) == Value::Bool(false)); // payload differs
-    CHECK_FALSE(Value::Int32(5) == Value::Int32(6));
-    CHECK_FALSE(Value::String("a") == Value::String("b"));
-    CHECK_FALSE(Value::Color(Color{1, 2, 3, 4}) == Value::Color(Color{1, 2, 3, 5}));
-    CHECK_FALSE(Value::Thickness(Thickness{1, 2, 3, 4}) == Value::Thickness(Thickness{1, 2, 3, 5}));
-    CHECK_FALSE(Value::Null() == Value::Bool(false)); // null != non-null
-    CHECK_FALSE(Value::BrushId(1) == Value::Int32(1)); // different tags
+    SHOULD(ShouldlyString(Value::Int32(5)).ShouldNotBe(Value::Int64(5)));      // tag differs
+    SHOULD(ShouldlyString(Value::Bool(true)).ShouldNotBe(Value::Bool(false))); // payload differs
+    SHOULD(ShouldlyString(Value::Int32(5)).ShouldNotBe(Value::Int32(6)));
+    SHOULD(ShouldlyString(Value::String("a")).ShouldNotBe(Value::String("b")));
+    SHOULD(ShouldlyString(Value::Color(Color{1, 2, 3, 4})).ShouldNotBe(Value::Color(Color{1, 2, 3, 5})));
+    SHOULD(ShouldlyString(Value::Thickness(Thickness{1, 2, 3, 4})).ShouldNotBe(Value::Thickness(Thickness{1, 2, 3, 5})));
+    SHOULD(ShouldlyString(Value::Null()).ShouldNotBe(Value::Bool(false))); // null != non-null
+    SHOULD(ShouldlyString(Value::BrushId(1)).ShouldNotBe(Value::Int32(1))); // different tags
 }
 
 TEST_CASE("S030 Value: copy and move preserve payload and type")
 {
     const Value src = Value::String("copy-me");
     const Value copy = src;
-    CHECK(copy.type() == ValueType::String);
-    CHECK(copy.get<std::string>() == "copy-me");
-    CHECK(src.get<std::string>() == "copy-me");
+    SHOULD(ShouldlyString(copy.type()).ShouldBe(ValueType::String));
+    SHOULD(ShouldlyString(copy.get<std::string>()).ShouldBe(std::string("copy-me")));
+    SHOULD(ShouldlyString(src.get<std::string>()).ShouldBe(std::string("copy-me")));
 
     Value moved = Value::String("move-me");
     const Value target = std::move(moved);
-    CHECK(target.type() == ValueType::String);
-    CHECK(target.get<std::string>() == "move-me");
+    SHOULD(ShouldlyString(target.type()).ShouldBe(ValueType::String));
+    SHOULD(ShouldlyString(target.get<std::string>()).ShouldBe(std::string("move-me")));
 }
 
 TEST_CASE("S030 Value: copy-assignment and move-assignment")
@@ -121,12 +127,12 @@ TEST_CASE("S030 Value: copy-assignment and move-assignment")
     Value a = Value::Int32(1);
     Value b = Value::String("hello");
     a = b;
-    CHECK(a.type() == ValueType::String);
-    CHECK(a.get<std::string>() == "hello");
+    SHOULD(ShouldlyString(a.type()).ShouldBe(ValueType::String));
+    SHOULD(ShouldlyString(a.get<std::string>()).ShouldBe(std::string("hello")));
 
     Value c = Value::Int32(1);
     Value d = Value::String("world");
     c = std::move(d);
-    CHECK(c.type() == ValueType::String);
-    CHECK(c.get<std::string>() == "world");
+    SHOULD(ShouldlyString(c.type()).ShouldBe(ValueType::String));
+    SHOULD(ShouldlyString(c.get<std::string>()).ShouldBe(std::string("world")));
 }
