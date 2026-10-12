@@ -1,7 +1,9 @@
 # VAML ROADMAP — S000..S999 (authoritative tokenized step list)
 
-> This is THE step enumeration for the VAML POC. `progress.md` (repo root) is the continuation
-> file that tracks completion. This file is the source of WHAT to do; each step has a token
+> This is THE step enumeration for VAML. It was originally framed as a "POC," but it stopped being one
+> before S001 — per the standing decision (ADR-017), this is **v1 built at v2 quality** ("version 2 as our
+> first version"): a real production first version, not a throwaway to be ported. `progress.md` (repo root)
+> is the continuation file that tracks completion. This file is the source of WHAT to do; each step has a token
 > `S###`, a dependency (`dep:`), and a one-line description. The "no-stub" rule applies: a step
 > is only ✅ when its behavior is real and verified by build + tests.
 >
@@ -155,9 +157,15 @@
 - S200 dep:S172  Quad renderer: vertex/index buffers, textured quads, uniform MVP/UI scale, alpha blend, SRGB.
 - S201 dep:S200  Draw N quads from CPU list each frame; blend + SRGB tests.
 - S202 dep:S201  Texture atlas + image upload (staging → device-local); sub-region invalidation.
+- S202_1 dep:S202  Icon asset pipeline (single quad engine; per ADR-015): PNG and SVG are BOTH source asset
+      formats, each rasterized ONCE into the atlas exactly as fonts are (S203/S204) — no vector-on-screen,
+      no second renderer. Output tagged with its texel count for best-fit selection (S213_1).
 - S203 dep:S202  Embedded bitmap-font loader + ASCII 32–126 glyph atlas build.
 - S204 dep:S203  SDF rasterizer: glyphs → SDF into atlas; soft-edge sampling.
 - S205 dep:S204  UI shaders (SDF text + solid color + border) + descriptor sets; shared layout.
+- S205_1 dep:S205  Monochrome icon tint at sample: single-channel alpha-mask sampled by the quad shader,
+      Foreground color applied in-shader (no bitmap color-effect recompositing; preserves partial-alpha).
+      TintMode=Monochrome uses this; TintMode=Preserve samples the multicolor texture.
 - S206 dep:S205  Draw text + rect from shared descriptor layout; batch same-shader draws.
 - S207 dep:S206  Scene→command-buffer encoder: walk visual tree → draw list by material; z-order via tree order.
 - S208 dep:S207  Encoder honors Opacity + Clip (draw grouping).
@@ -166,31 +174,54 @@
 - S211 dep:S210  Marshalled-change consumption per frame (UI thread mutates, render thread draws) — first wire.
 - S212 dep:S211  MERGE POINT: UI declared in VAML renders to window via full S5 path (first real vertical slice).
 - S213 dep:S212  DPI + framebuffer scale: logical px layout, render scales by framebufferScale; high-DPI crisp.
+- S213_1 dep:S213  DPI-aware icon best-fit selection (per ADR-015): scaling policy { none | down-only | both },
+      default none. "none" = never resample, pick largest authored texel set ≤ physical N (N_physical =
+      logical_size × dpiScale), sprite may be smaller than its slot; "down-only" may sample a larger set
+      down to exactly N_physical, never up; "both" permits either way (blur possible). Per (IconKey,
+      logical size) computed once at runtime against framebufferScale, then cached.
 - S214 dep:S213  REFACTOR GATE(S5): retained UI renders via Vulkan; no stubs; no validation errors.
 - S215 dep:S214  SURVIVOR + checkpoint advance to S240.
 
 ---
-## Sprint 6 — Binding engine + MVVM core  (goal: POC is an MVVM app)  [token S240+]
+## Sprint 6 — Binding engine + MVVM core  (goal: v1 is an MVVM app)  [token S240+]
 - S240 dep:S215  PropertyPath parser + evaluator (dot-path; indexers; null-safe; errors reported).
+- S240_1 dep:S240  BindingDiagnostic record {bindingId, sourcePath, targetProp, direction, reasonCode,
+      sourceType, targetType, converter, detail, timestamp, sourceFile, sourceLine} + IBindingDiagnostics
+      sink emitted at every failure point (S240 resolve, S242 converter/fallback, S243 one-way, S244
+      two-way); Class A (static/authoring error) vs Class B (defined runtime data outcome) tagging at emit;
+      NO-OP default sink (app opt-in, zero release cost unless subscribed).
 - S241 dep:S240  ObservableObject: Set() + typed PropertyChanged signal (INotifyPropertyChanged-analogue).
 - S242 dep:S241  BindingExpression: source/target, mode one/one-time/two-way, converter, fallback value.
+- S242_1 dep:S242  BindingPolicy { Strict | Fallback } on BindingExpression: Strict promotes Class A to a
+      bind-time throw; Class B NEVER throws (fallback + diagnostic only, per ADR-016).
 - S243 dep:S242  Binding engine one-way: source→target on change; DP invalidation coalescing.
 - S244 dep:S243  Two-way: target→source; TextBox edit → VM updates; converter both directions.
 - S245 dep:S244  Height/glide target (fallback) + expression lifecycle (detach on element destroy).
+- S245_1 dep:S245  Binding-failure test suite: harness subscribes to the sink and asserts exact reasonCode
+      per Class (not just fallback values); detach/lifecycle (S245) is a Class-B-tagged, silenced
+      non-error. Diagnostics ≠ control-flow (subscriber gets info, never control).
 - S246 dep:S245  RelayCommand (ICommand-analogue): invoke + CanExecute + CanExecuteChanged (full, no stub).
 - S247 dep:S246  RelayCommand tests.
 - S248 dep:S247  Messenger (typed loosely-coupled bus): publish/subscribe + token unsubscribe, no leaks.
 - S249 dep:S248  Messenger tests.
 - S250 dep:S249  Static CompositionRoot (user's DI style): resolves VM + service; no runtime container.
+- S250_1 dep:S250  IBindingDiagnostics sink + BindingPolicy injectable via CompositionRoot, reachable from
+      BOTH VM and view/control layers (V vs VM = one channel, two consumers; per ADR-016).
 - S251 dep:S250  CompositionRoot + VM-with-injected-service tests.
 - S252 dep:S251  Markup {Binding} resolved in VamlReader (deferred extension now bound): <Text Text="{Binding Title}"/>.
 - S253 dep:S252  Command via {Binding DoIt}; one/two-way markup binding end-to-end.
-- S254 dep:S253  REFACTOR GATE(S6): full MVVM works in POC, all modes + converters, no stubs.
+- S254 dep:S253  REFACTOR GATE(S6): full MVVM works in v1, all modes + converters, diagnostics wired, no stubs.
 - S255 dep:S254  SURVIVOR + checkpoint advance to S280.
 
 ---
 ## Sprint 7 — VBAML compiler (BAML analogue; FIRST full pipeline)  (goal: text→vbaml→tree)  [token S280+]
 - S280 dep:S255  vamlcc CLI skeleton: read .vaml → write compiled form; parses via S2 scanner + tables.
+- S280_1 dep:S280  Static binding validation in vamlcc (per ADR-016): each binding path is validated against
+      its statically-declared root type via the property registry (S032–S039). Typo / wrong hop type →
+      compile-time error with source line/col. Roots that are truly runtime-typed (object/dynamic DataContext,
+      untyped template item) are NOT validated here — they defer to bind-time Class A (S242_1) and count
+      toward the coverage ratio (S826_1). [compile-time is the rule; dynamic root is the documented,
+      Strict-excludable escape hatch]
 - S281 dep:S280  Binary record set: versioned schema (element-id/type-token/prop-token/event-token/resource-token/string-table).
 - S282 dep:S281  Serializer round-trips a sample tree to bytes and decode-back equal (byte-identical).
 - S283 dep:S282  Parser → record-emit (reuse scanner/factory/value tables; no stubs).
@@ -220,6 +251,9 @@
 ---
 ## Sprint 9 — Styles / resources / templates  (goal: full styling)  [token S360+]
 - S360 dep:S329  ResourceDictionary + merged dictionaries + lookup (tree + app + system).
+- S360_1 dep:S360  IconKey resource entry: key → icon asset reference, resolved through the ResourceDictionary
+      (per ADR-015) so ViewModels expose only an IconKey (never a path/SVG/render object); reuses S361
+      missing-key error for resolution failure.
 - S361 dep:S360  StaticResource/DynamicResource resolution; merge precedence; missing-key errors.
 - S362 dep:S361  Style + Setter + BasedOn + PropertyTrigger + DataTrigger.
 - S363 dep:S362  Style applied to type; property setters; BasedOn chain; triggers fire.
@@ -232,6 +266,10 @@
 ---
 ## Sprint 10 — Core controls  (goal: usable control set)  [token S400+]
 - S400 dep:S368  Text control: content, font size/weight/color, wrapping via measure, SDF render.
+- S400_1 dep:S400  Icon control (per ADR-015): Dependency-Property surface Source/IconKey, TintMode
+      {Preserve | Monochrome}, Foreground, Width/Height/Stretch; resolves IconKey through the S9 Resource
+      Dictionary + a cached icon provider; missing/unsupported asset → deliberate fallback glyph +
+      structured diagnostic (mirrors binding diagnostics; NO-GAP).
 - S401 dep:S400  Button: template, hover/pressed visual, Click routed event, IsEnabled.
 - S402 dep:S401  TextBox: single+multi line, caret, editing, two-way binding, selection, focus.
 - S403 dep:S402  Slider: value binding, thumb drag, routed change event.
@@ -242,7 +280,7 @@
 - S408 dep:S407  REFACTOR GATE(S10) + SURVIVOR.
 
 ---
-## Sprint 11 — POC app vertical slice  (goal: complete MVVM app on VAML+Vulkan)  [token S440+]
+## Sprint 11 — v1 app vertical slice  (goal: complete MVVM app on VAML+Vulkan)  [token S440+]
 - S440 dep:S408  app/hmi MainView.vaml: Grid+StackPanel+Button+Text+TextBox+Slider+CheckBox layout.
 - S441 dep:S440  MainViewModel: observable props + RelayCommands wiring to a domain service.
 - S442 dep:S441  app/infra service (filesystem/data demo service) + CompositionRoot wiring.
@@ -250,19 +288,22 @@
 - S444 dep:S443  Compile MainView.vaml→.vbaml via vamlcc in the CMake custom command (release path).
 - S445 dep:S444  Launch exe → full declared UI renders; click/type/slide updates VM-driven UI end to end.
 - S446 dep:S445  Zero validation-layer errors; no leaks over 10k frames; no layout thrash.
-- S447 dep:S446  POC E2E integration test (headless/offscreen where feasible).
-- S448 dep:S447  POC acceptance doc written from real behavior (not spec).
-- S449 dep:S448  REFACTOR GATE(S11) — POC COMPLETE. SURVIVOR.
+- S447 dep:S446  v1 E2E integration test (headless/offscreen where feasible).
+- S448 dep:S447  v1 acceptance doc written from real behavior (not spec).
+- S449 dep:S448  REFACTOR GATE(S11) — v1 VERTICAL SLICE COMPLETE. SURVIVOR. (This is NOT a throwaway
+      "POC complete" — it is the working first-version app that v2-as-v1 builds on; see ADR-017.)
 
 ---
-## Sprint 12 — Docs from evidence + open production repo  (goal: promote to vaml)  [token S480+]
-- S480 dep:S449  Write architecture.md FINAL from real POC code (not the seed).
+## Sprint 12 — Docs from evidence + production packaging  (goal: production-ready repo + packaging)  [token S480+]
+- S480 dep:S449  Write architecture.md FINAL from real v1 code (not the seed).
 - S481 dep:S480  Write design docs (measure/arrange, renderer, binding, VBAML schema) from evidence.
 - S482 dep:S481  Complete ADR log (all standing decisions + lessons learned with rationale).
-- S483 dep:S482  POC lessons document: what to keep/change for production.
-- S484 dep:S483  Create the public `vaml` production repo from POC lessons; seed ROADMAP + progress.
-- S485 dep:S484  Port POC core→vaml production structure (clean, not copy/paste).
-- S486 dep:S485  REFACTOR GATE(S12) + SURVIVOR. Production repo initialized.
+- S483 dep:S482  v1 lessons document: what to keep/change.
+- S484 dep:S483  Harden repo for production consumers (packaging, exported facade, single-exe demo).
+- S485 dep:S484  Production structure finalization (clean organization of core→vulkan→tools; no throwaway port).
+- S486 dep:S485  REFACTOR GATE(S12) + SURVIVOR. Production repo posture finalized.
+      (ADR-017 RE-SCOPE: this sprint NO LONGER "opens a separate production repo and ports POC." v2 is v1 —
+      the code you are building IS the product; S12 hardens and packages it in place, it does not restart.)
 
 ---
 ## Sprint 13 — Test coverage expansion  (goal: CI-grade coverage, property-based, fuzz)  [token S520+]
@@ -275,6 +316,9 @@
 - S526 dep:S525  Event routing random-tree tests (hit path + handled correctness).
 - S527 dep:S526  Style/resource lookup precedence fuzz.
 - S528 dep:S527  Renderer offscreen correctness tests (pixel-snapshot on fixtures).
+- S528_1 dep:S528  Icon test gallery + rendered-result tests (per ADR-015, GPT point 7): pixel-snapshot the
+      atlas/framebuffer for transparency + partial-alpha, monochrome tint vs multicolor preserve, strokes/
+      clip/viewBox/blank margins, size-family + DPI, missing/malformed/multicolor fallback, cache behavior.
 - S529 dep:S528  REFACTOR GATE(S13) + SURVIVOR. Coverage + fuzz green CI.
 
 ---
@@ -308,8 +352,12 @@
 - S822 dep:S821  RTL mirroring + glyph shaping for localized text.
 - S823 dep:S822  Culture-aware number/date formatting in bindings (converters).
 - S824 dep:S823  Accessibility: text alternatives + keyboard navigation completeness.
-- S825 dep:S824  Hot-reload dev loop for .vaml (S2 reader) in POC tools.
+- S825 dep:S824  Hot-reload dev loop for .vaml (S2 reader) in tooling.
 - S826 dep:S825  vamlcc diagnostics (nice errors: source line/col, suggested fix).
+- S826_1 dep:S826  Compile-time binding coverage ratio (per ADR-016): vamlcc reports "this build validated
+      N% of bindings at compile time; M% fell back to bind-time" so a large codebase (e.g. 500k lines) can
+      PROVE its bindings are statically checked rather than assume it — surfaces convention drift where a
+      screen's root silently becomes runtime-typed.
 - S827 dep:S826  Packaging: single-exe consumer link demo + install rules.
 - S828 dep:S827  REFACTOR GATE(S16) + SURVIVOR.
 
@@ -317,7 +365,7 @@
 ## Sprint 17 — Release readiness + production roadmap  (goal: v1 control set + release)  [token S920+]
 - S920 dep:S828  Documented v1 control set + API stabilization pass.
 - S921 dep:S920  Public headers/export facade audit (IP behind libs) [ADR-003].
-- S922 dep:S921  Licensing + dual-license docs (OSS POC / prod options).
+- S922 dep:S921  Licensing + dual-license docs (OSS / prod options).
 - S923 dep:S922  Sample gallery + tutorial VAML docs.
 - S924 dep:S923  Full end-to-end release pipeline (tag → build both CI → package → notes).
 - S925 dep:S924  v1 release candidate; regression suite green.
@@ -351,7 +399,7 @@
       analog, dual path, static vs shared, single-exe shipping.
 - S948 dep:S947  Ch.8 Threading model (08-threading.md): render thread vs UI thread, marshalling, thread-affinity,
       and why lifetime/ownership differs from C#.
-- S949 dep:S948  Ch.9 Full worked example (09-worked-example.md): the POC/sample app (mirrors S440–445) as a
+- S949 dep:S948  Ch.9 Full worked example (09-worked-example.md): the sample app (mirrors S440–445) as a
       walkthrough, C# sketch vs VAML C++ side-by-side per section.
 - S950 dep:S949  Appendices (appendix-a-glossary.md, appendix-b-cheatsheet.md): C#/XAML term → VAML C++ term
       mapping table + one-page quick reference.

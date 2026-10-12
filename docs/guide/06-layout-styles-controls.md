@@ -38,6 +38,27 @@ representative, and the public header facade (`S921`) is the source of truth for
 > from these is faster to build, stays in the tested surface (`S520–S529`), and avoids deep template edge
 > cases. Reinvention is not a v1 virtue.
 
+## 6.2a Icons: the `Icon` control
+
+Icons are deliberately simple in VAML (see the Vulkan-vs-DirectX note in the README). An icon is a **raster
+slotted into the texture atlas** — `PNG`, or `SVG` pre-rasterized once — drawn as a quad. You pick it by
+**key**, not by path (your ViewModel never holds a file path or a render object; it exposes an `IconKey`).
+
+```vaml
+<Icon IconKey="Add" Width="16" Height="16" Foreground="{DynamicResource TextBrush}" TintMode="Monochrome"/>
+```
+
+- `IconKey` names a packaged icon (resolution is restricted to the known resource set; no arbitrary paths).
+- `TintMode="Monochrome"` tints a single-color alpha mask with `Foreground` in the shader — crisp at any
+  size, clean transparency, no bitmap-effect mud.
+- `TintMode="Preserve"` samples the multi-color raster as-authored.
+- Scaling policy defaults to **none**: the largest authored size ≤ your slot (in physical pixels, DPI-aware)
+  is used, never resampled — so a crystal-clear icon stays crystal-clear; request additional sizes when you
+  need a different look at a different slot.
+
+Missing or invalid keys do **not** crash the view — you get a deliberate fallback glyph plus a diagnostic
+(Chapter 7's compile-time/diagnostics story). See ADR-015; tokens `S202_1`/`S213_1`/`S400_1`.
+
 ## 6.3 Laying It Out: Same Measure, New Muscle Memory
 
 ```vaml

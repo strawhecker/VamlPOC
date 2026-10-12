@@ -1,7 +1,8 @@
 # ADR Log — VAML
 
 > Architecture Decision Records. Seeds recorded during planning; each becomes a full ADR
-> (Context / Decision / Consequences) as the POC proves or revises it. New ADRs append at the bottom.
+> (Context / Decision / Consequences) as the project proves or revises it. New ADRs append at the bottom.
+> NOTE: per ADR-017 this is v2-as-v1 — a production first version, not a throwaway POC.
 
 ## ADR-001 — Two-path fidelity: build-time compiler is the BAML analogue; POC ships runtime parse first
 - Status: ACCEPTED (seed)
@@ -59,8 +60,8 @@
 - Context: Developers want MVVM niceties without C#/XAML. Prism-style runtime modularity is high-risk in C++
   (no reflection, static-link IP model).
 - Decision: Ship the ViewModel-friendly 80% (ObservableObject, RelayCommand, Messenger, static
-  CompositionRoot, RoutedEvent). Prism-style runtime modularity + region navigation: OUT for POC and v1.
-- Consequences: The POC itself is an MVVM app (bootstrap the hard binding/event pieces early).
+  CompositionRoot, RoutedEvent). Prism-style runtime modularity + region navigation: OUT for v1 (per ADR-017 this is v2-as-v1).
+- Consequences: The v1 app itself is an MVVM app (bootstrap the hard binding/event pieces early).
 
 ## ADR-009 — Tests: doctest framework + adapted (ported) Shouldly-style fluent assertion DSL, MSPST-decoupled
 - Status: ACCEPTED (seed)
@@ -110,5 +111,68 @@
   ship/index S952, refactor gate + close-out S953.
 - Consequences: Guide naming/prose follows the Dummies shape; every evidence token must resolve to a real
   roadmap step or a stabilized public-facade symbol (S920/S921); content is filled as the API stabilizes.
+
+## ADR-014 — Cross-cutting "nothing fails silently" policy (icons, bindings, layout, threading)
+- Status: ACCEPTED (seed)
+- Context: Two unspoken goals of the project are the same disease — icons silently degrade/dither, bindings
+  silently null-out. The cure is one principle the project's own guard rails (NO-GAP, NO-LAZY-LLM) already
+  demand.
+- Decision: **Nothing fails silently in debug; every failure is structured data the app may route; the UI
+  always degrades to a fallback and never crashes.** A failure the programmer can't see is a bug; a failure
+  the user sees as a crash is worse. The **diagnostics channel and the control-flow/fallback channel are
+  always separate** — a subscriber gets information, never control. Formalized as the S726 (Sprint 15)
+  error-taxonomy/diagnostics-channel specialization.
+- Consequences: ADR-015 (icons) and ADR-016 (bindings) are concrete applications of this rule.
+
+## ADR-015 — Icon rendering: single quad engine; PNG/SVG are source raster formats, not vector-on-screen
+- Status: ACCEPTED (seed)
+- Context: WPF is poor at transparent icons because it treats them as bitmaps re-scaled per target, and
+  multicolor/vector assumptions risked dragging in a second renderer. A "vector vs raster engines" premise
+  was entertained but is FALSE here — Vulkan in this project is a quad/texture renderer (S200) with no
+  vector path, and fonts are already rasterized once into the atlas (S203/S204).
+- Decision: ONE quad renderer. PNG and SVG are BOTH **source asset formats**, each rasterized ONCE into
+  the texture atlas (S202) exactly like fonts. Monochrome icons = single-channel alpha mask, tinted at
+  sample in the quad shader (S205) with Foreground (no bitmap color-effect recompositing); multicolor =
+  rasterized color texture. `TintMode` = { Preserve | Monochrome }. Resolution restricted to the packaged
+  resource set (reject external paths/scripts — C++ has no safe runtime, so this is a security rule, not
+  hygiene). Missing/unsupported → deliberate fallback glyph + diagnostic (NO-GAP).
+- Consequences: Icons are fixed-resolution after rasterization; runtime re-scale/retint uses a DPI texel
+  size family (S213_1), not true vector. Image scaling policy { none | down-only | both } (default none):
+  N_physical = logical × dpiScale; "none" picks max authored texels ≤ N_physical and never resamples —
+  "pixels are pixels" is TRUE once measured in physical pixels. True vector-on-screen is a post-1.0
+  production path renderer feature, deferred deliberately. Tokens: S202_1 (import), S205_1 (mask tint),
+  S213_1 (size family), S360_1 (IconKey resource), S400_1 (Icon control), S528_1 (gallery).
+
+## ADR-016 — Binding failures: classed (Class A fails fast, Class B degrades) + programmable diagnostics sink
+- Status: ACCEPTED (seed)
+- Context: WPF binding errors are silent-dynamic (reflection): trace-only, unreachable by app code, and it
+  "must not throw" because resolution is dynamic. VAML is deterministic and statically typed, so it can do
+  strictly better.
+- Decision: Bindings are **classed**:
+  - **Class A** (static/authoring error — typo, wrong hop type, converter signature) → fail fast at
+    **compile-time** (vamlcc, S280_1/S826_1) or **bind-time** (S242_1 `Strict`); loud by default in debug.
+  - **Class B** (defined runtime data outcome — null chain, converter rejects a value, two-way write
+    rejected, expression detached) → **NEVER throws**; falls back + emits a structured diagnostic.
+  Every failure point emits a `BindingDiagnostic` (S240_1) to an `IBindingDiagnostics` sink: **diagnostics
+  ≠ control-flow** — the subscriber gets information, never control. Default sink is NO-OP in release
+  (opt-in; "the receipt is on them"). One channel, two consumers (VM + view, via S250_1). Static binding is
+  the rule (per-binding path validated against a declared root type via S032–S039); dynamic-root binding is
+  the documented, Strict-excludable escape hatch. Compile-time coverage ratio (S826_1) proves the static
+  guarantee holds at scale (e.g. a 500k-line codebase).
+- Consequences: Fail-fast on authoring bugs (caught at startup/build, not years later); graceful
+  degradation on runtime data outcomes; a programmable, testable diagnostics channel. The record is the
+  S726 (Sprint 15) diagnostics-channel specialization.
+
+## ADR-017 — v2-as-v1: this project is the production first version, not a POC
+- Status: ACCEPTED (user decision, supersedes POC framing)
+- Context: The term "POC" is historical (the repo was named VamlPOC before the roadmap). It stopped being
+  a POC before S001 — it is v1 built at v2 quality ("version 2 as our first version"). Sprint 12's original
+  "open a separate production repo and port the POC" framing is invalid under this decision.
+- Decision: The code under this repo IS the product — v1 at v2 quality. No throwaway-first, no "port core
+  to a production repo later." Sprint 12 (S480–S486) hardens and packages the repo *in place*; the "open
+  production repo / port" steps dissolve into that hardening. Dev contract is professional commercial
+  quality from the start.
+- Consequences: Every decision is production-quality from day one (ADR-015 icons, ADR-016 bindings); roadmap
+  wording updated to "v1" not "POC"; the S949 sample-app worked example is "the sample app," not "the POC app."
 
 ## END OF ADR LOG (seed)

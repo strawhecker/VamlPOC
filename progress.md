@@ -15,7 +15,8 @@
 - Framework: VAML (XAML-faithful, Vulkan-native, pure C++)
 - Language/stack: C++ latest only. No C#, no Python, no managed code (includes build tooling).
 - Distribution: consumer chooses shared (dll/so) or static (lib/.a); default = static for IP-hiding. [ADR-003]
-- Repos: `VamlPOC` = proof-of-concept (this). Production `vaml` repo opens after the POC proves the pipeline.
+- Repos: this `VamlPOC` repo IS the product — v1 built at v2 quality (ADR-017). NOT a throwaway POC;
+  there is no separate production repo to open later. The repo is production-framed from here on.
 - Build: MSVC (VS 2026) on Windows and Clang on Linux; CMake is the canonical driver. [ADR-007]
 - Tests: doctest framework + adapted Shouldly-style fluent asserts (ported, MSTest-decoupled). [ADR-009]
 - Async: Task/Executor continuation model, NOT compiler coroutine keywords. [ADR-010]
@@ -43,7 +44,7 @@
 ## SURVIVING STATE (what a fresh LLM must assume is true)
 - S000 DONE: directory skeleton created — docs/ (adr, design), src/ (core, vulkan, tools, cmake),
   test/ (unit, integration), VamlPOC/ with SoC subfolders {hmi, core, infra, viewmodels}/ for the
-  POC APPLICATION (distinct from the library source tree in src/); tracking files present:
+  sample APPLICATION (distinct from the library source tree in src/); tracking files present:
   progress.md (ROOT), docs/ROADMAP.md (S000–S999 tokenized), docs/architecture.md (seed),
   docs/adr/ADR-LOG.md (ADR-001..012), docs/design/GPU-DRIVEN-PRINCIPLE.md, docs/design/DESIGN-SEEDS.md.
 - S001 DONE: top-level CMake (project(VAML) 0.1.0, C++20 CXX), vaml_apply_compiler_policy(),

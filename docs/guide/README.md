@@ -18,6 +18,19 @@ discovered that — surprise — all the **mental models** you relied on have qu
 - `async`/`await` doesn't exist in the UI model. You get **continuations** instead.
 - There's more than one thread, and the render thread is *not* the UI thread.
 
+> ⚙ **Technical Stuff — how "rendering" differs from what you're used to.** VAML's renderer is a **Vulkan
+> quad/texture renderer**, not a DirectX-style retained geometry + immediate-mode shape engine. Everything
+> on screen is a textured quad sampled from a texture atlas — even text is rasterized into the atlas once,
+> then drawn as quads. The practical upshot for you (the author):
+>
+> - **Icons are simple now.** An icon is just a raster you slot into the atlas (`PNG`, or `SVG` pre-rasterized
+>   once) and draw as a quad — nothing about it needs a "vector" path. Monochrome icons are tinted at sample
+>   in the shader; the `DrawIcon`/`Icon` control handles it. See `Icon` in Chapter 6.
+> - **...but Vulkan is *not*.** "Vulkan" does not mean "your DirectX habits carry over." You never write
+>   shaders, buffers, or pipelines in a VAML app — but when you leave the quad world (raw GPU work,
+>   post-1.0), the mental model is explicitly *not* DirectX. For 99% of app authoring you stay inside
+>   textured quads + SDF text and never touch any of it.
+
 This book does **not** teach you C++ (plenty of excellent books do that). It does **not** teach you VAML's
 markup from zero (the markup is a loyal clone of XAML, so it'd be insulting to treat you as a beginner).
 It teaches the one open gap: **the C++ you type instead of the C# you used to type**, and the handful of
@@ -119,7 +132,7 @@ while their colleagues nod politely and write a test for it anyway.
 ---
 
 **A note on this repo:** this guide is authored under **Sprint 18** (`docs/roadmap.md`, tokens `S940`–`S953`).
-It's written from real POC/production evidence, never from spec; no chapter cites a feature that isn't
+It's written from real production evidence, never from spec; no chapter cites a feature that isn't
 implemented. The guide CI gate (**S951**) extracts and compiles every code block in this book. Shipping and
 indexing are **S952**; the docs-only refactor gate and close-out are **S953**.
 

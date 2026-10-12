@@ -6,14 +6,14 @@
 > - The four "real change" moments, called out so you never miss them
 > - A debugging cheat that turns "why is this empty/broken" into a five-second guess
 
-**Evidence:** S440–S445 (POC app), S923 (sample gallery/tutorial), plus the chapter evidence from Ch.1–8.
+**Evidence:** S440–S445 (sample app), S923 (sample gallery/tutorial), plus the chapter evidence from Ch.1–8.
 Snippets compiled in CI (S951).
 
 ---
 
 Enough theory — let's build something. This is the payoff chapter: one small-but-real app, ported section by
 section, **C# on the left, VAML C++ on the right**, so you can *see* what each VAML C++ line replaces. This
-mirrors the project's own POC/sample app (`S440`–`S445`).
+mirrors the project's own sample app (`S440`–`S445`).
 
 ## 9.0 The App: "Order Tracker"
 

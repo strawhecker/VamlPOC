@@ -6,7 +6,7 @@
 > - Choosing **static** vs **shared** (and why one is your friend at bedtime)
 > - Running your first window and fighting your first empty `TextBlock`
 
-**Evidence:** S440–S445 (POC app), S920/S921 (public facade), S942 (markup), S947 (compiled path).
+**Evidence:** S440–S445 (sample app), S920/S921 (public facade), S942 (markup), S947 (compiled path).
 
 ---
 

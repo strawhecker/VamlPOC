@@ -1,7 +1,8 @@
 # VAML Design Seeds
 
 > Planning-placeholder for detailed design notes. Each becomes a real design doc written from
-> POC evidence during Sprint 12 (S480–S482). Seeds below capture the intended shape now.
+> implementation evidence during Sprint 12 (S480–S482). Seeds below capture the intended shape now.
+> (Per ADR-017 this is v1 at v2 quality — implementation evidence, not throwaway-POC evidence.)
 >
 > GOVERNING PRINCIPLE (read first): docs/design/GPU-DRIVEN-PRINCIPLE.md — all renderer work
 > (Sprints 4, 5, 14) MUST adhere to it. Cross-ref: ADR-012.
@@ -20,7 +21,9 @@ Key invariants: type-safe get, inheritance only for `inherits`-flagged props, wr
 ## Design: Renderer (Sprint 5)
 Quad renderer + texture atlas + SDF text atlas + shaders (SDF text/solid/border) → scene→command-buffer
 encoder walks tree → emits draw batches by material → z-order via tree order → GPU batch per texture/material.
-Resource lifetime via retire-after-fence. DPI via logical-px layout + framebufferScale.
+Resource lifetime via retire-after-fence. DPI via logical-px layout + framebufferScale. Icons: single quad
+engine — PNG/SVG source formats rasterized once into the atlas; monochrome alpha-mask tinted at sample in
+the shader. [ADR-015]
 
 ## Design: VBAML Schema (Sprint 7)
 Versioned binary records: element-id, type-token, prop-token, event-token, resource-token, string-table.
@@ -30,8 +33,9 @@ sets props, attaches deferred events; dual-path parity harness vs runtime VamlRe
 ## Design: Routed Events + MVVM (Sprints 6 & 8)
 `Signal<T>` + token → routed events (bubble/tunnel + handled) → markup `Click="OnClick"` wiring. MVVM layer:
 ObservableObject, RelayCommand, Messenger, static CompositionRoot. DI: static root for app deps; element-factory
-registry for UI only (no string setter injection).
+registry for UI only (no string setter injection). Binding failures are classed: Class A fails fast at
+compile/bind; Class B degrades + structured `BindingDiagnostic` sink (diagnostics ≠ control-flow). [ADR-016]
 
 ## Design: Rendering threading (Sprint 14)
-Single-thread in POC → async layout on workers + GPU-driven batching (indirect/draw-list) + per-frame arena +
-copy-on-write hot nodes + multi UI threads → final commit to render thread. TSan-verified.
+Single-thread first in v1 → async layout on workers + GPU-driven batching (indirect/draw-list) + per-frame
+arena + copy-on-write hot nodes + multi UI threads → final commit to render thread. TSan-verified.
