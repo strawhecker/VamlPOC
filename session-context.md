@@ -1,47 +1,69 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S036_5 (no commits; no NEW md files)
-- plan_repo_state : S036_5 complete — msvc-debug (VS 2026) build green + ctest 1/1 PASS (100% tests
-                    passed). No commit+push performed (per command). **The full S036_1..S036_5 plan is
-                    now COMPLETE.** S037 is next.
-- plan_digest     : S036_1..S036_5 — Adopt the re-formulated Shouldly as the unit-test assertion
-                    vocabulary (doctest stays the runner). S036_5 (this step, the capstone) =
-                    migrate `DependencyObject_test.cpp` (the S036 proof) to the Shouldly vocabulary +
-                    run the final gate. SetResult/Value/tag/thread-affinity assertions now all read via
-                    SHOULD(ShouldlyString(...)) / ShouldThrow<Ex>. The capstone confirms the whole
-                    feature suite uses the Shouldly-for-doctest vocabulary with doctest only as the
-                    runner, and annotates S047 as realized early by S036_1..S036_5.
-                    Files (S036_5 only):
-                    - test/unit/DependencyObject_test.cpp (MOD → full Shouldly rewrite: all 11 S036
-                      cases converted; includes wired: vaml_test_stringmakers.h + <vaml/assert/Shouldly.h>)
-                    - docs/roadmap.md (MOD): S036_5 [DONE]; backfilled S036_1..S036_4 [DONE] markers
-                    - session-context.md (this)
+- last_command    : implementit S037 (no commits; no NEW md files)
+- plan_repo_state : S037 complete — **BOTH CI LANES GREEN**: msvc-debug (VS 2026) build warning-clean +
+                    ctest 1/1 PASS; ubuntu-clang (Ubuntu VM, clang 21, shared folder /mnt/hgfs/VamlPOC)
+                    build + ctest 1/1 PASS. No commit+push performed (per command). **Marshalling
+                    foundation landed: S036's thread-affinity marker is now the basis for actual
+                    wrong-thread write QUEUING (queued-not-applied).** S041+ generalizes the per-object
+                    queue into the per-thread ChangeQueue + notification processor.
+- plan_digest     : S037 (dep:S036_5) — Set/Get local values; wrong-thread write queued-not-applied
+                    tests (marshalling foundation). CONSUMES the S036+ thread-affinity marker. Adds:
+                    Set() becomes affinity-aware — a write from a NON-affine thread runs coerce+validate
+                    at queue time (instant writer feedback) but POSTS (queued-not-applied), returning
+                    new SetResult::QUEUED; ProcessPendingChanges() (affinity-thread-only, throws
+                    WrongThreadException otherwise) drains the mutex-protected per-object queue FIFO
+                    through the S036 store half (correct (old,new) cb chain [5,7]->cb(0->5),cb(5->7));
+                    pending_change_count() exposes queued-not-applied depth. Coerce/validate-at-queue,
+                    drain-on-affine + guard = the honest marshalling foundation (S041's own resolution).
+                    Files (S037):
+                    - src/core/include/vaml/core/DependencyObject.h (MOD): SetResult::QUEUED;
+                      WrongThreadException; ProcessPendingChanges(); pending_change_count(); affinity-aware
+                      Set contract + cross-thread contract comments.
+                    - src/core/src/DependencyObject.cpp (MOD): mutex-protected std::deque<PendingWrite>;
+                      affinity branch in Set (queue-time coerce/validate -> QUEUED/REJECTED);
+                      ProcessPendingChanges (affinity guard + FIFO replay of the S036 store half);
+                      WrongThreadException def; pending_change_count.
+                    - test/unit/DependencyObject_marshalling_test.cpp (NEW): S037 proof file (Shouldly
+                      vocabulary): QUEUED+store-unchanged+depth 1; FIFO drain with correct (old,new) cbs;
+                      equal-effective queued then NO_CHANGE at drain; rejected -> REJECTED nothing queued;
+                      wrong-tag -> ValueTypeMismatch nothing queued; wrong-thread drain -> WrongThreadException;
+                      affinity-thread empty drain legal; coalescing across two frames; affine Set not queued.
+                    - test/unit/vaml_test_stringmakers.h (MOD): SetResult::QUEUED in operator<< + StringMaker.
+                    - test/unit/CMakeLists.txt (MOD): added DependencyObject_marshalling_test.cpp to target.
+                    - build/verify_s037.cmd (NEW): msvc-debug verify lane.
+                    - docs/roadmap.md (MOD): S037 [DONE]. session-context.md (this).
 - files_touched   :
-    MODIFIED test/unit/DependencyObject_test.cpp    (full Shouldly rewrite, capstone)
-    MODIFIED docs/roadmap.md                         (S036_1..S036_5 all marked DONE)
-    MODIFIED session-context.md                      (this — S036_5 completion)
-- build_status    : GREEN — msvc-debug (VS 2026) configure+build+ctest 1/1 PASS (100% tests passed).
-                    (Last known good prior: S036_4.)
-- next_step       : S037 (Set/Get local values; wrong-thread write queued-not-applied tests
-                    (marshalling foundation)). S037 CONSUMES S036's thread-affinity marker
-                    (thread_affinity_id / is_affine_to_current_thread) as the basis for wrong-thread
-                    detection; S036 records affinity only, S037 adds actual wrong-thread write QUEUING.
+    MODIFIED src/core/include/vaml/core/DependencyObject.h
+    MODIFIED src/core/src/DependencyObject.cpp
+    MODIFIED test/unit/vaml_test_stringmakers.h
+    ADDED    test/unit/DependencyObject_marshalling_test.cpp
+    MODIFIED test/unit/CMakeLists.txt
+    ADDED    build/verify_s037.cmd
+    MODIFIED docs/roadmap.md
+    MODIFIED session-context.md (this — S037 completion)
+- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) configure+build warning-
+                    clean + ctest 1/1 PASS. ubuntu-clang: clang-debug (Ubuntu VM 192.168.198.129, clang 21,
+                    /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS. (windows-clang-debug is NOT a lane
+                    — not built/tested/flagged per standing rule.)
+- next_step       : S038+ (dependent-step queue). S041 generalizes the S037 per-object pending queue into
+                    the per-thread ChangeQueue + notification processor — S037's explicit resolution point,
+                    NO backfill.
 - notes           :
-    - S036_5 GATE MET: zero CHECK*/CHECK_THROWS_AS across all 7 migrated feature files (Value_test,
-      Value_roundtrip_test, PropertyId_test, PropertyKeyRegistry_test, PropertyRegistryExhaustive_test,
-      PropertyMetadata_test, DependencyObject_test).
-    - SANCTIONED non-migrated asserts (all deliberate + documented in their files, and now recorded in
-      roadmap S036_5 [DONE]): (1) `PropertyMetadata_semantics_test.cpp` — the S035 reference SPEC
-      harness — is intentionally NOT migrated; it IS the spec S036 must satisfy, and rewriting it would
-      alter the exact contract under test (its single CHECK_THROWS_AS stays). (2) smoke_test.cpp — the
-      doctest runner/main harness — untouched. (3) StringMaker_test.cpp — asserts the raw doctest::String
-      output of the S036_2 StringMaker itself (an infrastructure test of the stringifier, not a vaml
-      domain assertion). (4) 3 REQUIRE precondition guards (null-deref gates) in PropertyKeyRegistry_test
-      + PropertyRegistryExhaustive_test.
-    - windows-clang-debug preset remains broken on EVERY TU (pre-existing /Zc:preprocessor clang-cl
-      incompatibility, cross-cutting, out of scope, NOT introduced here); maintained verify lane is
-      msvc-debug. Full dual-compiler verification of the S036_* suite is deferred to the S041+ gates
-      / an explicit later dual-compiler run (recorded, not silent).
-    - No NEW md files produced (directive honored). No commits made (per command).
-    - COMMITIT STATUS: commit + push of S032..S036 and S036_1..S036_5 is outstanding, awaiting your
-      authorization. After commit+push: repo is the committed good state; next step S037.
+    - S037 GATE MET on both lanes. SetResult enum is backward-compatible: APPLIED/REJECTED/NO_CHANGE
+      unshifted; QUEUED appended.
+    - Cross-thread contract (recorded in DependencyObject.h + roadmap): the only truly cross-thread datum
+      is the mutex-protected pending queue; the value store stays affinity-thread-owned by construction
+      (only the affinity thread stores, via on-affine Set or drain). Get() is declared safe on the affinity
+      thread or when no concurrent affinity-thread mutation is in flight. Full store-race freedom is
+      TSan/S620/S723 territory (recorded, not silent). All S037 tests use a join barrier so no concurrent
+      drain/read occurs in the demonstration.
+    - Coerce/validate run AT QUEUE TIME (wrong-thread writer gets REJECTED/ValueTypeMismatch instantly);
+      the drain only replays accepted, coerced values. Drain swaps the queue out under the lock so
+      wrong-thread writers during a drain enqueue into a fresh queue (drained next call).
+    - No MINIMAL REAL markers introduced or resolved this step (nothing to backfill; queue generalization
+      is explicitly S041's own step, per NO-GAP/NO-LAZY).
+    - No NEW md files produced beyond the two operational docs (directive honored). No commits made
+      (per command).
+    - COMMITIT STATUS: commit+push of S032..S037 (incl. S036_1..S036_5) is outstanding, awaiting your
+      authorization. After commit+push: repo is the committed good state; next step S038+.

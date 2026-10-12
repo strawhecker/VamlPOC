@@ -1,17 +1,37 @@
 #pragma once
 // VAML DependencyObject — the base value-holder for the dependency-property
-// system. S036 (dep:S035). Delivers the S036 title contract:
+// system. S036 (dep:S035) + S037 (dep:S036_5, marshalling foundation).
+//
+// S036 title contract:
 //   1. local value store        — a per-object store keyed by PropertyId;
 //   2. Get/Set                  — property read/write through the store;
 //   3. per-prop mastery         — register_property() installs (metadata,
 //                                defaultValue) per property on the object;
 //   4. thread-affinity marker   — the object records its creating thread.
 //
-// Set() MUST reproduce exactly the S035 apply pipeline (the MiniStore harness
-// in test/unit/PropertyMetadata_semantics_test.cpp is the reference spec):
+// S037 (this step) title contract — wrong-thread write QUEUING:
+//   5. Set() is thread-affinity aware: a write from any thread other than the
+//      object's creating (affinity) thread is QUEUED-not-applied — it runs
+//      coerce + validate immediately (instant writer feedback) but does NOT
+//      store and does NOT fire the changed cb; on accept it is posted to a
+//      mutex-protected per-object pending queue and Set() returns
+//      SetResult::QUEUED.
+//   6. ProcessPendingChanges() drains that queue (FIFO) on the affinity
+//      thread, replaying each queued write through the S036 store half — so a
+//      real change fires the same cb(old,new) with the correct effective
+//      value chain (queued [5,7] on a default-0 prop fires cb(0->5) then
+//      cb(5->7)). Drain is affinity-thread-only; calling it from a non-affine
+//      thread throws WrongThreadException (NO-LAZY — a silent wrong-thread
+//      no-op would hide bugs).
+//   7. pending_change_count() exposes the queue depth (mutex-protected) so a
+//      test can observe "queued-not-applied" before a drain runs.
+//
+// Set() (on the AFFINE thread) MUST reproduce exactly the S035 apply pipeline
+// (the MiniStore harness in test/unit/PropertyMetadata_semantics_test.cpp is
+// the reference spec):
 //      coerce -> validate(on the coerced value) -> fire changed cb ONLY on a
 //      real change -> store.
-// See roadmap/progress for this recorded contract to S036.
+// See roadmap/progress for this recorded contract to S036/S037.
 //
 // Design choices (recorded for forward steps):
 //   - OBJECT-SCOPED REGISTRATION. register_property(PropertyKey, PropertyMetadata)
@@ -35,9 +55,25 @@
 //     NEW value, and ONLY when they differ (real change). A rejected value
 //     leaves the store unchanged and fires nothing.
 //   - THREAD-AFFINITY MARKER. The ctor captures std::this_thread::get_id().
-//     S036 only records + exposes it (thread_affinity_id / is_affine_to_current_thread).
-//     Wrong-thread write QUEUING is S037's concern (recorded contract in
-//     roadmap/progress), NOT S036.
+//     S036 records + exposes it (thread_affinity_id / is_affine_to_current_thread);
+//     S037 (this step) consumes it as the basis for wrong-thread detection.
+//   - WRONG-THREAD WRITE QUEUING (S037). A Set() from a non-affine thread
+//     returns SetResult::QUEUED on an accepted (coerced+validated) value — the
+//     write is posted, not applied. The write is NOT stored and the changed cb
+//     is NOT fired until ProcessPendingChanges() (affinity thread only) drains
+//     it. Coerce + validate run AT QUEUE TIME so the wrong-thread writer gets
+//     immediate feedback (REJECTED on refusal, ValueTypeMismatch on wrong tag);
+//     the drain only ever sees accepted, coerced values. The pending queue is
+//     the ONE genuinely cross-thread datum and is mutex-protected.
+//   - CROSS-THREAD CONTRACT (S037). The value store stays affinity-thread-owned
+//     by construction: only the affinity thread stores (via on-affine Set or
+//     via ProcessPendingChanges). Get() reads the store and is declared safe on
+//     the affinity thread or when no concurrent affinity-thread mutation is in
+//     flight (WPF-faithful; full store-race freedom is TSan/S620/S723 territory,
+//     recorded not silent). The S037 tests use a join barrier so no concurrent
+//     drain/read occurs in the demonstration. S041 generalizes the per-object
+//     queue into the per-thread ChangeQueue + notification processor (its own
+//     resolution step — NO backfill).
 //
 // Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes
 // no std::unordered_map / no PropertyMetadata value — keeping the ABI surface
@@ -48,17 +84,33 @@
 #include "vaml/core/PropertyMetadata.h" // PropertyMetadata, ValueTypeMismatch
 #include "vaml/core/PropertyRegistry.h" // PropertyAlreadyRegistered, PropertyNotFound
 
+#include <cstddef>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 
 namespace vaml {
 
-// Set() outcome, mirroring the S035 MiniStore pipeline.
+// Set() outcome, mirroring the S035 MiniStore pipeline + the S037 marshalling
+// extension. The first three mirror S035 exactly; QUEUED is S037's addition
+// (backward-compatible — the three original values are unshifted).
 enum class SetResult
 {
     APPLIED,   // accepted, changed cb fired, stored
     REJECTED,  // validate refused the coerced value; store unchanged, no cb
     NO_CHANGE, // coerced == current effective; no cb (real change only)
+    QUEUED,    // S037: write from a NON-affine thread was accepted (coerced+
+               // validated) and POSTED to the pending queue — not yet applied.
+               // cb NOT fired, store NOT written until ProcessPendingChanges().
+};
+
+// S037: ProcessPendingChanges() (and a future affinity-required API) was
+// invoked from a thread other than the object's affinity thread. Drain is
+// affinity-thread-only — a silent wrong-thread no-op would be lazy (NO-LAZY).
+class VAML_CORE_EXPORT WrongThreadException : public std::logic_error
+{
+public:
+    explicit WrongThreadException(const char* what) : std::logic_error(what) {}
 };
 
 class VAML_CORE_EXPORT DependencyObject
@@ -92,7 +144,27 @@ public:
     // Writes `input` through the S035 pipeline (coerce -> validate(coerced) ->
     // fire-on-real-change -> store). Throws PropertyNotFound for an
     // unregistered PropertyId, ValueTypeMismatch for a wrong-tag input.
+    //
+    // S037 affinity-aware behavior: on the AFFINE thread this is exactly the
+    // S035 pipeline (APPLIED/REJECTED/NO_CHANGE). On a NON-affine thread,
+    // coerce + validate still run immediately (REJECTED / ValueTypeMismatch
+    // give the writer instant feedback) but a passing value is POSTED to the
+    // pending queue and Set() returns SetResult::QUEUED — the store is NOT
+    // written and the changed cb is NOT fired until ProcessPendingChanges()
+    // drains on the affinity thread.
     [[nodiscard]] SetResult Set(PropertyId id, const Value& input);
+
+    // S037: drains the pending queue (FIFO) on the affinity thread, replaying
+    // each queued write through the S036 store half (fire cb(old=new-effective?)
+    // -> store). Must be called from the object's affinity thread — otherwise
+    // throws WrongThreadException (NO-LAZY guard).
+    void ProcessPendingChanges();
+
+    // S037: number of writes currently sitting in the pending queue (i.e.
+    // queued-not-applied). Mutex-protected; observable from any thread. A test
+    // uses this to confirm a wrong-thread Set() did NOT apply (depth 1) and
+    // that a drain returns it to 0.
+    [[nodiscard]] std::size_t pending_change_count() const noexcept;
 
     // --- Thread-affinity marker (S036 records/exposes; S037 consumes) ----
     [[nodiscard]] std::thread::id thread_affinity_id() const noexcept;
