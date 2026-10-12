@@ -1,4 +1,4 @@
-﻿# VAML — PROGRESS / LLM CONTINUATION FILE  (SINGLE SOURCE OF TRUTH)
+# VAML — PROGRESS / LLM CONTINUATION FILE  (SINGLE SOURCE OF TRUTH)
 
 > ## HOW TO RESUME (an LLM must read this first, with no prior context)
 > 1. Read ONLY this header block + the two `## CHECKPOINT` lines below.
@@ -23,9 +23,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S036_4 (migrate Value/roundtrip/PropertyId/PropertyKeyRegistry/PropertyRegistryExhaustive/PropertyMetadata feature tests to Shouldly-for-doctest vocabulary) [token: S036_4]
-- Next step to do     : S036_5 [token: S036_5]
-- PENDING work        : S036_5 (migrate DependencyObject_test + final gate) — then S037.
+- Last completed step : S036_5 (migrate DependencyObject_test + final gate) — S036_1..S036_5 PLAN COMPLETE [token: S036_5]
+- Next step to do     : S037 [token: S037]
+- PENDING work        : none (all S036_* sub-steps complete; S037 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -616,3 +616,34 @@
   broken on EVERY TU (pre-existing /Zc:preprocessor clang-cl incompatibility, cross-cutting, out of
   scope, NOT introduced here). No MINIMAL REAL introduced/resolved. Next = S036_5 (migrate
   DependencyObject_test.cpp — the S036 proof — as the capstone + final gate).
+
+
+- [x] S036_5 Migrate `DependencyObject_test.cpp` (the S036 proof) as the capstone + final gate of the
+  Shouldly-for-doctest convention effort. — ✅ (S036_1..S036_5 PLAN COMPLETE)
+  SURVIVOR: `test/unit/DependencyObject_test.cpp` (MOD, full rewrite) + `docs/roadmap.md` (MOD,
+  S036_1..S036_5 all [DONE]) + `session-context.md` (MOD). MIGRATION: all 11 S036 TEST_CASEs converted
+  with zero semantic change — default-applied -> `SHOULD(ShouldlyString(obj.Get(...)).ShouldBe(Value::
+  Int32(7)))`; SetResult outcomes -> `SHOULD(ShouldlyString(obj.Set(...)).ShouldBe(SetResult::APPLIED/
+  NO_CHANGE/REJECTED))`; fire-count / oldV / newV -> `ShouldlyString(fire).ShouldBe(n)`; type-coherence
+  + PropertyNotFound + value-type-mismatch + dedupe throws -> `SHOULD(ShouldThrow<Ex>([&]{...}))`;
+  thread-affinity -> `SHOULD(ShouldlyString(bool).ShouldBe(true))` (is_affine_to_current_thread /
+  affinity==current / !=default / worker-records-other-thread). Includes wired: vaml_test_stringmakers.h
+  + <vaml/assert/Shouldly.h>; `using vaml::test::ShouldThrow`. FINAL GATE (the S036_5 contract): zero
+  CHECK*/CHECK_THROWS_AS across all 7 migrated feature files (Value_test, Value_roundtrip_test,
+  PropertyId_test, PropertyKeyRegistry_test, PropertyRegistryExhaustive_test, PropertyMetadata_test,
+  DependencyObject_test) — verified by grep (all 0). SANCTIONED non-migrated asserts (deliberate,
+  documented in files + roadmap S036_5 [DONE]): (1) PropertyMetadata_semantics_test.cpp = the S035
+  reference SPEC harness, intentionally NOT migrated — it IS the spec S036 must satisfy, rewriting it
+  would alter the exact contract under test (its single CHECK_THROWS_AS stays); this is the one place
+  where "no CHECK_THROWS_AS remains" is intentionally carved out, and it is recorded, NOT silent.
+  (2) smoke_test.cpp = the doctest runner/main harness. (3) StringMaker_test.cpp = asserts the raw
+  doctest::String output of the S036_2 StringMaker itself (infrastructure test of the stringifier,
+  not a vaml domain assertion). (4) 3 REQUIRE precondition guards (null-deref gates). S047 annotation:
+  "every numbered predicate via adapted Shouldly" is now the standing vocabulary from S036_5 onward —
+  S047 remains the formal suite-complete gate against the established vocabulary. VERIFIED: msvc-debug
+  (VS 2026) configure/build warning-clean, ctest 1/1 PASS (100% tests passed) after the capstone rewrite
+  and at the final gate. Maintained verify lane msvc-debug (green); windows-clang-debug preset remains
+  broken on EVERY TU by the pre-existing /Zc:preprocessor clang-cl incompatibility (cross-cutting, out
+  of scope, not introduced here) — full dual-compiler verification of the S036_* suite is deferred to
+  S041+ gates / an explicit later dual-compiler run (recorded, not silent). No MINIMAL REAL introduced
+  or resolved. Next = S037.
