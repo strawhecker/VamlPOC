@@ -23,9 +23,10 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S036 (DependencyObject base: local value store, Get/Set, per-prop mastery, thread-affinity marker) [token: S036]
-- Next step to do     : S037 [token: S037]
-- PENDING work        : none
+- Last completed step : S036_1 (Shouldly routing reform: SHOULD/SHOULD_REQUIRE doctest seam) [token: S036_1]
+- Next step to do     : S036_2 [token: S036_2]
+- PENDING work        : S036_2 (StringMaker), S036_3 (ShouldThrow), S036_4 (migrate feature tests),
+  S036_5 (migrate DependencyObject_test + final gate) — then S037.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -478,3 +479,38 @@
   pre-existing `/Zc:preprocessor`-unused clang-cl incompatibility — a cross-cutting preset issue wholly
   out of S036 scope, NOT introduced here; the maintained verify lane for this step is msvc-debug (green).
   No MINIMAL REAL introduced/resolved. Next = S037.
+ 
+- [x] S036_1 Shouldly routing reform: predicates keep the S006 default-sink THROW contract; new
+  doctest-aware macro seam `SHOULD`/`SHOULD_REQUIRE` routes failures into doctest's ResultBuilder.
+  — ✅
+  SURVIVOR: `src/core/include/vaml/assert/Shouldly.h` (MOD) + `test/unit/shouldly_test.cpp` (MOD).
+  DESIGN/SEAM (the genuinely hard part, resolved): a fluent Shouldly predicate call
+  (`ShouldlyIntegral(x).ShouldBe(y)`) cannot by itself terminate inside doctest — doctest's
+  `detail::ResultBuilder` is only valid while a test is running (it dereferences g_cs) and a fluent
+  call evaluated inside an expression has no scoped ResultBuilder to hand its result to. So predicates
+  were NOT rewritten; they keep throwing `vaml::test::TestFailureException` on failure (the S006
+  default-sink contract). The integration lives in a MACRO that opens the RB inside a test context:
+  `SHOULD( ShouldlyIntegral(Get()).ShouldBe(3) )` -> opens RB(file,line,#expr), runs the predicate,
+  catches the thrown TestFailureException, routes its message into rb.m_decomp + rb.m_failed=true,
+  then rb.log()/rb.react() (log() feeds doctest counters/summary, react() honors severity). Severity
+  explicit + correct: `SHOULD` = DT_CHECK (continue-on-failure), `SHOULD_REQUIRE` = DT_REQUIRE (abort
+  case). Core stays doctest-free: the macros are gated `#ifdef DOCTEST_LIBRARY_INCLUDED`, so any non-
+  test TU gets the canonical DSL with no doctest dependency; test TUs include <doctest/doctest.h>
+  before <vaml/assert/Shouldly.h>. FAILURE-PROOF note: because predicates still throw, a failing
+  predicate can be asserted bare via `CHECK_THROWS_AS(..., vaml::test::TestFailureException)` — no
+  sink capture needed. shouldly_test.cpp (MOD): KEPT the default-sink-throws contract test and now
+  documents it as the exact contract SHOULD consumes; ADDED SHOULD success-path cases (integral decay
+  great/etc, string ShouldBe/ShouldNotBe, pointer ShouldBeNull/ShouldNotBeNull), a string+pointer
+  success case, and a `should_fail()` decorated demonstration proving a FAILING SHOULD is swallowed
+  and routed into doctest (had it rethrown TestFailureException it would surface as a test-case
+  exception/crash instead of a normal AssertFailure -> suite would fail, not pass). The golden rule
+  that forced S036_1 to also rewrite shouldly_test.cpp in the SAME step: the reform invalidates the
+  old throw-contract assertions, so deferring the rewrite would leave an unbuildable suite window.
+  GOTCHA (fixed at build): `TEST_CASE("...") * doctest::should_fail()` must place the decorator INSIDE
+  the TEST_CASE argument list, not on the following line (MSVC C2143/C2063 — decorator is a chained
+  `*` onto the macro arg). GOTCHA: this was ON-STEP (S036_1 only); feature-test files are NOT
+  migrated here — that is S036_4/S036_5 by plan. VERIFIED: msvc-debug (VS 2026) configure/build
+  warning-clean, ctest 1/1 PASS (100% tests passed). The maintained verify lane for this step is
+  msvc-debug (green); windows-clang-debug preset remains broken on EVERY TU by the pre-existing
+  /Zc:preprocessor clang-cl incompatibility (cross-cutting, out of scope, NOT introduced here). No
+  MINIMAL REAL introduced/resolved. Next = S036_2 (StringMaker domain exposure).

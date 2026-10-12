@@ -1,65 +1,54 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S036 (no commits; no NEW md files)
-- plan_repo_state : S036 implementit complete — msvc-debug (VS 2026) build green + ctest 1/1 PASS.
-                    No commit+push performed (per command). Files below are the full S036 change-set.
-- plan_digest     : S036 dep:S035 — DependencyObject base: local value store, Get/Set, per-prop mastery,
-                    thread-affinity marker. Satisfies the S035 apply pipeline (coerce → validate(on
-                    coerced) → fire changed cb only on real change → store; MiniStore harness in
-                    PropertyMetadata_semantics_test.cpp is the spec). DESIGN accepted: option A —
-                    object-scoped registration. A global static registry + DependencyProperty::Register
-                    (S034-recorded "S036's concern") is re-scoped to S039 (recorded, NOT silent), where
-                    effective-value resolution is the first real consumer.
-                    Files:
-                    - src/core/include/vaml/core/DependencyObject.h (NEW)
-                    - src/core/src/DependencyObject.cpp           (NEW)
-                    - test/unit/DependencyObject_test.cpp         (NEW, 11 S036 cases)
-                    - build/verify_s036.cmd                       (NEW, verify_s035-pattern msvc-debug lane)
-                    - src/core/CMakeLists.txt                     (MOD): +DependencyObject.cpp
-                    - test/unit/CMakeLists.txt                    (MOD): +DependencyObject_test.cpp
-                    API: register_property(PropertyKey, PropertyMetadata) → stored-key ref, name-dedupe
-                    throws PropertyAlreadyRegistered-unchanged, type-coherence guard → ValueTypeMismatch;
-                    Get(PropertyId) → Value by value, PropertyNotFound if unregistered, default-applied
-                    fallback; Set(PropertyId, const Value&) → SetResult{APPLIED,REJECTED,NO_CHANGE}
-                    reproducing S035 pipeline verbatim (oldEffective = local-else-default; wrong-tag →
-                    ValueTypeMismatch); thread-affinity marker thread_affinity_id() +
-                    is_affine_to_current_thread() (created-thread recorded; wrong-thread QUEUING → S037).
-                    Wire-up: docs/roadmap.md (S036 [DONE]; S037 annotated with S036 thread-affinity
-                    consumer; S039 re-scope note), progress.md (S036 SURVIVOR + checkpoint → S037),
-                    session-context.md (this).
-                    Verification: msvc-debug (VS 2026) ctest 1/1 PASS (100% tests passed).
+- last_command    : implementit S036_1 (no commits; no NEW md files)
+- plan_repo_state : S036_1 complete — msvc-debug (VS 2026) build green + ctest 1/1 PASS. No commit+push
+                    performed (per command). This run implements ONLY S036_1 of the S036_1..S036_5
+                    plan; S036_2..S036_5 are pending.
+- plan_digest     : S036_1..S036_5 — Adopt the re-formulated Shouldly as the unit-test assertion
+                    vocabulary (doctest stays the runner). S036_1 (this step) = Shouldly routing
+                    reform: predicates keep the S006 default-sink THROW contract; the new doctest seam
+                    (SHOULD / SHOULD_REQUIRE macros, active only when doctest.h is included) opens a
+                    doctest::detail::ResultBuilder in-test, runs the predicate, catches the thrown
+                    TestFailureException, routes its message into m_decomp/m_failed, then log()/react()
+                    -> lands in doctest counters/summary/-s with explicit severity (SHOULD=DT_CHECK
+                    continue, SHOULD_REQUIRE=DT_REQUIRE abort). shouldly_test.cpp rewritten to assert
+                    the NEW routing contract in the same step (golden rule: the old throw-contract is
+                    invalidated by the reform, so deferring its test rewrite would leave an unbuildable
+                    window). feature test files are NOT migrated here (S036_4/S036_5). Gate = full
+                    suite green, feature files unchanged.
+                    Files (S036_1 only):
+                    - src/core/include/vaml/assert/Shouldly.h (MOD): +SHOULD/SHOULD_REQUIRE doctest
+                      seam (guarded by #ifdef DOCTEST_LIBRARY_INCLUDED so core stays doctest-free)
+                    - test/unit/shouldly_test.cpp (MOD): +SHOULD success-path cases (integrals, string,
+                      pointer), +a should_fail() demonstration case proving a failing SHOULD is
+                      swallowed+routed (not rethrown as an uncaught exception); default-sink-throws
+                      contract kept and now documented as the exact contract SHOULD consumes
+                    - session-context.md (this)
 - files_touched   :
-    ADD      src/core/include/vaml/core/DependencyObject.h  (public DependencyObject API, pimpl'd)
-    ADD      src/core/src/DependencyObject.cpp              (register/get/set pipeline + affinity)
-    ADD      test/unit/DependencyObject_test.cpp            (11 apply/per-prop/dedupe/affinity cases)
-    ADD      build/verify_s036.cmd                          (verify_s035-pattern msvc-debug lane)
-    MODIFIED src/core/CMakeLists.txt                        (+src/DependencyObject.cpp)
-    MODIFIED test/unit/CMakeLists.txt                       (+DependencyObject_test.cpp)
-    MODIFIED docs/roadmap.md                                (S036 [DONE]; S037 annot; S039 re-scope note)
-    MODIFIED progress.md                                    (S036 SURVIVOR + checkpoint → S037)
-    MODIFIED session-context.md                             (this file — completion status)
+    MODIFIED src/core/include/vaml/assert/Shouldly.h   (SHOULD/SHOULD_REQUIRE doctest seam, guarded)
+    MODIFIED test/unit/shouldly_test.cpp               (routing-contract tests; default-throw kept)
+    MODIFIED session-context.md                        (this — S036_1 completion status)
 - build_status    : GREEN — msvc-debug (VS 2026) configure+build+ctest 1/1 PASS (100% tests passed).
-                    (Last known good prior: S035.)
-- next_step       : S037 (Set/Get local values; wrong-thread write queued-not-applied tests (marshalling
-                    foundation)) — consumes S036's thread-affinity marker.
+                    (Last known good prior: S036.)
+- next_step       : S036_2 (StringMaker domain exposure: StringMaker<vaml::Value>, <SetResult>,
+                    <PropertyId> — framework-native, no macro surgery). Then S036_3 (ShouldThrow<Ex>),
+                    S036_4 (migrate feature tests), S036_5 (migrate DependencyObject_test + final gate).
+                    After S036_*: S037 (Set/Get local values; wrong-thread queued-not-applied).
 - notes           :
-    - S036 introduces a REAL permanent public symbol vaml::DependencyObject (NOT MINIMAL REAL, no
-      sentinel — every member is genuine surface with scheduled consumers: S037 marshalling, S039
-      effective-value, S041 notification).
-    - DESIGN re-scope (recorded, NOT silent): the global static registry + DependencyProperty::Register
-      landing site (S034 recorded it as "S036's concern") is authored at S039 instead. S036 delivers
-      object-scoped registration because a global static registry in S036 would be speculative surface
-      with no consumer until S039's effective-value resolution. NO-GAP satisfied (documented re-scope,
-      not silent backfill); roadmap S039 line carries the response note.
-    - GOTCHA (recorded in roadmap+progress): the internal store keys on an OWNED std::string (copied
-      name), NOT on PropertyId — a PropertyId is a non-owning std::string_view that dangles once the
-      registering PropertyKey dies (SSO+heap names both failed until the owned-string key). Get/Set
-      re-derive std::string(id.name()) for lookup.
-    - GOTCHA: Value has NO public default ctor → PropEntry::local initializes to Value::Null() (not {}).
-    - GOTCHA: Set is [[nodiscard]] by design → tests that discard it cast to (void) (MSVC C4834 /WX).
-    - windows-clang-debug preset was attempted but fails on EVERY TU (incl. untouched version.cpp) on a
-      pre-existing `/Zc:preprocessor`-unused clang-cl incompatibility — cross-cutting preset issue wholly
-      out of S036 scope, NOT introduced here; the maintained verify lane for this step is msvc-debug.
-    - No NEW md files produced beyond plan deliverables (directive honored). No commits made (per command).
-    - COMMITIT STATUS: commit + push of all S032 + S033 + S034 + S035 + S036 files is outstanding,
-      awaiting your authorization. After commit+push: repo is the committed good state; next step S037.
+    - S036_1 keeps the Shouldly predicate bodies + default sink CONTRACT untouched (they still throw
+      TestFailureException). The seam is a macro, so a failing predicate can ALSO be asserted bare via
+      CHECK_THROWS_AS(..., vaml::test::TestFailureException) — no sink capture needed. This is why the
+      doctest ResultBuilder cannot be invoked from inside the predicate: a fluent call evaluated inside
+      an expression has no scoped RB; the macro provides it.
+    - Core must stay doctest-free: the SHOULD/SHOULD_REQUIRE macros are defined only under
+      #ifdef DOCTEST_LIBRARY_INCLUDED, so any non-test TU that includes <vaml/assert/Shouldly.h>
+      without doctest gets the canonical DSL and no doctest dependency.
+    - Severity is explicit and correct: SHOULD -> DT_CHECK (continue-on-failure), SHOULD_REQUIRE ->
+      DT_REQUIRE (abort case). The suite uses no REQUIRE today, so existing behavior of feature tests
+      (continue-on-failure) is preserved when they migrate to SHOULD in S036_4/S036_5.
+    - windows-clang-debug preset remains broken on EVERY TU (pre-existing /Zc:preprocessor clang-cl
+      incompatibility, cross-cutting, out of scope, NOT introduced here); maintained verify lane is
+      msvc-debug.
+    - No NEW md files produced (directive honored). No commits made (per command).
+    - COMMITIT STATUS: commit + push of S032..S036 and S036_1 is outstanding, awaiting your
+      authorization. After commit+push: repo is the committed good state; next step S036_2.

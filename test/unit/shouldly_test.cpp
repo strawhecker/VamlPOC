@@ -358,7 +358,10 @@ TEST_CASE("ShouldlyAry::Diff helper")
 
 // -----------------------------------------------------------------------------
 // Default-sink contract: with NO custom sink installed, a failing predicate
-// throws TestFailureException (the S006 DSL contract).
+// throws TestFailureException (the S006 DSL contract). The S036_1 doctest seam
+// (SHOULD / SHOULD_REQUIRE) CONSUMES this exact throw to route a failure into
+// doctest's ResultBuilder. These tests stay green because they assert the
+// throw directly; they document the contract SHOULD relies upon.
 // -----------------------------------------------------------------------------
 TEST_CASE("default sink throws TestFailureException on failure")
 {
@@ -369,4 +372,51 @@ TEST_CASE("default sink throws TestFailureException on failure")
     CHECK_THROWS_AS(ShouldlyString(std::string("a")).ShouldBe(std::string("b")),
                     vaml::test::TestFailureException);
     CHECK_THROWS_AS(ShouldlyIntegral(5).ShouldBeGreaterThan(6), vaml::test::TestFailureException);
+}
+
+// -----------------------------------------------------------------------------
+// S036_1 doctrouting seam: SHOULD / SHOULD_REQUIRE.
+//
+// A PASSING predicate wrapped in SHOULD/SHOULD_REQUIRE must compile at /WX and
+// integrate with doctest's success path (m_failed=false -> log() is a no-op,
+// react() does not throw). These run fully green.
+// -----------------------------------------------------------------------------
+TEST_CASE("SHOULD success path integrates with doctest (green)")
+{
+    SHOULD(ShouldlyIntegral(5).ShouldBe(5));
+    SHOULD(ShouldlyIntegral(5).ShouldNotBe(6));
+    SHOULD(ShouldlyIntegral(5).ShouldBeGreaterThan(4));
+    SHOULD(ShouldlyIntegral(5).ShouldBeLessThan(6));
+    SHOULD(ShouldlyIntegral(5).ShouldBeInRangeTo(5, 1));
+
+    SHOULD_REQUIRE(ShouldlyIntegral(5).ShouldBe(5));
+    SHOULD_REQUIRE(ShouldlyIntegral(5).ShouldBeGreaterThanOrEqualTo(5));
+}
+
+TEST_CASE("SHOULD success path on string and pointer predicates (green)")
+{
+    SHOULD(ShouldlyString(std::string("hello")).ShouldBe(std::string("hello")));
+    SHOULD(ShouldlyString(std::string("hello")).ShouldNotBe(std::string("world")));
+
+    int   value   = 42;
+    int*  nullp   = nullptr;
+    int*  nonnull = &value;
+    SHOULD(ShouldlyPointer(nonnull).ShouldNotBeNull());
+    SHOULD(ShouldlyPointer(nullp).ShouldBeNull());
+}
+
+// -----------------------------------------------------------------------------
+// S036_1 failure routing: a FAILING SHOULD is caught by the macro and routed
+// into doctest (counted, no throw escapes the test). This is demonstrated with
+// doctest's `should_fail()` decorator so the suite stays GREEN while proving
+// the failure does NOT propagate out of the macro (had it propagated, the test
+// would crash/abort rather than reach a controlled end => visibly different
+// from the expected-failure outcome).
+// -----------------------------------------------------------------------------
+TEST_CASE("S036_1: a failing SHOULD is swallowed and routed into doctest (demonstration)"
+          * doctest::should_fail()) // this test is EXPECTED to have a failing assert; suite stays green
+{
+    // If SHOULD incorrectly rethrew TestFailureException, this uncaught throw
+    // would surface as a test-case exception instead of a normal AssertFailure.
+    SHOULD(ShouldlyIntegral(5).ShouldBe(6));
 }

@@ -734,4 +734,59 @@ namespace test
 #define ShouldlyPointer(stuff) vaml::test::Pointer(stuff, #stuff)
 #define ShouldlyArray(stuff, num) vaml::test::Array(stuff, num, #stuff)
 
+// -------------------------------------------------------------------------------------------
+// Doctest routing seam (S036_1).
+//
+// A fluent Shouldly predicate call (ShouldlyIntegral(x).ShouldBe(y), ...) cannot, by itself,
+// terminate inside doctest: doctest::detail::ResultBuilder is only valid while a test is
+// running, and a fluent call evaluated inside an expression has no scoped ResultBuilder to
+// hand its result to. So the S036_1 reform keeps the predicates EXACTLY as they are (on
+// failure they throw vaml::test::TestFailureException -- the default sink contract) and moves
+// the doctest integration to a macro that OPEN this seam in a test context:
+//
+//      SHOULD( ShouldlyIntegral(Get()).ShouldBe(3) )
+//
+// The macro opens a ResultBuilder with (file,line, stringified expr), runs the predicate,
+// catches the thrown TestFailureException, and routes its MESSAGE into the builder as the
+// failure decomposition. It then logs + reacts exactly like doctest's own asserts, so the
+// failure lands in doctest's counters/summary/`-s` success output and honors severity:
+//
+//      SHOULD_REQUIRE(...)  -> DT_REQUIRE  (aborts the current test case on failure)
+//      SHOULD(...)          -> DT_CHECK    (continue-on-failure; the default)
+//
+// Because the predicates keep throwing, the same failing expression can be asserted directly
+// with CHECK_THROWS_AS(..., vaml::test::TestFailureException) when a test wants to prove a
+// predicate actually fired -- no sink capture needed.
+//
+// These macros are defined ONLY when doctest.h has already been included (guarded by
+// DOCTEST_LIBRARY_INCLUDED). The core library never includes doctest, so this block is inert
+// outside the test harness; test TUs include <doctest/doctest.h> before <vaml/assert/Shouldly.h>.
+// -------------------------------------------------------------------------------------------
+#ifdef DOCTEST_LIBRARY_INCLUDED
+
+#define VAML_SHOULD_IMPL(assert_type, ...)                                                        \
+    do {                                                                                           \
+        doctest::detail::ResultBuilder rb(doctest::assertType::assert_type, __FILE__,              \
+                                          __LINE__, #__VA_ARGS__);                                 \
+        try {                                                                                      \
+            __VA_ARGS__;                                                                           \
+            rb.m_failed = false;                                                                   \
+        } catch (vaml::test::TestFailureException const& e) {                                      \
+            rb.m_failed = true;                                                                    \
+            rb.m_decomp = e.what();                                                                \
+        } catch (...) {                                                                            \
+            rb.translateException();                                                               \
+        }                                                                                          \
+        if (rb.log())                                                                              \
+            DOCTEST_BREAK_INTO_DEBUGGER();                                                         \
+        rb.react();                                                                                \
+    } while (false)
+
+// SHOULD: assert a Shouldly predicate expression; failures are DT_CHECK (continue).
+#define SHOULD(...) VAML_SHOULD_IMPL(DT_CHECK, __VA_ARGS__)
+// SHOULD_REQUIRE: assert a Shouldly predicate expression; failures are DT_REQUIRE (abort case).
+#define SHOULD_REQUIRE(...) VAML_SHOULD_IMPL(DT_REQUIRE, __VA_ARGS__)
+
+#endif // DOCTEST_LIBRARY_INCLUDED
+
 #endif // VAML_CORE_ASSERT_SHOULDLY_H
