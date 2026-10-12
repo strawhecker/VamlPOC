@@ -23,18 +23,18 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S009 (SURVIVOR block for Sprint 0) [token: S009]
-- Next step to do     : S030 [token: S030]
+- Last completed step : S031 (Value round-trip + type-mismatch-throws tests) [token: S031]
+- Next step to do     : S032 [token: S032]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
-  [no-managed] [no-stub rule] [MINIMAL REAL: vulkan→S161, tools→S287] [NO-GAP GUARANTEE] [NO LAZY LLM]
+  [no-managed] [no-stub rule] [MINIMAL REAL: vulkan→S161, tools→S287, Color→S089, Thickness→S089] [NO-GAP GUARANTEE] [NO LAZY LLM]
 
 ## GUARD RAILS (codified from S003 — mirror of docs/roadmap.md; survives roadmap trimming)
 - **MINIMAL REAL**: permanent, linkable, forward-resolvable seed (kept+extended, NOT a stub);
   tagged with searchable sentinel `// [MINIMAL REAL] <comp> — RESOLVED BY <token>`; removable only
-  by its declaring step. Active: vulkan→S161, tools→S287.
+  by its declaring step. Active: vulkan→S161, tools→S287, Color→S089, Thickness→S089.
 - **NO-GAP GUARANTEE**: no feature/symbol left for silent backfill; every MINIMAL REAL has an
   explicit resolution authored at the same step that delivers real content.
 - **NO LAZY LLM SYNDROME**: default posture is to reason the opposite of lazy; MINIMAL REAL is
@@ -281,3 +281,39 @@
   Marked roadmap S009 `[DONE]`. No new md files (directive); no MINIMAL REAL introduced or resolved;
   NO-GAP GUARANTEE remains satisfied (both active seeds still carry explicit resolution tokens).
   Next = S030.
+
+### Sprint 1 — Property system core   (S030–S049)
+- [x] S030 Typeless Value — ✅ (see roadmap S030 line for full detail)
+  SURVIVOR: `src/core/include/vaml/core/{Color,Thickness,Value}.h` + `src/core/src/Value.cpp`.
+  Color = uint8 RGBA struct; Thickness = float l,t,r,b struct — BOTH tagged
+  `// [MINIMAL REAL] ... RESOLVED BY S089`. Value = `ValueType:uint8_t` enum (11 tags in roadmap
+  order Null..UntypedPtr), hand-rolled tagged union (NOT std::variant), static factories for all 11
+  payloads, `type()`/`isNull()`, template `get<T>()` throwing `vaml::ValueTypeMismatch` on tag/T
+  mismatch, `operator==`, explicit copy/move/dtor for the std::string member.
+  `ValueTypeOf<T>` trait maps payload type → accepted tags; `get<int32_t>` accepts BOTH Int32 and
+  BrushId (BrushId is a tagged int32 scalar id). Test TU `test/unit/Value_test.cpp` (S030 scope:
+  factory→tag, equality, copy/move). Build fixes: enum/Storage forward-ref order (MSVC); read<T>()
+  noexcept mismatch from string-copy-throws (Clang) → primary+all specializations non-noexcept;
+  dropped duplicate doctest main. VERIFIED msvc-debug (25/25 cases, 91/91 asserts) + clang-debug.
+  NO-GAP: Color/Thickness resolution authored at same step (→S089). Next = S031.
+- [x] S031 Value round-trip + type-mismatch-throws tests — ✅
+  SURVIVOR: `test/unit/Value_roundtrip_test.cpp` (NEW; doctest, NO IMPLEMENT_WITH_MAIN — shares
+  smoke_test's main). Complementary to S030's Value_test.cpp (left untouched). Scope:
+  (A) ROUND-TRIP — every non-Null tag's payload round-trips through `get<T>()` EXACTLY and the
+  re-factory `Value::X(v.get<P>()) == v` (operator== round-trip). String verified to round-trip by
+  VALUE (copy), mutation of the read-back copy does not affect the stored value. BrushId/UntypedPtr
+  included. (B) TYPE-MISMATCH-THROWS — Null has no payload so EVERY get<T> throws (gesture not
+  corrupting: Null stays Null); each non-Null tag throws `ValueTypeMismatch` for every NON-valid
+  payload type (exhaustive per-tag, incl. no cross-width/no-promotion: Int32 not int64/float/double,
+  Bool not int32, Float not double, BrushId reads via int32_t ONLY but tag stays BrushId ≠ Int32 and
+  BrushId(1) != Int32(1)); String mismatches every scalar and vice-versa; constraint — after a
+  throw the SAME value still re-reads its valid payload and still equals its original (throw path is
+  a read-only no-op on the union). CMakeLists (MOD): + Value_roundtrip_test.cpp to vaml-core-tests.
+  build/verify_s031.cmd (NEW): clone of verify_s007 pattern (clean PATH + vcvars64 → msvc-debug).
+  VERIFIED BOTH COMPILERS: msvc-debug (VS 2026) exe 33/33 cases, 237/237 asserts PASS (was
+  25/91 at S030); REAL LINUX clang-debug (Ubuntu VM clang 21.1.8) build green, ctest 1/1 PASS.
+  Only Clang warnings = pre-existing upstream <ciso646> doctest deprecation (not this TU).
+  No MINIMAL REAL introduced/resolved; NO-GAP unchanged. Next = S032.
+  GOTCHA: `get<T>()` is `[[nodiscard]]` (S030) — `CHECK_THROWS_AS(a.get<T>(), ...)` discards the
+  return → MSVC C4834 (warnings-as-errors). Fix: wrap the expression `(void)a.get<T>()` inside
+  CHECK_THROWS_AS; applied to all throw-paths.

@@ -65,7 +65,7 @@
 ---
 ## Sprint 1 — Property system core  (goal: full DP semantics; the heart)  [token S030+]
 - S030 dep:S009  Typeless Value: bool/int32/int64/float/double/string/Color/Thickness/Brush-id/untyped-ptr/Null + type tag + type-safe get(). [DONE — src/core/include/vaml/core/{Color,Thickness,Value}.h + src/core/src/Value.cpp; factories map to 11 tags; get<T> type-safe; equality + copy/move; msvc-debug build + ctest green]
-- S031 dep:S030  Value round-trip + type-mismatch-throws tests.
+- S031 dep:S030  Value round-trip + type-mismatch-throws tests. [DONE — test/unit/Value_roundtrip_test.cpp: every non-Null payload round-trips through get<T> exactly + re-factory==original; Null + every wrong-type get throws ValueTypeMismatch; BrushId reads as int32_t only; mismatch never corrupts state (valid re-read still succeeds); msvc-debug + clang-debug ctest green]
 - S032 dep:S031  PropertyKey (name, type, owner-type id, flags) + PropertyRegistry (name→key, dedupe detection).
 - S033 dep:S032  Registry: register/lookup/duplicate-throws tests; constexpr-safe static id.
 - S034 dep:S033  PropertyMetadata { defaultValue; flags(inherits|readonly|bindsTwoWayByDefault); changed cb; coerce; validate }.

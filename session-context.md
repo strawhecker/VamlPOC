@@ -1,54 +1,46 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : commitit S030 (session-context.md updated to completion state BEFORE commit+push)
-- plan_repo_state : S030 implementit complete — build green MSVC + Linux Clang, ctest green both.
+- last_command    : commitit S031 (session-context.md updated to completion state BEFORE commit+push)
+- plan_repo_state : S031 implementit complete — build green MSVC + Linux Clang, ctest green both.
                     commit+push staged via commitit (see below). Post-commit: NO further file changes.
-- plan_digest     : S030 — Typeless Value (Sprint 1, first feature token).
-                    - New `src/core/include/vaml/core/Color.h` (uint8 RGBA), `Thickness.h` (float
-                      l,t,r,b) — both tagged `// [MINIMAL REAL] ... RESOLVED BY S089`.
-                    - New `src/core/include/vaml/core/Value.h` — `ValueType:uint8_t` enum (11 tags in
-                      roadmap order: Null..UntypedPtr), `Value` class with hand-rolled tagged union
-                      (NOT std::variant), static factories for all 11 payloads, `type()`/`isNull()`,
-                      template `get<T>()` that throws `ValueTypeMismatch` on tag/T mismatch,
-                      `operator==`, explicit copy/move/dtor for the std::string member.
-                      `ValueTypeOf<T>` trait maps payload type → accepted tags; `get<int32_t>` accepts
-                      BOTH Int32 and BrushId (BrushId is a tagged int32 scalar id — thin by design).
-                    - New `src/core/src/Value.cpp` — out-of-line dtor/copy/move/assign, `operator==`,
-                      `copy_union`, `[[noreturn]] throw_mismatch`. Registered into `vaml-core` CMake.
-                    - New `test/unit/Value_test.cpp` (doctest, NO IMPLEMENT_WITH_MAIN — share
-                      smoke_test's main): S030-scope factory→tag, type()/isNull, equality all 11
-                      payloads, copy/move/assign (string lifetime). Type-mismatch-throws deferred to
-                      S031 by roadmap. Added to `vaml-core-tests` CMake.
-                    - Roadmap: S030 `[DONE]`; active MINIMAL REAL marks + NO-GAP forward resolutions
-                      gained `Color→S089`, `Thickness→S089`; S089 line annotated as resolving both.
-                    - Build fix iterations: (1) enum/Storage forward-ref order reordered (MSVC);
-                      (2) `read<T>()` noexcept mismatch from string-copy-throws (Clang) → primary +
-                      all specializations non-noexcept; (3) test TU dropped duplicate doctest main.
-                    - Verification: msvc-debug (VS 2026) build green, exe 25/25 cases 91/91 asserts
-                      PASS; REAL LINUX clang-debug (Ubuntu VM clang 21.1.8) build green, ctest 1/1
-                      PASS, exe 25/25 PASS. (`ctest --preset` on this Windows shell is PATH-mangled
-                      by cygwin — known env quirk, not a product issue.)
+- plan_digest     : S031 dep:S030 — Value round-trip + type-mismatch-throws tests.
+                    - New `test/unit/Value_roundtrip_test.cpp` (doctest, NO IMPLEMENT_WITH_MAIN —
+                      shares smoke_test's main). Scope: (A) ROUND-TRIP — every non-Null tag's payload
+                      round-trips through get<T>() EXACTLY + re-factory Value::X(v.get<P>())==v;
+                      String by VALUE (copy, mutation doesn't affect stored); BrushId/UntypedPtr
+                      included. (B) TYPE-MISMATCH-THROWS — Null has no payload so EVERY get<T> throws;
+                      each non-Null tag throws ValueTypeMismatch for every non-valid payload type
+                      (exhaustive, incl. no cross-width/no-promotion); BrushId reads via int32_t ONLY
+                      but tag stays BrushId (≠Int32, BrushId(1)!=Int32(1)); String mismatches every
+                      scalar; after a throw the SAME value re-reads valid payload + equals original
+                      (throw path is a read-only no-op on the union).
+                    - test/unit/CMakeLists.txt (MOD): + Value_roundtrip_test.cpp to vaml-core-tests.
+                    - build/verify_s031.cmd (NEW): clone of verify_s007 pattern (clean PATH +
+                      vcvars64 → msvc-debug). No product/source code changed; pure test step.
+                    - No MINIMAL REAL introduced/resolved; NO-GAP unchanged.
+                    - Verification: msvc-debug (VS 2026) exe 33/33 cases 237/237 asserts PASS (was
+                      25/91 at S030); REAL LINUX clang-debug (Ubuntu VM clang 21.1.8) build green,
+                      ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646> doctest
+                      deprecation (not this TU).
 - files_touched   :
-    ADD      src/core/include/vaml/core/Color.h        (MINIMAL REAL Color → S089)
-    ADD      src/core/include/vaml/core/Thickness.h    (MINIMAL REAL Thickness → S089)
-    ADD      src/core/include/vaml/core/Value.h        (ValueType, Value, ValueTypeMismatch, ValueTypeOf)
-    ADD      src/core/src/Value.cpp                    (out-of-line Value lifetime/==/throw)
-    ADD      test/unit/Value_test.cpp                  (S030-scope tests)
-    MODIFIED src/core/CMakeLists.txt                   (+ src/Value.cpp)
-    MODIFIED test/unit/CMakeLists.txt                  (+ Value_test.cpp)
-    MODIFIED docs/roadmap.md                           (S030 [DONE]; guard-rail marks; S089 resolution note)
-    MODIFIED session-context.md                        (this file — completion status set pre-commit)
-- build_status    : GREEN — msvc-debug (VS 2026) build ok, exe 25/25 PASS; linux clang-debug (Ubuntu
-                    VM) build ok, ctest 1/1 PASS, exe 25/25 PASS. (Last known good prior: S007/S008.)
-- next_step       : S031 (Value round-trip + type-mismatch-throws tests)
+    ADD      test/unit/Value_roundtrip_test.cpp   (S031 round-trip + mismatch-throws suite)
+    MODIFIED test/unit/CMakeLists.txt             (+ Value_roundtrip_test.cpp)
+    ADD      build/verify_s031.cmd                (verify_s007-pattern msvc-debug lane)
+    MODIFIED docs/roadmap.md                      (S031 [DONE])
+    MODIFIED progress.md                          (S031 SURVIVOR + checkpoint → S032)
+    MODIFIED session-context.md                   (this file — completion status)
+- build_status    : GREEN — msvc-debug (VS 2026) exe 33/33 cases 237/237 asserts PASS; linux
+                    clang-debug (Ubuntu VM) build ok, ctest 1/1 PASS. (Last known good prior: S030.)
+- next_step       : S032 (PropertyKey + PropertyRegistry, name→key, dedupe detection)
 - notes           :
-    - S030 introduced two MINIMAL REAL markers (Color, Thickness) with explicit RESOLVED BY S089
-      sentinels; NO-GAP GUARANTEE satisfied at the same step (roadmap guard rails + forward
-      resolutions authored, S089 line annotated).
-    - BrushId/UntypedPtr are NOT separate MINIMAL REAL markers (no roadmap forward contract exists for
-      them); BrushId stored as tagged int32 scalar id, read via get<int32_t> — documented in header.
-    - No NEW non-plan/operational md files produced (directive honored); only session-context.md
-      updated among operational files.
+    - S031 is a PURE TEST step: no product symbol introduced/resolved, no NO-GAP change. Roadmap's
+      S031 line + header's S030 comment explicitly deferred the mismatch/round-trip suite here, so
+      this is scope-complete, not a silent backfill.
+    - GOTCHA: get<T>() is [[nodiscard]] (S030) — CHECK_THROWS_AS(a.get<T>(), ...) discards the return
+      → MSVC C4834 (warnings-as-errors). Fix: wrap (void)a.get<T>() inside CHECK_THROWS_AS.
+    - No NEW md files produced beyond plan deliverables (operational session-context.md +
+      existing progress.md/roadmap.md updated; directive honored). No commits made (per command).
+    - Next step S032 continues Sprint 1 (PropertyKey + PropertyRegistry).
     - COMMITIT STATUS: session-context.md set to completion state pre-commit. Commit + push of all
-      S030 files is outstanding, awaiting your authorization (commitit incidental "no post-commit
-      changes" honored). After commit+push: repo is the committed good state; next step S031.
+      S031 files is outstanding, awaiting your authorization (commitit incidental "no post-commit
+      changes" honored). After commit+push: repo is the committed good state; next step S032.
