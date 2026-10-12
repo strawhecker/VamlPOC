@@ -1,65 +1,77 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S040 (no commits; no NEW md files)
-- plan_repo_state : S040 complete — **BOTH CI LANES GREEN**: msvc-debug (VS 2026) build warning-clean +
-                    ctest 1/1 PASS (127 cases / 684 asserts); ubuntu-clang (Ubuntu VM, clang 21, shared
-                    folder /mnt/hgfs/VamlPOC) build + ctest 1/1 PASS. No commit+push performed (per
-                    command). **S040 is TEST-ONLY (zero new product symbols): it PROVES the S039-deferred
-                    write/cascade side is real via the read-side pull model (GetEffectiveValue walks the
-                    ancestor chain fresh on each read). New dimensions vs S039: parent change AFTER
-                    attach (dynamic ordering) + local-vs-inherited interaction (child Set vs inherited
-                    old). 6 TEST_CASEs: cascade-after-attach; multi-level; local-wins; InheritOnly
-                    recompute; child-Set-vs-inherited-old; parent-reverts. Push notification of
-                    descendants is explicitly S041's scope (recorded, NOT silent) — S040 builds NO
-                    descendant tracking.**
-- plan_digest     : S040 (dep:S039) — Inheritance cascade: parent change recomputes child effective value
-                    WITHOUT child write (test). TEST-ONLY, zero new product symbols. The S039 pull model
-                    already realizes the cascade (parent Set is reflected by every descendant with no
-                    child write because GetEffectiveValue walks the ancestor chain fresh per read);
-                    S040 proves the two genuinely new dimensions S039 did not exercise: (1) dynamic
-                    ordering — parent change AFTER child attach; (2) local-vs-inherited interaction —
-                    child Set vs inherited old. S041 owns the explicit push-notification/ChangeQueue
-                    pipeline, so S040 MUST NOT build descendant tracking/notifications (stepping on
-                    S041's scope, recorded NOT silent). Files (S040):
-                    - test/unit/InheritanceCascade_test.cpp (NEW): 6 TEST_CASEs, Shouldly vocabulary,
-                      mirrors EffectiveValue_test.cpp harness (hostInherited + kInh flags).
-                    - test/unit/CMakeLists.txt (MOD): + InheritanceCascade_test.cpp.
-                    - build/verify_s040.cmd (NEW): msvc-debug verify lane (verify_s039 pattern).
-                    - docs/roadmap.md (MOD): S040 [DONE] with full detail.
-                    - progress.md (MOD): S040 SURVIVOR + checkpoint advance to S041.
-                    - session-context.md (this).
+- last_command    : implementit S041 (no commits; no NEW md files)
+- plan_repo_state : S041 complete — **BOTH CI LANES GREEN**: msvc-debug (VS 2026) build warning-clean +
+                    ctest 1/1 PASS (146 cases / 779 asserts); ubuntu-clang (Ubuntu VM, clang 21, shared
+                    folder /mnt/hgfs/VamlPOC) build + ctest 1/1 PASS (146 cases / 781 asserts; the single
+                    in-suite "failed" assertion is the intentional S036_1 should_fail demonstration,
+                    marked not-failed). No commit+push performed (per command). **S041 delivers the change
+                    notification pipeline as THREE real public symbols — vaml::ChangeQueue (per-thread
+                    notification queue, S037's own resolution point), vaml::ChangeProcessor (drains in
+                    registration order, consuming S038's ChangeRecorder coalescing — S042 realized
+                    end-to-end), and DependencyObject additions (registration-ordered subscriber registry
+                    + per-object ProcessNotificationQueue + the S040-recorded DESCENDANT PUSH via the
+                    inheritance-scope, the inverse edge of set_parent).**
+- plan_digest     : S041 (dep:S040) — Change notification pipeline: ChangeQueue (per-thread) + processor
+                    drains in registration order. GRANTS the three prior-recorded NO-GAP handoffs to
+                    S041: S037 ("S041 generalizes the per-object queue into the per-thread ChangeQueue +
+                    notification processor — S037's OWN resolution point"), S038 ("ChangeRecorder is
+                    S041's building block; S041 consumes that coalescing end-to-end — S042 realized"),
+                    S040 ("push notification of descendants is explicitly S041's scope"). Delivered:
+                    ChangeQueue.h/.cpp (NEW), ChangeProcessor.h/.cpp (NEW), DependencyObject MOD
+                    (add_property_changed/remove_property_changed/subscriber registry + PerObject
+                    ProcessNotificationQueue + pending_notification_count + inheritance-scope in
+                    set_parent + two-phase descendant push collect/notify), src/core/CMakeLists.txt (+2),
+                    test/unit/CMakeLists.txt (+2 test TUs), test/unit/ChangeQueue_test.cpp (NEW),
+                    test/unit/ChangeNotificationPipeline_test.cpp (NEW), build/verify_s041.cmd (NEW),
+                    docs/roadmap.md (S041 [DONE]), progress.md (S041 SURVIVOR + checkpoint advance to
+                    S042), session-context.md (this).
 - files_touched   :
-    ADDED    test/unit/InheritanceCascade_test.cpp
+    ADDED    src/core/include/vaml/core/ChangeQueue.h
+    ADDED    src/core/src/ChangeQueue.cpp
+    ADDED    src/core/include/vaml/core/ChangeProcessor.h
+    ADDED    src/core/src/ChangeProcessor.cpp
+    MODIFIED src/core/include/vaml/core/DependencyObject.h
+    MODIFIED src/core/src/DependencyObject.cpp
+    MODIFIED src/core/CMakeLists.txt
     MODIFIED test/unit/CMakeLists.txt
-    ADDED    build/verify_s040.cmd
+    ADDED    test/unit/ChangeQueue_test.cpp
+    ADDED    test/unit/ChangeNotificationPipeline_test.cpp
+    ADDED    build/verify_s041.cmd
     MODIFIED docs/roadmap.md
     MODIFIED progress.md
-    MODIFIED session-context.md (this — S040 completion)
+    MODIFIED session-context.md (this — S041 completion)
 - build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) configure+build warning-
-                    clean + ctest 1/1 PASS (127 cases / 684 asserts). ubuntu-clang: clang-debug (Ubuntu VM
-                    192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS. Only
-                    Clang warnings = pre-existing upstream <ciso646> doctest deprecation from third_party
-                    (not this TU; already non-error). (windows-clang-debug is NOT a lane — not built/
-                    tested/flagged per standing rule.)
-- next_step       : S041 (dependent-step queue). S041 = Change notification pipeline: ChangeQueue
-                    (per-thread) + processor drains in registration order. CONSUMES the S037 per-object
-                    queue generalization + ChangeRecorder (S038) for deferred notification. Push
-                    notification of descendants (explicitly NOT built in S040 — recorded) lands here.
+                    clean + ctest 1/1 PASS (146 cases / 779 asserts). ubuntu-clang: clang-debug (Ubuntu VM
+                    192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS (146
+                    cases / 781 asserts; intentional S036_1 demo marked not-failed). Only Clang warnings =
+                    pre-existing upstream <ciso646> doctest deprecation from third_party (not this TU;
+                    already non-error). (windows-clang-debug is NOT a lane — not built/tested/flagged per
+                    standing rule.)
+- next_step       : S042 (dependent-step queue). S042 = Coalescing: two sets of same prop before drain
+                    == one notification (test). Annotated REALIZED-EARLY by S038 (ChangeRecorder enforces
+                    per-property coalescing) — S042 remains the FORMAL integration gate where the
+                    ChangeQueue + notification processor (S041) consume that coalescing end-to-end
+                    against DependencyObject. NOTE: S041 already integrates the coalescing end-to-end
+                    (ChangeProcessor + DependencyObject::ProcessNotificationQueue both drain via
+                    ChangeRecorder), so S042 is expected to be a LOW-ADDITION formality.
 - notes           :
-    - S040 GATE MET on both lanes. Test-only proof of the S039-deferred write/cascade side: because
-      GetEffectiveValue re-resolves the ancestor chain on EVERY read, a parent Set is automatically
-      reflected by every descendant with no child write. S040 verifies exactly this contract.
-    - Genuinely new dimensions vs S039: (1) dynamic ordering — parent change AFTER the child is attached
-      (S039 only set up a chain then read once, static); (2) local-vs-inherited interaction — child Set
-      vs inherited old, incl. local-wins (child local override not swept) and InheritOnly recompute
-      (own local ignored, so parent change DOES recompute).
-    - CONTRACT boundary (recorded NO-GAP, NOT silent): S040 builds NO descendant tracking / notification
-      — that is S041's explicit scope (ChangeQueue + notification processor). This is the S100-boundary
-      move that keeps each step coherent.
-    - No MINIMAL REAL markers introduced or resolved this step (test-only). NO-GAP satisfied: S040
-      consumes the S039 parent-link seed + global table and resolves the S039-recorded "write/cascade
-      side" by proof, never a silent backfill.
-    - No NEW md files produced beyond the two operational docs (directive honored). No commits made
-      (per command).
-    - COMMITIT STATUS: commit+push of S032..S040 (incl. S036_1..S036_5) is outstanding, awaiting your
-      authorization. After commit+push: repo is the committed good state; next step S041+.
+    - S041 GATE MET on both lanes. NO-GAP obligations satisfied: S037's own-resolution-point (ChangeQueue
+      generalizes the per-object value queue), S038's building-block-consumed (ChangeProcessor AND the
+      per-object ProcessNotificationQueue both drain through ChangeRecorder), S040's descendant-push-scope
+      (delivered via the inheritance-scope + two-phase collect/notify).
+    - DESCENDANT PUSH (S040-recorded, delivered NOT silent): set_parent() now ALSO registers the child
+      into the parent's non-owning inheritance-scope (the inverse edge of the S039 parent link). On an
+      applied Inherits/InheritOnly change, the two-phase pull model captures each registering descendant's
+      CURRENT effective BEFORE the store and recomputes AFTER, enqueuing into that descendant's OWN queue
+      only when old != new — so each descendant gets its OWN effective-old->new delta and local-wins is
+      respected THROUGH an intermediate (a local-wins node shields its subtree; a parent move that changes
+      no descendant's effective pushes nothing). No visual tree is built (distinct from S121 visual
+      children list; composes with set_parent — no overlap, no gap).
+    - Registration-ordered subscriber registry is ADDITIVE: existing metadata with_changed cb + S037
+      SetResult/{APPLIED,REJECTED,NO_CHANGE,QUEUED} + marshalling tests all stay green (verified).
+    - No MINIMAL REAL markers introduced or resolved this step (all three symbols are REAL). NO-GAP
+      satisfied across S037/S038/S040 handoffs. No NEW md files (directive honored). No commits made (per
+      command).
+    - COMMITIT STATUS: commit+push of S032..S041 (incl. S036_1..S036_5) is outstanding, awaiting your
+      authorization. After commit+push: repo is the committed good state; next step S042+.

@@ -13,6 +13,8 @@ vaml_add_library(core
     src/DependencyObject.cpp
     src/DependencyProperty.cpp
     src/ChangeRecorder.cpp
+    src/ChangeQueue.cpp
+    src/ChangeProcessor.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()

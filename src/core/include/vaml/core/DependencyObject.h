@@ -94,11 +94,15 @@
 #include "vaml/core/PropertyKey.h"
 #include "vaml/core/PropertyMetadata.h" // PropertyMetadata, ValueTypeMismatch
 #include "vaml/core/PropertyRegistry.h" // PropertyAlreadyRegistered, PropertyNotFound
+#include "vaml/core/Value.h"            // Value (subscriber signature + pushed values)
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <thread>
+#include <utility>
+#include <vector>
 
 namespace vaml {
 
@@ -210,8 +214,57 @@ public:
     // never owns its parent. Setting it does NOT trigger a cascade in S039 —
     // S039 is read-side only; S040 owns the write/cascade side (recorded,
     // NOT silent).
+    //
+    // S041 (this step) adds the INVERSE EDGE: set_parent() ALSO registers this
+    // object into the parent's non-owning inheritance-scope (the reverse edge
+    // of this parent link). S041's descendant push consumes it: when an
+    // Inherits/InheritOnly property changes on a parent, the parent walks its
+    // inheritance-scope and enqueues a pushed notification for each inheriting
+    // descendant (S040's recorded obligation — delivered here, NOT silent).
+    // Reparent/detach updates the scope. The inheritance-scope is DISTINCT from
+    // the visual children list (S121's create/attach/detach + visual walk),
+    // which composes with set_parent — recorded, no overlap, no gap.
     void set_parent(DependencyObject* parent) noexcept;
     [[nodiscard]] DependencyObject* parent() const noexcept;
+
+    // --- Registration-ordered property-changed subscribers (S041 §2.3) ----
+    // The processor's dispatch TARGET. `add_property_changed` appends a handler
+    // for `id` in REGISTRATION ORDER (never hash order, never reverse) and
+    // returns a removal token; `remove_property_changed(token)` removes it
+    // (remaining handlers keep their registration order; a re-add appends at
+    // the end). Handlers fire ONLY on an ACTUALLY APPLIED change to `id` —
+    // either an on-affine Set that produced a real change, or a drain-applied
+    // queued write (ProcessPendingChanges), OR a pushed descendant notification
+    // flushed via ProcessNotificationQueue() (below). The existing metadata
+    // `with_changed` cb is UNTOUCHED — this subscriber dispatch is additive
+    // (S037 SetResult + marshalling tests stay green).
+    using PropertyChangedHandler = std::function<void(PropertyId, const Value&, const Value&)>;
+    using PropertyChangedToken   = std::size_t;
+
+    // Adds a handler for `id`, firing in registration order. Returns a token
+    // usable with remove_property_changed. Recovery from an exception during a
+    // fire is the caller's concern (matches the metadata changed-cb contract).
+    [[nodiscard]] PropertyChangedToken add_property_changed(PropertyId id, PropertyChangedHandler handler);
+
+    // Removes the handler identified by `token`. No-op for an unknown/expired
+    // token. Removal is O(n) but preserves the registration order of what
+    // remains.
+    void remove_property_changed(PropertyChangedToken token);
+
+    // --- S041 descendant-push drain (the object's own notification queue) --
+    // Each DependencyObject owns a per-thread ChangeQueue (affinity == this
+    // object's affinity) into which descendant-push on an Inherits/InheritOnly
+    // change enqueues pushed notifications (oldEffective -> newEffective) for
+    // inheriting descendants. ProcessNotificationQueue() drains THAT queue on
+    // the object's affinity thread (throws WrongThreadException from a
+    // non-affine thread, mirroring S037's ProcessPendingChanges contract),
+    // firing this object's registration-ordered subscribers for each pushed
+    // property.
+    void ProcessNotificationQueue();
+
+    // Number of pushed notifications currently sitting in this object's
+    // notification queue (queued-not-yet-fired). Cross-thread safe.
+    [[nodiscard]] std::size_t pending_notification_count() const noexcept;
 
 private:
     // S039 tolerant ancestor walk: returns the NEAREST ancestor of `self` with a
@@ -220,6 +273,36 @@ private:
     // nothing). A same-class member so it may read the pimpl of any instance on
     // the parent chain.
     static Value nearest_ancestor_local(const DependencyObject& self, const std::string& name);
+
+    // S041 §2.4 descendant push, driven by S039's pull model so each descendant
+    // receives its OWN effective-old -> effective-new delta (never the parent's
+    // coarse delta) and is notified ONLY when its effective value actually
+    // changes (S040 local-wins respected through an intermediate, not just at the
+    // direct child).
+    //
+    // collect_descendant_effectives() walks this object's inheritance-scope (and
+    // recursively each child's scope) and captures each descendant that
+    // REGISTERS `name`, with its CURRENT effective value (computed pre-change by
+    // the caller, BEFORE the origin stores its new value). non-registering
+    // descendants are skipped entirely (they cannot inherit).
+    //
+    // notify_descendants() is called AFTER the origin has stored its new value:
+    // for each captured descendant it recomputes the NEW effective value and
+    // enqueues a pushed notification {name, oldEffective, newEffective} into that
+    // descendant's OWN notification queue ONLY when old != new (local-wins /
+    // inherited-unchanged descendants produce no notification).
+    static std::vector<std::pair<DependencyObject*, Value>> collect_descendant_effectives(
+        const DependencyObject& root, const std::string& name);
+    void notify_descendants(
+        const std::string& name,
+        const std::vector<std::pair<DependencyObject*, Value>>& before);
+
+    // Recursive scope walker used by collect_descendant_effectives(): walks
+    // `this`'s inheritance-scope, capturing each registering descendant with its
+    // current effective value (recursing into each child's scope).
+    void visit_scope(
+        const std::string& name,
+        std::vector<std::pair<DependencyObject*, Value>>& out) const;
 
     struct Impl; // pimpl: hides std::unordered_map + PropertyMetadata
     std::unique_ptr<Impl> impl_;

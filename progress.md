@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S040 (Inheritance cascade: parent change recomputes child effective value without child write — test) [token: S040]
-- Next step to do     : S041 [token: S041]
-- PENDING work        : none (S040 complete; S041 is next).
+- Last completed step : S041 (Change notification pipeline: ChangeQueue (per-thread) + processor drains in registration order) [token: S041]
+- Next step to do     : S042 [token: S042]
+- PENDING work        : none (S041 complete; S042 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -784,3 +784,67 @@
   S039-deferred "write/cascade side" is real — resolved here by proof, not silently dropped. Push
   notification of descendants is explicitly S041's scope (recorded, NOT silent). No MINIMAL REAL
   introduced/resolved. No NEW md files (directive honored). Next = S041.
+
+- [x] S041 Change notification pipeline: ChangeQueue (per-thread) + processor drains in registration order — ✅
+  SURVIVOR: `src/core/include/vaml/core/{ChangeQueue,ChangeProcessor}.h` (NEW) +
+  `src/core/src/{ChangeQueue,ChangeProcessor}.cpp` (NEW) + `test/unit/{ChangeQueue,ChangeNotificationPipeline}_test.cpp`
+  (NEW) + `build/verify_s041.cmd` (NEW, verify_s040-pattern msvc-debug lane) + MOD
+  `src/core/include/vaml/core/DependencyObject.h` + `src/core/src/DependencyObject.cpp` +
+  `src/core/CMakeLists.txt` (+ChangeQueue.cpp +ChangeProcessor.cpp) + `test/unit/CMakeLists.txt`
+  (+2 test TUs) + `docs/roadmap.md` (S041 [DONE]) + `session-context.md` (MOD). Delivers the S041
+  headline as THREE REAL public symbols (none MINIMAL REAL, none STUB):
+  (1) `vaml::ChangeQueue` — per-thread pending NOTIFICATION queue; S037's per-object VALUE queue
+  generalized onto the notification axis (S037's OWN resolution point — NO backfill). Cross-thread
+  `enqueue(id,old,new)` / `pending_count()` (mutex); affinity-thread-only `process(NotifyFn)` /
+  `clear()` (throw WrongThreadException from a non-affine thread, mirroring S037's ProcessPendingChanges
+  D3 NO-LAZY guard); FIFO swap-out (a record during process lands in a fresh queue, never double-emitted
+  this pass); owned-name gotcha honored (each item keys on an OWNED std::string, never the PropertyId
+  view).
+  (2) `vaml::ChangeProcessor` — "drains in registration order" per the headline: owns a ChangeQueue and
+  CONSUMES S038's ChangeRecorder INSIDE the drain, so two enqueues of the same property before a drain
+  collapse to ONE notification (first old kept, latest new adopted — S042's coalescing outcome realized
+  end-to-end against live objects). `process(NotifyFn)` drains the snapshot then flushes the recorder;
+  affinity-thread-only.
+  (3) `DependencyObject` (MOD) — three additions: (a) registration-ordered subscriber registry —
+  `using PropertyChangedHandler = std::function<void(PropertyId,const Value&,const Value&)>;`
+  `add_property_changed(PropertyId, handler)` -> monotonically-increasing `PropertyChangedToken` (never
+  reused), `remove_property_changed(token)` (O(n), preserves registration order of what remains; a re-add
+  appends at the end); fired ONLY on an actually applied change (additive dispatch — the existing metadata
+  `with_changed` cb + S037 SetResult::{APPLIED,REJECTED,NO_CHANGE,QUEUED} + marshalling tests all stay
+  green). (b) per-object notification queue + `ProcessNotificationQueue()` (affinity-thread-only,
+  WrongThreadException guard; drains via ChangeQueue + coalesces through ChangeRecorder at drain; fires
+  this object's registration-ordered subscribers) + `pending_notification_count()`. (c) DESCENDANT PUSH —
+  the S040-RECORDED obligation, delivered here NOT silent: `set_parent()` now ALSO registers the child
+  into the parent's non-owning inheritance-scope (the INVERSE edge of the S039 parent link; `std::vector<
+  DependencyObject*>` in Impl; unwind-on-reparent + dedupe guard). On an APPLIED Inherits/InheritOnly
+  change (on-affine Set OR a drain-applied queued write via ProcessPendingChanges), the TWO-PHASE pull
+  model runs: `collect_descendant_effectives` captures each registering descendant's CURRENT effective
+  value BEFORE the store (recursive walk via `visit_scope`), and `notify_descendants` recomputes each
+  descendant's NEW effective value AFTER the store and enqueues into that descendant's OWN notification
+  queue ONLY when old != new. This means each descendant receives its OWN effective-old -> effective-new
+  delta and is notified only when it ACTUALLY changes — S040 local-wins is respected THROUGH an
+  intermediate (a local-wins node shields its entire subtree; a parent move that changes no descendant's
+  effective pushes nothing). No visual tree is built: the inheritance-scope is DISTINCT from the visual
+  children list (S121 create/attach/detach + walk, which composes with set_parent) — recorded, no
+  overlap, no gap. Tests (doctest + Shouldly vocabulary): ChangeQueue_test.cpp (8 TEST_CASEs: cross-thread
+  enqueue/owner drain; FIFO order; empty drain=0; process-from-non-affine throws WrongThreadException;
+  clear-from-non-affine throws; record-during-process fresh-queue (swap-out); clear; owned-name survival);
+  ChangeNotificationPipeline_test.cpp (11 TEST_CASEs: ChangeProcessor coalescing 2-in->1-out first-old+
+  latest-new; distinct props once each in first-record order; empty=0; DependencyObject registration-ordered
+  dispatch via real descendant push; remove-token detach + re-add-appends-at-end; descendant push carries
+  oldEffective->newEffective delta via ProcessNotificationQueue; multi-level great-grandparent->leaf; local-
+  wins intermediate shields BOTH itself and its subtree (no push) + sanity grandchild notified when the child
+  (the true source) changes; InheritOnly always inherits; unregistered descendant -> nothing pending; single
+  subscriber fires once per push). VERIFIED BOTH CI LANES from first principles: msvc-debug (VS 2026) via
+  verify_s041.cmd — configure/build warning-clean, ctest 1/1 PASS (100% tests passed); ubuntu-clang (Ubuntu VM
+  clang 21, shared folder /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (146 cases; the single in-suite
+  "failed" assertion is the intentional S036_1 should_fail demonstration, marked not-failed; only pre-existing
+  upstream <ciso646> doctest deprecation from third_party, not this TU). windows-clang-debug is NOT a lane
+  (not built/tested/flagged per standing rule). NO-GAP accounting: S037's "S041 is its OWN resolution point
+  (NO backfill)" is satisfied (ChangeQueue generalizes the per-object value queue); S038's "ChangeRecorder is
+  S041's building block; S041 consumes that coalescing end-to-end" is satisfied (ChangeProcessor + the object's
+  ProcessNotificationQueue both drain via ChangeRecorder); S040's "push notification of descendants is
+  explicitly S041's scope" is satisfied (descendant push delivered above). S042 remains the formal end-to-end
+  coalescing-vs-live-DependencyObject integration gate — its primitive outcome is already REALIZED-EARLY by
+  S038 and now additionally integrated here (recorded NOT silent). No MINIMAL REAL introduced/resolved. No
+  NEW md files (directive honored). Next = S042.
