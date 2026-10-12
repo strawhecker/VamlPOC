@@ -17,6 +17,7 @@ add_executable(vaml-core-tests
     PropertyMetadata_test.cpp
     PropertyMetadata_semantics_test.cpp
     DependencyObject_test.cpp
+    StringMaker_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.

@@ -23,10 +23,10 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S036_1 (Shouldly routing reform: SHOULD/SHOULD_REQUIRE doctest seam) [token: S036_1]
-- Next step to do     : S036_2 [token: S036_2]
-- PENDING work        : S036_2 (StringMaker), S036_3 (ShouldThrow), S036_4 (migrate feature tests),
-  S036_5 (migrate DependencyObject_test + final gate) — then S037.
+- Last completed step : S036_2 (StringMaker domain exposure: StringMaker<Value>/<SetResult>/<PropertyId>) [token: S036_2]
+- Next step to do     : S036_3 [token: S036_3]
+- PENDING work        : S036_3 (ShouldThrow), S036_4 (migrate feature tests), S036_5 (migrate
+  DependencyObject_test + final gate) — then S037.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -514,3 +514,29 @@
   msvc-debug (green); windows-clang-debug preset remains broken on EVERY TU by the pre-existing
   /Zc:preprocessor clang-cl incompatibility (cross-cutting, out of scope, NOT introduced here). No
   MINIMAL REAL introduced/resolved. Next = S036_2 (StringMaker domain exposure).
+ 
+- [x] S036_2 StringMaker domain exposure: doctest::StringMaker specializations for VAML core types so
+  failed assertions stringify as readable source-level text. — ✅
+  SURVIVOR: `test/unit/vaml_test_stringmakers.h` (NEW, TEST-ONLY header) + `test/unit/StringMaker_test.cpp`
+  (NEW) + `test/unit/CMakeLists.txt` (MOD +StringMaker_test.cpp). SPECIALIZATIONS (namespace doctest):
+  `StringMaker<vaml::Value>` -> tag-first "<Tag payload>" for ALL 11 payload kinds: Null "null", Bool
+  "true"/"false", Int32/Int64/Float/Double scalar, String "\"..\"", Color "Color", Thickness "Thickness",
+  BrushId scalar, UntypedPtr address; helper `detail::vaml_value_type_name(ValueType)` maps tag->name.
+  `StringMaker<vaml::SetResult>` -> "SetResult::APPLIED"/"REJECTED"/"NO_CHANGE". `StringMaker<vaml::PropertyId>` ->
+  "PropertyId(Width)" or "PropertyId(empty)". WHY test-side header (layering): these live in
+  `namespace doctest`, so they CANNOT live in core — core must stay doctest-free (S036 layering rule);
+  the header is TEST-ONLY and each test TU includes it. GOTCHA (doctest internals, two build fixes):
+  `doctest::String` has a `const char*` ctor but NO `std::string` ctor and NO `operator+(const char*)` —
+  conversions must go through `.c_str()` into a `const char*`; `<sstream>` must be included explicitly
+  (ostringstream is not transitively available). GOTCHA (link, fixed): StringMaker_test.cpp must NOT
+  define `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` (only smoke_test.cpp owns the main) — doing so causes
+  ~200 LNK2005 multiply-defined-symbol failures (main + every doctest global). SYSTEM benefit: doctest
+  auto-uses `doctest::StringMaker` when stringifying a failed expression's operands, so ANY later
+  `CHECK(a == b)` (or SHOULD-equivalent) on Value/SetResult/PropertyId renders readable output
+  automatically — the S036_2 payoff is system-wide, not confined to StringMaker_test. This is the
+  framework-native "source-tool readability scaffold" the re-formulated Shouldly-for-doctest needs for
+  raw stringified fallback. VERIFIED: msvc-debug (VS 2026) configure/build warning-clean, ctest 1/1
+  PASS (100% tests passed; 3 new S036_2 cases). Maintained verify lane msvc-debug (green); windows-clang
+  -debug preset remains broken on EVERY TU (pre-existing /Zc:preprocessor clang-cl incompatibility,
+  cross-cutting, out of scope, NOT introduced here). No MINIMAL REAL introduced/resolved. Next =
+  S036_3 (ShouldThrow<Ex> typed-exception assertion category).
