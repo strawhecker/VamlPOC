@@ -36,6 +36,7 @@
 #include <sstream>
 #include <string>
 #include <type_traits>
+#include <typeinfo>
 
 namespace vaml
 {
@@ -726,6 +727,155 @@ namespace test
     {
         return ShouldlyAry<T>(t, n, line);
     }
+
+    // -------------------------------------------------------------------------------------------
+    // Typed-exception assertion category (S036_3).
+    //
+    // ShouldThrow<Ex>(fn) asserts that invoking fn() throws EXACTLY the exception type Ex. It is
+    // the first-class replacement for doctest's CHECK_THROWS_AS / CHECK_THROWS_WITH(_AS) — and it
+    // OUT-EXPOSES doctest: on a wrong-or-missing throw it reports the ACTUAL exception type (via
+    // RTTI typeid()) and message, which CHECK_THROWS_AS cannot do at all (it only says "expected X,
+    // different exception").
+    //
+    // Failure is routed through the same pluggable sink as every other predicate (default: throw
+    // TestFailureException). That means ShouldThrow composes with the SHOULD(...) doctest seam:
+    //
+    //      SHOULD( ShouldThrow<vaml::PropertyNotFound>([&]{ obj.Get(PropertyId::of("Nope")); }) )
+    //      SHOULD( ShouldThrow<vaml::PropertyNotFound>([&]{ obj.Get(PropertyId::of("Nope")); }, "expected message") )
+    //
+    // Pass  : Ex is thrown (and, for the message-matcher overload, its what() equals expected).
+    // Fail 1: nothing thrown  -> "expected <Ex> but nothing was thrown".
+    // Fail 2: wrong type      -> "expected <Ex> but got <ActualType> '<what()>'" (actual type + msg).
+    // Fail 3: right type, wrong message -> "<Ex> with message '<expected>' but message was '<actual>'".
+    //
+    // This is NOT lazy-avoidance of CHECK_THROWS_AS: it is the deliberate, first-class typed-exception
+    // assertion of the re-formulated Shouldly, resolving that category at S036_3 (NO-GAP/NO-LAZY-LLM).
+    // -------------------------------------------------------------------------------------------
+
+    namespace detail
+    {
+        // Summarizes a caught std::exception as "<type> '<what>'" for failure reporting.
+        inline std::string describe_thrown_std_exception(std::exception const& e)
+        {
+            std::stringstream ss;
+            ss << "<" << typeid(e).name() << "> '" << e.what() << "'";
+            return ss.str();
+        }
+    } // namespace detail
+
+    template <typename Ex, typename Fn>
+    void ShouldThrow(Fn&& fn)
+    {
+        static_assert(std::is_base_of<std::exception, Ex>::value,
+                      "ShouldThrow<Ex>: Ex must derive from std::exception to carry a message");
+
+        if constexpr (std::is_same<Ex, std::exception>::value)
+        {
+            // Two distinct handlers only: Ex IS std::exception, so the first catch
+            // already matches every std::exception; catch(...) is for non-std throws.
+            try
+            {
+                fn();
+            }
+            catch (std::exception const&)
+            {
+                return; // a std::exception (of any derived type) was thrown -> pass
+            }
+            catch (...)
+            {
+                ReportFailure("expected <std::exception> but a non-std::exception was thrown");
+                return;
+            }
+        }
+        else
+        {
+            try
+            {
+                fn();
+            }
+            catch (Ex const&)
+            {
+                return; // expected derived type thrown -> pass
+            }
+            catch (std::exception const& e)
+            {
+                std::stringstream ss;
+                ss << "expected <" << typeid(Ex).name() << "> but got "
+                   << detail::describe_thrown_std_exception(e);
+                ReportFailure(ss.str());
+                return;
+            }
+            catch (...)
+            {
+                std::stringstream ss;
+                ss << "expected <" << typeid(Ex).name()
+                   << "> but a non-std::exception of unknown type was thrown";
+                ReportFailure(ss.str());
+                return;
+            }
+        }
+
+        // No catch matched -> nothing was thrown.
+        std::stringstream ss2;
+        ss2 << "expected <" << typeid(Ex).name() << "> but nothing was thrown";
+        ReportFailure(ss2.str());
+    }
+
+    template <typename Ex, typename Fn>
+    void ShouldThrow(Fn&& fn, std::string const& expectedMessage)
+    {
+        static_assert(std::is_base_of<std::exception, Ex>::value,
+                      "ShouldThrow<Ex>: Ex must derive from std::exception to carry a message");
+        static_assert(!std::is_same<Ex, std::exception>::value,
+                      "message-matcher overload of ShouldThrow<std::exception> is ambiguous; use a derived type");
+
+        try
+        {
+            fn();
+        }
+        catch (Ex const& e)
+        {
+            if (std::string(e.what()) == expectedMessage)
+            {
+                return; // right type AND right message -> pass
+            }
+            std::stringstream ss;
+            ss << "expected <" << typeid(Ex).name() << "> with message '" << expectedMessage
+               << "' but message was '" << e.what() << "'";
+            ReportFailure(ss.str());
+            return;
+        }
+        catch (std::exception const& e)
+        {
+            std::stringstream ss;
+            ss << "expected <" << typeid(Ex).name() << "> with message '" << expectedMessage
+               << "' but got " << detail::describe_thrown_std_exception(e);
+            ReportFailure(ss.str());
+            return;
+        }
+        catch (...)
+        {
+            std::stringstream ss;
+            ss << "expected <" << typeid(Ex).name()
+               << "> but a non-std::exception of unknown type was thrown";
+            ReportFailure(ss.str());
+            return;
+        }
+
+        // No catch matched -> nothing was thrown.
+        std::stringstream ss2;
+        ss2 << "expected <" << typeid(Ex).name() << "> with message '" << expectedMessage
+            << "' but nothing was thrown";
+        ReportFailure(ss2.str());
+    }
+
+    // Overload accepting a message literal without an explicit std::string at the call site.
+    template <typename Ex, typename Fn>
+    void ShouldThrow(Fn&& fn, char const* expectedMessage)
+    {
+        ShouldThrow<Ex>(std::forward<Fn>(fn), std::string(expectedMessage));
+    }
+
 } // namespace test
 } // namespace vaml
 

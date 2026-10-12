@@ -23,9 +23,12 @@
 #include "doctest/doctest.h"
 
 #include <cmath>
+#include <stdexcept>
 #include <string>
 
 #include <vaml/assert/Shouldly.h>
+
+using vaml::test::ShouldThrow;
 
 namespace
 {
@@ -419,4 +422,83 @@ TEST_CASE("S036_1: a failing SHOULD is swallowed and routed into doctest (demons
     // If SHOULD incorrectly rethrew TestFailureException, this uncaught throw
     // would surface as a test-case exception instead of a normal AssertFailure.
     SHOULD(ShouldlyIntegral(5).ShouldBe(6));
+}
+
+// -----------------------------------------------------------------------------
+// S036_3 typed-exception assertion category: ShouldThrow<Ex>.
+//
+// Pass  : the expected type is thrown -> no failure routed.
+// Fail  : nothing thrown, or a DIFFERENT type/message is thrown -> routed to the
+//         sink (captured here) with the ACTUAL thrown type + message (the
+//         ShouldThrow value-add: CHECK_THROWS_AS cannot report the actual type).
+// -----------------------------------------------------------------------------
+namespace
+{
+    struct DomainError : std::runtime_error
+    {
+        using std::runtime_error::runtime_error;
+    };
+
+    auto throwDomainError() -> void
+    {
+        throw DomainError("domain boom");
+    }
+    auto throwLogicError() -> void
+    {
+        throw std::logic_error("logic boom");
+    }
+    auto throwNothing() -> void {}
+} // namespace
+
+TEST_CASE("ShouldThrow passes - right type thrown, no failure routed")
+{
+    CaptureOn cap;
+
+    ShouldThrow<DomainError>(throwDomainError);
+    ShouldThrow<std::runtime_error>([] { throw std::runtime_error("x"); });
+    // ShouldThrow<Base> accepts a DERIVED throw (typeid is checked at catch via Ex const&).
+    ShouldThrow<std::exception>(throwDomainError);
+
+    CHECK(cap.text().empty());
+}
+
+TEST_CASE("ShouldThrow fails - nothing thrown routes 'nothing was thrown'")
+{
+    CaptureOn cap;
+
+    ShouldThrow<DomainError>(throwNothing);
+    CHECK_FALSE(cap.text().empty());
+    CHECK(cap.text().find("expected") != std::string::npos);
+    CHECK(cap.text().find("nothing was thrown") != std::string::npos);
+}
+
+TEST_CASE("ShouldThrow fails - wrong type routes actual type + message")
+{
+    CaptureOn cap;
+
+    ShouldThrow<DomainError>(throwLogicError);
+    CHECK_FALSE(cap.text().empty());
+    // Reports the ACTUAL thrown type (the ShouldThrow value-add over CHECK_THROWS_AS).
+    CHECK(cap.text().find("expected <") != std::string::npos);
+    CHECK(cap.text().find("logic boom") != std::string::npos);   // actual message surfaced
+}
+
+TEST_CASE("ShouldThrow message overload - right type + right message passes")
+{
+    CaptureOn cap;
+
+    ShouldThrow<DomainError>(throwDomainError, std::string("domain boom"));
+    ShouldThrow<DomainError>(throwDomainError, "domain boom"); // const char* overload
+
+    CHECK(cap.text().empty());
+}
+
+TEST_CASE("ShouldThrow message overload - wrong message fails")
+{
+    CaptureOn cap;
+
+    ShouldThrow<DomainError>(throwDomainError, std::string("wrong message"));
+    CHECK_FALSE(cap.text().empty());
+    CHECK(cap.text().find("wrong message") != std::string::npos);
+    CHECK(cap.text().find("domain boom") != std::string::npos); // the ACTUAL message surfaced
 }

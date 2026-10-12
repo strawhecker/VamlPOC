@@ -23,10 +23,10 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S036_2 (StringMaker domain exposure: StringMaker<Value>/<SetResult>/<PropertyId>) [token: S036_2]
-- Next step to do     : S036_3 [token: S036_3]
-- PENDING work        : S036_3 (ShouldThrow), S036_4 (migrate feature tests), S036_5 (migrate
-  DependencyObject_test + final gate) — then S037.
+- Last completed step : S036_3 (ShouldThrow<Ex> typed-exception assertion category) [token: S036_3]
+- Next step to do     : S036_4 [token: S036_4]
+- PENDING work        : S036_4 (migrate feature tests), S036_5 (migrate DependencyObject_test +
+  final gate) — then S037.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -540,3 +540,34 @@
   -debug preset remains broken on EVERY TU (pre-existing /Zc:preprocessor clang-cl incompatibility,
   cross-cutting, out of scope, NOT introduced here). No MINIMAL REAL introduced/resolved. Next =
   S036_3 (ShouldThrow<Ex> typed-exception assertion category).
+ 
+- [x] S036_3 ShouldThrow<Ex> typed-exception assertion category — first-class replacement for
+  CHECK_THROWS_AS/_WITH/_WITH_AS that OUT-EXPOSES doctest (reports actual thrown type + message). — ✅
+  SURVIVOR: `src/core/include/vaml/assert/Shouldly.h` (MOD) + `test/unit/shouldly_test.cpp` (MOD).
+  API (namespace vaml::test, template resolution): `ShouldThrow<Ex>(Fn&&)` — asserts fn() throws Ex;
+  `ShouldThrow<Ex>(Fn&&, std::string const&)` and `ShouldThrow<Ex>(Fn&&, char const*)` — message-
+  matcher overloads (Ex.what() must equal the expected string). Tail `static_assert(is_base_of<std::
+  exception,Ex>)` requires a std::exception-derived Ex (so a message exists). FAILURE MODES (through
+  the SAME pluggable sink as every predicate -> composes with SHOULD(...) seam): (1) nothing thrown ->
+  "expected <Ex> but nothing was thrown"; (2) wrong std::exception type -> "expected <Ex> but got
+  <typeid(e).name()> '<e.what()>'" (ACTUAL type + message surfaced — the ShouldThrow value-add over
+  CHECK_THROWS_AS, which cannot report the actual type at all); (3) right type + wrong message ->
+  "<Ex> with message '<expected>' but message was '<actual>'"; non-std throws -> "<Ex> but a non-std::
+  exception of unknown type was thrown". DESIGN/FIX (three builds): the Ex catch is IDENTICAL to
+  catch(std::exception) when Ex==std::exception -> MSVC C2312 duplicate-handler. Resolved with
+  `if constexpr(is_same<Ex,std::exception>)` that emits TWO handlers (catch(std::exception) passes,
+  catch(...) fails) vs THREE handlers (Ex / std::exception-with-typeinfo / catch(...)) for derived Ex.
+  The message-matcher overload adds `static_assert(!is_same<Ex,std::exception>)` (ambiguous semantics).
+  Any non-returning path falls to the trailing "nothing was thrown" report (a GOTCHA: an earlier draft
+  dropped it under catch(...) for derived Ex, silently losing the wrong-type report + failing one test).
+  Tests (6 new S036_3 TEST_CASEs, using vaml::test::ShouldThrow + name-scoped
+  DomainError/throwDomainError/throwLogicError/throwNothing fixtures + <stdexcept>): pass on right
+  type; pass on base-Ex catching a derived throw (ShouldThrow<std::exception>(throwDomainError) via
+  the if constexpr two-handler branch); fail on nothing-thrown; fail on wrong type routes ACTUAL
+  message ("logic boom"); pass on message match (std::string + const char* overloads); fail on wrong
+  message routes ACTUAL message. THIS STEP proves the category compiles + behaves; the suite-wide
+  CHECK_THROWS_AS->ShouldThrow migration is S036_4/S036_5 (NOT here, per plan). VERIFIED: msvc-debug
+  (VS 2026) configure/build warning-clean, ctest 1/1 PASS (100% tests passed, 90 cases / 558 asserts).
+  Maintained verify lane msvc-debug (green); windows-clang-debug preset remains broken on EVERY TU
+  (pre-existing /Zc:preprocessor clang-cl incompatibility, cross-cutting, out of scope, NOT introduced
+  here). No MINIMAL REAL introduced/resolved. Next = S036_4 (migrate feature tests).
