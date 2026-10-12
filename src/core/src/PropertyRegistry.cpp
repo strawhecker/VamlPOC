@@ -82,6 +82,27 @@ const PropertyKey& PropertyRegistry::find(const std::string& name) const
 }
 
 VAML_CORE_EXPORT
+PropertyId PropertyRegistry::id_of(const std::string& name) const
+{
+    const PropertyKey* stored = impl_->find(name);
+    if (stored == nullptr)
+    {
+        std::string msg = "property not found: '" + name + "'";
+        throw PropertyNotFound(msg.c_str());
+    }
+    return PropertyId::of(stored->name());
+}
+
+VAML_CORE_EXPORT
+PropertyId PropertyRegistry::try_id(const std::string& name) const noexcept
+{
+    const PropertyKey* stored = impl_->find(name);
+    // Unregistered name -> invalid (empty) id; caller distinguishes via
+    // PropertyId::valid().
+    return stored == nullptr ? PropertyId{} : PropertyId::of(stored->name());
+}
+
+VAML_CORE_EXPORT
 std::size_t PropertyRegistry::size() const noexcept
 {
     return impl_->size();

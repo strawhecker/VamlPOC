@@ -1,22 +1,30 @@
 #pragma once
 // VAML PropertyRegistry — maps property NAME -> PropertyKey and enforces
 // name uniqueness (dedupe detection). S032 (dep:S031). Foundation for the DP
-// property system.
+// property system. S033 (this step) adds the constexpr-safe static id bridge
+// (id_of / try_id) on top of the S032 instance-based shape.
 //
 // The registry is *instance-based*: construct one per owner-setup scope. A
-// global static registry instance and constexpr-safe static id/lookup are an
-// S033 concern (the exhaustive register/lookup/dedupe suite) and are NOT baked
-// in here — the shape is instance-based so S033 can add the static plumbing
-// without disturbing this layer.
+// global static registry instance (the S032-recorded deferred decision) is a
+// S034 concern once a real static DependencyProperty::Register landing site
+// exists — deliberately NOT added here (S033 has no consumer for a global
+// store; adding one would be speculative surface).
 //
 // Uniqueness scope (recorded design decision): keys are globally unique by
 // NAME (WPF-style). register_key() throws PropertyAlreadyRegistered on a name
 // collision; the map is unchanged by a rejected insert. ownerTypeId lives
 // inside the key as identity metadata, not as a second registry dimension.
 //
+// Static id bridge: id_of(name) yields the PropertyId for a registered name
+// (throws PropertyNotFound if absent); try_id(name) is the noexcept variant
+// returning an invalid (empty) id. This ties the runtime name-keyed store to
+// the compile-time PropertyId (S033) — the canonical key S036's local-value
+// store uses.
+//
 // Implementation is pimpl'd (class Impl + unique_ptr) to keep the ABI surface
 // stable and std::unordered_map out of this public header.
 
+#include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h"
 
 #include <cstddef>
@@ -63,6 +71,16 @@ public:
 
     // Lookup: returns the stored key, or throws PropertyNotFound.
     [[nodiscard]] const PropertyKey& find(const std::string& name) const;
+
+    // Static id bridge (S033): returns the constexpr-safe PropertyId for a
+    // registered name. Throws PropertyNotFound if the name is not registered
+    // (never returns an id for an unregistered name).
+    [[nodiscard]] PropertyId id_of(const std::string& name) const;
+
+    // Static id bridge (S033), noexcept: returns the registered name's
+    // PropertyId, or an invalid (empty) id if the name is not registered.
+    // Never throws — the noexcept counterpart to id_of.
+    [[nodiscard]] PropertyId try_id(const std::string& name) const noexcept;
 
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }

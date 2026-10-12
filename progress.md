@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S032 (PropertyKey + PropertyRegistry) [token: S032]
-- Next step to do     : S033 [token: S033]
+- Last completed step : S033 (Registry exhaustive tests + constexpr-safe static id) [token: S033]
+- Next step to do     : S034 [token: S034]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -345,3 +345,32 @@
   flags + adds metadata (defaults/callbacks); S039/S043 consume owner-id + Inherits. Two deferred design
   decisions recorded (not silent): (a) global name-uniqueness scope, (b) global static registry instance →
   both S033. No MINIMAL REAL introduced/resolved. Next = S033.
+- [x] S033 Registry exhaustive tests + constexpr-safe static id — ✅ (see roadmap S033 line for full detail)
+  SURVIVOR: `src/core/include/vaml/core/PropertyId.h` (NEW — header-only constexpr-safe static id).
+  PropertyId wraps the property NAME as a `std::string_view` bound to a string literal: `constexpr`-safe
+  (fully compile-time, proven by `static_assert` in tests), collision-free by construction (carries the
+  name, NOT a hash → no collision class, no cross-TU nondeterminism, no static-init-order fiasco), stable +
+  interconvertible with the registry's name-keyed store. API: `of(sv)`, `name() constexpr`, `valid()`,
+  `constexpr ==/!=`, `std::hash<PropertyId>` specialization (feeds S036's local-value store as map key).
+  Deliberate name-token-over-hash choice recorded (a compile-time hash also compiles but reintroduces a
+  collision class + opaque proof). NOT a STUB / NOT MINIMAL REAL — complete on delivery. Lifetime note:
+  owner must pass a string literal (wrapping a temp std::string is a lifetime bug), mirroring the registry
+  name contract. `PropertyRegistry` (MOD PropertyRegistry.h/.cpp): + `id_of(name)` (→PropertyId, throws
+  PropertyNotFound if unregistered) + `try_id(name) const noexcept` (→id or invalid empty id) — the
+  runtime→compile-time bridge = the canonical key S036's local-value store uses. Test TUs (NEW):
+  `test/unit/PropertyId_test.cpp` (static_assert compile-time proof; equality by name; default-id invalid;
+  std::hash consistent with equality; id_of/try_id round the name-keyed store + unregistered-name path)
+  and `test/unit/PropertyRegistryExhaustive_test.cpp` (exhaustive bulk register across types/flags/owners +
+  exact lookup; all four duplicate-throws rejection forms — diff type / diff owner / diff flags / identical
+  key — each leaves the registry unchanged: size, stored-pointer identity, and id stable; missing-lookup on
+  empty + non-empty; move-construct/move-assign preserve mappings + dedupe). CMakeLists (MOD): +2 test TUs.
+  build/verify_s033.cmd (NEW): verify_s032-pattern msvc-debug lane. VERIFIED BOTH COMPILERS: msvc-debug
+  (VS 2026) ctest 1/1 PASS; REAL LINUX clang-debug (Ubuntu VM clang 21.1.8) build green, ctest 1/1 PASS.
+  Only Clang warnings = pre-existing upstream <ciso646> doctest deprecation. GOTCHA: doctest stringifies
+  CHECK operands via ostream — comparing a raw `std::string_view` operand fails to compile on MSVC (undefined
+  `basic_ostream`) unless wrapped (e.g. `std::string(id.name())`); check string_view-wide values via
+  `.size()`/`.empty()` or convert. DESIGN re-deferral (S032 item (b)): global static registry instance NOT
+  added in S033 — no consuming static-Register site exists until S034's real `DependencyProperty::Register`;
+  recorded non-silently as an explicit S034 concern, resolving the S032 recording. NO-GAP: PropertyId is
+  real + fully tested (no sentinel); nothing left for silent backfill; deferral searchable in roadmap+progress.
+  No MINIMAL REAL introduced/resolved. Next = S034.

@@ -12,6 +12,8 @@ add_executable(vaml-core-tests
     Value_test.cpp
     Value_roundtrip_test.cpp
     PropertyKeyRegistry_test.cpp
+    PropertyId_test.cpp
+    PropertyRegistryExhaustive_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
