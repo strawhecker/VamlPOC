@@ -23,8 +23,8 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S034 (PropertyMetadata) [token: S034]
-- Next step to do     : S035 [token: S035]
+- Last completed step : S035 (Metadata apply-semantics tests) [token: S035]
+- Next step to do     : S036 [token: S036]
 - PENDING work        : none
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
@@ -345,6 +345,39 @@
   flags + adds metadata (defaults/callbacks); S039/S043 consume owner-id + Inherits. Two deferred design
   decisions recorded (not silent): (a) global name-uniqueness scope, (b) global static registry instance →
   both S033. No MINIMAL REAL introduced/resolved. Next = S033.
+- [x] S035 Metadata apply-semantics tests (default applied, cb-only-on-real-change, coerce applied, validate rejects) — ✅
+  SURVIVOR: `test/unit/PropertyMetadata_semantics_test.cpp` (NEW — pure TEST step, NO product symbol).
+  A doctest-scope `MiniStore<T>` harness models the Set-time apply pipeline that S036's DependencyObject
+  must reproduce: construction seeds `current = defaultValue()` ("default applied"); `trySet(proposed)`
+  runs coerce → validate(coerced) → fire-changed-cb-only-on-real-change → store, and returns
+  APPLIED/REJECTED/NO_CHANGE. The harness records every cb fire + (old,new) so exact call behavior is
+  assertable. Tests cover exactly S035's four title behaviors + ordering + passthrough, each in its own
+  TEST_CASE: (1) **default applied** — fresh holder reads defaultValue() (7); setting a value equal to the
+  default → NO_CHANGE, no cb. (2) **coerce applied** — negative raw →5 stored (coerced value is what's
+  validated+stored), cb receives coerced new; positive passthrough stores as-given with correct (old,new).
+  (3) **coerce-before-validate ordering** — raw -3 would FAIL `validate(v>=0)` as-is, but coerce runs FIRST
+  turning it into 5, so validate(5) passes → APPLIED (default 0→5, cb (0,5)); proves validate sees the
+  COERCED value. (4) **validate rejects** — rejected value → REJECTED, current unchanged, cb NOT fired
+  (checked for two distinct rejections). (5) **cb fires ONLY on real change** — first set fires once;
+  setting the SAME value repeatedly → NO_CHANGE, fireCount unchanged; N distinct values → N fires each with
+  correct (old,new); reverting to a previously-held value still fires (it IS a real change). (6) **absent
+  callbacks = passthrough** — no coerce/validate/changed → stores as-given, one fire on first set, NO_CHANGE
+  on repeat. (7) harness stays **type-bound** — a wrong-tag proposed value throws vaml::ValueTypeMismatch
+  through the pipeline before any accept decision, store untouched. The MiniStore + test file are PERMANENT
+  TEST INFRASTRUCTURE (same class as the vendored doctest/Shouldly harness), NOT a STUB and NOT MINIMAL
+  REAL — no sentinel, never shipped, because the real value-holder is S036's DependencyObject (recorded,
+  not silent; NO-GAP intact: the feature is already scheduled at S036). CMakeLists (MOD): test/unit
+  +PropertyMetadata_semantics_test.cpp to vaml-core-tests. build/verify_s035.cmd (NEW): verify_s034-pattern
+  msvc-debug lane (clean PATH → vcvars64 → msvc-debug configure+build+ctest). VERIFIED: msvc-debug (VS 2026)
+  ctest 1/1 PASS (66 cases total incl. S034/S033...; this TU adds 7). One in-development test-bookkeeping
+  fix: the first ordering draft coerced -5→0 while the default was already 0 (would be NO_CHANGE, not
+  APPLIED) — corrected to coerce -3→5 against default 0 so the ordering proof is a real change (fixed
+  pre-build, not a shipped defect). DESIGN CONTRACT hand-off to S036 (recorded searchable in roadmap +
+  progress): DependencyObject::Set MUST reproduce coerce → validate(on coerced) → fire changed cb only on
+  real change → store; `PropertyMetadata_semantics_test.cpp::MiniStore` is the reference spec.
+  Roadmap S035 marked [DONE]; S036 line annotated with the S035→S036 apply-pipeline contract.
+  No MINIMAL REAL introduced/resolved. Next = S036.
+
 - [x] S034 PropertyMetadata { defaultValue; flags; changed cb; coerce; validate } — ✅
   SURVIVOR: `src/core/include/vaml/core/PropertyMetadata.h` (NEW) + `src/core/src/PropertyMetadata.cpp`
   (NEW) + `test/unit/PropertyMetadata_test.cpp` (NEW). Move-only (copy deleted, proven by static_assert)

@@ -1,62 +1,53 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S034 (no commits; no NEW md files)
-- plan_repo_state : S034 implementit complete — build green MSVC + Linux Clang, ctest green both.
-                    No commit+push performed (per command). Files below are the full S034 change-set.
-- plan_digest     : S034 dep:S033 — PropertyMetadata { defaultValue; flags; changed cb; coerce; validate }.
-                    Move-only metadata bundle under an Impl pimpl. Real public symbol (NOT MINIMAL REAL).
-                    - src/core/include/vaml/core/PropertyMetadata.h (NEW)
-                    - src/core/src/PropertyMetadata.cpp (NEW)
-                    - test/unit/PropertyMetadata_test.cpp (NEW)
-                    - src/core/CMakeLists.txt (MOD): +PropertyMetadata.cpp
-                    - test/unit/CMakeLists.txt (MOD): +PropertyMetadata_test.cpp
-                    - build/verify_s034.cmd (NEW): verify_s033-pattern msvc-debug lane.
-                    Design: field surface mirrors roadmap exactly — defaultValue (Value, also fixes bound
-                    type = defaultValue.type()), flags (PropertyFlags validating carrier recomposing S032's
-                    set), changed cb (old,new), coerce Value(Value), validate Value->bool. Construction:
-                    canonical factory PropertyMetadata::WithDefault(Value, PropertyFlags) (REQUIRED — no
-                    default-constructible empty metadata) + && return-by-value builder hooks
-                    with_coerce/with_validate/with_changed (each installs one callback, returns a NEW
-                    metadata, leaves source untouched). Passthrough when absent: coerce=identity,
-                    validate=always-accept, changed=no-op. TYPE-BOUND: coerce/validate/notifyChanged throw
-                    vaml::ValueTypeMismatch on a Value whose tag != boundType (NO-LAZY wrong-type guard).
-                    Copy deleted (move-only, proven by static_assert). Tests: move-only; WithDefault seeds
-                    default+bound type+flags; flags carrier round-trips all 3 bits; coerce/validate/changed
-                    present+absent semantics; single builder chain composes all three; wrong-tag throws
-                    from all entry points + correct tag post-throw; builder return-by-value.
-                    Deferral (recorded, not silent): global static registry instance + DependencyProperty
-                    ::Register landing site = S036 (DependencyObject with local-value store needing a
-                    registered DP); resolves S032(b)/S033 recording. S034 delivers the metadata TYPE + its
-                    own unit semantics; invocation at Set-time is S036/S035.
-                    Verification: msvc-debug (VS 2026) ctest 1/1 PASS; REAL LINUX clang-debug (Ubuntu VM
-                    clang 21.1.8) build green, ctest 1/1 PASS. Only Clang warnings = pre-existing upstream
-                    <ciso646> doctest deprecation.
+- last_command    : implementit S035 (no commits; no NEW md files)
+- plan_repo_state : S035 implementit complete — msvc-debug (VS 2026) build green + ctest 1/1 PASS.
+                    No commit+push performed (per command). Files below are the full S035 change-set.
+- plan_digest     : S035 dep:S034 — Metadata tests: default applied, cb fires only on real change,
+                    coerce applied, validate rejects. Pure TEST step (no product symbol). Deliverable =
+                    doctest-scope MiniStore<T> harness (test TU-local, permanent test infra, NOT STUB /
+                    NOT MINIMAL REAL) that models the S036 Set-time apply pipeline: construction seeds
+                    current = defaultValue(); trySet runs coerce → validate(coerced) → fire-changed-cb
+                    only-on-real-change → store; outcome APPLIED/REJECTED/NO_CHANGE + records every cb
+                    (old,new). Test cases: default applied (fresh holder reads default; set==default is
+                    NO_CHANGE, no cb); coerce applied (stored value is the coerced value, cb sees coerced
+                    new); coerce-before-validate ordering (raw fails validate, passes once coerced — proves
+                    validate sees coerced value); validate rejects (store unchanged, cb not fired); cb
+                    fires only on real change (identical set → NO_CHANGE; N distinct → N fires with correct
+                    (old,new)); absent callbacks = passthrough (store-as-given, no spurious fires);
+                    type-bound (wrong-tag proposed throws ValueTypeMismatch, store untouched).
+                    Files:
+                    - test/unit/PropertyMetadata_semantics_test.cpp (NEW)
+                    - test/unit/CMakeLists.txt (MOD): +PropertyMetadata_semantics_test.cpp
+                    - build/verify_s035.cmd (NEW): verify_s034-pattern msvc-debug lane.
+                    Wire-up: docs/roadmap.md (S035 [DONE] + S036 annotated with S035→S036 contract),
+                    progress.md (S035 SURVIVOR + checkpoint → S036), session-context.md (this).
+                    DESIGN hand-off to S036: DependencyObject::Set must reproduce coerce → validate(on
+                    coerced) → fire changed cb only on real change → store; MiniStore is the reference
+                    spec (recorded searchable, not silent).
+                    Verification: msvc-debug (VS 2026) ctest 1/1 PASS (66 cases incl. this TU's 7).
 - files_touched   :
-    ADD      src/core/include/vaml/core/PropertyMetadata.h (S034 move-only metadata bundle, pimpl)
-    ADD      src/core/src/PropertyMetadata.cpp            (WithDefault factory + builder hooks + behavior)
-    ADD      test/unit/PropertyMetadata_test.cpp          (construction, defaults, coerce/validate/cb, move-only)
-    MODIFIED src/core/CMakeLists.txt                     (+PropertyMetadata.cpp)
-    MODIFIED test/unit/CMakeLists.txt                    (+PropertyMetadata_test.cpp)
-    ADD      build/verify_s034.cmd                       (verify_s033-pattern msvc-debug lane)
-    MODIFIED docs/roadmap.md                             (S034 [DONE])
-    MODIFIED progress.md                                 (S034 SURVIVOR + checkpoint → S035)
+    ADD      test/unit/PropertyMetadata_semantics_test.cpp (MiniStore harness + 7 apply-semantics cases)
+    MODIFIED test/unit/CMakeLists.txt                    (+PropertyMetadata_semantics_test.cpp)
+    ADD      build/verify_s035.cmd                       (verify_s034-pattern msvc-debug lane)
+    MODIFIED docs/roadmap.md                             (S035 [DONE]; S036 annotated with apply contract)
+    MODIFIED progress.md                                 (S035 SURVIVOR + checkpoint → S036)
     MODIFIED session-context.md                          (this file — completion status)
-- build_status    : GREEN — msvc-debug (VS 2026) ctest 1/1 PASS; linux clang-debug (Ubuntu VM) build
-                    ok, ctest 1/1 PASS. (Last known good prior: S033.)
-- next_step       : S035 (Metadata tests: default applied, cb fires only on real change, coerce applied, validate rejects)
+- build_status    : GREEN — msvc-debug (VS 2026) ctest 1/1 PASS. (Last known good prior: S034.)
+- next_step       : S036 (DependencyObject base: local value store, Get/Set, per-prop mastery,
+                    thread-affinity marker) — must satisfy the S035 apply pipeline.
 - notes           :
-    - S034 delivers the PropertyMetadata TYPE as a move-only, type-bound bundle. The three callables
-      (coerce/validate/changed) live under a pimpl so the public header hides the std::function ABI and
-      copy is deleted at the boundary — move-only proven by static_assert, not just convention.
-    - GOTCHA: the builder hooks are &&-qualified return-by-value; they are meant to be chained on a
-      temporary (WithDefault(...).with_coerce(...)) or via std::move on a named lvalue. Calling them on
-      an lvalue without std::move is a compile error by design (forces move semantics).
-    - DESIGN re-deferral (resolves S032(b)/S033): global static registry instance + DependencyProperty
-      ::Register landing site are S036's concern (S036 = DependencyObject with a local-value store needing
-      a registered DP). S034 adds NO static registration surface; the metadata TYPE + its unit semantics
-      are fully real here, while Set-time coercion/validation/changed invocation is S035/S036.
+    - S035 is a pure TEST step by plan: no product symbol added. The value-holder is S036's
+      DependencyObject; the MiniStore harness is test infrastructure (same class as the vendored
+      doctest/Shouldly harness), so it carries no MINIMAL REAL sentinel and is never shipped — NO-GAP
+      satisfied because the real Set feature is already scheduled at S036.
+    - The harness is the reference SPEC for S036::Set: it pins coerce → validate(coerced) →
+      fire-on-real-change → store ordering and exact cb (old,new) behavior, recorded searchably in
+      roadmap + progress so S036 cannot silently diverge.
+    - IMPORTANT in-development fix (fixed pre-build, not a shipped defect): the first coerce-before-
+      validate draft coerced -5→0 while the default was already 0, so the outcome was correctly
+      NO_CHANGE (not the intended APPLIED) — corrected to coerce -3→5 against default 0 so the ordering
+      proof is a real change.
     - No NEW md files produced beyond plan deliverables (directive honored). No commits made (per command).
-    - Next step S035 tests every metadata field (default applied, cb-only-on-real-change, coerce applied,
-      validate rejects).
-    - COMMITIT STATUS: commit + push of all S032 + S033 + S034 files is outstanding, awaiting your
-      authorization. After commit+push: repo is the committed good state; next step S035.
+    - COMMITIT STATUS: commit + push of all S032 + S033 + S034 + S035 files is outstanding, awaiting
+      your authorization. After commit+push: repo is the committed good state; next step S036.
