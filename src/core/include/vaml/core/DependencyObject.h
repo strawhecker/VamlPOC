@@ -281,10 +281,15 @@ private:
     // direct child).
     //
     // collect_descendant_effectives() walks this object's inheritance-scope (and
-    // recursively each child's scope) and captures each descendant that
-    // REGISTERS `name`, with its CURRENT effective value (computed pre-change by
-    // the caller, BEFORE the origin stores its new value). non-registering
-    // descendants are skipped entirely (they cannot inherit).
+    // recursively each child's scope) and captures each descendant with its
+    // CURRENT effective value (computed pre-change by the caller, BEFORE the
+    // origin stores its new value). A descendant is captured when it either
+    // REGISTERS `name` (has a local store entry) OR — S044 broadening — the
+    // property is a GLOBALLY registered Inherits/InheritOnly attached property
+    // (`captureAttachedInherits`): a purely-passive attached-Inherits descendant
+    // never materializes a store entry, yet it reads (and must be notified of)
+    // the inherited value. notify_descendants still filters to real change, so
+    // over-capturing a passive descendant that ends up unchanged is harmless.
     //
     // notify_descendants() is called AFTER the origin has stored its new value:
     // for each captured descendant it recomputes the NEW effective value and
@@ -292,17 +297,22 @@ private:
     // descendant's OWN notification queue ONLY when old != new (local-wins /
     // inherited-unchanged descendants produce no notification).
     static std::vector<std::pair<DependencyObject*, Value>> collect_descendant_effectives(
-        const DependencyObject& root, const std::string& name);
+        const DependencyObject& root, const std::string& name, bool captureAttachedInherits);
     void notify_descendants(
         const std::string& name,
         const std::vector<std::pair<DependencyObject*, Value>>& before);
 
     // Recursive scope walker used by collect_descendant_effectives(): walks
-    // `this`'s inheritance-scope, capturing each registering descendant with its
-    // current effective value (recursing into each child's scope).
+    // `this`'s inheritance-scope, capturing each descendant with its current
+    // effective value (recursing into each child's scope). A descendant is
+    // captured when it REGISTERS `name` (local store entry) or, when
+    // `captureAttachedInherits` is set, whenever the property is a globally
+    // registered attached Inherits/InheritOnly property (S044: passive attached
+    // descendants must be notified even without a local store entry).
     void visit_scope(
         const std::string& name,
-        std::vector<std::pair<DependencyObject*, Value>>& out) const;
+        std::vector<std::pair<DependencyObject*, Value>>& out,
+        bool captureAttachedInherits) const;
 
     struct Impl; // pimpl: hides std::unordered_map + PropertyMetadata
     std::unique_ptr<Impl> impl_;

@@ -397,10 +397,23 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     const bool inherits =
         has_flag(md.flags(), PropertyFlags::Inherits)
         || (dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits));
+
+    // S044: an ATTACHED Inherits/InheritOnly property must also capture purely
+    // passive descendants (those with NO local store entry). The precise
+    // "attached" signal is that the ORIGIN's own store entry is BORROWED
+    // (entry.owned == nullptr): the origin hosts the value but does NOT own the
+    // property (S043 borrowed metadata). An object-scoped Inherits property
+    // (the origin owns its entry) keeps the S041 behavior — a non-registering
+    // child cannot inherit it. Together with the global Inherits flag this
+    // triggers the broadened capture so passive ATTACHED descendants are
+    // notified on the parent's change (not just materialized ones).
     std::vector<std::pair<DependencyObject*, Value>> descendantBefore;
     if (inherits)
     {
-        descendantBefore = collect_descendant_effectives(*this, name);
+        const bool captureAttachedInherits =
+            dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits)
+            && entry.owned == nullptr;
+        descendantBefore = collect_descendant_effectives(*this, name, captureAttachedInherits);
     }
 
     md.notifyChanged(currentEffective, coerced);
@@ -476,6 +489,10 @@ void DependencyObject::ProcessPendingChanges()
 
         // S041 §2.4: capture descendants' current effective values (BEFORE the
         // store) so the push carries each descendant's own old->new delta.
+        // S044: for an ATTACHED Inherits/InheritOnly property (origin's entry is
+        // BORROWED — owned == nullptr), also capture purely passive descendants
+        // with no local store entry (broadened walk). An object-scoped Inherits
+        // property keeps the S041 behavior.
         const DependencyProperty* dp = DependencyProperty::TryGet(write.name);
         const bool inherits =
             has_flag(md.flags(), PropertyFlags::Inherits)
@@ -483,7 +500,10 @@ void DependencyObject::ProcessPendingChanges()
         std::vector<std::pair<DependencyObject*, Value>> descendantBefore;
         if (inherits)
         {
-            descendantBefore = collect_descendant_effectives(*this, write.name);
+            const bool captureAttachedInherits =
+                dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits)
+                && entry.owned == nullptr;
+            descendantBefore = collect_descendant_effectives(*this, write.name, captureAttachedInherits);
         }
 
         md.notifyChanged(currentEffective, write.coerced);
@@ -600,22 +620,32 @@ std::size_t DependencyObject::pending_notification_count() const noexcept
 // REGISTERS `name`, along with its CURRENT effective value. This snapshot is the
 // "before" side of each descendant's own old->new delta. Descendants that do NOT
 // register the property are skipped (they cannot inherit it).
+//
+// S044 broadening: when `captureAttachedInherits` is set (the property is a
+// globally registered Inherits/InheritOnly ATTACHED property), a descendant is
+// captured even if it has NO local store entry — a purely-passive attached
+// descendant inherits the value through the global-resolved read (S043) and must
+// be notified on the parent's change, not just materialized/registering ones.
 VAML_CORE_EXPORT
 std::vector<std::pair<DependencyObject*, Value>> DependencyObject::collect_descendant_effectives(
-    const DependencyObject& root, const std::string& name)
+    const DependencyObject& root, const std::string& name, bool captureAttachedInherits)
 {
     std::vector<std::pair<DependencyObject*, Value>> result;
-    root.visit_scope(name, result);
+    root.visit_scope(name, result, captureAttachedInherits);
     return result;
 }
 
 // Recursive scope walker used by collect_descendant_effectives. `self` is the
 // object whose inheritance-scope we walk; if `self` itself is the root (the
 // origin) we do NOT include it (we only care about descendants). Each visited
-// object that REGISTERS `name` contributes (object, its CURRENT effective value).
+// object contributes (object, its CURRENT effective value) when it registers
+// `name` OR (S044) when `captureAttachedInherits` is set — a passive attached
+// Inherits descendant that has no local store entry is still captured so it can
+// be notified. Notify-side filtering (old != new) makes over-capture harmless.
 void DependencyObject::visit_scope(
     const std::string& name,
-    std::vector<std::pair<DependencyObject*, Value>>& out) const
+    std::vector<std::pair<DependencyObject*, Value>>& out,
+    bool captureAttachedInherits) const
 {
     for (DependencyObject* child : impl_->inheritanceScope)
     {
@@ -624,14 +654,15 @@ void DependencyObject::visit_scope(
             continue;
         }
         // A descendant that registers the property is captured with its current
-        // effective value; one that does not is skipped entirely.
+        // effective value; one that does not is captured ONLY when the property
+        // is a globally-registered attached Inherits/InheritOnly property (S044).
         const auto it = child->impl_->store.find(name);
-        if (it != child->impl_->store.end())
+        if (it != child->impl_->store.end() || captureAttachedInherits)
         {
             out.emplace_back(child, child->GetEffectiveValue(PropertyId::of(name)));
         }
         // Recurse into this child's own scope so great-grandchildren are captured.
-        child->visit_scope(name, out);
+        child->visit_scope(name, out, captureAttachedInherits);
     }
 }
 

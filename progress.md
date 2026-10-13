@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S043 (Attached properties: key owned by A settable on B; registry supports owner≠class) [token: S043]
-- Next step to do     : S044 [token: S044]
-- PENDING work        : none (S043 complete; S044 is next).
+- Last completed step : S044 (Attached set/get + inheritance + notification tests) [token: S044]
+- Next step to do     : S045 [token: S045]
+- PENDING work        : none (S044 complete; S045 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -922,6 +922,65 @@
   (would break global name-uniqueness). Tests (doctest, Shouldly vocabulary; S043-UNIQUE global names
   `{Left,Theme,Dock,CanvasTop,Margin}_S043_*` via a suite-local `global_seen()` set so the name-unique
   global DependencyProperty table cannot collide):
+  (1) HEADLINE — attached Set(5) -> APPLIED; Get -> 5; isolated per-object; etc. (see roadmap S043 line).
+
+- [x] S044 Attached set/get + inheritance + notification tests — ✅
+  SURVIVOR: `test/unit/AttachedInheritanceNotification_test.cpp` (NEW) + `test/unit/CMakeLists.txt` (MOD
+  +AttachedInheritanceNotification_test.cpp) + `build/verify_s044.cmd` (NEW, verify_s043-pattern msvc-debug
+  lane) + `src/core/include/vaml/core/DependencyObject.h` + `src/core/src/DependencyObject.cpp` (MOD —
+  the S044 push-walk broadening) + `docs/roadmap.md` (MOD S044 [DONE]) + `session-context.md` (MOD).
+  Delivers the S044 headline end-to-end against live DependencyObjects AND closes a REAL GAP discovered
+  while tracing the headline (NOT a silent omission — a sanctioned product extension authored at the SAME
+  step as the tests, per NO-GAP): **passive attached-Inherits descendants were never notified**.
+  THE GAP: S041's descendant push (`visit_scope`) captured a descendant ONLY when it already had a local
+  store entry (`store.find(name) != end()`). For an attached Inherits property, a PURELY-PASSIVE inheriting
+  child (never registers, never Set, never materializes a borrowed entry) reads the inherited value
+  correctly via S043's global-resolved `GetEffectiveValue`, but was NEVER captured -> NEVER notified when
+  the parent's attached Inherits value changed. Only descendants that artificially materialized a store
+  entry (which makes them local-wins, so they never inherit-and-notify) were notified — leaving S044's
+  "inheritance + notification" headline hollow.
+  PRODUCT CHANGE (minimal, scoped to the S041 push walk): `collect_descendant_effectives` /
+  `visit_scope` gain a `captureAttachedInherits` flag (threaded from BOTH Set() and ProcessPendingChanges()).
+  It is computed as: the property carries the GLOBAL `Inherits` flag (from `DependencyProperty::TryGet(id.name())
+  ->flags()`, already resolved as `dp`) AND the ORIGIN's own store entry is BORROWED (`entry.owned == nullptr`
+  — the precise "attached" signal: this object hosts the value but does NOT own the property, S043 design).
+  When set, `visit_scope` captures a descendant even if it has NO local store entry. `notify_descendants`
+  still filters to real change (`old != new`), so over-capturing a passive descendant that ends up unchanged
+  is harmless — shielded / local-wins / non-participating descendants still produce zero notifications. An
+  object-scoped Inherits property keeps the EXACT S041 behavior (the origin OWNS its entry, so
+  captureAttachedInherits stays false) — verified by the existing S040/S041/S042/S043 tests staying green.
+  No new public symbol introduced.
+  Tests (doctest, Shouldly vocabulary; S044-UNIQUE global names `{AttachedTheme,AttachedOpacity,AttachedBrush,
+  AttachedCoalesce,AttachedMarshalled,AttachedAccent}_S044_*` via a suite-local `global_seen()` set so the
+  name-unique global DependencyProperty table cannot collide; `registerAttachedGlobal` registers ONLY on the
+  global registry with owner A — objects do NOT locally register, the true attached premise):
+  (1) ATTACHED-INHERITS CASCADE (headline) — attached Inherits (owner AppOwner_A) never locally registered on
+  parent/child; orphan read -> global default 0; parent.Set(5) -> APPLIED, child (unattached read) inherits 5;
+  parent.Set(9) -> child follows 9 (read-side cascade on the attached axis).
+  (2) ATTACHED INHERITED + LOCAL-WINS — child Set its own attached 7 first (local-wins, borrowed entry
+  materialized); later parent.Set(44) does NOT clobber -> child effective stays 7.
+  (3) PASSIVE DESCENDANT IS NOTIFIED (the product gap-fix under test) — parent/child attached Inherits; child is
+  purely passive (no Set ever), subscribes; parent.Set(8) -> child.pending_notification_count()==1; child.
+  ProcessNotificationQueue() fires EXACTLY once (old=0 inherited default, new=8). This FAILS on the pre-S044
+  walk (never captured) and PASSES post-S044.
+  (4) ATTACHED COALESCING — parent.Set(5) then parent.Set(8) before one passive-child drain -> raw queue depth
+  2 (coalescing at drain), ONE notification (old=0 first-kept, new=8 latest-adopted) — S042 on the attached axis.
+  (5) WRONG-THREAD ATTACHED INHERITS -> QUEUED -> DRAIN -> NOTIFIED — non-affine parent.Set(9) -> QUEUED, pending
+  1, parent.Get still 0, child.pending_notification_count()==0; affinity parent.ProcessPendingChanges() -> applied
+  (parent.Get 9, child pending 1) -> child.ProcessNotificationQueue() fires (0->9).
+  (6) OWNER != CLASS + SHADOWING + THROW — attached owner AccentOwner_A read back via dp.owner_type_id() while
+  plain objects store (owner != class preserved on the inheriting axis too); a locally-registered same-name
+  SHADOWS the global path (local default 99 governs, not global 0); an unregistered name still throws
+  PropertyNotFound from both Get and Set.
+  VERIFIED BOTH CI LANES from first principles: msvc-debug (VS 2026) via verify_s044.cmd — configure/build
+  warning-clean, ctest 1/1 PASS (100% tests passed); ubuntu-clang (Ubuntu VM clang 21, shared folder
+  /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (163 cases; the single in-suite "failed" assertion is the
+  intentional S036_1 should_fail demonstration, marked not-failed; only pre-existing upstream <ciso646> doctest
+  deprecation from third_party, not this TU). windows-clang-debug is NOT a lane (not built/tested/flagged per
+  standing rule). NO-GAP accounting: the attached-Inherits notification gap was found, DECIDED in the plan as a
+  sanctioned same-step product extension (not silent backfill), and its resolution is authored at S044 — no
+  feature left for a silent future step. No MINIMAL REAL introduced/resolved. No NEW md files (directive
+  honored). Next = S045.
   (1) HEADLINE — attached Set/Get on B WITHOUT B calling register_property (key owned by CanvasOwner_A);
   Get resolves the global default (0) before any write; Set(5) → APPLIED; Get → 5; a SECOND independent B
   object does NOT see the first B's value (value stored PER-OBJECT, definition owned once by A).
