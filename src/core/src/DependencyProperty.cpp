@@ -18,11 +18,13 @@ public:
     std::string        name;     // OWNED name (stable identity + id source)
     ValueType          type;     // bound value type
     PropertyMetadata   metadata; // flags + default + callbacks (the definition)
+    std::string        ownerTypeId; // S043: the DECLARING class's identity (attached owner A)
 
-    Impl(std::string n, ValueType t, PropertyMetadata m)
+    Impl(std::string n, ValueType t, PropertyMetadata m, std::string owner)
         : name(std::move(n))
         , type(t)
         , metadata(std::move(m))
+        , ownerTypeId(std::move(owner))
     {
     }
 };
@@ -79,9 +81,15 @@ const DependencyProperty& DependencyProperty::Register(
     auto [it, inserted] = table.byName.emplace(
         ownedName,
         std::unique_ptr<DependencyProperty>(
-            new DependencyProperty(std::make_unique<Impl>(ownedName, type, std::move(metadata)))));
+            new DependencyProperty(std::make_unique<Impl>(ownedName, type, std::move(metadata), std::string(ownerTypeId)))));
     (void)inserted;
     return *it->second;
+}
+
+VAML_CORE_EXPORT
+const std::string& DependencyProperty::owner_type_id() const noexcept
+{
+    return impl_->ownerTypeId;
 }
 
 VAML_CORE_EXPORT

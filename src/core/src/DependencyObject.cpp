@@ -28,18 +28,41 @@ namespace vaml {
 
 struct DependencyObject::Impl
 {
-    // One entry per REGISTERED property. `local` is empty (Value::Null) until
+    // One entry per stored/local property. `local` is empty (Value::Null) until
     // a Set() stores an override; an empty `local` means "default applied".
-    // The key is stored by value (ref returned to the caller) and the
-    // property is addressed by its NAME.
+    // The key is stored by value (ref returned to the caller) and the property
+    // is addressed by its NAME.
+    //
+    // S043 — metadata provider has TWO modes (exactly one active):
+    //   - OWNED: object-scoped registration (register_property) owns its
+    //     move-only PropertyMetadata in `owned` (non-null). This is the S036
+    //     object-scoped path, unchanged.
+    //   - BORROWED: an ATTACHED property materialized onto this object (which
+    //     did NOT locally register it) holds a NON-OWNING pointer to the
+    //     GLOBAL DependencyProperty's metadata (`borrowed`, non-null). This is
+    //     safe because the global DependencyProperty (and its metadata) lives
+    //     for the process lifetime, so the pointer never dangles.
+    // metadata() returns whichever is active. The move-only PropertyMetadata is
+    // NEVER copied into an object's entry (S043 key design decision).
     struct PropEntry
     {
-        PropertyKey    key;
-        PropertyMetadata metadata;
-        Value          local = Value::Null(); // Value::Null == no local override
+        PropertyKey              key;
+        std::unique_ptr<PropertyMetadata> owned;    // non-null if object-scoped (owned)
+        const PropertyMetadata*  borrowed = nullptr; // non-null if attached (borrowed)
+        Value                    local = Value::Null(); // Value::Null == no local override
 
+        // Owned (object-scoped registration).
         PropEntry(PropertyKey k, PropertyMetadata m)
-            : key(std::move(k)), metadata(std::move(m)) {}
+            : key(std::move(k)), owned(std::make_unique<PropertyMetadata>(std::move(m))) {}
+
+        // Borrowed (attached): references the global metadata, never copies it.
+        PropEntry(PropertyKey k, const PropertyMetadata* gmd)
+            : key(std::move(k)), owned(nullptr), borrowed(gmd) {}
+
+        const PropertyMetadata& metadata() const noexcept
+        {
+            return owned != nullptr ? *owned : *borrowed;
+        }
     };
 
     // S037: a queued wrong-thread write — the OWNED property name (so the
@@ -152,20 +175,44 @@ VAML_CORE_EXPORT
 Value DependencyObject::GetEffectiveValue(PropertyId id) const
 {
     const auto it = impl_->store.find(std::string(id.name()));
-    if (it == impl_->store.end())
+    const bool inStore = (it != impl_->store.end());
+
+    // The property's metadata provider + this object's local override.
+    //
+    // Three cases (S043 — attached-aware global resolution):
+    //   1. in the local store: use the stored entry's metadata (owned ODR or
+    //      a previously materialized borrowed attached entry) + its local.
+    //   2. NOT in the store but globally registered: an ATTACHED property the
+    //      object has not locally registered OR a purely-global descriptor.
+    //      Resolve with the GLOBAL metadata + an empty local (local NULL) —
+    //      so the value is `inherited ?? global-default`. The object needs NO
+    //      local store entry to read an attached property.
+    //   3. in NEITHER (no local entry, no global descriptor): PropertyNotFound
+    //      (unchanged — an unregistered/unresolvable name still throws).
+    const DependencyProperty* globalDp = DependencyProperty::TryGet(id.name());
+
+    const PropertyMetadata* mdPtr = nullptr;
+    Value local = Value::Null();
+    if (inStore)
+    {
+        mdPtr = &it->second.metadata();
+        local = it->second.local.isNull() ? Value::Null() : it->second.local;
+    }
+    else if (globalDp != nullptr)
+    {
+        mdPtr = &globalDp->metadata();
+        local = Value::Null(); // no local override for an unattached read
+    }
+    else
     {
         throw PropertyNotFound("DependencyObject::GetEffectiveValue: no property registered with this id");
     }
+    const PropertyMetadata& md = *mdPtr;
 
-    const Impl::PropEntry& entry = it->second;
-    const PropertyMetadata& md = entry.metadata;
-
-    // The inheritance descriptor (flags + default) is the GLOBAL DependencyProperty's
+    // The inheritance descriptor (flags + default): the GLOBAL DependencyProperty's
     // when the property is globally registered (S039's real consumer); falling
-    // back to this object's own metadata keeps object-scoped S036 registration
-    // working identically (no global entry -> object metadata governs).
-    const DependencyProperty* globalDp = DependencyProperty::TryGet(id.name());
-
+    // back to the provider metadata keeps object-scoped S036 registration working
+    // identically (no global entry -> object metadata governs).
     const PropertyFlags localFlags = md.flags();
     const bool inherits =
         has_flag(localFlags, PropertyFlags::Inherits)
@@ -174,7 +221,6 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
         has_flag(localFlags, PropertyFlags::InheritOnly)
         || (globalDp != nullptr && has_flag(globalDp->flags(), PropertyFlags::InheritOnly));
 
-    const Value local = entry.local.isNull() ? Value::Null() : entry.local;
     const Value defaultValue = md.defaultValue();
 
     // NOT an inheriting property: local ?? default (unchanged S036 semantics).
@@ -262,14 +308,38 @@ Value DependencyObject::nearest_ancestor_local(const DependencyObject& self, con
 VAML_CORE_EXPORT
 SetResult DependencyObject::Set(PropertyId id, const Value& input)
 {
-    const auto it = impl_->store.find(std::string(id.name()));
-    if (it == impl_->store.end())
-    {
-        throw PropertyNotFound("DependencyObject::Set: no property registered with this id");
-    }
+    const std::string name = std::string(id.name());
 
-    Impl::PropEntry& entry = it->second;
-    PropertyMetadata& md   = entry.metadata;
+    // Resolve the metadata PROVIDER (non-owning) WITHOUT mutating the store
+    // (S043 attached-aware global resolution + S037 cross-thread contract):
+    //   - in the local store: the stored entry's metadata (owned ODR or an
+    //     already-materialized borrowed attached entry);
+    //   - NOT in the store but globally registered: the GLOBAL metadata — an
+    //     ATTACHED property key owned by A, settable on this object B. The
+    //     move-only PropertyMetadata is NEVER copied; the global descriptor is
+    //     the single owner;
+    //   - NEITHER: PropertyNotFound (unchanged — an unregistered name throws).
+    //
+    // coerce + validate MUST run before any store touch (S037 instant writer
+    // feedback), and a NON-affine Set must NOT mutate the store (the store is
+    // affinity-thread-owned by construction) — so materialization is deferred
+    // to the on-affine path / the drain below, never to a wrong-thread writer.
+    const PropertyMetadata* mdPtr = nullptr;
+    const auto sit = impl_->store.find(name);
+    if (sit != impl_->store.end())
+    {
+        mdPtr = &sit->second.metadata();
+    }
+    else
+    {
+        const DependencyProperty* globalDp = DependencyProperty::TryGet(name);
+        if (globalDp == nullptr)
+        {
+            throw PropertyNotFound("DependencyObject::Set: no property registered with this id");
+        }
+        mdPtr = &globalDp->metadata();
+    }
+    const PropertyMetadata& md = *mdPtr;
 
     // S035 pipeline step 1: coerce.
     const Value coerced = md.coerce(input);
@@ -284,12 +354,30 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // the accepted (coerced+validated) value is POSTED, not applied. coerce and
     // validate ALREADY ran above, so the writer got instant feedback; the drain
     // (ProcessPendingChanges) later replays this value through the store half.
+    // NOTE: no store materialization happens here — a wrong-thread writer never
+    // mutates the affinity-owned store.
     if (impl_->affinity != std::this_thread::get_id())
     {
         std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-        impl_->pending.emplace_back(entry.key.name(), coerced);
+        impl_->pending.emplace_back(name, coerced);
         return SetResult::QUEUED;
     }
+
+    // On the AFFINE thread, lazily materialize a BORROWED store entry for an
+    // attached property so the local override has a home (S043). The global
+    // descriptor is guaranteed present (we resolved `md` from it above).
+    auto it = impl_->store.find(name);
+    if (it == impl_->store.end())
+    {
+        const DependencyProperty& globalDp = DependencyProperty::Get(name);
+        PropertyKey attachedKey(name, globalDp.metadata().boundType(),
+                                globalDp.owner_type_id(), globalDp.flags());
+        auto [matIt, matInserted] = impl_->store.emplace(
+            name, Impl::PropEntry(std::move(attachedKey), &globalDp.metadata()));
+        (void)matInserted;
+        it = matIt;
+    }
+    Impl::PropEntry& entry = it->second;
 
     // Compute the current EFFECTIVE value (local override else default) for
     // both the change comparison and the changed cb's `old`.
@@ -312,7 +400,6 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     std::vector<std::pair<DependencyObject*, Value>> descendantBefore;
     if (inherits)
     {
-        const std::string name = std::string(id.name());
         descendantBefore = collect_descendant_effectives(*this, name);
     }
 
@@ -358,13 +445,28 @@ void DependencyObject::ProcessPendingChanges()
     // fire cb(0->5) then cb(5->7), preserving real-change semantics.
     for (auto& write : snapshot)
     {
-        const auto it = impl_->store.find(write.name);
+        auto it = impl_->store.find(write.name);
         if (it == impl_->store.end())
         {
-            continue; // property was unregistered after the write was queued; skip
+            // Not in the local store. If the property is globally registered, this
+            // is an ATTACHED property a wrong-thread writer targeted before the
+            // object had a store entry — materialize a BORROWED entry (affinity
+            // thread, legal) and apply. If it is NOT globally registered, skip it
+            // (property was never registered; nothing to do).
+            const DependencyProperty* globalDp = DependencyProperty::TryGet(write.name);
+            if (globalDp == nullptr)
+            {
+                continue; // unregistered after the write was queued; skip
+            }
+            PropertyKey attachedKey(write.name, globalDp->metadata().boundType(),
+                                    globalDp->owner_type_id(), globalDp->flags());
+            auto [matIt, matInserted] = impl_->store.emplace(
+                write.name, Impl::PropEntry(std::move(attachedKey), &globalDp->metadata()));
+            (void)matInserted;
+            it = matIt;
         }
         Impl::PropEntry& entry = it->second;
-        PropertyMetadata& md   = entry.metadata;
+        const PropertyMetadata& md = entry.metadata();
 
         const Value currentEffective = entry.local.isNull() ? md.defaultValue() : entry.local;
         if (write.coerced == currentEffective)

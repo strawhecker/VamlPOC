@@ -36,6 +36,7 @@
 #include "vaml/core/PropertyMetadata.h" // PropertyMetadata, ValueTypeMismatch
 
 #include <memory>
+#include <string>
 #include <string_view>
 
 namespace vaml {
@@ -68,6 +69,15 @@ public:
     [[nodiscard]] PropertyId property_id() const noexcept;            // id derived from name
     [[nodiscard]] const PropertyMetadata& metadata() const noexcept;  // flags + default + callbacks
     [[nodiscard]] PropertyFlags flags() const noexcept;               // shorthand for metadata().flags()
+
+    // S043: the DECLARING type's identity (the "owner" of the attached
+    // property). For an attached dependency property the owner is the class
+    // that defines the key (A); the value may be stored on any other object
+    // (B) — owner != class. Exposes the ownerTypeId the key was registered
+    // under so a test/consumer can prove the owner vs. the object actually
+    // holding a value. Backed by the stored key's ownerTypeId (a stable
+    // std::string, valid for the process lifetime).
+    [[nodiscard]] const std::string& owner_type_id() const noexcept;
 
 private:
     class Impl; // pimpl: hides std::unordered_map + PropertyMetadata

@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S042 (Coalescing: two sets of same prop before drain == one notification (test)) [token: S042]
-- Next step to do     : S043 [token: S043]
-- PENDING work        : none (S042 complete; S043 is next).
+- Last completed step : S043 (Attached properties: key owned by A settable on B; registry supports owner≠class) [token: S043]
+- Next step to do     : S044 [token: S044]
+- PENDING work        : none (S043 complete; S044 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -887,3 +887,63 @@
   flagged per standing rule). NO-GAP accounting: S042 delivered its own outcome + proof at its own step —
   nothing deferred to a silent backfill; NO-GAP satisfied by construction. No MINIMAL REAL introduced/
   resolved. No NEW md files (directive honored). Next = S043.
+
+- [x] S043 Attached properties: key owned by A settable on B; registry supports owner≠class — ✅
+  SURVIVOR: `src/core/src/DependencyObject.cpp` (MOD — attached-aware global resolution) +
+  `src/core/include/vaml/core/DependencyProperty.h` + `src/core/src/DependencyProperty.cpp` (MOD
+  +owner_type_id()) + `test/unit/AttachedProperty_test.cpp` (NEW) + `test/unit/CMakeLists.txt` (MOD
+  +AttachedProperty_test.cpp) + `build/verify_s043.cmd` (NEW, verify_s042-pattern msvc-debug lane) +
+  `docs/roadmap.md` (MOD S043 [DONE]) + `session-context.md` (MOD). Makes DependencyObject ATTACHED-AWARE
+  by GLOBAL RESOLUTION (the S043 headline): a globally-registered DependencyProperty (key owned by A) is
+  now settable + gettable on a plain object B that NEVER calls register_property. Core mechanics:
+  (1) PROPERTY-METADATA PROVIDER refactor — `Impl::PropEntry` now has TWO modes (exactly one active):
+  OWNED (object-scoped register_property owns its move-only PropertyMetadata in a `unique_ptr<PropertyMetadata>`
+  field `owned`) or BORROWED (an attached property materialized onto the object holds a NON-OWNING
+  `const PropertyMetadata* borrowed` pointer to the GLOBAL descriptor). `PropEntry::metadata()` returns
+  whichever is active. This is the S043 KEY DESIGN DECISION: the move-only PropertyMetadata is NEVER copied
+  into an object's entry — the global DependencyProperty (process-lifetime companion table) is the single
+  owner; per-object attached entries borrow it by pointer (no dangle: process-lifetime table). (2)
+  GetEffectiveValue()/Get() — three-way resolution: in-store → stored entry metadata + local; not-in-store
+  but GLOBALLY registered → global metadata + empty local (`inherited ?? global-default`, object needs NO
+  local entry to read an attached property); NEITHER → PropertyNotFound (unchanged — unregistered names
+  still throw). (3) Set() — resolves the metadata PROVIDER non-owning WITHOUT mutating the store first
+  (S037 cross-thread contract: coerce+validate run BEFORE any store touch and a NON-affine Set NEVER
+  mutates the affinity-owned store); wrong-thread POSTS to the pending queue (no materialization);
+  ON THE AFFINE THREAD it LAZILY MATERIALIZES a BORROWED store entry for the attached property (so the
+  local override has a home) then runs the UNCHANGED S035 pipeline (coerce → validate(coerced) →
+  fire-on-real-change → store → S041 descendant push). (4) ProcessPendingChanges() — a queued write whose
+  name is globally-registered-but-not-materialized now materializes a BORROWED entry (affinity-thread drain,
+  legal) and applies, instead of skipping silently (SKIP only when NOT globally registered). (5)
+  `DependencyProperty::owner_type_id()` (new public accessor returning `const std::string&` from the stored
+  key's ownerTypeId, threaded through the DependencyProperty::Impl + Register) surfaces the DECLARING owner
+  so "owner ≠ class" is provable. Make-existing-Set/Get-attached-aware (no new SetValue/GetValue surface) is
+  the minimal, roadmap-faithful choice (WPF-faithful: value stored per-object, definition owned once by A).
+  Name-keyed, owner-as-metadata design is PRESERVED (S032) — S043 does NOT introduce same-name-multi-owner
+  (would break global name-uniqueness). Tests (doctest, Shouldly vocabulary; S043-UNIQUE global names
+  `{Left,Theme,Dock,CanvasTop,Margin}_S043_*` via a suite-local `global_seen()` set so the name-unique
+  global DependencyProperty table cannot collide):
+  (1) HEADLINE — attached Set/Get on B WITHOUT B calling register_property (key owned by CanvasOwner_A);
+  Get resolves the global default (0) before any write; Set(5) → APPLIED; Get → 5; a SECOND independent B
+  object does NOT see the first B's value (value stored PER-OBJECT, definition owned once by A).
+  (2) EFFECTIVE = local ?? inherited ?? global-default — orphan (no parent, no local registration) reads the
+  global default; parent→child chain neither locally registers, parent attached-Set(7) → APPLIED, child
+  (unattached read) INHERITS 7 through the global-resolved pull; child local Set(9) → 9 wins (local ??).
+  (3) OWNER ≠ CLASS — key registered under owner DockPanelOwner_A is settable+gettable on plain object B;
+  `dp.owner_type_id()` reads back "DockPanelOwner_A" BOTH before and after B stores a value.
+  (4) WRONG-THREAD ATTACHED SET → QUEUED (marshalling parity) — affine attached Set applies + pending 0;
+  a non-affine attached Set(8) → QUEUED, pending 1, Get still 1 (not applied); affinity-thread drain →
+  pending 0, Get 8.
+  (5) BACKWARD COMPAT — a property both globally registered AND then locally registered on B with a
+  DIFFERENT default: B's LOCAL registration SHADOWS the global descriptor (Get returns B's local default
+  99, not the global 0; local Set path governs). An UNREGISTERED (not local, not global) name still throws
+  PropertyNotFound from BOTH Get and Set.
+  VERIFIED BOTH CI LANES from first principles: msvc-debug (VS 2026) via verify_s043.cmd — configure/build
+  warning-clean, ctest 1/1 PASS (100% tests passed); ubuntu-clang (Ubuntu VM clang 21, shared folder
+  /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (157 cases; the single in-suite "failed" assertion is
+  the intentional S036_1 should_fail demonstration, marked not-failed; only pre-existing upstream <ciso646>
+  doctest deprecation from third_party, not this TU). windows-clang-debug is NOT a lane (not built/tested/
+  flagged per standing rule). NO-GAP accounting (recorded, NOT silent): S044 = the DEDICATED attached
+  inheritance + notification test gate (attached Inherits cascade + descendant notification on live objects)
+  — S043 delivers the enabling resolution + its own basic attached tests; S044 is the separate formal proof
+  of the inheritance/notification axes (mirroring S042's test-step precedent), NEVER a silent backfill.
+  No MINIMAL REAL introduced/resolved. No NEW md files (directive honored). Next = S044.
