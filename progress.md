@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S041 (Change notification pipeline: ChangeQueue (per-thread) + processor drains in registration order) [token: S041]
-- Next step to do     : S042 [token: S042]
-- PENDING work        : none (S041 complete; S042 is next).
+- Last completed step : S042 (Coalescing: two sets of same prop before drain == one notification (test)) [token: S042]
+- Next step to do     : S043 [token: S043]
+- PENDING work        : none (S042 complete; S043 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -848,3 +848,42 @@
   coalescing-vs-live-DependencyObject integration gate — its primitive outcome is already REALIZED-EARLY by
   S038 and now additionally integrated here (recorded NOT silent). No MINIMAL REAL introduced/resolved. No
   NEW md files (directive honored). Next = S042.
+
+- [x] S042 Coalescing: two sets of same prop before drain == one notification (test) — ✅
+  SURVIVOR: `test/unit/Coalescing_test.cpp` (NEW) + `test/unit/CMakeLists.txt` (MOD +Coalescing_test.cpp) +
+  `build/verify_s042.cmd` (NEW, verify_s041-pattern msvc-debug lane) + `docs/roadmap.md` (MOD S042 [DONE],
+  REALIZED-EARLY annotation refined to record the formal integration is now delivered at S042) +
+  `session-context.md` (MOD). TEST-ONLY step (ZERO new product symbols) — the formal LIVE-OBJECT
+  coalescing integration gate the S042 headline names. The coalescing PRIMITIVE was REALIZED-EARLY by S038
+  (ChangeRecorder coalesces per-property by design — first old kept, latest new adopted — tested in
+  ChangeRecorder_test.cpp), and S041 wired it into ChangeProcessor + the live-object per-object notification
+  queue + ProcessNotificationQueue. S042 closes the ONE remaining gap: S041 proved coalescing only on the
+  STANDALONE ChangeProcessor and proved live descendant-push with a DRAIN BETWEEN Sets (two *sequential*
+  notifications) — it never proved the exact S042 headline: **two live Sets of the same prop before ONE
+  drain == ONE notification**, first old kept + latest new adopted. New test TU (dedicated, mirroring the
+  S040 test-step precedent of one proof file per step; reuses the ChangeNotificationPipeline hostInherited()
+  global-descriptor harness verbatim, with S042-unique property names `Coalesce_S042_*` so the global
+  name-unique DependencyProperty table cannot collide across TUs). 6 TEST_CASEs, all against live
+  DependencyObjects through the real descendant-push → per-object notification queue →
+  ProcessNotificationQueue path:
+  (1) HEADLINE — parent/child Inherits (default 0); child subscriber registered; parent.Set(5) then
+  parent.Set(8); raw queue depth == 2 (proves coalescing happens AT DRAIN, not enqueue); ONE
+  ProcessNotificationQueue() → subscriber fired EXACTLY ONCE with (old=0 first-kept, new=8 latest-adopted),
+  queue depth 0.
+  (2) THREE SETS → ONE notification — Set 5,7,9 → one notif (old=0, new=9): earliest old + newest new.
+  (3) DRAIN IS THE BOUNDARY — Set 5 → drain (one notif 0→5), Set 8 → drain (one notif 5→8): two sequential
+  notifications, each its own delta, no cross-drain collapse.
+  (4) DISTINCT PROPS DO NOT COALESCE — two Inherits props A,B on one parent; interleave A=1,B=2,A=3 then one
+  drain → exactly TWO notifications, A (0→3) then B (0→2), in FIRST-RECORD order.
+  (5) NO_CHANGE SET DOES NOT INFLATE — parent.Set(5) then parent.Set(5): the second is NO_CHANGE (no push),
+  queue stays depth 1, one notification (0→5).
+  (6) AGGREGATE CAPSTONE — mixed interleaved A=5,B=2,A=7,B=3 then one drain → exactly TWO notifications
+  (per-property coalesced, each adopting its LATEST new: A 0→7, B 0→3), never four.
+  VERIFIED BOTH CI LANES from first principles: msvc-debug (VS 2026) via verify_s042.cmd — configure/build
+  warning-clean, ctest 1/1 PASS (100% tests passed); ubuntu-clang (Ubuntu VM clang 21, shared folder
+  /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (152 cases; the single in-suite "failed" assertion is
+  the intentional S036_1 should_fail demonstration, marked not-failed; only pre-existing upstream <ciso646>
+  doctest deprecation from third_party, not this TU). windows-clang-debug is NOT a lane (not built/tested/
+  flagged per standing rule). NO-GAP accounting: S042 delivered its own outcome + proof at its own step —
+  nothing deferred to a silent backfill; NO-GAP satisfied by construction. No MINIMAL REAL introduced/
+  resolved. No NEW md files (directive honored). Next = S043.

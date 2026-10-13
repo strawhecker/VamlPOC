@@ -24,6 +24,7 @@ add_executable(vaml-core-tests
     DependencyProperty_test.cpp
     EffectiveValue_test.cpp
     InheritanceCascade_test.cpp
+    Coalescing_test.cpp
     StringMaker_test.cpp
 )
 
