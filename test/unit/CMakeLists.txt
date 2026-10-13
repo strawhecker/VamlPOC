@@ -27,6 +27,7 @@ add_executable(vaml-core-tests
     Coalescing_test.cpp
     AttachedProperty_test.cpp
     AttachedInheritanceNotification_test.cpp
+    ReadOnlyAndValidation_test.cpp
     StringMaker_test.cpp
 )
 

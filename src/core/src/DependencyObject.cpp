@@ -341,6 +341,18 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     }
     const PropertyMetadata& md = *mdPtr;
 
+    // S045 read-only guard: structural + value-independent. Placed BEFORE
+    // coerce/validate (the pipeline never runs) AND before the S037 affinity
+    // branch (a wrong-thread read-only Set THROWS, it is never QUEUED; a
+    // read-only rejection must not be deferrable to a drain). Throws even when
+    // `input` equals the current/default value, and never materializes a
+    // borrowed store entry for a refused read-only write.
+    if (has_flag(md.flags(), PropertyFlags::ReadOnly))
+    {
+        throw PropertyReadOnlyException(
+            "DependencyObject::Set: cannot Set a read-only property");
+    }
+
     // S035 pipeline step 1: coerce.
     const Value coerced = md.coerce(input);
 
@@ -459,6 +471,33 @@ void DependencyObject::ProcessPendingChanges()
     for (auto& write : snapshot)
     {
         auto it = impl_->store.find(write.name);
+
+        // S045 DEFENSIVE guard at apply time: resolve the metadata provider
+        // BEFORE materializing anything, and skip a write to a property that is
+        // NOW read-only. The Set() read-only guard already prevents a read-only
+        // write from ever being QUEUED, so this only defends the narrow edge case
+        // where a property's metadata became read-only between queue-time and the
+        // drain (NO-LAZY: never apply a write to a read-only property, and never
+        // materialize a borrowed entry for a refused read-only write).
+        const PropertyMetadata* drainMd = nullptr;
+        if (it != impl_->store.end())
+        {
+            drainMd = &it->second.metadata();
+        }
+        else
+        {
+            const DependencyProperty* globalDp = DependencyProperty::TryGet(write.name);
+            if (globalDp == nullptr)
+            {
+                continue; // unregistered after the write was queued; skip
+            }
+            drainMd = &globalDp->metadata();
+        }
+        if (has_flag(drainMd->flags(), PropertyFlags::ReadOnly))
+        {
+            continue; // property is read-only at apply time; skip the queued write
+        }
+
         if (it == impl_->store.end())
         {
             // Not in the local store. If the property is globally registered, this
@@ -467,10 +506,6 @@ void DependencyObject::ProcessPendingChanges()
             // thread, legal) and apply. If it is NOT globally registered, skip it
             // (property was never registered; nothing to do).
             const DependencyProperty* globalDp = DependencyProperty::TryGet(write.name);
-            if (globalDp == nullptr)
-            {
-                continue; // unregistered after the write was queued; skip
-            }
             PropertyKey attachedKey(write.name, globalDp->metadata().boundType(),
                                     globalDp->owner_type_id(), globalDp->flags());
             auto [matIt, matInserted] = impl_->store.emplace(

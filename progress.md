@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S044 (Attached set/get + inheritance + notification tests) [token: S044]
-- Next step to do     : S045 [token: S045]
-- PENDING work        : none (S044 complete; S045 is next).
+- Last completed step : S045 (ReadOnly enforcement (Set throws) + validation (out-of-range rejects) + all flags honored) [token: S045]
+- Next step to do     : S046 [token: S046]
+- PENDING work        : none (S045 complete; S046 is next).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -1006,3 +1006,62 @@
   — S043 delivers the enabling resolution + its own basic attached tests; S044 is the separate formal proof
   of the inheritance/notification axes (mirroring S042's test-step precedent), NEVER a silent backfill.
   No MINIMAL REAL introduced/resolved. No NEW md files (directive honored). Next = S044.
+
+- [x] S045 ReadOnly enforcement (Set throws) + validation (out-of-range rejects) + all flags honored — ✅
+  SURVIVOR: `src/core/include/vaml/core/DependencyObject.h` + `src/core/src/DependencyObject.cpp` (MOD) +
+  `test/unit/ReadOnlyAndValidation_test.cpp` (NEW) + `test/unit/CMakeLists.txt` (MOD
+  +ReadOnlyAndValidation_test.cpp) + `build/verify_s045.cmd` (NEW, verify_s044-pattern msvc-debug lane) +
+  `docs/roadmap.md` (MOD S045 [DONE]) + `session-context.md` (MOD). Delivers the S045 headline end-to-end:
+  **ReadOnly enforcement (Set throws) + validation (out-of-range rejects) + all flags honored.**
+  PRODUCT CHANGES (both authored at the same step as the tests, NOT silent backfills):
+  (1) NEW `vaml::PropertyReadOnlyException : std::logic_error` (declared in DependencyObject.h alongside
+  WrongThreadException) — catchable specifically so a caller can distinguish a read-only rejection from a
+  wrong-thread QUEUED result.
+  (2) Set() READ-ONLY GUARD — placed IMMEDIATELY after metadata-provider resolution and BEFORE
+  coerce/validate/affinity:
+  `if (has_flag(md.flags(), PropertyFlags::ReadOnly)) throw PropertyReadOnlyException(...)`.
+  Structural + VALUE-INDEPENDENT: throws even when `input` equals the current/default value (never
+  REJECTED/NO_CHANGE); fires on ANY thread — the guard precedes the S037 affinity branch, so a wrong-thread
+  read-only Set THROWS, never returns QUEUED/deferred to a drain; and a refused read-only write NEVER
+  materializes a borrowed store entry (Get still reads the default). Rationale (recorded): a read-only
+  refusal is structural and value-independent, so it must precede the S035 pipeline AND the marshalling
+  branch by construction.
+  (3) ProcessPendingChanges() DEFENSIVE apply-time guard — resolves the metadata provider BEFORE
+  materializing an entry and SKIPS a queued write whose property is now read-only at apply time (covers the
+  narrow edge where metadata became read-only between queue-time and drain; NO-LAZY — never apply a write to
+  a read-only property, never materialize a borrowed entry for a refused read-only write). The Set() guard
+  already blocks read-only writes from ever being queued, so this is defense-in-depth, not a hot path.
+  SCOPE DECISION (recorded): read-only => Set throws UNCONDITIONALLY for any caller on any thread — an
+  OWNER-INTERNAL write path (WPF lets the owning class set read-only DPs internally; our public surface has
+  no owner gate) is deliberately DEFERRED + recorded as a S120+ controls concern, NOT silently omitted.
+  ALL-FLAGS-HONORED scope (recorded, honest): Inherits (effective resolution) + InheritOnly + ReadOnly
+  (throws) behave in this step; BindsTwoWayByDefault is CARRIED through key + metadata flags but has NO
+  runtime behavior yet — genuine two-way binding is S242's explicit scope (recorded NO-GAP, not faked).
+  Tests (doctest + Shouldly vocabulary; S045-UNIQUE global names via a suite-local `global_seen()` set +
+  `registerObject`/`registerGlobal` harness; 7 TEST_CASEs):
+  (1) READ-ONLY SET THROWS (object-scoped) — register `PropertyFlags::ReadOnly`, Set(5) -> throws
+  PropertyReadOnlyException; Get still reads the default 7; store unchanged (refused write never
+  materialized a local override).
+  (2) READ-ONLY THROWS EVEN FOR VALUE == CURRENT — Set(7) (equals current/default) -> THROWS, not NO_CHANGE
+  (structural, value-independent).
+  (3) READ-ONLY WRONG-THREAD THROWS (NEVER QUEUED) — a non-affine Set(9) on a read-only property -> throws
+  PropertyReadOnlyException (caught + rethrown via std::exception_ptr), pending_change_count()==0 (never
+  queued), Get unchanged 0. Proves the guard precedes the S037 affinity branch.
+  (4) GLOBALLY-REGISTERED READ-ONLY ATTACHED — global read-only (owner A), Set on B (no local registration)
+  -> throws; Get works (global default 2); no borrowed entry materialized (Get still 2).
+  (5) READ-ONLY THROW PRECEDES THE PIPELINE — a read-only property that ALSO has with_coerce (doubles) +
+  with_validate (rejects all): Set(-3) -> throws PropertyReadOnlyException (if coerce ran -3->-6, if validate
+  ran it would REJECT — the throw fires first), Get stays default 0.
+  (6) VALIDATE OUT-OF-RANGE REJECTS (read-write) — bounded validate [0,10]: in-range 8 -> APPLIED, store 8,
+  changed cb fired once; out-of-range 42 and -3 -> each REJECTED, store unchanged 8, cb NOT fired.
+  (7) ALL FLAGS HONORED (consolidated) — (a) ReadOnly|BindsTwoWayByDefault on one key: Set throws +
+  BindsTwoWayByDefault carried through key+metadata flags (no runtime behavior — S242 scope); (b)
+  Inherits|InheritOnly global descriptor: parent.Set(5) -> child effective inherits 5 (effective resolution;
+  child's own local does NOT contribute under InheritOnly).
+  VERIFIED BOTH CI LANES from first principles: msvc-debug (VS 2026) via verify_s045.cmd — configure/build
+  warning-clean, ctest 1/1 PASS (100% tests passed); ubuntu-clang (Ubuntu VM clang 21, shared folder
+  /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (only pre-existing upstream <ciso646> doctest
+  deprecation from third_party, not this TU). windows-clang-debug is NOT a lane (not built/tested/flagged per
+  standing rule). NO-GAP accounting: BindsTwoWayByDefault behavior is explicitly S242's scope (recorded, NOT
+  silent); owner-internal read-only write is a recorded S120+ controls concern (NOT silent); nothing deferred
+  to a silent backfill. No MINIMAL REAL introduced/resolved. No NEW md files (directive honored). Next = S046.

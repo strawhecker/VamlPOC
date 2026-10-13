@@ -1,65 +1,64 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S044 (no commits; no NEW md files)
-- plan_repo_state : S044 complete — **BOTH CI LANES GREEN**: msvc-debug (VS 2026) build warning-clean +
-                    ctest 1/1 PASS (163 cases); ubuntu-clang (Ubuntu VM, clang 21, shared
-                    folder /mnt/hgfs/VamlPOC) build + ctest 1/1 PASS (163 cases; the single in-suite
-                    "failed" assertion is the intentional S036_1 should_fail demonstration, marked
-                    not-failed). No commit+push performed (per command). **S044 delivered the attached
-                    set/get + inheritance + notification proof AND closed a REAL gap: S041's descendant
-                    push captured a descendant only when it had a local store entry, so a PURELY-PASSIVE
-                    attached-Inherits child (never registers, never Set) read the inherited value via
-                    S043's global-resolved read but was NEVER notified on parent change. S044 broadens the
-                    push walk (collect_descendant_effectives/visit_scope + a captureAttachedInherits flag
-                    threaded from Set AND ProcessPendingChanges): a descendant is captured when it registers
-                    the property OR when the ORIGIN's own store entry is BORROWED (owned == nullptr, the
-                    precise attached signal) and the property carries the global Inherits flag. notify_
-                    descendants still filters to real change, so local-wins/shielded/non-participating
-                    descendants produce zero notifications. Object-scoped Inherits keeps S041 behavior.**
-- plan_digest     : S044 (dep:S043) — Attached set/get + inheritance + notification tests. Delivered:
-                    src/core/src/DependencyObject.cpp + src/core/include/vaml/core/DependencyObject.h (MOD —
-                    S044 push-walk broadening: collect_descendant_effectives/visit_scope gain a
-                    captureAttachedInherits flag threaded from Set AND ProcessPendingChanges, computed as
-                    global-Inherits-flag AND origin-entry-BORROWED(owned==nullptr), so passive attached-
-                    Inherits descendants are captured for notification), test/unit/
-                    AttachedInheritanceNotification_test.cpp (NEW, 6 TEST_CASEs), test/unit/CMakeLists.txt
-                    (MOD +AttachedInheritanceNotification_test.cpp), build/verify_s044.cmd (NEW),
-                    docs/roadmap.md (S044 [DONE]), progress.md (S044 SURVIVOR + checkpoint advance to S045),
+- last_command    : implementit S045 (no commits; no NEW md files)
+- plan_repo_state : S045 complete — **BOTH CI LANES GREEN**: msvc-debug (VS 2026) build warning-clean +
+                    ctest 1/1 PASS (100% tests passed); ubuntu-clang (Ubuntu VM, clang 21, shared
+                    folder /mnt/hgfs/VamlPOC) build + ctest 1/1 PASS (only pre-existing upstream
+                    <ciso646> doctest deprecation from third_party, not this TU). No commit+push
+                    performed (per command). **S045 delivered ReadOnly enforcement (Set throws) +
+                    validation (out-of-range rejects) + all flags honored. DependencyObject::Set()
+                    now throws PropertyReadOnlyException when the resolved property carries
+                    PropertyFlags::ReadOnly — the guard sits immediately after metadata-provider
+                    resolution and BEFORE coerce/validate/affinity, so it is structural + value-
+                    independent (throws even when input == current/default) and fires on ANY thread
+                    (a wrong-thread read-only Set THROWS, never QUEUED to a drain; a refused read-only
+                    write never materializes a borrowed store entry). ProcessPendingChanges() gained a
+                    defensive apply-time guard that skips a queued write whose property is now
+                    read-only. Read-only is EXTERNALLY immutable (Set throws unconditionally); an
+                    owner-internal write path is a recorded S120+ controls concern, not silent.**
+- plan_digest     : S045 (dep:S044) — ReadOnly enforcement (Set throws) + validation (out-of-range
+                    rejects) + all flags honored. Delivered: src/core/include/vaml/core/
+                    DependencyObject.h + src/core/src/DependencyObject.cpp (MOD — new
+                    PropertyReadOnlyException : std::logic_error + Set() read-only guard placed before
+                    the pipeline/affinity branch + ProcessPendingChanges() defensive apply-time
+                    read-only guard), test/unit/ReadOnlyAndValidation_test.cpp (NEW, 7 TEST_CASEs),
+                    test/unit/CMakeLists.txt (MOD +ReadOnlyAndValidation_test.cpp),
+                    build/verify_s045.cmd (NEW), docs/roadmap.md (S045 [DONE] + BindsTwoWayByDefault →
+                    S242 recorded), progress.md (S045 SURVIVOR + checkpoint advance to S046),
                     session-context.md (this).
 - files_touched   :
-    MODIFIED src/core/src/DependencyObject.cpp
     MODIFIED src/core/include/vaml/core/DependencyObject.h
-    ADDED    test/unit/AttachedInheritanceNotification_test.cpp
+    MODIFIED src/core/src/DependencyObject.cpp
+    ADDED    test/unit/ReadOnlyAndValidation_test.cpp
     MODIFIED test/unit/CMakeLists.txt
-    ADDED    build/verify_s044.cmd
+    ADDED    build/verify_s045.cmd
     MODIFIED docs/roadmap.md
     MODIFIED progress.md
-    MODIFIED session-context.md (this — S044 completion)
-- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s044.cmd —
-                    configure+build warning-clean + ctest 1/1 PASS (163 cases). ubuntu-clang:
+    MODIFIED session-context.md (this — S045 completion)
+- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s045.cmd —
+                    configure+build warning-clean + ctest 1/1 PASS (100% tests passed). ubuntu-clang:
                     clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build +
-                    ctest 1/1 PASS (163 cases; intentional S036_1 demo marked not-failed). Only Clang
-                    warnings = pre-existing upstream <ciso646> doctest deprecation from third_party (not
-                    this TU; already non-error). (windows-clang-debug is NOT a lane — not built/tested/
-                    flagged per standing rule.)
-- next_step       : S045. S045 = ReadOnly enforcement (Set throws) + validation (out-of-range rejects) +
-                    all flags honored — consumes the S032/S034 flags + S035 validate pipeline.
+                    ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646> doctest
+                    deprecation from third_party (not this TU; already non-error). (windows-clang-debug
+                    is NOT a lane — not built/tested/flagged per standing rule.)
+- next_step       : S046. S046 = DependencyProperty registration-time dependency validation
+                    (ValidateDependencies) — the next Sprint-1 property-system token after S045.
 - notes           :
-    - S044 GATE MET on both lanes. The S044 headline is proven by 6 TEST_CASEs against live objects:
-      attached-inherits cascade (child follows each parent move on a never-locally-registered owner-A
-      Inherits prop); attached inherited + local-wins (child override not clobbered); PASSIVE descendant
-      IS notified on parent change (the product gap-fix under test — fails pre-S044, passes post-S044);
-      attached coalescing (two Sets before one drain == one notification, first-old-kept/latest-new-
-      adopted); wrong-thread attached Inherits -> QUEUED -> drain applies -> child notified; owner !=
-      class preserved via owner_type_id() while local registration shadows the global path and
-      unregistered names throw PropertyNotFound.
-    - PRODUCT CHANGE (sanctioned, same-step, NO-GAP): the S041 push walk broadened so a passive attached-
-      Inherits child (never materializes a store entry) is captured for notification. The precise attached
-      signal is the ORIGIN's borrowed entry (owned == nullptr) AND the global Inherits flag — object-
-      scoped Inherits keeps S041 behavior (origin owns its entry). notify_descendants filters real change,
-      so over-capture is harmless. No new public symbol; existing S040/S041/S042/S043 tests stay green.
+    - S045 GATE MET on both lanes. The S045 headline is proven by 7 TEST_CASEs against live objects:
+      read-only Set throws (object-scoped, Get default + store unchanged); read-only throws even for
+      value == current (value-independent); read-only wrong-thread throws (never QUEUED, pending 0 —
+      proves the guard precedes the S037 affinity branch); globally-registered read-only attached
+      property Set throws + Get works + no materialization; read-only throw precedes coerce/validate
+      (neither runs); validate out-of-range REJECTS (store unchanged, no cb) + in-range APPLIED (cb
+      fires); consolidated all-flags (ReadOnly|BindsTwoWayByDefault combined throws;
+      Inherits|InheritOnly effective resolution).
+    - PRODUCT CHANGE (sanctioned, same-step, NO-GAP): Set() read-only guard + ProcessPendingChanges()
+      defensive guard + new PropertyReadOnlyException. Scope decision recorded: read-only is EXTERNALLY
+      immutable (any Set throws); an owner-internal read-only write path is deliberately deferred as a
+      S120+ controls concern (NOT silent). BindsTwoWayByDefault is carried through key + metadata flags
+      but has no runtime behavior yet — genuine two-way binding is S242's explicit scope (recorded
+      NO-GAP, not faked).
     - NO NEW md files (directive honored). No MINIMAL REAL introduced/resolved. No commits made (per
       command).
-    - COMMITIT STATUS: commit+push of S032..S042 (incl. S036_1..S036_5), S043, and now S044 is
-      outstanding, awaiting your authorization. After commit+push: repo is the committed good state; next
-      step S045+.
+    - COMMITIT STATUS: commit+push of S032..S044 (incl. S036_1..S036_5) and now S045 is outstanding,
+      awaiting your authorization. After commit+push: repo is the committed good state; next step S046+.

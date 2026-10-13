@@ -128,6 +128,18 @@ public:
     explicit WrongThreadException(const char* what) : std::logic_error(what) {}
 };
 
+// S045: a Set() targeting a read-only dependency property. Structural + value-
+// independent: it throws even when the input equals the current/default value,
+// and it throws on ANY thread (never QUEUED — the guard precedes the S037
+// affinity branch, so a read-only refusal is never deferred to a drain).
+// Catchable specifically so a caller can distinguish a read-only rejection
+// from a wrong-thread QUEUED result.
+class VAML_CORE_EXPORT PropertyReadOnlyException : public std::logic_error
+{
+public:
+    explicit PropertyReadOnlyException(const char* what) : std::logic_error(what) {}
+};
+
 class VAML_CORE_EXPORT DependencyObject
 {
 public:
@@ -184,6 +196,15 @@ public:
     // pending queue and Set() returns SetResult::QUEUED — the store is NOT
     // written and the changed cb is NOT fired until ProcessPendingChanges()
     // drains on the affinity thread.
+    //
+    // S045 read-only contract: if the resolved property carries
+    // PropertyFlags::ReadOnly, Set() throws PropertyReadOnlyException. The
+    // check runs IMMEDIATELY after resolving the metadata provider and BEFORE
+    // coerce / validate / the S037 affinity branch — so a read-only refusal is
+    // structural and value-independent (throws even for value == current
+    // effective, never REJECTED/NO_CHANGE/QUEUED) and fires on ANY thread
+    // (a wrong-thread read-only Set throws, it is never deferred to a drain).
+    // No local override is materialized for a refused read-only write.
     [[nodiscard]] SetResult Set(PropertyId id, const Value& input);
 
     // S037: drains the pending queue (FIFO) on the affinity thread, replaying
