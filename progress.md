@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S045 (ReadOnly enforcement (Set throws) + validation (out-of-range rejects) + all flags honored) [token: S045]
-- Next step to do     : S046 [token: S046]
-- PENDING work        : none (S045 complete; S046 is next).
+- Last completed step : S049 (SURVIVOR + checkpoint advance to S080) [token: S049]
+- Next step to do     : S080 [token: S080]
+- PENDING work        : none (S049 complete; Sprint 1 closed; S080 is next — Sprint 2, VAML markup parser: XML scanner).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -83,6 +83,53 @@
 - **Invariants intact:** [ADR-001..012], layer-rule (core has NO Vulkan/GLFW deps), no-managed,
   no-stub, NO-GAP GUARANTEE, NO LAZY LLM SYNDROME.
 - **Next = S030** (Sprint 1, Property system core — first token of the real feature work).
+
+---
+
+## SPRINT 1 — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S030..S048, wrapped at S049)
+- **Goal met (S030–S048): the property-system core is complete, green on both compilers, and clean.
+  The "heart" of VAML (full DP semantics) is real, tested, and refactor-gated.** Sprint-1 closing =
+  S046 (value hook proofs) → S047 (suite-complete gate) → S048 (refactor gate) → S049 (wrap).
+- **Full DP semantics delivered (real public symbols, none MINIMAL REAL / none STUB):**
+  `Typeless Value` (11 tags, type-safe get) — S030; `PropertyKey` + `PropertyRegistry` (name→key,
+  name-unique dedupe, pimpl) — S032; `PropertyId` (constexpr-safe name-token) — S033;
+  `PropertyMetadata` (default/coerce/validate/changed, move-only pimpl) — S034;
+  `DependencyObject` (local store, Get/Set with the S035 pipeline, thread-affinity) — S036;
+  wrong-thread write QUEUING (marshalling) — S037; `ChangeRecorder` — S038;
+  global `DependencyProperty::Register` + `GetEffectiveValue` (local ?? inherited ?? default,
+  InheritOnly) + parent link — S039; inheritance cascade (proof) — S040;
+  `ChangeQueue` + `ChangeProcessor` + registration-ordered subscribers + descendant push — S041;
+  coalescing (proof) — S042; ATTACHED properties (owner≠class, metadata-provider borrowed) — S043;
+  attached inheritance + notification (the passive-descendant gap-fix) — S044;
+  ReadOnly enforcement + validation + all-flags — S045; coercion + per-set-validation value-hook
+  proofs (attached/global axis + wrong-thread-queued-coercion) — S046.
+- **Assertion vocabulary (standing convention):** the *Shouldly-for-doctest* vocabulary — the
+  SHOULD/SHOULD_REQUIRE predicate seam + doctest StringMaker + `ShouldThrow<Ex>` — is adopted
+  suite-wide from S036_5 onward; S047 certified ZERO unadapted feature `CHECK`/`CHECK_THROWS_AS`
+  in every migrated feature file. Sanctioned non-feature exceptions: PropertyMetadata_semantics
+  (the S035 spec harness), smoke_test (runner), StringMaker_test (stringifier test), shouldly_test
+  (predicate/routing library test), REQUIRE null-deref precondition guards.
+- **Key design decisions recorded (searchable, NO-GAP / NO-LAZY-LLM):** internal store keys on an
+  OWNED std::string, not the non-owning PropertyId view; coerce→validate(coerced)→fire-on-real-
+  change→store pipeline contract (PropertyMetadata_semantics_test MiniStore is the reference spec);
+  the move-only PropertyMetadata is NEVER copied into an object's entry (attached/borrowed
+  PropEntry); descendant push carries each descendant's own effective-old→effective-new delta
+  (local-wins respected through an intermediate); S046 REDIRECT (recorded): the registry-level
+  "ValidateDependencies" graph is INERT for real WPF MVVM (VM composition is instance-level, not
+  registry linkage) → replaced by WPF-faithful coercion + per-set validation value hooks.
+- **Deferred to future sprints (all recorded, NOT silent):** BindsTwoWayByDefault runtime behavior →
+  S242; owner-internal read-only write path → S120+ controls; visual tree / UIElement (derives
+  DependencyObject) → S120; full store-race freedom (TSan) → S620/S723; genuine two-way binding →
+  S242.
+- **MINIMAL REAL carried forward RESOLVED/unresolved:** NONE resolved in Sprint 1. Still unresolved:
+  `vaml-vulkan` → S161; `vaml-tools` → S287; `Color`/`Thickness` (S030) → S089. All carry searchable
+  sentinel comments; NO-GAP intact.
+- **Invariants intact:** [ADR-001..012], layer-rule (core has NO Vulkan/GLFW deps), no-managed,
+  no-stub, NO-GAP GUARANTEE, NO LAZY LLM SYNDROME.
+- **Build lanes both green (from first principles):** windows-msvc (msvc-debug via build/verify_s*.cmd,
+  VS 2026) + ubuntu-clang (clang-debug via /mnt/hgfs/VamlPOC, Ubuntu VM clang 21) — configure/build
+  warning-as-error clean + ctest 1/1 PASS. windows-clang-debug is NOT a lane.
+- **Next = S080** (Sprint 2, VAML markup parser — XML scanner; the first token of the next sprint).
 
 ---
 
@@ -1065,3 +1112,85 @@
   standing rule). NO-GAP accounting: BindsTwoWayByDefault behavior is explicitly S242's scope (recorded, NOT
   silent); owner-internal read-only write is a recorded S120+ controls concern (NOT silent); nothing deferred
   to a silent backfill. No MINIMAL REAL introduced/resolved. No NEW md files (directive honored). Next = S046.
+
+- [x] S046 DependencyProperty registration-time dependency validation (ValidateDependencies). — ✅ (REDIRECTED)
+  SURVIVOR: `test/unit/DependencyCallbacks_test.cpp` (NEW) + `test/unit/CMakeLists.txt` (MOD
+  +DependencyCallbacks_test.cpp) + `build/verify_s046.cmd` (NEW, verify_s045-pattern msvc-debug lane) +
+  `docs/roadmap.md` (MOD S046 [DONE]). REDIRECTED (user-accepted, ADR-style decision recorded in roadmap):
+  the original title — a registry-level "ValidateDependencies" dependency-graph gate — was reviewed against
+  real commercial WPF MVVM and judged INERT: the "children VM depending on a hasa DP" relationship is
+  INSTANCE COMPOSITION, not static registry linkage (WPF itself declares property coupling inline via
+  coercion and NEVER validates a dependency graph at registration). S046 instead delivers the WPF-faithful
+  value hooks — coercion + per-set validation — end-to-end. SCOPE DECISION (recorded, NO-LAZY-LLM): the
+  coerce → validate(coerced) → fire-on-real-change → store pipeline is ALREADY implemented in
+  DependencyObject::Set/ProcessPendingChanges (S036/S037/S045) and the callbacks already live in
+  PropertyMetadata (S034). Therefore S046 introduces NO new product symbol — a standalone
+  DependencyProperty::CoerceValue seam or a duplicated CoerceValueCallback alias would be DEAD/redundant
+  surface (precisely what S048's refactor gate removes). S046 instead proves the two dimensions previous
+  steps left UNCOVERED, fully in the Shouldly vocabulary:
+  (1) ATTACHED/GLOBAL axis — a globally-registered DependencyProperty (owner A) carrying with_coerce +
+  with_validate, set on an object B that never locally registers it (the S043 attached premise): raw 150 →
+  coerced 100 → validate(100) passes → APPLIED, Get 100 (the COERCED value stored); raw -5 → coerced 0 →
+  APPLIED; raw 7 → coerced 7 → validate(7) rejects → REJECTED, store unchanged. Wrong-tag input on the
+  global axis throws ValueTypeMismatch, store unchanged.
+  (2) BACKWARD COMPAT — a globally-registered property with NO hooks stores as-given on the attached axis
+  (APPLIED, then NO_CHANGE on repeat) — S036 passthrough proven on the global/attached path.
+  (3) WRONG-THREAD QUEUED COERCION — coerce+validate run AT QUEUE TIME (S037), so what is POSTED and later
+  DRAINED is the COERCED value, not the raw input: non-affine Set(150) → QUEUED (coerced 100), drain stores
+  100 (not 150) + cb(50→100); non-affine Set(-5) → QUEUED (coerced 0), drain stores 0 (not -5) + cb(10→0).
+  Both global-axis coercion and coerced-value-at-drain were previously UNCOVERED (no existing test registered
+  a global DependencyProperty with a coerce hook set on a live object, and none asserted the coerced value is
+  what the wrong-thread drain stores). VERIFIED BOTH CI LANES from first principles: msvc-debug (VS 2026) via
+  verify_s046.cmd — configure/build warning-clean, ctest 1/1 PASS (100% tests passed; 179 cases / 956 asserts);
+  ubuntu-clang (Ubuntu VM clang 21, shared folder /mnt/hgfs/VamlPOC) configure/build + ctest 1/1 PASS (only
+  pre-existing upstream <ciso646> doctest deprecation from third_party, not this TU). windows-clang-debug is
+  NOT a lane (not built/tested/flagged per standing rule). NO-GAP: S046 resolved its recorded obligation
+  (the registered dependency-validation intent) via the user-accepted redirect — nothing deferred to a silent
+  backfill; the redirect itself IS the recorded resolution. No MINIMAL REAL introduced/resolved. No NEW md
+  files (directive honored). Next = S047.
+
+- [x] S047 Property-system unit-test suite complete; every numbered predicate via adapted Shouldly. — ✅ (GATE)
+  SURVIVOR: `docs/roadmap.md` (MOD S047 [DONE]) — DOCS-ONLY, no code change, both CI lanes already green from
+  the S046 run. S047 is the FORMAL suite-complete gate, the vocabulary REALIZED EARLY by S036_1..S036_5 and
+  now CERTIFIED against the established convention. GATE MET (verified by grep across test/unit): ZERO
+  unadapted feature `CHECK`/`CHECK_THROWS_AS` across every migrated property feature file (Value_test,
+  Value_roundtrip_test, PropertyId_test, PropertyKeyRegistry_test, PropertyRegistryExhaustive_test,
+  PropertyMetadata_test, DependencyObject_test) plus the NEW S046 file DependencyCallbacks_test.cpp — all
+  pure Shouldly (SHOULD/ShouldThrow/ShouldlyString). SANCTIONED non-feature exceptions (deliberate,
+  documented, NOT count as violations): PropertyMetadata_semantics_test.cpp (the S035 reference SPEC harness —
+  rewriting it would alter the exact contract under test; its CHECKs + single CHECK_THROWS_AS stay),
+  smoke_test.cpp (doctest runner/main), StringMaker_test.cpp (asserts the raw doctest::String output of the
+  S036_2 stringifier itself), shouldly_test.cpp (tests the Shouldly predicate/routing library + the S036_1
+  SHOULD/SHOULD_REQUIRE routing seam + the intentional should_fail demonstration that must stay green), and
+  the REQUIRE precondition guards (null-deref gates in PropertyKeyRegistry/PropertyRegistryExhaustive). The
+  FULL Sprint-1 property suite — now including DependencyCallbacks_test.cpp — is green on BOTH ci lanes
+  (msvc-debug via verify_s046.cmd + ubuntu-clang via /mnt/hgfs/VamlPOC). No new product symbols. No MINIMAL
+  REAL introduced/resolved. No NEW md files (directive honored). Next = S048.
+
+- [x] S048 REFACTOR GATE(S1): unused removed, build+ctest green both compilers. — ✅
+  SURVIVOR: `docs/roadmap.md` (MOD S048 [DONE]) — GATE step, no code change required. Full build + ctest
+  green on BOTH ci lanes (windows-msvc via verify_s046.cmd's msvc-debug lane + ubuntu-clang via
+  /mnt/hgfs/VamlPOC clang-debug) — both verified from first principles in the S046 run. No dead/unused code to
+  remove: S046 deliberately added NO product symbol (a standalone CoerceValue seam / duplicated
+  CoerceValueCallback alias would have been dead surface — excluded by design at S046, NO-LAZY-LLM), and no
+  documented public surface or MINIMAL REAL marker was touched across Sprint-1 closing. vaml-core builds
+  warning-as-error CLEAN on both compilers (the only Clang warning remains the pre-existing upstream <ciso646>
+  doctest deprecation from third_party, not VamlPOC source). ctest 1/1 PASS both lanes. Sprint-1 property
+  system core is clean + green. No MINIMAL REAL introduced/resolved. No NEW md files (directive honored).
+  Next = S049 (SURVIVOR + checkpoint advance to S080).
+
+- [x] S049 SURVIVOR + checkpoint advance to S080. — ✅
+  SURVIVOR: `progress.md` (MOD — consolidated `## SPRINT 1 — SURVIVOR` block + regenerated checkpoint to
+  last=S049/next=S080) + `docs/roadmap.md` (MOD S049 [DONE]) — DOCS-ONLY, no build (per plan). The
+  consolidated Sprint 1 SURVIVOR block distills S030..S048 into the surviving-state picture a fresh LLM
+  resumes from: full DP semantics (Value/PropertyKey/PropertyRegistry/PropertyId/PropertyMetadata/
+  DependencyObject + marshalling + ChangeRecorder/ChangeQueue/ChangeProcessor + effective-value resolution +
+  attached properties + read-only/validation + coercion value-hook proofs) all real + tested + refactor-gated;
+  the Shouldly-for-doctest vocabulary is the standing suite convention (S047 certified zero unadapted feature
+  CHECK); key design decisions recorded (owned-name store key, the S035 pipeline spec, move-only metadata
+  never copied, descendant-push per-delta, the S046 ValidateDependencies→value-hooks redirect); deferred items
+  all recorded NOT silent (BindsTwoWayByDefault→S242, owner-internal read-only→S120+ controls, UIElement→S120,
+  store-race freedom→S620/S723, two-way binding→S242). NO MINIMAL REAL resolved in Sprint 1 — all four active
+  seeds (vulkan→S161, tools→S287, Color→S089, Thickness→S089) carry forward unresolved, NO-GAP intact. Checkpoint
+  advanced: Sprint 1 CLOSED, next = S080 (Sprint 2 — VAML markup parser, XML scanner). No NEW md files
+  (directive honored), no build (docs-only per plan S049 bound). Next = S080.
