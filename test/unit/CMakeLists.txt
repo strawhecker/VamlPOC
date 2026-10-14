@@ -40,6 +40,7 @@ add_executable(vaml-core-tests
     ElementResolver_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
+    VamlReader_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.

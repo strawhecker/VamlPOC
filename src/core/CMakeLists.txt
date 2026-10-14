@@ -20,6 +20,7 @@ vaml_add_library(core
     src/ElementFactoryRegistry.cpp
     src/Element.cpp
     src/ElementResolver.cpp
+    src/VamlReader.cpp
     src/ValueConverter.cpp
     src/Color.cpp
     src/Thickness.cpp
