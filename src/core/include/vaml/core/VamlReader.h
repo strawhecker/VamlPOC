@@ -1,80 +1,34 @@
 #pragma once
-// S091 (dep:S090) — VamlReader: build a LIVE dependency-object tree from a
-// parsed (S085) VAML tree, setting properties and linking children to parents.
+// S092 (dep:S091) — VamlReader extensions: (1) records the x:Name registry,
+// (2) retains deferred markup-extension values (the S2 tag), and (3) exposes a
+// MINIMAL REAL event-hook surface (Sprint 8). Everything S091 delivered is
+// unchanged; S092 ADDS the strands described below.
 //
-// This is the runtime reader entry point. It composes three completed
-// primitives into a real object tree:
-//   - S088 resolve_element  — ParsedElement -> live instance (global registry);
-//   - S089/S090 ValueConverterRegistry — plain string literal -> typed Value
-//     (Int32 / Bool / Color / Thickness; String is identity);
-//   - the S039/S043 global DependencyProperty table + S043-attached-aware
-//     DependencyObject::Set — attribute name -> stored value (attached keys
-//     like "Grid.Row" pass through to Set, which is already attached-aware).
+// The three S092 strands (see the S092 plan):
+//   A. x:Name / x:Class registry — build() now CONSUMES the S083 Name/Class
+//      directives (previously skipped): x:Name registers the built object
+//      under that name (root or child); x:Class records the authored root
+//      class name. The binding of that class name to an owner object/type is
+//      deliberately deferred to Sprint 8 (S286 / InitializeComponent-analogue)
+//      and to S243 — recorded NO-GAP, not silent. A duplicate x:Name with-in a
+//      single Load throws VamlReaderException(DuplicateName).
+//   B. Deferred markup extensions (the S2 tag) — an S084-classified isExtension
+//      attribute ({Binding Title}) is no longer skipped silently; build()
+//      records it as a DeferredExtension (target object, attribute key, and the
+//      ORIGINAL source text). The reader does NOT resolve the extension — that
+//      is S252/S253's real contract (S2 tag: "resolved by S252"). Retained only,
+//      but findable via deferred_extensions().
+//   C. Event hooks (Sprint 8) — MINIMAL REAL seed. register_event(name) declares
+//      that an attribute key is an EVENT, not a property; build() routes a
+//      matching declaration to a DeferredEventHandler (target, eventName,
+//      handlerName) instead of attempting a property set. The actual routed-
+//      event engine is S320/S322; the S092 surface only defers event wiring
+//      deterministically.
 //
-// Two entry points:
-//   - Load(std::string_view text) — parse_vaml(text) then Load(root).
-//   - Load(const ParsedElement&)  — build a live tree from an already-parsed
-//     tree (the headline S091 surface).
-//
-// OWNERSHIP MODEL (Decision D1 of the S091 plan — accepted):
-//   The reader retains ownership of every NON-ROOT built object in an internal
-//   retention vector and returns the ROOT to the caller. A plain
-//   DependencyObject carries no visual-children list (that is S121 — recorded,
-//   no overlap, no gap), so retained_objects() is how a consumer / tree-
-//   verification step reaches the non-root nodes the reader built. Each built
-//   object is owned EXACTLY ONCE: children are owned by `retained_`, the root
-//   by the returned unique_ptr. set_parent (S039/S041) is a NON-OWNING linkage;
-//   keeping ownership here (rather than in a parent's children container, which
-//   S121 will own) avoids dangling while the Load call is live. The durable
-//   "tree owns its children" ownership transfers into the UIElement visual tree
-//   at S120/S121 — recorded NO-GAP, not a silent backfill.
-//
-// BUILD ALGORITHM (private recursive build), per ParsedElement:
-//   1. RESOLVE -> resolve_element(element) (global registry). Unknown type ->
-//      ElementResolutionException naming type + line:col propagates (S088).
-//   2. SET PROPS -> for each ParsedAttribute:
-//        - directive != None -> SKIP (defer): x:Name/x:Class -> S092, x:Key ->
-//          S361, x:Null -> S084. Recorded NO-GAP, NOT silent.
-//        - isExtension      -> SKIP (defer to S092 markup-extension
-//          resolution). Recorded NO-GAP, NOT silent.
-//        - else plain literal -> set:
-//            target DP = DependencyProperty::TryGet(attr.key); nullptr ->
-//              throw VamlReaderException (unknown-property baseline; S094 owns
-//              the full reader error taxonomy). A dotted attached key
-//              ("Grid.Row") passes through as the DP name — S043 already makes
-//              Set attached-aware by name.
-//            convert literal -> Value: ValueType::String -> Value::String
-//              (identity); otherwise map boundType() -> converter name
-//              (Int32/Bool/Color/Thickness) and ValueConverterRegistry::global()
-//              .convert(typeName, literal). Malformed/UnknownType ->
-//              ValueConversionException propagates (S089/S090).
-//            obj->Set(PropertyId(attr.key), value) — works on MINIMAL REAL seed
-//              objects (Button/StackPanel/...) via GLOBAL-registered DPs, which
-//              Set resolves even when the object never locally registered them
-//              (S043 attached-aware global resolution).
-//   3. BUILD CHILDREN -> recurse each child, child->set_parent(obj.get()) (the
-//      S039/S041 parent-link + inheritance-scope seed), then move child into
-//      retained_. NO owned children list on DependencyObject (that is S121;
-//      recorded). Subtree exceptions propagate from the offending child.
-//   4. RETURN obj (the ROOT is NOT placed in retained_; each object owned
-//      exactly once).
-//
-// ERROR BASELINE (S091 scope): VamlReaderException : std::runtime_error covers
-// the UNRESOLVABLE-PROPERTY case only (an attribute naming a property with no
-// global definition). Unknown-element (ElementResolutionException) and
-// malformed-value/unknown-type (ValueConversionException) already propagate as
-// real structured errors (S088/S089/S090). S094 = the dedicated
-// error-taxonomy / reader-suite gate (recorded, NOT silent).
-//
-// STARTUP: Load() lazily runs register_builtin_elements() +
-// register_builtin_converters() ONCE (idempotent guards) so the reader works
-// standalone without the host wiring up globals — matches the shared-folder VM
-// lane where each test process starts fresh. Documented single-threaded.
-//
-// MINIMAL REAL? No. VamlReader::Load is delivered COMPLETE for its declared
-// scope (resolve + set props + build children + unknown-property baseline) and
-// tested; S092 (markup extensions / x:Name) and S094 (full error taxonomy)
-// extend by normal feature progression — no sentinel, no silent backfill.
+// S091 continues to own everything not listed above (resolve + literal prop
+// set + child linking + unknown-property baseline). S094 still owns the full
+// reader error taxonomy; S092 introduces exactly the ONE genuinely-new reader
+// error it can produce: DuplicateName (validated by this step's tests).
 
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
 #include "vaml/core/DependencyProperty.h" // DependencyProperty (convertLiteral decl)
@@ -85,6 +39,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace vaml {
@@ -97,28 +52,65 @@ struct ParsedElement; // forward-declared (Load(const ParsedElement&) takes a re
 // step's one genuinely reader-local error. Everything else the reader can hit
 // already propagates as a structured error from a lower layer
 // (ElementResolutionException / ValueConversionException).
+//
+// S092 adds ONE arm the reader can now genuinely produce: a duplicate x:Name
+// registered within a single Load is a real authoring error (WPF-faithful —
+// a name scope with a repeated name is an error, fail loud, no silent
+// last-wins). No other arm is invented; S094 still owns the full taxonomy.
 enum class VamlReaderError
 {
     None,          // no reader error
-    UnknownProperty // an attribute names a property with no global definition
+    UnknownProperty, // an attribute names a property with no global definition (S091)
+    DuplicateName  // an x:Name was registered more than once in one Load (S092)
 };
 
 // S091: the reader error — names the offending attribute key. what() renders
 // "unknown property '<key>'". Parallel to ElementResolutionException (S088) /
 // ValueConversionException (S089) at the reader layer, and the S094-documented
 // baseline of the full reader error taxonomy.
+//
+// S092: for DuplicateName, `property`/`name` holds the duplicate x:Name value;
+// what() renders "duplicate x:Name '<name>'".
 class VAML_CORE_EXPORT VamlReaderException : public std::runtime_error
 {
 public:
     VamlReaderException(VamlReaderError kind, std::string property, std::string what);
 
     VamlReaderError kind() const noexcept { return kind_; }
-    // The offending attribute's key (the property name that had no definition).
+    // The offending attribute's key (unknown-property) or the duplicate
+    // x:Name value (DuplicateName — the offending NAME, not the attribute key).
     const std::string& property() const noexcept { return property_; }
 
 private:
     VamlReaderError kind_;
     std::string property_;
+};
+
+// S092 (Strand B) — ONE retained deferred markup-extension on a built object.
+// `target` is the object the extension was authored on, `key` the attribute
+// key (e.g. "Text"), and `source` the ORIGINAL extension source text (e.g.
+// "{Binding Title}") retained verbatim — the "S2 tag" so S252/S253 (the
+// Binding sprint) can re-parse and bind it. The reader does NOT resolve the
+// extension (that is S252's contract); it only makes it findable. Resolved by
+// S252 — recorded NO-GAP, not silent.
+struct DeferredExtension
+{
+    const DependencyObject* target = nullptr;
+    std::string key;
+    std::string source;
+};
+
+// S092 (Strand C) — ONE deferred event handler on a built object. `target` is
+// the object the event was authored on, `eventName` the registered event name
+// (e.g. "Click"), and `handlerName` the authored handler name (e.g. "OnClick").
+// S322 resolves each record against the x:Class owner registry to wire the real
+// routed event handler (S320 RoutedEvent primitive). MINIMAL REAL seed —
+// resolved by S322; Do NOT extend silently.
+struct DeferredEventHandler
+{
+    const DependencyObject* target = nullptr;
+    std::string eventName;
+    std::string handlerName;
 };
 
 class VAML_CORE_EXPORT VamlReader
@@ -138,6 +130,8 @@ public:
 
     // Builds a live tree from an already-parsed root. The headline S091
     // surface. See the header comment for the algorithm + ownership model.
+    // S092: also records the x:Name registry (Strand A), deferred markup
+    // extensions (Strand B) and deferred event handlers (Strand C).
     [[nodiscard]] std::unique_ptr<DependencyObject> Load(const ParsedElement& root);
 
     // The non-root built objects, in construction order. Each is owned exactly
@@ -145,6 +139,54 @@ public:
     // ownership-model decision (header comment).
     [[nodiscard]] const std::vector<std::unique_ptr<DependencyObject>>&
     retained_objects() const noexcept { return retained_; }
+
+    // ------------------------------------------------------------------
+    // S092 Strand A — x:Name registry (REAL, tested, permanent).
+    // ------------------------------------------------------------------
+
+    // Returns the built object registered under `name`, or nullptr if no such
+    // x:Name was recorded. Works for the root (a root carrying x:Name is
+    // registered) and every retained child. NAMES WERE CLEARED at the start of
+    // the most recent Load — this reflects the CURRENT read.
+    [[nodiscard]] DependencyObject* named(std::string_view name) const noexcept;
+
+    // Number of currently-registered names (0 after a Load with no x:Name).
+    [[nodiscard]] std::size_t name_count() const noexcept;
+
+    // Registered x:Name entries in REGISTRATION (document) order: (name, obj).
+    // Keys are owned std::string copies (the documented store discipline —
+    // never the PropertyId view).
+    [[nodiscard]] const std::vector<std::pair<std::string, DependencyObject*>>&
+    names() const noexcept;
+
+    // The authored x:Class name on the root, empty when absent. S092 records
+    // ONLY the authored name; binding it to an owner object/type is deferred
+    // (Sprint 8 / S286 / InitializeComponent-analogue). Recorded NO-GAP.
+    [[nodiscard]] const std::string& root_class() const noexcept;
+
+    // ------------------------------------------------------------------
+    // S092 Strand B — deferred markup extensions (the S2 tag). Resolved by
+    // S252. Retained only; never converted/set here.
+    // ------------------------------------------------------------------
+    [[nodiscard]] const std::vector<DeferredExtension>& deferred_extensions() const noexcept;
+
+    // ------------------------------------------------------------------
+    // S092 Strand C — event hooks (MINIMAL REAL; resolved by S322, Sprint 8).
+    // ------------------------------------------------------------------
+    // [MINIMAL REAL] VamlReader event hooks — RESOLVED BY S322 (Sprint 8).
+    // Do NOT extend silently; do NOT backfill.
+
+    // Declares that `eventName` is an EVENT, not a property. An attribute whose
+    // key exactly matches a registered event name is routed to a deferred-event
+    // record in build() (never a property set / unknown-property throw). The
+    // host (future x:Class owner / control type, via CompositionRoot later)
+    // calls this before Load. Idempotent.
+    void register_event(std::string_view eventName);
+
+    // The deferred event handlers recorded by the most recent Load, document
+    // order. MINIMAL REAL seed — consumed/resolved by S322.
+    [[nodiscard]] const std::vector<DeferredEventHandler>&
+    deferred_event_handlers() const noexcept;
 
 private:
     // Recursive build (the algorithm in the header comment). Returns the owned
@@ -158,6 +200,17 @@ private:
     static Value convertLiteral(const DependencyProperty& dp, const std::string& literal);
 
     std::vector<std::unique_ptr<DependencyObject>> retained_;
+
+    // S092 Strand A — x:Name registry (insertion-ordered; owned keys).
+    std::vector<std::pair<std::string, DependencyObject*>> names_;
+    std::string root_class_;
+
+    // S092 Strand B — deferred markup extensions (document order).
+    std::vector<DeferredExtension> deferred_extensions_;
+
+    // S092 Strand C — registered event names + deferred event handlers.
+    std::vector<std::string> event_names_;
+    std::vector<DeferredEventHandler> deferred_event_handlers_;
 };
 
 } // namespace vaml

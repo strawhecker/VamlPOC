@@ -1,6 +1,8 @@
-// S091 (dep:S090) — VamlReader out-of-line definitions. Builds a LIVE
+// S092 (dep:S091) — VamlReader out-of-line definitions. Builds a LIVE
 // dependency-object tree from a parsed (S085) tree. See VamlReader.h for the
-// full design + ownership model.
+// full design + ownership model. S092 ADDS: the x:Name registry (Strand A),
+// deferred markup extensions / the S2 tag (Strand B), and the MINIMAL REAL
+// event-hook surface (Strand C, resolved by S322).
 
 #include "vaml/core/VamlReader.h"
 
@@ -12,10 +14,31 @@
 #include "vaml/core/ValueConverter.h"          // ValueConverterRegistry + register_builtin_converters
 #include "vaml/core/XmlScanner.h"              // XmlDirectiveType
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
 namespace vaml {
+
+namespace {
+
+// S092: true iff `name` is already registered in the reader's x:Name registry.
+// Linear scan (the name registry is small per Load); keeps the header free of
+// a hash-set member and preserves registration order in `names_` (a set would
+// not — NO-LAZY-LLM: the ordered vector is the documented store discipline).
+[[nodiscard]] bool name_registered(
+    const std::vector<std::pair<std::string, DependencyObject*>>& names,
+    std::string_view name)
+{
+    const auto it = std::find_if(
+        names.begin(), names.end(),
+        [&](const std::pair<std::string, DependencyObject*>& entry) {
+            return entry.first == name;
+        });
+    return it != names.end();
+}
+
+} // namespace
 
 VAML_CORE_EXPORT
 VamlReaderException::VamlReaderException(VamlReaderError kind, std::string property,
@@ -101,23 +124,70 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     // throws ElementResolutionException naming type + line:col — S088).
     std::unique_ptr<DependencyObject> obj = resolve_element(element);
 
-    // Step 2 — set plain-literal properties.
+    // Step 2 — attributes: set plain-literal properties, CONSUME the S092
+    // strands (Name/Class directives, isExtension retention, event routing).
     for (const ParsedAttribute& attr : element.attributes)
     {
-        // Deferred scope (recorded NO-GAP, NOT silent):
-        //   - x-language directives (x:Name/x:Class -> S092, x:Key -> S361,
-        //     x:Null -> S084): skip the value; not set here.
-        if (attr.directive != XmlDirectiveType::None)
+        // --- S092 Strand A — x:Name / x:Class directives (now CONSUMED). ---
+        // S083 classified these; S091 skipped them; S092 records them. The
+        // x:Key -> S361 and x:Null -> S084 paths remain deferred unchanged.
+        if (attr.directive == XmlDirectiveType::Name)
         {
+            const std::string& name = attr.value;
+            if (name_registered(names_, name))
+            {
+                // WPF-faithful: a name scope with a repeated name is an error;
+                // fail loud, never silently last-wins. (DuplicateName — the one
+                // genuinely-new reader error S092 introduces.)
+                throw VamlReaderException(
+                    VamlReaderError::DuplicateName, name,
+                    "duplicate x:Name '" + name + "'");
+            }
+            names_.emplace_back(name, obj.get());
             continue;
         }
-        //   - markup-extensions ({Binding ...} -> S092 resolution): skip; the
-        //     extension is resolved by its dedicated step, not a literal set.
-        if (attr.isExtension)
+        if (attr.directive == XmlDirectiveType::Class)
         {
+            // Record the AUTHORED root class name only; binding it to an owner
+            // object/type is Sprint 8 / S286 / InitializeComponent-analogue
+            // (recorded NO-GAP, not silent). A Class on a non-root is out of
+            // scope — S094's error-taxonomy gate decides (recorded).
+            root_class_ = attr.value;
+            continue;
+        }
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            // Remaining directives (x:Key -> S361, x:Null -> S084): still
+            // deferred, recorded NO-GAP, NOT silent.
             continue;
         }
 
+        // --- S092 Strand C — event routing (MINIMAL REAL seed). ------------
+        // An attribute key that exactly matches a registered event name is an
+        // EVENT declaration, not a property: route it to a DeferredEventHandler.
+        // Never a property set, never an unknown-property throw. Resolved by S322.
+        if (std::find(event_names_.begin(), event_names_.end(), attr.key) !=
+            event_names_.end())
+        {
+            deferred_event_handlers_.push_back(
+                DeferredEventHandler{obj.get(), attr.key, attr.value});
+            continue;
+        }
+
+        // --- S092 Strand B — deferred markup extensions (the S2 tag). -------
+        // An S084-classified isExtension attribute ({Binding Title}) is NOT
+        // skipped silently anymore: record it as a DeferredExtension with the
+        // ORIGINAL source text retained verbatim (S2 tag). The reader does NOT
+        // resolve the extension — S252/S253 (the Binding sprint) consumes these
+        // records ("S2 tag: resolved by S252"). Never converted/set here.
+        if (attr.isExtension)
+        {
+            deferred_extensions_.push_back(
+                DeferredExtension{obj.get(), attr.key, attr.value});
+            continue;
+        }
+
+        // --- Ordinary plain-literal property (S091, unchanged). -------------
         // Resolve the property definition globally. An attribute naming a
         // property with no global DependencyProperty -> VamlReaderException
         // (S091's unknown-property baseline; S094 owns the full taxonomy).
@@ -152,10 +222,72 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
 {
     ensure_startup_registrations();
 
-    // Fresh read: each Load call must not leak children from a prior call
-    // (each object owned exactly once, per D1).
+    // Fresh read: each Load call must not leak children / S092 records from a
+    // prior call (each object owned exactly once, per D1; every S092 registry
+    // is per-Load and cleared here).
     retained_.clear();
+    names_.clear();
+    root_class_.clear();
+    deferred_extensions_.clear();
+    deferred_event_handlers_.clear();
     return build(root);
+}
+
+// ------------------------------------------------------------------ S092 Strand A
+VAML_CORE_EXPORT
+DependencyObject* VamlReader::named(std::string_view name) const noexcept
+{
+    const auto it = std::find_if(
+        names_.begin(), names_.end(),
+        [&](const std::pair<std::string, DependencyObject*>& entry) {
+            return entry.first == name;
+        });
+    return it == names_.end() ? nullptr : it->second;
+}
+
+VAML_CORE_EXPORT
+std::size_t VamlReader::name_count() const noexcept
+{
+    return names_.size();
+}
+
+VAML_CORE_EXPORT
+const std::vector<std::pair<std::string, DependencyObject*>>&
+VamlReader::names() const noexcept
+{
+    return names_;
+}
+
+VAML_CORE_EXPORT
+const std::string& VamlReader::root_class() const noexcept
+{
+    return root_class_;
+}
+
+// ------------------------------------------------------------------ S092 Strand B
+VAML_CORE_EXPORT
+const std::vector<DeferredExtension>&
+VamlReader::deferred_extensions() const noexcept
+{
+    return deferred_extensions_;
+}
+
+// ------------------------------------------------------------------ S092 Strand C
+VAML_CORE_EXPORT
+void VamlReader::register_event(std::string_view eventName)
+{
+    if (std::find(event_names_.begin(), event_names_.end(), eventName) ==
+        event_names_.end())
+    {
+        event_names_.emplace_back(eventName);
+    }
+}
+
+VAML_CORE_EXPORT
+const std::vector<DeferredEventHandler>&
+VamlReader::deferred_event_handlers() const noexcept
+{
+    return deferred_event_handlers_;
 }
 
 VAML_CORE_EXPORT
