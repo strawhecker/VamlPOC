@@ -30,6 +30,7 @@ add_executable(vaml-core-tests
     ReadOnlyAndValidation_test.cpp
     DependencyCallbacks_test.cpp
     StringMaker_test.cpp
+    XmlScanner_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.

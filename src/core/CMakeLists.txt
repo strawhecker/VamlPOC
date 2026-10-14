@@ -15,6 +15,7 @@ vaml_add_library(core
     src/ChangeRecorder.cpp
     src/ChangeQueue.cpp
     src/ChangeProcessor.cpp
+    src/XmlScanner.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()
