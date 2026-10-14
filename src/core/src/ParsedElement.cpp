@@ -31,8 +31,10 @@ ParsedAttribute toParsedAttribute(const XmlAttribute& a)
     return out;
 }
 
-// S085: copies the element-name metadata from a scanned ElementOpen token into
-// a ParsedElement (tagName / ns / prefix / local_name / self_closing).
+// S085/S088: copies the element-name metadata from a scanned ElementOpen token
+// into a ParsedElement (tagName / ns / prefix / local_name / self_closing)
+// plus the S088 source position (token's 1-based line/col) so the resolver /
+// reader can name the type + line of an unknown element without re-scanning.
 void applyElementIdentity(ParsedElement& el, const XmlToken& tok)
 {
     el.tagName = tok.name;       // full element name (StackPanel, local:Button)
@@ -40,6 +42,8 @@ void applyElementIdentity(ParsedElement& el, const XmlToken& tok)
     el.prefix = tok.prefix;      // S082 split
     el.local_name = tok.local_name;
     el.self_closing = tok.self_closing;
+    el.line = tok.line;          // S088: carried, not re-scanned
+    el.col = tok.col;            // S088
 }
 
 // S085: installs a FINISHED element `child` either as the root (when the open

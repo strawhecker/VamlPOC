@@ -110,6 +110,13 @@ struct ParsedElement
     std::string prefix;      // S082: "" when no ':' split
     std::string local_name;  // S082: element name sans "prefix:"
     bool self_closing = false; // S080: <a/> versus <a></a>
+    // S088: 1-based source position of the element's opening '<'. Carried from
+    // the scanner's ElementOpen token (which already computed them — S085's
+    // "carried, not re-scanned" discipline) so the S088 resolver / S091 reader
+    // can report "unknown element type '<name>' (line N, column M)" without
+    // re-deriving a line map. Default 1,1 matches the scanner's own start.
+    std::size_t line = 1;
+    std::size_t col = 1;
 };
 
 // S085: parse-level exception carrying an XmlParseError kind + the 1-based
