@@ -40,12 +40,35 @@
 // S084 attribute grammar, S086 goldens) extend this type by normal feature
 // progression — no sentinel, nothing left for silent backfill.
 //
+// S082 (dep:S081) — NAMESPACES. The scanner became namespace-aware:
+//   * Names split on the FIRST ':' only into (prefix, local_name). The '.'
+//     (attached-owner "Grid.Row") is NOT a namespace separator — only ':' is.
+//   * `name` (and XmlAttribute::name) remain the FULL raw text, so S080's
+//     assertions hold unchanged; prefix/local_name/namespace_uri are ADDED.
+//   * A per-element namespace SCOPE is tracked (default `xmlns="uri"` plus
+//     prefixed `xmlns:p="uri"`), pushed on non-self-closing ElementOpen and
+//     popped on the matching ElementClose. Unprefixed ELEMENTS resolve to the
+//     default namespace; the default does NOT apply to ATTRIBUTES (XML rule),
+//     so an unprefixed attribute has no namespace_uri.
+//   * `xmlns` / `xmlns:p` are NAMESPACE DECLARATIONS, not ordinary attributes:
+//     they are collected into XmlToken::xmlns and applied to scope, never
+//     emitted in `attributes`.
+//   * A WPF-style "clr-namespace:Ns.Name;assembly=Asm" mapping value is
+//     TOKENIZED into ClrNamespaceReference via parse_clr_namespace (parts
+//     extracted; TYPE resolution is S087's step). A malformed clr-namespace
+//     value is a categorized XmlScanError::MalformedClrNamespace (keeps the
+//     S081 1:1 taxonomy contract honest).
+// Unmapped prefixes / unknown namespaces are NOT scan errors at S082 — the
+// structured "unknown namespace"/type-resolution authority is the S085/S087
+// parser (recorded NO-GAP hand-off, not a silent omission).
+//
 // NOTE on the terminal token name: "EndOfInput" (not "EOF") so the enum avoids
 // the <cstdio> EOF macro — a real trap, not cosmetic.
 
 #include "vaml/core/export.h"
 
 #include <cstddef>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -65,16 +88,31 @@ enum class XmlTokenType
     EndOfInput,
 };
 
-// One decoded attribute on an ElementOpen: (name, decoded value).
+// One decoded attribute on an ElementOpen: (name, decoded value) plus the
+// S082 namespace split (prefix / local_name / resolved namespace_uri). `name`
+// stays the FULL raw text; prefix/local are the split on the first ':'.
 struct XmlAttribute
 {
     std::string name;
     std::string value;
+    std::string prefix;      // "" if no ':' — S082
+    std::string local_name;  // full name sans the "prefix:" part — S082
+    std::string namespace_uri; // resolved from the (non-default) prefix — S082
+};
+
+// A WPF-style "clr-namespace:Ns.Name[;assembly=Asm]" mapping, TOKENIZED into
+// parts (S082). The parts are extracted here; resolving them to a real type is
+// S087's step (recorded NO-GAP, not a silent omission).
+struct ClrNamespaceReference
+{
+    std::string clrNamespace; // e.g. "Ns.Name" (may be empty if malformed)
+    std::string assembly;     // e.g. "Asm" (empty when no ';assembly=' present)
 };
 
 // A single scanned token. `name` is the tag name (open/close); `value` carries
 // Text / Comment / CData content; `attributes` is only populated for
-// ElementOpen; `self_closing` distinguishes <a/> from <a></a>. line/col are
+// ElementOpen (namespace-declaration xmlns/xmlns:p excluded — they live in
+// `xmlns`); `self_closing` distinguishes <a/> from <a></a>. line/col are
 // the 1-based position of the token's first character in the source.
 struct XmlToken
 {
@@ -83,6 +121,15 @@ struct XmlToken
     std::string value;
     bool self_closing = false;
     std::vector<XmlAttribute> attributes;
+    // S082: namespace declarations (xmlns / xmlns:prefix) seen on this
+    // ElementOpen, as (declaredPrefix, uri) pairs — prefix "" = default.
+    std::vector<std::pair<std::string, std::string>> xmlns;
+    // S082: `name` split on the first ':' (prefix "" when none). `.` is NOT a
+    // namespace separator. Prefixed element -> namespace_uri resolved from the
+    // prefixed scope; unprefixed -> the DEFAULT namespace (may be "").
+    std::string prefix;
+    std::string local_name;
+    std::string namespace_uri;
     std::size_t line = 0;
     std::size_t col = 0;
 };
@@ -111,7 +158,23 @@ enum class XmlScanError
     MismatchedEndTag,           // '</name>' doesn't match top of open stack
     UnexpectedEndAfterLessThan, // '<' at EOF (no markup follows)
     UnrecognizedMarkup,         // '<!' not '<!--' nor '<![CDATA['
+    MalformedClrNamespace,      // 'clr-namespace:' with no namespace/assembly body (S082)
 };
+
+// Tokenizes a "clr-namespace:" mapping value into ClrNamespaceReference.
+// Recognizes `clr-namespace:Ns.Name` and `clr-namespace:Ns.Name;assembly=Asm`.
+// `isClrNamespace` (optional out) is true iff `value` carried the
+// "clr-namespace:" prefix (a plain value yields clrNamespace == value with
+// isClrNamespace == false). A MALFORMED clr-namespace body (empty namespace,
+// or a ";" suffix that isn't a well-formed ";assembly=Asm") throws
+// XmlScanException with kind MalformedClrNamespace — the S082 throw site that
+// keeps the S081 1:1 taxonomy contract honest. `line`/`col` (default 1,1) are
+// the reported position; the scanner passes its real cursor. Extraction only —
+// resolving a mapping to a real type is S087 (recorded NO-GAP).
+VAML_CORE_EXPORT ClrNamespaceReference parse_clr_namespace(std::string_view value,
+                                                           bool* isClrNamespace = nullptr,
+                                                           std::size_t line = 1,
+                                                           std::size_t col = 1);
 
 // Thrown on any structural scan failure. Structurally categorized (kind()) with
 // the 1-based line:col where the malformed input was detected (line()/col(),
@@ -185,12 +248,26 @@ private:
     // [[noreturn]] so the compiler knows throw sites never fall through.
     [[noreturn]] void fail(XmlScanError kind, const std::string& message) const;
 
+    // S082: assigns `name` split on the first ':' into (prefix, local). The '.'
+    // attached-owner form ("Grid.Row") is NOT split — only ':' is; prefix is ""
+    // when there is no ':'.
+    static void splitName(const std::string& name, std::string& prefix, std::string& local);
+    // S082: resolves a (already split) prefix to a namespace URI from the
+    // innermost scope. "" prefix -> the DEFAULT namespace (unprefixed element);
+    // unmapped prefix -> "" (unknown-ns authority is S085/S087, recorded).
+    const std::string& resolvePrefix(const std::string& prefix) const;
+
     std::string_view input_;
     std::size_t pos_ = 0;
     std::size_t line_ = 1;
     std::size_t col_ = 1;
     // Open-tag depth stack (non-self-closing names) for end-tag matching.
     std::vector<std::string> stack_;
+    // S082: per-element namespace scope stack, one frame per open (non-
+    // self-closing) element. Each frame maps declared prefix -> uri, including
+    // "" for the DEFAULT namespace. Mirrors stack_ depth (push on ElementOpen,
+    // pop on matching ElementClose).
+    std::vector<std::map<std::string, std::string>> nsStack_;
 };
 
 } // namespace vaml

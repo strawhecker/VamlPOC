@@ -31,6 +31,7 @@ add_executable(vaml-core-tests
     DependencyCallbacks_test.cpp
     StringMaker_test.cpp
     XmlScanner_test.cpp
+    XmlNamespace_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.

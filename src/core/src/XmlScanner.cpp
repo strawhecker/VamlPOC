@@ -1,10 +1,17 @@
-// S081 (dep:S080) — hand-rolled XML scanner implementation with STRUCTURED
-// errors. See XmlScanner.h for the declared scope (elements, attributes,
-// self-closing, comments, CDATA, entities, nested tags) and the design
-// rationale. Every structural failure throws a categorized XmlScanException
+// S082 (dep:S081) — hand-rolled XML scanner implementation with STRUCTURED
+// errors AND NAMESPACE awareness. See XmlScanner.h for the declared scope
+// (elements, attributes, self-closing, comments, CDATA, entities, nested tags)
+// plus the S082 namespace model (prefix/local split on ':', per-element
+// xmlns scope, default-ns for unprefixed elements only, clr-namespace mapping
+// tokenized). Every structural failure throws a categorized XmlScanException
 // carrying the 1-based line:col where it was detected (guaranteed >= 1 on
-// every malformed path — the core promise of S081).
+// every malformed path — the core promise of S081). S082's MalformedClrNamespace
+// category keeps that promise for the clr-namespace throw site.
 #include "vaml/core/XmlScanner.h"
+
+#include <algorithm>
+#include <cctype>
+#include <utility>
 
 #include <cctype>
 #include <utility>
@@ -32,6 +39,89 @@ bool isNameChar(char c)
 XmlScanner::XmlScanner(std::string_view input)
     : input_(input)
 {
+}
+
+// S082: split on the FIRST ':' only. The '.' (attached-owner) form is NOT a
+// namespace separator, so only ':' matters. A name with no ':' has prefix "".
+void XmlScanner::splitName(const std::string& name, std::string& prefix, std::string& local)
+{
+    const std::size_t colon = name.find(':');
+    if (colon == std::string::npos)
+    {
+        prefix.clear();
+        local = name;
+        return;
+    }
+    prefix = name.substr(0, colon);
+    local = name.substr(colon + 1);
+}
+
+// S082: tokenizes a "clr-namespace:" mapping value. The parser-side
+// type-resolution (mapping a namespace/assembly to a real vaml type) is S087's
+// step — here we only split the value into its structural parts.
+//
+// Recognized forms:
+//   "clr-namespace:Ns.Name"                -> clrNamespace="Ns.Name", assembly=""
+//   "clr-namespace:Ns.Name;assembly=Asm"   -> clrNamespace="Ns.Name", assembly="Asm"
+// A bare value (no "clr-namespace:" prefix) is returned verbatim as the
+// clrNamespace with isClrNamespace=false.
+ClrNamespaceReference parse_clr_namespace(std::string_view value, bool* isClrNamespace,
+                                          std::size_t line, std::size_t col)
+{
+    constexpr std::string_view kPrefix = "clr-namespace:";
+    ClrNamespaceReference result;
+
+    if (value.compare(0, kPrefix.size(), kPrefix) != 0)
+    {
+        // Not a clr-namespace mapping — a plain value (e.g. a normal attribute
+        // string the consumer also runs through this helper).
+        result.clrNamespace = std::string(value);
+        result.assembly.clear();
+        if (isClrNamespace)
+        {
+            *isClrNamespace = false;
+        }
+        return result;
+    }
+
+    if (isClrNamespace)
+    {
+        *isClrNamespace = true;
+    }
+
+    const std::string_view body = value.substr(kPrefix.size());
+    const std::size_t semi = body.find(';');
+    const std::string_view nsPart = body.substr(0, semi);
+
+    // A clr-namespace mapping MUST have a non-empty namespace part. This is the
+    // S082 throw site for the new MalformedClrNamespace category (the S081 1:1
+    // taxonomy contract insists every malformed path has its own kind).
+    if (nsPart.empty())
+    {
+        throw XmlScanException(XmlScanError::MalformedClrNamespace,
+                               "malformed clr-namespace mapping (empty namespace)", line, col);
+    }
+
+    result.clrNamespace = std::string(nsPart);
+    result.assembly.clear();
+
+    if (semi != std::string_view::npos)
+    {
+        // Expect ";assembly=Asm" — a ";" suffix that isn't well-formed is also
+        // a malformed mapping (same category: this range's dedicated kind).
+        const std::string_view tail = body.substr(semi);
+        constexpr std::string_view kAssemb = ";assembly=";
+        if (tail.compare(0, kAssemb.size(), kAssemb) == 0)
+        {
+            result.assembly = std::string(tail.substr(kAssemb.size()));
+        }
+        else
+        {
+            throw XmlScanException(XmlScanError::MalformedClrNamespace,
+                                   "malformed clr-namespace mapping (bad ';' suffix)", line, col);
+        }
+    }
+    return result;
 }
 
 XmlScanException::XmlScanException(XmlScanError kind, std::string what, std::size_t line, std::size_t col)
@@ -305,6 +395,12 @@ void XmlScanner::scanElementOpen(XmlToken& out)
     out.name = scanName();
     out.self_closing = false;
 
+    // Attribute / xmlns loop. xmlns and xmlns:p are NAMESPACE DECLARATIONS
+    // (S082): collected into out.xmlns, and NOT emitted as ordinary attributes.
+    // Every other attribute is collected (name/value) but its namespace is
+    // resolved AFTER the whole tag is read, once ALL xmlns declarations are
+    // known — XML declarations apply to the whole element regardless of where
+    // they appear in the tag (order-independent self-application).
     while (true)
     {
         skipWhitespace();
@@ -348,13 +444,87 @@ void XmlScanner::scanElementOpen(XmlToken& out)
             fail(XmlScanError::AttributeValueNotQuoted, "attribute value must be quoted");
         }
         attr.value = scanAttributeValue(peek());
+
+        // S082: classify. "xmlns" sets the DEFAULT namespace; "xmlns:p" sets a
+        // prefixed namespace. Both are declarations, not attributes.
+        if (attr.name == "xmlns")
+        {
+            out.xmlns.emplace_back(std::string(), std::move(attr.value));
+            continue;
+        }
+        if (attr.name.compare(0, 6, "xmlns:") == 0)
+        {
+            out.xmlns.emplace_back(attr.name.substr(6), std::move(attr.value));
+            continue;
+        }
         out.attributes.push_back(std::move(attr));
     }
 
-    if (!out.self_closing)
+    // S082: push a namespace scope frame for THIS element (inherits the
+    // enclosing scope) and apply its own xmlns declarations (self-applying).
+    // Pushed for BOTH self-closing and non-self-closing elements so the
+    // element's own name + attributes see its own declarations; popped below
+    // for self-closing, kept on the stack for non-self-closing (children
+    // inherit it) and popped on the matching ElementClose.
+    nsStack_.push_back(nsStack_.empty() ? std::map<std::string, std::string>()
+                                        : nsStack_.back());
+    for (const auto& decl : out.xmlns)
+    {
+        nsStack_.back()[decl.first] = decl.second;
+    }
+
+    // Resolve each ordinary attribute's namespace against the applied scope.
+    for (XmlAttribute& attr : out.attributes)
+    {
+        splitName(attr.name, attr.prefix, attr.local_name);
+        if (attr.prefix.empty())
+        {
+            // The default namespace does NOT apply to attributes (XML rule).
+            attr.namespace_uri.clear();
+        }
+        else
+        {
+            attr.namespace_uri = resolvePrefix(attr.prefix);
+        }
+    }
+
+    // Split + resolve the element's own name against the applied scope.
+    splitName(out.name, out.prefix, out.local_name);
+    out.namespace_uri = out.prefix.empty() ? resolvePrefix("")
+                                           : resolvePrefix(out.prefix);
+
+    if (out.self_closing)
+    {
+        // No children: the temporary frame is discarded immediately.
+        nsStack_.pop_back();
+    }
+    else
     {
         stack_.push_back(out.name);
     }
+}
+
+// S082: resolves a (split) prefix to a namespace URI from the innermost scope.
+// An "" prefix resolves to the current DEFAULT namespace (the `xmlns` frame
+// entry keyed ""); a prefixed name resolves to its mapped URI. An unmapped
+// prefix resolves to "" — unknown namespaces are NOT a scan error at S082 (the
+// structured authority is S085/S087, recorded NO-GAP).
+const std::string& XmlScanner::resolvePrefix(const std::string& prefix) const
+{
+    if (nsStack_.empty())
+    {
+        // No namespace scope at all: default and any prefixed name are empty.
+        static const std::string kEmpty;
+        return kEmpty;
+    }
+    const auto& frame = nsStack_.back();
+    const auto it = frame.find(prefix);
+    if (it == frame.end())
+    {
+        static const std::string kEmpty;
+        return kEmpty;
+    }
+    return it->second;
 }
 
 void XmlScanner::scanElementClose(XmlToken& out)
@@ -374,6 +544,11 @@ void XmlScanner::scanElementClose(XmlToken& out)
         fail(XmlScanError::MismatchedEndTag, "mismatched or stray end tag </" + out.name + ">");
     }
     stack_.pop_back();
+    // S082: pop the matching namespace scope frame (pushed on this ElementOpen).
+    if (!nsStack_.empty())
+    {
+        nsStack_.pop_back();
+    }
 }
 
 void XmlScanner::scanText(XmlToken& out)
@@ -405,6 +580,10 @@ bool XmlScanner::scanMarkup(XmlToken& out)
     out.name.clear();
     out.value.clear();
     out.self_closing = false;
+    out.xmlns.clear();
+    out.prefix.clear();
+    out.local_name.clear();
+    out.namespace_uri.clear();
 
     const std::size_t tokenLine = line();
     const std::size_t tokenCol = col();
@@ -467,6 +646,10 @@ bool XmlScanner::next(XmlToken& out)
     out.name.clear();
     out.value.clear();
     out.self_closing = false;
+    out.xmlns.clear();
+    out.prefix.clear();
+    out.local_name.clear();
+    out.namespace_uri.clear();
 
     // Whitespace between tokens is skipped except inside Text (scanText reads
     // until '<' including whitespace, so nothing to skip here when text is
