@@ -26,17 +26,19 @@
 // names so a stray/mismatched end tag is a REAL error (you cannot scan nested
 // tags honestly while ignoring a mismatched close). Any structural failure the
 // scanner must detect (unterminated comment/CDATA/attribute quote/entity,
-// malformed tag, unmatched end tag) throws XmlScanException (message-only).
-// S081 is the explicit step that formalizes the full structured error
-// taxonomy (categories, guaranteed line:col on every malformed path) — a
-// documented NO-GAP hand-off. Every token still carries intrinsic line:col
-// now, which S081 consumes.
+// malformed tag, unmatched end tag) throws XmlScanException — a STRUCTURED,
+// categorized exception carrying the 1-based line:col where the malformed
+// input was detected. The taxonomy (XmlScanError) and guaranteed line/col were
+// formalized by S081, consuming S080's documented NO-GAP hand-off (S080
+// delivered message-only XmlScanException + tokens already carrying line:col).
+// Every malformed path has a distinct XmlScanError kind (list below) and a
+// line()/col() >= 1 — the core promise of S081.
 //
 // MINIMAL REAL? No. XmlScanner is delivered complete for its declared scope
-// (all six listed constructs real + tested), not a seed. Later steps (S081
-// structured errors, S082 namespaces, S083 x: directives, S084 attribute
-// grammar) extend this type by normal feature progression — no sentinel, no
-// silent backfill.
+// (all six listed constructs real + tested), not a seed. S081 formalized the
+// structured error taxonomy; later steps (S082 namespaces, S083 x: directives,
+// S084 attribute grammar, S086 goldens) extend this type by normal feature
+// progression — no sentinel, nothing left for silent backfill.
 //
 // NOTE on the terminal token name: "EndOfInput" (not "EOF") so the enum avoids
 // the <cstdio> EOF macro — a real trap, not cosmetic.
@@ -85,13 +87,51 @@ struct XmlToken
     std::size_t col = 0;
 };
 
-// Thrown on any structural scan failure (unterminated comment/CDATA/attribute
-// quote/entity, malformed tag, stray or mismatched end tag). Message-only in
-// S080; S081 turns this into the structured, line:col-carrying taxonomy.
+// Structured scan-error category. Each value maps 1:1 to a distinct malformed
+// scan path (S081 formalized taxonomy). A catch site can switch on kind()
+// without string-matching the human message. Guaranteed 1:1 with the throw
+// sites in XmlScanner.cpp — no silent/uncovered malformed path (NO-GAP).
+enum class XmlScanError
+{
+    ExpectedName,               // '<' then end/illegal name start
+    UnterminatedEntity,         // '&' at EOF with no body
+    InvalidNumericReference,    // '&#'/'&#x' with no digits
+    UnterminatedNumericReference, // numeric ref missing ';'
+    CharacterReferenceOutOfRange, // code point > 0xFFFF (S080 UTF-8 supports BMP)
+    UnknownEntity,              // named entity not one of amp/lt/gt/quot/apos
+    UnterminatedAttributeValue, // attribute quote never closed
+    UnterminatedComment,        // '<!--' never '-->'
+    UnterminatedCData,          // '<![CDATA[' never ']]>'
+    UnterminatedStartTag,       // start tag never '>' nor '/>'
+    MalformedSelfClosing,       // '/' not followed by '>'
+    MalformedStartTag,          // illegal char where attr or '>' expected
+    AttributeMissingEquals,     // attr name not followed by '='
+    AttributeValueNotQuoted,    // after '=' value not "..." or '...'
+    MalformedEndTag,            // '</name' not followed by '>'
+    MismatchedEndTag,           // '</name>' doesn't match top of open stack
+    UnexpectedEndAfterLessThan, // '<' at EOF (no markup follows)
+    UnrecognizedMarkup,         // '<!' not '<!--' nor '<![CDATA['
+};
+
+// Thrown on any structural scan failure. Structurally categorized (kind()) with
+// the 1-based line:col where the malformed input was detected (line()/col(),
+// both >= 1). what() appends the position for human-readable diagnostics.
+// Base type is std::runtime_error, so a bare `catch (const std::runtime_error&)`
+// still works. S081 replaced S080's message-only exception with this taxonomy.
 class XmlScanException : public std::runtime_error
 {
 public:
-    explicit XmlScanException(const std::string& what) : std::runtime_error(what) {}
+    XmlScanException(XmlScanError kind, std::string what, std::size_t line, std::size_t col);
+
+    XmlScanError kind() const noexcept { return kind_; }
+    // 1-based position where the malformed input was detected (>= 1 always).
+    std::size_t line() const noexcept { return line_; }
+    std::size_t col() const noexcept { return col_; }
+
+private:
+    XmlScanError kind_;
+    std::size_t line_;
+    std::size_t col_;
 };
 
 // Hand-rolled XML scanner over a std::string_view. NOT pimpl'd: its state is
@@ -139,6 +179,11 @@ private:
     void appendDecodedEntity(std::string& target);
     // Attribute value up to the matching `quote` (entities decoded inline).
     std::string scanAttributeValue(char quote);
+
+    // Centralized structured-throw helper (S081). Captures the current
+    // line()/col() and throws XmlScanException with the given kind + message.
+    // [[noreturn]] so the compiler knows throw sites never fall through.
+    [[noreturn]] void fail(XmlScanError kind, const std::string& message) const;
 
     std::string_view input_;
     std::size_t pos_ = 0;

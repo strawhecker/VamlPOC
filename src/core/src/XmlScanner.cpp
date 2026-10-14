@@ -1,9 +1,9 @@
-// S080 (dep:S049) — hand-rolled XML scanner implementation.
-// See XmlScanner.h for the declared scope (elements, attributes, self-closing,
-// comments, CDATA, entities, nested tags) and the design rationale.
-//
-// Structural failures -> XmlScanException (message-only this step); the rich
-// structured taxonomy is S081's resolution point (NO-GAP, not a backfill).
+// S081 (dep:S080) — hand-rolled XML scanner implementation with STRUCTURED
+// errors. See XmlScanner.h for the declared scope (elements, attributes,
+// self-closing, comments, CDATA, entities, nested tags) and the design
+// rationale. Every structural failure throws a categorized XmlScanException
+// carrying the 1-based line:col where it was detected (guaranteed >= 1 on
+// every malformed path — the core promise of S081).
 #include "vaml/core/XmlScanner.h"
 
 #include <cctype>
@@ -32,6 +32,19 @@ bool isNameChar(char c)
 XmlScanner::XmlScanner(std::string_view input)
     : input_(input)
 {
+}
+
+XmlScanException::XmlScanException(XmlScanError kind, std::string what, std::size_t line, std::size_t col)
+    : std::runtime_error(what + " (line " + std::to_string(line) + ", column " + std::to_string(col) + ")")
+    , kind_(kind)
+    , line_(line)
+    , col_(col)
+{
+}
+
+[[noreturn]] void XmlScanner::fail(XmlScanError kind, const std::string& message) const
+{
+    throw XmlScanException(kind, message, line_, col_);
 }
 
 char XmlScanner::peek(std::size_t offset) const noexcept
@@ -89,7 +102,7 @@ std::string XmlScanner::scanName()
 {
     if (atEnd() || !isNameStart(peek()))
     {
-        throw XmlScanException("expected a name");
+        fail(XmlScanError::ExpectedName, "expected a name");
     }
     std::string name;
     while (!atEnd() && isNameChar(peek()))
@@ -107,7 +120,7 @@ void XmlScanner::appendDecodedEntity(std::string& target)
     advance(); // consume '&'
     if (atEnd())
     {
-        throw XmlScanException("unterminated entity reference");
+        fail(XmlScanError::UnterminatedEntity, "unterminated entity reference");
     }
 
     if (peek() == '#')
@@ -147,7 +160,7 @@ void XmlScanner::appendDecodedEntity(std::string& target)
         }
         if (digits == 0)
         {
-            throw XmlScanException("invalid numeric character reference");
+            fail(XmlScanError::InvalidNumericReference, "invalid numeric character reference");
         }
         if (!atEnd() && peek() == ';')
         {
@@ -155,7 +168,7 @@ void XmlScanner::appendDecodedEntity(std::string& target)
         }
         else
         {
-            throw XmlScanException("unterminated numeric character reference");
+            fail(XmlScanError::UnterminatedNumericReference, "unterminated numeric character reference");
         }
         // Emit as UTF-8. Only code points in the BMP are supported by S080
         // (superset handled by S082+); the ASCII/control-range is what VAML
@@ -177,7 +190,7 @@ void XmlScanner::appendDecodedEntity(std::string& target)
         }
         else
         {
-            throw XmlScanException("character reference out of range");
+            fail(XmlScanError::CharacterReferenceOutOfRange, "character reference out of range");
         }
         return;
     }
@@ -217,7 +230,7 @@ void XmlScanner::appendDecodedEntity(std::string& target)
             }
         }
     }
-    throw XmlScanException("unknown or malformed entity reference");
+    fail(XmlScanError::UnknownEntity, "unknown or malformed entity reference");
 }
 
 std::string XmlScanner::scanAttributeValue(char quote)
@@ -228,7 +241,7 @@ std::string XmlScanner::scanAttributeValue(char quote)
     {
         if (atEnd())
         {
-            throw XmlScanException("unterminated attribute value");
+            fail(XmlScanError::UnterminatedAttributeValue, "unterminated attribute value");
         }
         const char c = peek();
         if (c == quote)
@@ -253,7 +266,7 @@ void XmlScanner::scanComment(std::string& content)
     {
         if (atEnd())
         {
-            throw XmlScanException("unterminated comment");
+            fail(XmlScanError::UnterminatedComment, "unterminated comment");
         }
         if (startsWith("-->"))
         {
@@ -273,7 +286,7 @@ void XmlScanner::scanCData(std::string& content)
     {
         if (atEnd())
         {
-            throw XmlScanException("unterminated CDATA section");
+            fail(XmlScanError::UnterminatedCData, "unterminated CDATA section");
         }
         if (startsWith("]]>"))
         {
@@ -297,7 +310,7 @@ void XmlScanner::scanElementOpen(XmlToken& out)
         skipWhitespace();
         if (atEnd())
         {
-            throw XmlScanException("unterminated start tag");
+            fail(XmlScanError::UnterminatedStartTag, "unterminated start tag");
         }
         const char c = peek();
         if (c == '>')
@@ -310,7 +323,7 @@ void XmlScanner::scanElementOpen(XmlToken& out)
             advance();
             if (atEnd() || peek() != '>')
             {
-                throw XmlScanException("malformed self-closing tag");
+                fail(XmlScanError::MalformedSelfClosing, "malformed self-closing tag");
             }
             advance(); // consume '>'
             out.self_closing = true;
@@ -319,20 +332,20 @@ void XmlScanner::scanElementOpen(XmlToken& out)
         // Attribute: name="value" or name='value'.
         if (!isNameStart(c))
         {
-            throw XmlScanException("malformed start tag (expected attribute or '>')");
+            fail(XmlScanError::MalformedStartTag, "malformed start tag (expected attribute or '>')");
         }
         XmlAttribute attr;
         attr.name = scanName();
         skipWhitespace();
         if (atEnd() || peek() != '=')
         {
-            throw XmlScanException("attribute missing '='");
+            fail(XmlScanError::AttributeMissingEquals, "attribute missing '='");
         }
         advance(); // consume '='
         skipWhitespace();
         if (atEnd() || (peek() != '"' && peek() != '\''))
         {
-            throw XmlScanException("attribute value must be quoted");
+            fail(XmlScanError::AttributeValueNotQuoted, "attribute value must be quoted");
         }
         attr.value = scanAttributeValue(peek());
         out.attributes.push_back(std::move(attr));
@@ -352,13 +365,13 @@ void XmlScanner::scanElementClose(XmlToken& out)
     skipWhitespace();
     if (atEnd() || peek() != '>')
     {
-        throw XmlScanException("malformed end tag");
+        fail(XmlScanError::MalformedEndTag, "malformed end tag");
     }
     advance(); // consume '>'
 
     if (stack_.empty() || stack_.back() != out.name)
     {
-        throw XmlScanException("mismatched or stray end tag </" + out.name + ">");
+        fail(XmlScanError::MismatchedEndTag, "mismatched or stray end tag </" + out.name + ">");
     }
     stack_.pop_back();
 }
@@ -400,7 +413,7 @@ bool XmlScanner::scanMarkup(XmlToken& out)
 
     if (atEnd())
     {
-        throw XmlScanException("unexpected end of input after '<'");
+        fail(XmlScanError::UnexpectedEndAfterLessThan, "unexpected end of input after '<'");
     }
 
     if (peek() == '!')
@@ -428,7 +441,7 @@ bool XmlScanner::scanMarkup(XmlToken& out)
             scanCData(out.value);
             return true;
         }
-        throw XmlScanException("unrecognized '<!' markup");
+        fail(XmlScanError::UnrecognizedMarkup, "unrecognized '<!' markup");
     }
 
     if (peek() == '/')

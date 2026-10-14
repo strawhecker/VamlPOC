@@ -1,64 +1,66 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S080 (no commits; no NEW md files)
-- plan_repo_state : S080 complete — Sprint 2 FIRST FEATURE (XML scanner, dep:S049). **BOTH CI LANES GREEN**
-                    (verified from first principles): msvc-debug (VS 2026) build warning-clean + ctest 1/1
-                    PASS (100% tests passed); ubuntu-clang (Ubuntu VM, clang 21, shared folder
-                    /mnt/hgfs/VamlPOC) build + ctest 1/1 PASS (only pre-existing upstream <ciso646> doctest
-                    deprecation from third_party, not this TU). No commit+push performed (per command).
-                    **S080 delivered vaml::XmlScanner — a complete, non-MINIMAL-REAL, hand-rolled XML
-                    scanner covering all six declared constructs — elements (open/close names incl.
-                    dotted Grid.Row + prefixed names tokenized whole), attributes (double + single quote,
-                    entities decoded inline in values), self-closing (<a/> is a flag on ElementOpen, NO
-                    separate ElementClose), comments (raw content, multi-line, NEVER entity-decoded),
-                    CDATA (raw content, ]]&gt; termination, interior ]]] boundary), entities (5 predefined
-                    + decimal/hex numeric, decoded inline into Text AND AttributeValue — no separate
-                    EntityRef token by design), nested tags (depth stack, interleaved open/close/text,
-                    siblings; stray/mismatched end tag -> XmlScanException).** Every token carries 1-based
-                    line:col; next() returns false + emits EndOfInput at exhaustion. Structural failures
-                    (unterminated comment/CDATA/attr quote/entity, malformed start/end tag) throw
-                    message-only XmlScanException; S081 is the explicit structured-error-taxonomy step
-                    (NO-GAP hand-off, token line:col already available to consume). NO new product
-                    dependency — S096 "no manual XML dep" satisfied by design.
-- plan_digest     : S080 (dep:S049). NEW src/core/include/vaml/core/XmlScanner.h — XmlTokenType
-                    (ElementOpen/ElementClose/Text/Comment/CData/EndOfInput), XmlAttribute, XmlToken
-                    {type,name,value,self_closing,attributes,line,col}, XmlScanner (string_view ctor,
-                    next(XmlToken&)->bool), XmlScanException (message-only, std::runtime_error). NEW
-                    src/core/src/XmlScanner.cpp — hand-rolled iterative scanner (name rules = letters/
-                    digits/_ : . -, comment/CDATA terminator scanning, entity decoder incl. numeric UTF-8,
-                    attr parser, depth stack for end-tag matching). NEW test/unit/XmlScanner_test.cpp (25
-                    TEST_CASEs via Shouldly vocabulary; drain/typeName/describe/joinSeq helpers). MOD
-                    src/core/CMakeLists.txt (+XmlScanner.cpp), MOD test/unit/CMakeLists.txt
-                    (+XmlScanner_test.cpp). NEW build/verify_s080.cmd (verify_s046.cmd clone). session-
-                    context.md (this).
+- last_command    : implementit S081 (no commits; no NEW md files)
+- plan_repo_state : S081 complete — **BOTH CI LANES GREEN** (verified from first principles):
+                    msvc-debug (VS 2026) build warning-clean + ctest 1/1 PASS; ubuntu-clang (Ubuntu VM,
+                    clang 21, shared folder /mnt/hgfs/VamlPOC) build + ctest 1/1 PASS (only pre-existing
+                    upstream <ciso646> doctest deprecation from third_party, not this TU). No commit+push
+                    performed (per command). **S081 RESOLVED S080's documented message-only hand-off: the
+                    scanner now throws a STRUCTURED, categorized XmlScanException.** XmlScanException gained
+                    XmlScanError kind() (18-category taxonomy, each 1:1 with a throw site — NO-GAP, no silent
+                    malformed path), line()/col() (1-based position of detection, guaranteed >= 1 on every
+                    malformed path), and what() augmented with the position for human diagnostics. Private
+                    [[noreturn]] XmlScanner::fail(kind,message) centralizes capture so a throw site can't
+                    forget position. base std::runtime_error retained (S080 ShouldThrow<XmlScanException>
+                    assertions unchanged → no regression). 25 S080 TEST_CASEs still pass; 18 new S081
+                    per-category TEST_CASEs (kind + line/col>=1) + 2 exact line:col tests (multi-line
+                    unterminated comment line=2; mismatched </b> detection cursor col=8).
+- plan_digest     : S081 (dep:S080). MOD src/core/include/vaml/core/XmlScanner.h — added XmlScanError enum
+                    (18: ExpectedName, UnterminatedEntity, InvalidNumericReference, UnterminatedNumericReference,
+                    CharacterReferenceOutOfRange, UnknownEntity, UnterminatedAttributeValue, UnterminatedComment,
+                    UnterminatedCData, UnterminatedStartTag, MalformedSelfClosing, MalformedStartTag,
+                    AttributeMissingEquals, AttributeValueNotQuoted, MalformedEndTag, MismatchedEndTag,
+                    UnexpectedEndAfterLessThan, UnrecognizedMarkup), restructured XmlScanException (kind/line/col
+                    + position-augmented what()), declared private [[noreturn]] XmlScanner::fail(...). MOD
+                    src/core/src/XmlScanner.cpp — all 18 throw sites → fail(kind,...); added XmlScanException
+                    ctor + fail() impl. MOD test/unit/XmlScanner_test.cpp — READER/assertStructured helpers
+                    (+<optional>), 18 S081: per-category TEST_CASEs + 2 exact-line:col tests; existing S080
+                    ShouldThrow<XmlScanException> cases untouched. CMakeLists: no change (no new source/TU).
+                    NEW build/verify_s081.cmd (verify_s080.cmd clone). session-context.md (this).
 - files_touched   :
-    ADDED    src/core/include/vaml/core/XmlScanner.h
-    ADDED    src/core/src/XmlScanner.cpp
-    ADDED    test/unit/XmlScanner_test.cpp
-    MODIFIED src/core/CMakeLists.txt   (+src/XmlScanner.cpp)
-    MODIFIED test/unit/CMakeLists.txt  (+XmlScanner_test.cpp)
-    ADDED    build/verify_s080.cmd
-    MODIFIED session-context.md (this — S080 completion)
-- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s080.cmd —
+    MODIFIED src/core/include/vaml/core/XmlScanner.h      (XmlScanError enum, XmlScanException kind/line/col, fail decl)
+    MODIFIED src/core/src/XmlScanner.cpp                  (18 throw sites → fail, ctor + fail impl, header comment)
+    MODIFIED test/unit/XmlScanner_test.cpp                (S081 structured-error tests + helpers)
+    ADDED    build/verify_s081.cmd
+    MODIFIED session-context.md (this — S081 completion)
+- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s081.cmd —
                     configure+build warning-clean + ctest 1/1 PASS (100% tests passed, 0 failed). ubuntu-
                     clang: clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC)
-                    configure+build + ctest 1/1 PASS. Only Clang warnings = pre-existing upstream
-                    <ciso646> doctest deprecation from third_party (not this TU; already non-error).
-                    (windows-clang-debug is NOT a lane — not built/tested/flagged per standing rule.)
-- next_step       : S081. S081 = XML scanner structured error taxonomy (categories, guaranteed line:col on
-                    every malformed path) — the documented consumption point for S080's token line:col
-                    and message-only XmlScanException.
+                    configure+build + ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646>
+                    doctest deprecation from third_party (not this TU; non-error). (windows-clang-debug is
+                    NOT a lane — not built/tested/flagged per standing rule.)
+- next_step       : S082. S082 = XML scanner namespaces (clr-namespace/prefix mapping, full Unicode name
+                    handling deferred from S080). Structured-error + line:col plumbing already available to
+                    extend. XmlScanner is a full feature (NOT MINIMAL-REAL) — S082 extends it by normal
+                    feature progression.
 - notes           :
-    - S080 is NOT a MINIMAL-REAL marker: vaml::XmlScanner is delivered complete for its declared scope
-      (all six listed constructs real + tested, 25 TEST_CASEs). Subsequent steps (S081 structured errors,
-      S082 namespaces/clr-namespace prefix mapping, S083 x: directives, S084 attribute grammar) extend it
-      by normal feature progression — no sentinel, nothing left for silent backfill (NO-GAP intact).
-    - Test-authorship note: S080 tests confirm XML semantics precisely — self-closing <a/> is a single
-      ElementOpen with self_closing=true (not a separate ElementClose), whitespace between elements IS a
-      Text token (not skipped at top level), and Comment/CData content is returned raw (never
-      entity-decoded). Mismatched/stray end tag + unknown/unterminated entity throw XmlScanException
-      (asserted via ShouldThrow per S036_3).
+    - S081 RESOLVED S080's explicitly-scheduled hand-off (documented in S080 header/roadmap/progress): the
+      message-only XmlScanException is now the structured taxonomy. NO silent backfill — this is the real
+      feature's own step (NO-GAP + NO-LAZY-LLM honored).
+    - Taxonomy contract: XmlScanError has exactly 18 members, each mapping 1:1 to a distinct throw site in
+      XmlScanner.cpp (verified by grep: zero remaining `throw XmlScanException(` in the .cpp; all are
+      `fail(...)`). Adding a new malformed path REQUIRES adding a category (or reusing one) — the contract
+      that keeps the guarantee honest.
+    - Position semantics: line()/col() = the CURRENT scanner cursor at detection (for unterminated constructs
+      this is the EOF position; for mismatched </b> it's after consuming the element — col 8, not the tag
+      start). Token-START positions remain on XmlToken (unchanged). Documented in tests + header.
+    - Constructor signature change on XmlScanException is intentional and recorded: it is new public surface
+      (S080) with no external consumers yet; S081 is the declared step that formalized it.
+    - Fixed during implementit: (a) `&` followed by `<` is UnknownEntity, not UnterminatedEntity — fixed the
+      UNTERMINATED-entity test to use `&` at EOF; (b) mismatched-end exact position is the detection cursor
+      (col 8) not the token start (col 4); (c) clang -Werror unused-parameter on assertStructured's `src`
+      arg — removed the param + updated all 18 call sites.
     - NO NEW md files (directive honored). No commits made (per command).
-    - COMMITIT STATUS: commit+push remains outstanding (S032..S044 incl. S036_1..S036_5, S045, S046..S049,
-      and now S080) awaiting your authorization. After commit+push: repo is the committed good state;
-      next step S081 (Sprint 2).
+    - COMMITIT STATUS: commit+push of S032..S044 (incl. S036_1..S036_5), S045, S046..S049, and now S080+S081
+      is outstanding, awaiting your authorization. After commit+push: repo is the committed good state;
+      next step S082 (Sprint 2). Laptop-added files uncommitted as well — one commit covers all.

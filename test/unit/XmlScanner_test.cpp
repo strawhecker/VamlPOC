@@ -22,10 +22,12 @@
 
 #include "vaml/core/XmlScanner.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
 using vaml::XmlAttribute;
+using vaml::XmlScanError;
 using vaml::XmlScanException;
 using vaml::XmlScanner;
 using vaml::XmlToken;
@@ -129,6 +131,38 @@ std::string attrValue(const TokenRec& r, const std::string& name)
         }
     }
     return "<missing:" + name + ">";
+}
+
+// S081: drains a scanner and returns the XmlScanException it throws, or
+// nullopt if it somehow completed. The caller asserts on the returned object.
+std::optional<XmlScanException> scanErrorOf(const std::string& src)
+{
+    try
+    {
+        XmlScanner s(src);
+        XmlToken t;
+        while (s.next(t))
+        {
+        }
+    }
+    catch (const XmlScanException& e)
+    {
+        return e;
+    }
+    return std::nullopt;
+}
+
+// Asserts kind() equals `expected` and that line()/col() are both >= 1.
+void assertStructured(const std::optional<XmlScanException>& err, XmlScanError expected)
+{
+    SHOULD(ShouldlyIntegral(err.has_value()).ShouldBe(true));
+    if (!err.has_value())
+    {
+        return;
+    }
+    SHOULD(ShouldlyIntegral(static_cast<int>(err->kind())).ShouldBe(static_cast<int>(expected)));
+    SHOULD(ShouldlyIntegral(err->line()).ShouldBeGreaterThan(0));
+    SHOULD(ShouldlyIntegral(err->col()).ShouldBeGreaterThan(0));
 }
 
 } // namespace
@@ -404,3 +438,136 @@ TEST_CASE("S080: unterminated numeric character reference throws XmlScanExceptio
         }
     }));
 }
+
+// ---------------------------------------------------------------------------
+// S081 — structured errors: each malformed path has a distinct XmlScanError
+// kind and a guaranteed line()/col() >= 1.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("S081: expected-name error is structured")
+{
+    assertStructured(scanErrorOf("<a></1>"), XmlScanError::ExpectedName);
+}
+
+TEST_CASE("S081: unterminated-entity error is structured")
+{
+    // '&' at EOF with no body -> unterminated entity (UnknownEntity is a
+    // distinct category for a malformed named entity, tested separately).
+    assertStructured(scanErrorOf("<t>&"), XmlScanError::UnterminatedEntity);
+}
+
+TEST_CASE("S081: invalid-numeric-reference error is structured")
+{
+    // '&#;' has no digits.
+    assertStructured(scanErrorOf("<t>&#;</t>"), XmlScanError::InvalidNumericReference);
+}
+
+TEST_CASE("S081: unterminated-numeric-reference error is structured")
+{
+    assertStructured(scanErrorOf("<t>&#65</t>"), XmlScanError::UnterminatedNumericReference);
+}
+
+TEST_CASE("S081: character-reference-out-of-range error is structured")
+{
+    // 0x110000 is > 0xFFFF (beyond the BMP S080 encodes).
+    assertStructured(scanErrorOf("<t>&#1114112;</t>"), XmlScanError::CharacterReferenceOutOfRange);
+}
+
+TEST_CASE("S081: unknown-entity error is structured")
+{
+    assertStructured(scanErrorOf("<t>&bogus;</t>"), XmlScanError::UnknownEntity);
+}
+
+TEST_CASE("S081: unterminated-attribute-value error is structured")
+{
+    assertStructured(scanErrorOf("<a b=\"unterminated"), XmlScanError::UnterminatedAttributeValue);
+}
+
+TEST_CASE("S081: unterminated-comment error is structured")
+{
+    assertStructured(scanErrorOf("<!-- never closed"), XmlScanError::UnterminatedComment);
+}
+
+TEST_CASE("S081: unterminated-CDATA error is structured")
+{
+    assertStructured(scanErrorOf("<![CDATA[ never closed"), XmlScanError::UnterminatedCData);
+}
+
+TEST_CASE("S081: unterminated-start-tag error is structured")
+{
+    assertStructured(scanErrorOf("<a"), XmlScanError::UnterminatedStartTag);
+}
+
+TEST_CASE("S081: malformed-self-closing error is structured")
+{
+    assertStructured(scanErrorOf("<a/"), XmlScanError::MalformedSelfClosing);
+}
+
+TEST_CASE("S081: malformed-start-tag error is structured")
+{
+    // '1' where an attribute-or-'>' was expected.
+    assertStructured(scanErrorOf("<a 1=\"x\">"), XmlScanError::MalformedStartTag);
+}
+
+TEST_CASE("S081: attribute-missing-equals error is structured")
+{
+    // '<a b x>' — 'b' is not followed by '=' (the next name 'x' is seen).
+    assertStructured(scanErrorOf("<a b x>"), XmlScanError::AttributeMissingEquals);
+}
+
+TEST_CASE("S081: attribute-value-not-quoted error is structured")
+{
+    assertStructured(scanErrorOf("<a b=x>"), XmlScanError::AttributeValueNotQuoted);
+}
+
+TEST_CASE("S081: malformed-end-tag error is structured")
+{
+    assertStructured(scanErrorOf("<a></a"), XmlScanError::MalformedEndTag);
+}
+
+TEST_CASE("S081: mismatched-end-tag error is structured")
+{
+    assertStructured(scanErrorOf("<a></b>"), XmlScanError::MismatchedEndTag);
+}
+
+TEST_CASE("S081: unexpected-end-after-less-than error is structured")
+{
+    assertStructured(scanErrorOf("<"), XmlScanError::UnexpectedEndAfterLessThan);
+}
+
+TEST_CASE("S081: unrecognized-markup error is structured")
+{
+    assertStructured(scanErrorOf("<!>"), XmlScanError::UnrecognizedMarkup);
+}
+
+TEST_CASE("S081: unterminated comment reports exact line:col on a multi-line source")
+{
+    // Source: "<a>\n<!-- um"  — the comment starts line 2; unterminated at EOF
+    // (line 2). Position of detection is the EOF position.
+    const auto err = scanErrorOf("<a>\n<!-- um");
+    SHOULD(ShouldlyIntegral(err.has_value()).ShouldBe(true));
+    if (err.has_value())
+    {
+        SHOULD(ShouldlyIntegral(static_cast<int>(err->kind()))
+                   .ShouldBe(static_cast<int>(XmlScanError::UnterminatedComment)));
+        // EOF is at line 2, col 8 (after "<!-- um").
+        SHOULD(ShouldlyIntegral(err->line()).ShouldBe(std::size_t{2}));
+    }
+}
+
+TEST_CASE("S081: mismatched end tag reports exact line:col")
+{
+    // "<a></b>" — '</b>' mismatch is detected AFTER the scanner consumes
+    // "</b>" (the detection cursor = current scanner position), i.e. line 1,
+    // col 8. Detection position is the failure cursor (not token start).
+    const auto err = scanErrorOf("<a></b>");
+    SHOULD(ShouldlyIntegral(err.has_value()).ShouldBe(true));
+    if (err.has_value())
+    {
+        SHOULD(ShouldlyIntegral(static_cast<int>(err->kind()))
+                   .ShouldBe(static_cast<int>(XmlScanError::MismatchedEndTag)));
+        SHOULD(ShouldlyIntegral(err->line()).ShouldBe(std::size_t{1}));
+        SHOULD(ShouldlyIntegral(err->col()).ShouldBe(std::size_t{8}));
+    }
+}
+
