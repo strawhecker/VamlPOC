@@ -59,6 +59,92 @@ XmlDirectiveType classifyXDirective(const std::string& local)
     return XmlDirectiveType::None;
 }
 
+// S084: is the digit-run starting at `i` (view of `v`) a valid exponent
+// `[eE][-+]?digits`? Called only when v[i] is 'e' or 'E'. Requires at least one
+// digit after the optional sign; otherwise the run is NOT an exponent.
+bool scanExponent(std::string_view v, std::size_t& i)
+{
+    if (i >= v.size() || (v[i] != 'e' && v[i] != 'E'))
+    {
+        return false;
+    }
+    ++i; // consume 'e'/'E'
+    if (i < v.size() && (v[i] == '+' || v[i] == '-'))
+    {
+        ++i; // consume optional sign
+    }
+    const std::size_t digitsStart = i;
+    while (i < v.size() && v[i] >= '0' && v[i] <= '9')
+    {
+        ++i;
+    }
+    return i > digitsStart; // an exponent MUST have at least one digit
+}
+
+// S084: scalar numeric detection — the grammar [-+]?(digits | digits.digits |
+// .digits)([eE][-+]?digits)?. This is DETECTION ONLY (S089 converts). The
+// comma-list thickness form and all type conversion are S089's converter-domain
+// concern — not numerically detected here (recorded NO-GAP, not silent).
+bool isScalarNumeric(std::string_view v)
+{
+    if (v.empty())
+    {
+        return false;
+    }
+    std::size_t i = 0;
+    if (v[i] == '+' || v[i] == '-')
+    {
+        ++i; // consume optional sign
+        if (i >= v.size())
+        {
+            return false; // a bare sign is not a number
+        }
+    }
+
+    std::size_t digitsSeen = 0;
+    while (i < v.size() && v[i] >= '0' && v[i] <= '9')
+    {
+        ++i;
+        ++digitsSeen;
+    }
+
+    // Optional fractional part: '.' then at least one digit (forms .digits or
+    // digits.digits). A trailing '.' with no following digit is NOT numeric
+    // ("1.", ".") — we require at least one digit after the '.'.
+    if (i < v.size() && v[i] == '.')
+    {
+        ++i; // consume '.'
+        const std::size_t fracStart = i;
+        while (i < v.size() && v[i] >= '0' && v[i] <= '9')
+        {
+            ++i;
+            ++digitsSeen;
+        }
+        if (i == fracStart)
+        {
+            return false; // '.' with no digit follows, e.g. "1." or "."
+        }
+    }
+
+    // At least one digit must have appeared in the integer or fraction part
+    // (".5", "5", "5.5" all qualify; "e3", "+x", "." do not).
+    if (digitsSeen == 0)
+    {
+        return false;
+    }
+
+    // Optional exponent: [eE][-+]?digits, requires at least one digit.
+    if (i < v.size() && (v[i] == 'e' || v[i] == 'E'))
+    {
+        if (!scanExponent(v, i))
+        {
+            return false;
+        }
+    }
+
+    return i == v.size(); // the WHOLE value must be consumed
+}
+
 } // namespace
 
 XmlScanner::XmlScanner(std::string_view input)
@@ -147,6 +233,47 @@ ClrNamespaceReference parse_clr_namespace(std::string_view value, bool* isClrNam
         }
     }
     return result;
+}
+
+// S084: classify an attribute value string. See XmlScanner.h. A MarkupExtension
+// requires a LEADING '{' AND a BALANCED closing '}' at the very end (nesting
+// honored, so `{Binding X}` and `{x:Null}` are extensions while the unbalanced
+// `"{abc"` is not). Kept a free function so the S085 parser and any consumer
+// can reuse the same classification without re-scanning.
+AttributeValueKind classify_attribute_value(std::string_view value, bool* isNumeric)
+{
+    const bool isExtension =
+        value.size() >= 2 && value.front() == '{' && value.back() == '}'
+        // Balanced-brace verification ONLY when the first char is '{' and the
+        // last is '}' — a plain literal ("{abc") never enters the nesting walk.
+        && [](std::string_view v) {
+               int depth = 0;
+               for (const char c : v)
+               {
+                   if (c == '{')
+                   {
+                       ++depth;
+                   }
+                   else if (c == '}')
+                   {
+                       --depth;
+                       if (depth < 0)
+                       {
+                           return false; // unbalanced closing before the end
+                       }
+                   }
+               }
+               return depth == 0; // fully balanced and net-zero
+           }(value);
+
+    if (isNumeric)
+    {
+        // Numeric applies ONLY to a QuotedLiteral scalar; a markup extension is
+        // never numeric at this layer (its contents are resolved by S252/S253).
+        *isNumeric = !isExtension && isScalarNumeric(value);
+    }
+    return isExtension ? AttributeValueKind::MarkupExtension
+                       : AttributeValueKind::QuotedLiteral;
 }
 
 XmlScanException::XmlScanException(XmlScanError kind, std::string what, std::size_t line, std::size_t col)
@@ -517,6 +644,11 @@ void XmlScanner::scanElementOpen(XmlToken& out)
         attr.directive = (attr.namespace_uri == kXamlLanguageNamespace)
                              ? classifyXDirective(attr.local_name)
                              : XmlDirectiveType::None;
+        // S084: classify the VALUE grammar (quoted literal vs markup extension)
+        // + the scalar-numeric detection flag. Uniform across ordinary props AND
+        // S083 x: directive values ({x:Null} -> MarkupExtension, x:Name="foo" ->
+        // quoted literal).
+        attr.value_kind = classify_attribute_value(attr.value, &attr.numeric);
     }
 
     // Split + resolve the element's own name against the applied scope.

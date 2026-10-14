@@ -62,6 +62,27 @@
 // structured "unknown namespace"/type-resolution authority is the S085/S087
 // parser (recorded NO-GAP hand-off, not a silent omission).
 //
+// S084 (dep:S083) — ATTRIBUTE VALUE GRAMMAR. The scanner classifies EVERY
+// attribute value (ordinary props AND S083 x: directive values) so the S085
+// parser can consume isExtension/numeric directly. Three recognitions:
+//   * QuotedLiteral — the default: a plain decoded quoted string
+//     (`Width="100"`, `Text="Hello"`).
+//   * MarkupExtension — the value begins with '{' and ends with a BALANCED
+//     closing '}' (nesting honored): `{Binding X}` -> MarkupExtension;
+//     `"{abc"` (unbalanced) -> NOT an extension -> QuotedLiteral. Tagged so
+//     S085 sets isExtension=true and S092/S252/S253 resolve it.
+//   * Numeric — a QuotedLiteral whose scalar grammar parses as a number:
+//     [-+]? + (digits | digits.digits | .digits) with optional [eE][-+]?digits.
+//     `"100"`, `"-45"`, `"3.14"`, `"+2.5E-3"` -> numeric=1; `"Hello"`,
+//     `"auto"` -> numeric=0.
+// The grammar is uniform across ALL attribute values — ordinary props AND S083
+// x: directive values (`x:Name="foo"` -> quoted literal; `{x:Null}` ->
+// MarkupExtension). Boundary (recorded NO-GAP, not silent): scalar numeric
+// DETECTION only — the comma-list thickness form ("10,20" -> Thickness) and
+// full type conversion are S089's converter-domain step (S084 detects, S089
+// converts). The WPF {} -escape-for-a-literal-{ is a parser-level (S085)
+// consideration, not scanner scope here.
+//
 // S083 (dep:S082) — X-LANGUAGE DIRECTIVES. The scanner recognizes the four XAML
 // x-language directives — Name, Class, Key, Null — as a DISTINCT, structured
 // token category, layering on S082's namespace model (prefix/local split +
@@ -135,6 +156,16 @@ enum class XmlTokenType
     EndOfInput,
 };
 
+// S084: the kind of an attribute value, produced by classify_attribute_value
+// and stored on each XmlAttribute. QuotedLiteral is the default; MarkupExtension
+// means the value is a `{...}`-tagged markup extension (e.g. {Binding X},
+// {x:Null}) — the S085 parser sets its isExtension from this.
+enum class AttributeValueKind
+{
+    QuotedLiteral, // a plain decoded quoted string (default)
+    MarkupExtension, // begins with '{' and ends with a BALANCED '}'
+};
+
 // One decoded attribute on an ElementOpen: (name, decoded value) plus the
 // S082 namespace split (prefix / local_name / resolved namespace_uri). `name`
 // stays the FULL raw text; prefix/local are the split on the first ':'.
@@ -148,6 +179,12 @@ struct XmlAttribute
     std::string local_name;  // full name sans the "prefix:" part — S082
     std::string namespace_uri; // resolved from the (non-default) prefix — S082
     XmlDirectiveType directive = XmlDirectiveType::None; // S083
+    // S084: value classification. value_kind is QuotedLiteral by default;
+    // MarkupExtension when the decoded value is `{...}`-tagged (balanced).
+    // `numeric` is a scalar-number DETECTION flag on a QuotedLiteral (true when
+    // the value parses as [-+]?(digits|digits.digits|.digits)[eE][-+]?digits).
+    AttributeValueKind value_kind = AttributeValueKind::QuotedLiteral;
+    bool numeric = false; // S084: scalar numeric detected (S089 converts)
 };
 
 // A WPF-style "clr-namespace:Ns.Name[;assembly=Asm]" mapping, TOKENIZED into
@@ -225,6 +262,22 @@ VAML_CORE_EXPORT ClrNamespaceReference parse_clr_namespace(std::string_view valu
                                                            bool* isClrNamespace = nullptr,
                                                            std::size_t line = 1,
                                                            std::size_t col = 1);
+
+// S084: classifies an attribute VALUE string into AttributeValueKind and, for
+// a QuotedLiteral, sets *isNumeric (optional) when the literal's scalar
+// grammar parses as a number. The grammar is uniform across ALL attribute
+// values (ordinary props AND S083 x: directive values).
+//   * MarkupExtension: value starts with '{' and ends with a BALANCED '}'
+//     (nesting honored) — `{Binding X}` -> MarkupExtension; `"{abc"` (unbalanced)
+//     -> QuotedLiteral, numeric=false.
+//   * QuotedLiteral (default): everything else. numeric=true iff the value
+//     matches [-+]? + (digits | digits.digits | .digits) with optional
+//     [eE][-+]?digits. This is DETECTION only — converting the string to an
+//     actual numeric Value is S089's converter step (recorded NO-GAP, not
+//     silent). The comma-list thickness form ("10,20" -> Thickness) is likewise
+//     S089's converter-domain concern, not classified as numeric here.
+VAML_CORE_EXPORT AttributeValueKind classify_attribute_value(std::string_view value,
+                                                             bool* isNumeric = nullptr);
 
 // Thrown on any structural scan failure. Structurally categorized (kind()) with
 // the 1-based line:col where the malformed input was detected (line()/col(),

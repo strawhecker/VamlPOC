@@ -1,77 +1,75 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S083 (no commits; no NEW md files)
-- plan_repo_state : S083 complete — **BOTH CI LANES GREEN** (verified from first principles):
-                    msvc-debug (VS 2026) via build/verify_s083.cmd configure+build warning-clean +
-                    ctest 1/1 PASS (238 cases incl. 12 new S083 cases, 45 new assertions); ubuntu-clang
-                    (Ubuntu VM, clang 21, shared folder /mnt/hgfs/VamlPOC) configure+build + ctest 1/1
-                    PASS (only pre-existing upstream <ciso646> doctest deprecation from third_party, not
-                    this TU — S083 TUs add no warning). No commit+push (per command). S083 made the XML
-                    scanner classify the four XAML x-language directives (Name/Class/Key/Null) as a
-                    distinct, structured token category, layering on S082's namespace model. NEW public
-                    surface in XmlScanner.h: inline constexpr std::string_view kXamlLanguageNamespace =
-                    "http://schemas.microsoft.com/winfx/2006/xaml"; enum class XmlDirectiveType { None,
-                    Name, Class, Key, Null }; XmlAttribute::directive (default None). Classification is
-                    keyed on the RESOLVED namespace_uri == kXamlLanguageNamespace, NOT the literal "x"
-                    prefix: any prefix mapped to the canonical xaml URI is the x-language (foo:Name IS a
-                    Name directive), while S082's fake xmlns:x="urn:vm:ns:x" attrs stay PLAIN attributes
-                    (backward compat — all S080/S081/S082 tests unchanged & green). Matching case-sensitive;
-                    unknown local in the xaml ns -> None. Tagged ON the attribute (value stays in `value`),
-                    keeping the single ordered attributes list intact. XmlScanner.cpp: static/file-local
-                    classifyXDirective helper + wired into the S082 attribute-resolution loop
-                    (attr.directive = uri==xaml ? classify(local) : None); reset via per-token attribute
-                    rebuild (XmlAttribute default None). XmlScanError taxonomy UNCHANGED (19 categories).
-                    12 new S083 TEST_CASEs in a dedicated test/unit/XmlDirective_test.cpp (S083-unique via
-                    the real kXamlLanguageNamespace), 45 assertions. TOKENIZATION ONLY — application
-                    recorded NO-GAP (not silent): x:Name name-registry -> S092; x:Class root-owner binding
-                    -> S092/S089; x:Key resource-key -> S361; x:Null null-set ({x:Null} -> S084) and
-                    element-in-language-ns -> parsed by S085.
-- plan_digest     : S083 (dep:S082). MOD src/core/include/vaml/core/XmlScanner.h — S083 header rationale
-                    block + inline constexpr std::string_view kXamlLanguageNamespace (canonical XAML URI)
-                    + enum class XmlDirectiveType {None,Name,Class,Key,Null} + XmlAttribute::directive
-                    (default None). MOD src/core/src/XmlScanner.cpp — added anonymous-namespace
-                    static classifyXDirective(local) helper (Name/Class/Key/Null case-sensitive) + wired
-                    into the S082 attribute-resolution loop (attr.directive = namespace_uri==xaml ?
-                    classify(local) : None); XmlAttribute reconstructed per token so directive resets
-                    (None) inherently. MOD test/unit/CMakeLists.txt (add XmlDirective_test.cpp). ADDED
-                    test/unit/XmlDirective_test.cpp (12 cases) + build/verify_s083.cmd (verify_s082 clone).
-                    MOD docs/roadmap.md (S083 [DONE]). session-context.md (this).
+- last_command    : implementit S084 (no commits; no NEW md files)
+- plan_repo_state : S084 complete — **BOTH CI LANES GREEN** (verified from first principles):
+                    msvc-debug (VS 2026) via build/verify_s084.cmd configure+build warning-clean +
+                    ctest 1/1 PASS (+14 new S084 cases); ubuntu-clang (Ubuntu VM, clang 21, shared
+                    folder /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS. No commit+push (per
+                    command). S084 made the XML scanner classify EVERY attribute value (ordinary props
+                    AND S083 x: directive values) so the S085 ParsedAttribute {key,value,isExtension}
+                    can consume isExtension/numeric directly. NEW public surface in XmlScanner.h:
+                    enum class AttributeValueKind { QuotedLiteral, MarkupExtension }; XmlAttribute
+                    gains value_kind (default QuotedLiteral) + numeric (default false); free
+                    VAML_CORE_EXPORT classify_attribute_value(std::string_view value,
+                    bool* isNumeric = nullptr). Classifier wired into the S082/S083 attribute-
+                    resolution loop (after directive) so every scanned attribute carries value_kind +
+                    numeric, per-token (no leakage). Three headline recognitions: (1) QuotedLiteral —
+                    default plain decoded quoted string (Width="100", Text="Hello"); (2) MarkupExtension
+                    — value begins with '{' AND ends with a BALANCED closing '}' with nesting honored
+                    ({Binding X}, {x:Null}, {StaticResource {x:Type Button}} -> MarkupExtension;
+                    "{abc" unbalanced -> QuotedLiteral); (3) numeric — a QuotedLiteral whose scalar
+                    grammar parses as [-+]?(digits|digits.digits|.digits)[eE][-+]?digits ("100","-45",
+                    "3.14","+2.5E-3",".5","1e6" -> numeric; "Hello","auto","1.","10,20","-" -> not).
+                    XmlScanError taxonomy UNCHANGED (still 19 categories) — pure classification, no
+                    new malformed path.
+- plan_digest     : S084 (dep:S083). MOD src/core/include/vaml/core/XmlScanner.h — S084 header rationale
+                    block + enum class AttributeValueKind {QuotedLiteral,MarkupExtension} + XmlAttribute
+                    gains value_kind (default QuotedLiteral) + numeric (default false) + free
+                    VAML_CORE_EXPORT classify_attribute_value(std::string_view, bool* isNumeric=nullptr)
+                    declaration. MOD src/core/src/XmlScanner.cpp — anonymous-namespace isScalarNumeric +
+                    scanExponent + classify_attribute_value impl; wired into the S082/S083 attribute
+                    loop: attr.value_kind = classify_attribute_value(attr.value, &attr.numeric). MOD
+                    test/unit/CMakeLists.txt (add AttributeValueGrammar_test.cpp). ADDED
+                    test/unit/AttributeValueGrammar_test.cpp (14 cases) + build/verify_s084.cmd
+                    (verify_s083 clone). MOD docs/roadmap.md (S084 [DONE]). session-context.md (this).
 - files_touched   :
-    MODIFIED src/core/include/vaml/core/XmlScanner.h      (kXamlLanguageNamespace, XmlDirectiveType, XmlAttribute::directive, S083 doc block)
-    MODIFIED src/core/src/XmlScanner.cpp                  (classifyXDirective helper + directive wiring in attribute-resolution loop)
-    MODIFIED test/unit/CMakeLists.txt                     (add XmlDirective_test.cpp)
-    ADDED    test/unit/XmlDirective_test.cpp              (12 S083 directive cases)
-    ADDED    build/verify_s083.cmd
-    MODIFIED docs/roadmap.md                              (S083 [DONE])
-    MODIFIED session-context.md (this — S083 completion)
-- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s083.cmd —
-                    configure+build warning-clean + ctest 1/1 PASS (250 test cases, ~1179 assertions all
-                    green; 12 new S083 cases + 45 assertions). ubuntu-clang: clang-debug (Ubuntu VM
-                    192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS. Only
-                    Clang warnings = pre-existing upstream <ciso646> doctest deprecation from third_party
-                    (not this TU; non-error). (windows-clang-debug is NOT a lane — not built/tested/flagged
-                    per standing rule.)
-- next_step       : S084. S084 = attribute value grammar — quoted literal, markup-extension {Binding...}
-                    tagged, numeric detection — layers on S083 (which already exposed the directive
-                    classification + kXamlLanguageNamespace so {x:Null} and language-ns handling have a
-                    URI-keyed base). Scanner + ns + directive plumbing ready.
+    MODIFIED src/core/include/vaml/core/XmlScanner.h      (S084 rationale, AttributeValueKind, XmlAttribute value_kind+numeric, classify_attribute_value)
+    MODIFIED src/core/src/XmlScanner.cpp                  (scanExponent + isScalarNumeric + classify_attribute_value impl + wiring in attribute-resolution loop)
+    MODIFIED test/unit/CMakeLists.txt                     (add AttributeValueGrammar_test.cpp)
+    ADDED    test/unit/AttributeValueGrammar_test.cpp     (14 S084 value-grammar cases)
+    ADDED    build/verify_s084.cmd
+    MODIFIED docs/roadmap.md                              (S084 [DONE])
+    MODIFIED session-context.md (this — S084 completion)
+- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s084.cmd —
+                    configure+build warning-clean + ctest 1/1 PASS (all existing S080–S083 tests +
+                    14 new S084 cases green). ubuntu-clang: clang-debug (Ubuntu VM 192.168.198.129,
+                    clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS. Only Clang warnings =
+                    pre-existing upstream <ciso646> doctest deprecation from third_party (not this TU;
+                    non-error). (windows-clang-debug is NOT a lane — not built/tested/flagged per
+                    standing rule.)
+- next_step       : S085. S085 = ParsedElement {tagName, ns, attributes, children} + ParsedAttribute
+                    {key, value, isExtension} — consumes S084's value_kind/numeric classification
+                    directly (isExtension from MarkupExtension, numeric signal available). Scanner +
+                    ns + directive + value-grammar plumbing ready.
 - notes           :
-    - S083 is pure feature progression on XmlScanner (a FULL feature, no MINIMAL REAL introduced/resolved).
-      The XmlScanError taxonomy is UNCHANGED (still 19 categories) — S083 adds no malformed path, so the
-      S081 1:1 kind<->throw-site contract is untouched. The directive is classification-only.
-    - KEY DESIGN (user-confirmed at finalizeit): classification is keyed on the resolved namespace URI
-      (kXamlLanguageNamespace), not the literal "x" prefix. This is XAML-correct (the URI, not the letter,
-      is authoritative) and PRESERVES S082 backward compat by construction — S082's fake
-      xmlns:x="urn:vm:ns:x" attrs resolve to a non-language URI and stay None, so every S080/S081/S082
-      test remains unchanged & green.
-    - NO-GAP recorded (application deferred, each with a named resolution token — not silent backfill):
-      x:Name name-registry -> S092; x:Class root-owner binding -> S092/S089; x:Key resource-key -> S361;
-      x:Null null-set -> {x:Null} markup-extension tagged S084; a bare element already in the language
-      namespace surfaces via S082's namespace_uri and is parsed/interpreted by S085.
-    - Added the directive to XmlAttribute only (attributes carry values; an element-level directive carve
-      is intentionally NOT made — element-in-language-ns is S085's parse concern, recorded).
+    - S084 is pure feature progression on XmlScanner (a FULL feature, no MINIMAL REAL introduced/
+      resolved).
+    - KEY DESIGN (this step): the classifier is a FREE function (classify_attribute_value) so the S085
+      parser and any consumer can reuse the same classification without re-scanning. MarkupExtension
+      requires a LEADING '{' AND a BALANCED closing '}' (nesting honored) — the balanced-brace walk
+      only runs when front=='{' && back=='}', so a plain literal never enters it. Numeric applies only
+      to a QuotedLiteral (an extension's contents resolve later via S252/S253, never numeric here).
+      isScalarNumeric enforces WHOLE-string consumption (rejects "1.", ".", bare sign, "+e3").
+    - Boundary recorded NO-GAP (not silent): scalar numeric DETECTION only — the comma-list thickness
+      form ("10,20" -> Thickness) and full type conversion are S089's converter-domain step (S084
+      detects, S089 converts). The WPF {}-escape-for-a-literal-{ is a parser-level (S085) concern, not
+      scanner scope. x:Null null-set: the {x:Null} value is tagged MarkupExtension here, resolving
+      S083's recorded NO-GAP hand-off for x:Null.
+    - Value grammar is uniform across ALL attribute values (ordinary props AND S083 x: directive
+      values), per the plan's design intent — x:Null="{x:Null}" -> MarkupExtension; x:Name="foo" ->
+      QuotedLiteral non-numeric.
     - NO NEW md files (directive honored). No commits made (per command).
-    - COMMITIT STATUS: commit+push of S032..S044 (incl. S036_1..S036_5), S045, S046..S049, and S080, S081,
-      S082, and now S083 is outstanding, awaiting your authorization. After commit+push: repo is the
-      committed good state; next step S084 (Sprint 2). Laptop-added files uncommitted as well — one commit
-      covers all.
+    - COMMITIT STATUS: commit+push of S032..S044 (incl. S036_1..S036_5), S045, S046..S049, and S080,
+      S081, S082, S083, and now S084 is outstanding, awaiting your authorization. After commit+push:
+      repo is the committed good state; next step S085 (Sprint 2). Laptop-added files uncommitted as
+      well — one commit covers all.

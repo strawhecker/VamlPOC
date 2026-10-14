@@ -33,6 +33,7 @@ add_executable(vaml-core-tests
     XmlScanner_test.cpp
     XmlNamespace_test.cpp
     XmlDirective_test.cpp
+    AttributeValueGrammar_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
