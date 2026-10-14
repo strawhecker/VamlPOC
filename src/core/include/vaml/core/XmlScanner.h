@@ -62,6 +62,33 @@
 // structured "unknown namespace"/type-resolution authority is the S085/S087
 // parser (recorded NO-GAP hand-off, not a silent omission).
 //
+// S083 (dep:S082) — X-LANGUAGE DIRECTIVES. The scanner recognizes the four XAML
+// x-language directives — Name, Class, Key, Null — as a DISTINCT, structured
+// token category, layering on S082's namespace model (prefix/local split +
+// resolved namespace_uri).
+//   * Classification is keyed on the resolved NAMESPACE URI, not the literal
+//     "x" prefix. The x-language namespace is defined by its canonical URI
+//     (kXamlLanguageNamespace below); ANY prefix mapped to that URI (via
+//     xmlns:p="<xaml-uri>") is the x-language — so `x:Name` AND `foo:Name`
+//     (when foo maps to the xaml URI) are both Name directives. Conversely, a
+//     prefix bound to a NON-xaml URI (e.g. S082's xmlns:x="urn:vm:ns:x") is
+//     NOT a directive — the URI, not the letter, is authoritative.
+//   * Case-sensitive local matching: Name / Class / Key / Null (XAML is
+//     case-sensitive); any OTHER local in the xaml namespace maps to
+//     XmlDirectiveType::None.
+//   * A directive is tagged ON the XmlAttribute as `directive`, keeping the
+//     single ordered `attributes` list intact (value stays in `value`); the
+//     S085 parser checks `directive != None`. Deliberate over a separate
+//     directives vector (which would carry values and require re-merging with
+//     ordinary attributes, losing ordering — NO-LAZY-LLM: classify-in-place is
+//     the minimal faithful option).
+//   * TOKENIZATION ONLY — semantic application is later steps (recorded
+//     NO-GAP, not silent): x:Name name-registry -> S092; x:Class root-owner
+//     binding -> S092/S089; x:Key resource-key -> S361; x:Null null-set (as
+//     markup-extension {x:Null} -> S084 tagging). Element-level directives are
+//     NOT special-cased here (an element already in the language ns surfaces
+//     via S082's namespace_uri and is parsed by S085 — recorded).
+//
 // NOTE on the terminal token name: "EndOfInput" (not "EOF") so the enum avoids
 // the <cstdio> EOF macro — a real trap, not cosmetic.
 
@@ -75,6 +102,26 @@
 #include <vector>
 
 namespace vaml {
+
+// S083: the canonical XAML x-language namespace URI. Any attribute whose
+// RESOLVED namespace_uri equals this is examined for a directive (Name/Class/
+// Key/Null). Exposed as a named constant so scan/parse/resource code speaks
+// the URI, not the letter "x" (which, per S082, is just one possible binding).
+inline constexpr std::string_view kXamlLanguageNamespace =
+    "http://schemas.microsoft.com/winfx/2006/xaml";
+
+// S083: the x-language directive type of an attribute. None = NOT one of the
+// four x-language directives (the default). The four are Name, Class, Key,
+// Null — matched CASE-SENSITIVELY against local_name when the attribute's
+// resolved namespace_uri == kXamlLanguageNamespace.
+enum class XmlDirectiveType
+{
+    None,  // not an x-language directive (ordinary attribute, or unknown local in the xaml ns)
+    Name,  // x:Name — name-registry binding (applied S092)
+    Class, // x:Class — root-owner class binding (applied S092/S089)
+    Key,   // x:Key — resource-dictionary key (applied S361)
+    Null,  // x:Null — explicit null value (markup-extension form {x:Null} tagged S084)
+};
 
 // Coarse XML token kind. Order is arbitrary (S080's model is coarse by
 // design — the S085 ParsedElement consumes these).
@@ -91,6 +138,8 @@ enum class XmlTokenType
 // One decoded attribute on an ElementOpen: (name, decoded value) plus the
 // S082 namespace split (prefix / local_name / resolved namespace_uri). `name`
 // stays the FULL raw text; prefix/local are the split on the first ':'.
+// `directive` (S083) is the x-language directive type when the resolved
+// namespace_uri == kXamlLanguageNamespace (None otherwise).
 struct XmlAttribute
 {
     std::string name;
@@ -98,6 +147,7 @@ struct XmlAttribute
     std::string prefix;      // "" if no ':' — S082
     std::string local_name;  // full name sans the "prefix:" part — S082
     std::string namespace_uri; // resolved from the (non-default) prefix — S082
+    XmlDirectiveType directive = XmlDirectiveType::None; // S083
 };
 
 // A WPF-style "clr-namespace:Ns.Name[;assembly=Asm]" mapping, TOKENIZED into

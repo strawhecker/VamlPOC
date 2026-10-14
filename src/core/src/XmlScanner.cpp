@@ -34,6 +34,31 @@ bool isNameChar(char c)
     return isNameStart(c) || (c >= '0' && c <= '9') || c == '.' || c == '-';
 }
 
+// S083: classify an x-language-directive candidate by its local name. Called
+// ONLY when the attribute's resolved namespace_uri == kXamlLanguageNamespace.
+// Case-sensitive (XAML is case-sensitive): the four directives are Name,
+// Class, Key, Null; any other local in the language namespace maps to None.
+XmlDirectiveType classifyXDirective(const std::string& local)
+{
+    if (local == "Name")
+    {
+        return XmlDirectiveType::Name;
+    }
+    if (local == "Class")
+    {
+        return XmlDirectiveType::Class;
+    }
+    if (local == "Key")
+    {
+        return XmlDirectiveType::Key;
+    }
+    if (local == "Null")
+    {
+        return XmlDirectiveType::Null;
+    }
+    return XmlDirectiveType::None;
+}
+
 } // namespace
 
 XmlScanner::XmlScanner(std::string_view input)
@@ -486,6 +511,12 @@ void XmlScanner::scanElementOpen(XmlToken& out)
         {
             attr.namespace_uri = resolvePrefix(attr.prefix);
         }
+        // S083: classify an x-language directive when this attribute's
+        // RESOLVED namespace is the canonical XAML language URI. Keyed on the
+        // URI, not the literal "x" prefix (see kXamlLanguageNamespace).
+        attr.directive = (attr.namespace_uri == kXamlLanguageNamespace)
+                             ? classifyXDirective(attr.local_name)
+                             : XmlDirectiveType::None;
     }
 
     // Split + resolve the element's own name against the applied scope.
