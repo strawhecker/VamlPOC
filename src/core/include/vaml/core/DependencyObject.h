@@ -144,7 +144,12 @@ class VAML_CORE_EXPORT DependencyObject
 {
 public:
     DependencyObject();
-    ~DependencyObject();
+    // S087: virtual — the ElementFactoryRegistry produces derived element
+    // classes (Button, StackPanel, ...) owned through this base as
+    // unique_ptr<DependencyObject>; correct polymorphic deletion requires a
+    // virtual destructor. This also makes the type polymorphic (enabling
+    // dynamic_cast concrete-type checks in tests).
+    virtual ~DependencyObject();
 
     DependencyObject(const DependencyObject&) = delete;
     DependencyObject& operator=(const DependencyObject&) = delete;

@@ -732,3 +732,4 @@ void DependencyObject::notify_descendants(
 }
 
 } // namespace vaml
+

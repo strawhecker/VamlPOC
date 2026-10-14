@@ -36,6 +36,7 @@ add_executable(vaml-core-tests
     AttributeValueGrammar_test.cpp
     ParsedElement_test.cpp
     ParsedRoundtrip_test.cpp
+    ElementFactoryRegistry_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
