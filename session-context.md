@@ -1,68 +1,81 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S088 (no commits; no NEW md files)
-- plan_repo_state : S088 complete — **BOTH CI LANES GREEN** (verified from first principles):
-                    msvc-debug (VS 2026) via build/verify_s088.cmd configure+build warning-clean +
+- last_command    : implementit S089 (no commits; no NEW md files)
+- plan_repo_state : S089 complete — **BOTH CI LANES GREEN** (verified from first principles):
+                    msvc-debug (VS 2026) via build/verify_s089.cmd configure+build warning-clean +
                     ctest 1/1 PASS; ubuntu-clang (Ubuntu VM, clang 21, shared folder
                     /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS. No commit+push (per command).
-                    S088 delivers the reader-boundary resolution primitive: resolve_element() turns a
-                    ParsedElement into a LIVE DependencyObject via the S087 ElementFactoryRegistry,
-                    and an unknown/absent/empty type becomes a STRUCTURED error (ElementResolutionException
-                    with ElementResolutionError::{None,UnknownType}) that NAMES the type AND the 1-based
-                    source line:col. This is exactly the S087-recorded NO-GAP hand-off — ElementFactoryRegistry
-                    still carries NO source-location concept; S088 is where its ElementNotFound maps into the
-                    line-carrying reader error. To name the real authored position, S088 extends ParsedElement
-                    with line/col CARRIED from the scanner's ElementOpen token (S085's "carried, not
-                    re-scanned" discipline — no line-map re-derivation). Scope boundary (NO-GAP): S088
-                    delivers the SINGLE-ELEMENT primitive + structured error only; child-hierarchy building /
-                    property setting is S091's explicit step which consumes resolve_element.
-- plan_digest     : S088 (dep:S087). ADDED src/core/include/vaml/core/ElementResolver.h +
-                    src/core/src/ElementResolver.cpp (ElementResolutionError enum; ElementResolutionException
-                    exposing kind()/type_name()/line()/col(); resolve_element(ParsedElement, registry) +
-                    global() overload; key = local_name fallback tagName so <local:Button> resolves
-                    "Button"; only ElementNotFound -> UnknownType, a throwing factory propagates).
-                    MOD src/core/include/vaml/core/ParsedElement.h + src/core/src/ParsedElement.cpp
-                    (line/col fields carried in applyElementIdentity from the ElementOpen token).
-                    ADDED test/unit/ElementResolver_test.cpp (11 Shouldly TEST_CASEs). ADDED
-                    build/verify_s088.cmd. MOD src/core/CMakeLists.txt (+ElementResolver.cpp),
-                    test/unit/CMakeLists.txt (+ElementResolver_test.cpp), docs/roadmap.md (S088 [DONE]),
+                    S089 delivers the value-converter domain that S084 handed off (S084 DETECTS scalar
+                    numeric; S089 CONVERTS + owns the comma-list thickness form): the four headline
+                    conversions resolve — "42"->Int32(42), "10,20"->Thickness(10,20,10,20),
+                    "#FF0000"->Color(255,0,0,255), "true"->Bool(true) — through a REAL vaml::ValueConverterRegistry
+                    (name-unique register+convert with insertion-order registered_names, dedupe-throws-unchanged,
+                    global() Meyers singleton, idempotent register_builtin_converters()). It ALSO RESOLVES the
+                    S030 Color + Thickness MINIMAL REAL markers in-place (NO-GAP, resolution at the feature's
+                    own step): parse_color/parse_thickness now carry the real parsing semantics on the types and
+                    their sentinel tags are removed. The shared conversion-error taxonomy
+                    (ValueConversionError {None,UnknownType,MalformedValue} + ValueConversionException) was
+                    hoisted to its own header so parse_color/parse_thickness can throw it without a
+                    Color/ValueConverter include cycle.
+- plan_digest     : S089 (dep:S088). ADDED src/core/include/vaml/core/ValueConverter.h +
+                    src/core/src/ValueConverter.cpp (ValueConverterRegistry pimpl + register_converter/
+                    convert/is_registered/size/empty/registered_names/global; register_builtin_converters
+                    idempotent startup installing Int32/Thickness/Color/Bool). ADDED
+                    src/core/include/vaml/core/ValueConversionError.h (ValueConversionError enum +
+                    ValueConversionException — shared non-circular home). RESOLVED S030 markers:
+                    MOD src/core/include/vaml/core/Color.h + NEW src/core/src/Color.cpp (parse_color
+                    "#RRGGBB"/"#AARRGGBB", case-insensitive, optional '#', alpha honored);
+                    MOD src/core/include/vaml/core/Thickness.h + NEW src/core/src/Thickness.cpp
+                    (parse_thickness WPF comma-list: 1 uniform / 2 mirrored / 4 explicit; bad count /
+                    non-numeric/empty -> MalformedValue). ADDED test/unit/ValueConverter_test.cpp
+                    (parse_thickness/parse_color semantics + registry mechanics + error paths + global-path
+                    marker-resolution proof). ADDED build/verify_s089.cmd. MOD src/core/CMakeLists.txt
+                    (+ValueConverter.cpp, +Color.cpp, +Thickness.cpp), test/unit/CMakeLists.txt
+                    (+ValueConverter_test.cpp), docs/roadmap.md (S089 [DONE] + removed Color/Thickness
+                    from Active MINIMAL REAL + updated the forward-declared-resolution contract),
                     session-context.md (this).
 - files_touched   :
-    ADDED    src/core/include/vaml/core/ElementResolver.h
-    ADDED    src/core/src/ElementResolver.cpp
-    ADDED    test/unit/ElementResolver_test.cpp          (11 S088 cases)
-    ADDED    build/verify_s088.cmd
-    MODIFIED src/core/include/vaml/core/ParsedElement.h  (line/col fields, S088)
-    MODIFIED src/core/src/ParsedElement.cpp              (carry line/col in applyElementIdentity)
-    MODIFIED src/core/CMakeLists.txt                     (+ ElementResolver.cpp)
-    MODIFIED test/unit/CMakeLists.txt                    (+ ElementResolver_test.cpp)
-    MODIFIED docs/roadmap.md                             (S088 [DONE] + detail)
-    MODIFIED session-context.md (this — S088 completion)
-- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s088.cmd —
-                    configure+build warning-clean + ctest 1/1 PASS (all cases incl. 11 new S088 green).
+    ADDED    src/core/include/vaml/core/ValueConverter.h
+    ADDED    src/core/include/vaml/core/ValueConversionError.h
+    ADDED    src/core/src/ValueConverter.cpp
+    ADDED    src/core/src/Color.cpp                     (parse_color, S030 Color marker resolution)
+    ADDED    src/core/src/Thickness.cpp                 (parse_thickness, S030 Thickness marker resolution)
+    ADDED    test/unit/ValueConverter_test.cpp          (S089 cases)
+    ADDED    build/verify_s089.cmd
+    MODIFIED src/core/include/vaml/core/Color.h         (parse_color decl + removed MINIMAL REAL sentinel)
+    MODIFIED src/core/include/vaml/core/Thickness.h     (parse_thickness decl + removed MINIMAL REAL sentinel)
+    MODIFIED src/core/CMakeLists.txt                    (+ ValueConverter.cpp, + Color.cpp, + Thickness.cpp)
+    MODIFIED test/unit/CMakeLists.txt                   (+ ValueConverter_test.cpp)
+    MODIFIED docs/roadmap.md                            (S089 [DONE] + Color/Thickness markers resolved)
+    MODIFIED session-context.md (this — S089 completion)
+- build_status    : GREEN — BOTH CI LANES. windows-msvc: msvc-debug (VS 2026) via build/verify_s089.cmd —
+                    configure+build warning-clean + ctest 1/1 PASS (all cases incl. new S089 green).
                     ubuntu-clang: clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC)
                     configure+build + ctest 1/1 PASS. Only Clang warnings = pre-existing upstream
                     <ciso646> doctest deprecation from third_party (not this TU; non-error).
                     (windows-clang-debug is NOT a lane — not built/tested/flagged per standing rule.)
-- next_step       : S089. S089 = Value converter registry: "42"→int, "10,20"→Thickness, "#FF0000"→Color,
-                    "true"→bool — and RESOLVES the S030 Color + Thickness MINIMAL REAL markers (full
-                    string-parsing semantics + remove their sentinel tags). S088 proved single-element
-                    resolution + the unknown-type structured error; S089 builds the value-conversion
-                    machinery S091 (reader builds children + sets props) needs for attribute values.
+- next_step       : S090. S090 = Unknown literal → error; converter registry tests. S089 delivered the REAL
+                    registry + four conversions + the minimal {None,UnknownType,MalformedValue} taxonomy and
+                    focused coverage; S090 owns the formal unknown-literal error taxonomy and the EXHAUSTIVE
+                    converter-registry test suite (the S089-recorded NO-GAP split). S091 then consumes
+                    register_builtin_converters() + convert() to set DP properties from attribute strings
+                    (reader builds children + sets props).
 - notes           :
-    - S088 introduces REAL product surface (ElementResolver) — NOT MINIMAL REAL: resolve_element +
-      the structured exception are delivered complete for their declared scope and tested.
-    - ParsedElement gains line/col (S088) populated from the scanner's ElementOpen token. This is a
-      NON-BREAKING extension: S085/S086 round-trip tests compare structure only, so they stayed green.
-    - Unknown-type error message: "unknown element type '<name>' (line N, column M)" — what() appends
-      the position, mirroring XmlScanException/XmlParseException; type_name() returns the resolved
-      key (local_name / tagName).
-    - Factory-vs-unknown split preserved (S087 contract): only ElementNotFound (absent/empty key) ->
-      UnknownType; a factory that exists but throws DURING CONSTRUCTION propagates its exception as a
-      live construction failure, never masked. Tested.
+    - S089 introduces REAL product surface (ValueConverterRegistry) — NOT MINIMAL REAL: registry +
+      register_builtin_converters + the four conversions delivered complete for their declared scope.
+    - S030 Color + Thickness MINIMAL REAL markers RESOLVED in-place at S089 (per contract): the sentinel
+      comments in Color.h/Thickness.h are removed and the real parsing (parse_color/parse_thickness)
+      authored on the types. NO-GAP honored — resolution is part of the feature's own step, not a backfill.
+    - parse_color is explicit about naming: named colors are OUT of S089 scope (recorded; a later
+      brush/resource step). parse_thickness follows WPF — only 1/2/4 value counts are valid; 3 throws.
+    - The ValueConversionError/ValueConversionException taxonomy currently has {None, UnknownType,
+      MalformedValue} — minimal for S089. S090's headline ("Unknown literal → error; converter registry
+      tests") confirms/extends the unknown-literal path + exhaustive edge cases.
+    - Repeated RAII: stringmakers.h already has operator<< for Color/Thickness/Value/ValueType, so the
+      S089 tests compare correctly with the Shouldly vocabulary (no new test-side operator needed).
     - NO NEW md files (directive honored). No commits made (per command).
     - COMMITIT STATUS: commit+push of S032..S044 (incl. S036_1..S036_5), S045, S046..S049, S080..S086,
-      S087, and now S088 is outstanding, awaiting your authorization. After commit+push: repo is the
-      committed good state; next step S089 (Sprint 2). Laptop-added files uncommitted as well — one
+      S087, S088, and now S089 is outstanding, awaiting your authorization. After commit+push: repo is the
+      committed good state; next step S090 (Sprint 2). Laptop-added files uncommitted as well — one
       commit covers all.
 

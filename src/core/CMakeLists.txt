@@ -20,6 +20,9 @@ vaml_add_library(core
     src/ElementFactoryRegistry.cpp
     src/Element.cpp
     src/ElementResolver.cpp
+    src/ValueConverter.cpp
+    src/Color.cpp
+    src/Thickness.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()
