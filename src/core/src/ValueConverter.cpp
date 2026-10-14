@@ -104,6 +104,38 @@ Value ValueConverterRegistry::convert(std::string_view typeName, std::string_vie
 }
 
 VAML_CORE_EXPORT
+bool ValueConverterRegistry::try_infer_type(std::string_view literal, std::string* outType) const
+{
+    // Probe registered converters in INSERTION ORDER (impl_->names() mirrors
+    // registration order exactly — see Impl::record_order). The FIRST type
+    // whose converter accepts the literal wins. "Accepts" = runs without
+    // throwing; any ValueConversionException (MalformedValue or otherwise)
+    // means "this type does not recognize the literal" — keep probing.
+    for (const std::string& typeName : impl_->names())
+    {
+        const ValueConverter* converter = impl_->find(typeName);
+        if (converter == nullptr)
+        {
+            continue; // defensive: the order-list never diverges from the map
+        }
+        try
+        {
+            (void)(*converter)(literal); // recognizer: only success/failure matters
+        }
+        catch (const ValueConversionException&)
+        {
+            continue; // this type rejects the literal -> try the next
+        }
+        if (outType != nullptr)
+        {
+            *outType = typeName;
+        }
+        return true;
+    }
+    return false; // no registered type accepts the literal -> UnknownLiteral
+}
+
+VAML_CORE_EXPORT
 bool ValueConverterRegistry::is_registered(std::string_view typeName) const noexcept
 {
     return impl_->find(typeName) != nullptr;

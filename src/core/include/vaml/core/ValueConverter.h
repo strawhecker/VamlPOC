@@ -35,14 +35,18 @@
 // REMOVED here per the resolution contract — that resolution is part of this
 // feature's own step, not a backfill (NO-GAP).
 //
-// SCOPE BOUNDARY (NO-GAP, not silent): S089 delivers the four built-in
+// SCOPE BOUNDARY (NO-GAP, not silent): S089 delivered the four built-in
 // conversions + the minimal {None,UnknownType,MalformedValue} taxonomy so
-// conversion behavior is REAL. The full unknown-literal error taxonomy + the
-// exhaustive error/edge test suite are S090's named step.
+// conversion behavior is REAL. The full unknown-literal error taxonomy
+// (UnknownLiteral) + the exhaustive error/edge test suite are S090's named
+// step — delivered there (this S089 step's scope boundary is RESOLVED by
+// S090, not silently backfilled). S090 adds try_infer_type (below) so
+// UnknownLiteral is reachable and provable.
 //
 // MINIMAL REAL? No. ValueConverterRegistry + the four converters + the resolved
 // parse_color/parse_thickness are delivered complete for their declared scope
-// and tested; S090 extends tests only.
+// and tested; S090 extends tests only + adds the recognizer that reaches the
+// unknown-literal corner S089 scoped out.
 
 #include "vaml/core/Value.h"               // Value (converter result)
 #include "vaml/core/ValueConversionError.h" // ValueConversionError / ValueConversionException
@@ -91,6 +95,28 @@ public:
     // registered converter that rejects the literal throws
     // ValueConversionException{MalformedValue} naming the type + literal.
     [[nodiscard]] Value convert(std::string_view typeName, std::string_view literal) const;
+
+    // S090: the recognizer that makes the UnknownLiteral error category
+    // reachable and provable. Determines whether `literal` is a value of ANY
+    // registered type, by probing registered converters IN INSERTION ORDER and
+    // returning the first that fully accepts the literal. On success, writes
+    // that type's name into *outType (if non-null) and returns true. On
+    // failure (no registered converter accepts the literal) returns false and
+    // leaves *outType untouched — the caller maps that to
+    // ValueConversionError::UnknownLiteral.
+    //
+    // CONTRACT — this is a RECOGNIZER, not a best-match type-matcher:
+    //   - First-match-by-registration-order is deterministic and documented:
+    //     "10" infers "Int32" when Int32 is registered before Thickness, not
+    //     "Thickness" (a single scalar is a valid 1-value thickness too).
+    //   - "Accepts" means: the converter runs WITHOUT throwing. A converter
+    //     that throws (any ValueConversionException — MalformedValue or
+    //     otherwise) is treated as "does not accept this literal".
+    //   - Registered converters must be PURE for this query (no mutation /
+    //     side effects when invoked); the built-ins are. This probes the
+    //     registry to answer "is this a known value at all?", which is S091's
+    //     documented upstream use.
+    [[nodiscard]] bool try_infer_type(std::string_view literal, std::string* outType) const;
 
     // True if a converter is registered under `typeName`. Never throws.
     [[nodiscard]] bool is_registered(std::string_view typeName) const noexcept;
