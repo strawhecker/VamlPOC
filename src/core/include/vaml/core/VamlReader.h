@@ -57,11 +57,23 @@ struct ParsedElement; // forward-declared (Load(const ParsedElement&) takes a re
 // registered within a single Load is a real authoring error (WPF-faithful —
 // a name scope with a repeated name is an error, fail loud, no silent
 // last-wins). No other arm is invented; S094 still owns the full taxonomy.
+//
+// S094 (dep:S093) — the reader error-taxonomy CONSOLIDATION GATE. The four
+// title cases (unknown attr, unknown element, bad type name, malformed value)
+// are all already structured + reachable through one realistic reader path,
+// and S094 proves them on that path (VamlReader_s094_test.cpp). It also
+// resolves the S092-recorded hand-off: `x:Class` is root-only by definition
+// (WPF-faithful), so a Class directive on a NON-root element was being recorded
+// as root_class_ silently — a silent last-wins hole. S094 makes it a genuine
+// reader error via the ONE new arm below. No other arm is invented (the
+// unknown-type / malformed-value genres live in their lower layers and
+// propagate as-is; duplicate-typed arms there would be duplicate surface).
 enum class VamlReaderError
 {
     None,          // no reader error
     UnknownProperty, // an attribute names a property with no global definition (S091)
-    DuplicateName  // an x:Name was registered more than once in one Load (S092)
+    DuplicateName, // an x:Name was registered more than once in one Load (S092)
+    ClassOnNonRoot // an x:Class directive was authored on a NON-root element (S094)
 };
 
 // S091: the reader error — names the offending attribute key. what() renders
@@ -70,15 +82,17 @@ enum class VamlReaderError
 // baseline of the full reader error taxonomy.
 //
 // S092: for DuplicateName, `property`/`name` holds the duplicate x:Name value;
-// what() renders "duplicate x:Name '<name>'".
+// what() renders "duplicate x:Name '<name>'" (the offending NAME, not the
+// attribute key). S094: for ClassOnNonRoot, `property` holds the offending
+// x:Class VALUE; what() renders "x:Class on a non-root element '<class>'".
 class VAML_CORE_EXPORT VamlReaderException : public std::runtime_error
 {
 public:
     VamlReaderException(VamlReaderError kind, std::string property, std::string what);
 
     VamlReaderError kind() const noexcept { return kind_; }
-    // The offending attribute's key (unknown-property) or the duplicate
-    // x:Name value (DuplicateName — the offending NAME, not the attribute key).
+    // The offending attribute's key (unknown-property), the duplicate x:Name
+    // value (DuplicateName), or the offending x:Class value (ClassOnNonRoot).
     const std::string& property() const noexcept { return property_; }
 
 private:
@@ -191,8 +205,10 @@ public:
 private:
     // Recursive build (the algorithm in the header comment). Returns the owned
     // live object; appends non-root children to `retained_`. Throws the
-    // structured errors described above.
-    std::unique_ptr<DependencyObject> build(const ParsedElement& element);
+    // structured errors described above. S094: `depth` is 0 for the root,
+    // incremented per recursion level; it gates the ClassOnNonRoot rule
+    // (x:Class is root-only — a Class directive at depth != 0 throws).
+    std::unique_ptr<DependencyObject> build(const ParsedElement& element, std::size_t depth);
 
     // Converts a plain string literal into a Value of the DP's bound type.
     // String -> identity; otherwise routes through ValueConverterRegistry::global()

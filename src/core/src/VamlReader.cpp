@@ -118,7 +118,8 @@ Value VamlReader::convertLiteral(const DependencyProperty& dp,
 }
 
 VAML_CORE_EXPORT
-std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element)
+std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element,
+                                                    std::size_t depth)
 {
     // Step 1 — resolve into a live instance (global registry; unknown type
     // throws ElementResolutionException naming type + line:col — S088).
@@ -150,8 +151,17 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         {
             // Record the AUTHORED root class name only; binding it to an owner
             // object/type is Sprint 8 / S286 / InitializeComponent-analogue
-            // (recorded NO-GAP, not silent). A Class on a non-root is out of
-            // scope — S094's error-taxonomy gate decides (recorded).
+            // (recorded NO-GAP, not silent). S094 (the error-taxonomy gate
+            // this hand-off was recorded for) resolves the deferred decision:
+            // x:Class is root-only by definition (WPF-faithful), so a Class
+            // directive authored on a NON-root element is an authoring error —
+            // fail loud, never silently overwrite root_class_ (last-wins hole).
+            if (depth != 0)
+            {
+                throw VamlReaderException(
+                    VamlReaderError::ClassOnNonRoot, attr.value,
+                    "x:Class on a non-root element '" + attr.value + "'");
+            }
             root_class_ = attr.value;
             continue;
         }
@@ -208,7 +218,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     // later step (recorded NO-GAP, not silent).
     for (const ParsedElement& child : element.children)
     {
-        std::unique_ptr<DependencyObject> childObj = build(child);
+        std::unique_ptr<DependencyObject> childObj = build(child, depth + 1);
         childObj->set_parent(obj.get()); // S039/S041 parent-link + inheritance-scope seed
         retained_.push_back(std::move(childObj));
     }
@@ -230,7 +240,7 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     root_class_.clear();
     deferred_extensions_.clear();
     deferred_event_handlers_.clear();
-    return build(root);
+    return build(root, 0);
 }
 
 // ------------------------------------------------------------------ S092 Strand A

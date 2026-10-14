@@ -43,6 +43,7 @@ add_executable(vaml-core-tests
     VamlReader_test.cpp
     VamlReader_defer_test.cpp
     VamlReader_s093_test.cpp
+    VamlReader_s094_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
