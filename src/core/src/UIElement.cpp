@@ -180,6 +180,31 @@ vaml::VerticalAlignment UIElement::vertical_alignment() const
         Get(PropertyId::of("VerticalAlignment")).get<std::int32_t>());
 }
 
+// --- S123 Measure contract ------------------------------------------------
+
+VAML_CORE_EXPORT
+Size UIElement::measure_natural_size(const Size& available) const
+{
+    // Base UIElement has no content; a leaf with content (Text) or a panel
+    // with children measures its content in its S125 override. Keeping this
+    // virtual is the S123-declared seam S125 fills. `available` is unused by
+    // the base (no content), so silence the unused-parameter diagnostic.
+    (void)available;
+    return Size{ 0.0f, 0.0f };
+}
+
+VAML_CORE_EXPORT
+void UIElement::Measure(const Size& available)
+{
+    // The S123 contract: Measure(available) -> DesiredSize. Ask the content
+    // seam for the natural (un-finalized) extent, then finalize it through the
+    // infinity-aware stretch-vs-wrap rule (compute_measured_desired) and write
+    // the S122 desired_size() read target.
+    const Size natural = measure_natural_size(available);
+    impl_->desiredSize = vaml::compute_measured_desired(
+        natural, available, horizontal_alignment(), vertical_alignment());
+}
+
 // --- S121 visual children ---------------------------------------------------
 
 // Internal attach: owns `child`, wires the S039/S041 parent link + inheritance-

@@ -112,6 +112,28 @@ public:
     // until the first Arrange pass.
     [[nodiscard]] const vaml::Rect& final_rect() const noexcept;
 
+    // --- Measure contract (S123) -------------------------------------------
+    // Measure(available) -> DesiredSize, infinity-aware stretch-vs-wrap.
+    // The S122-desired_size field is the WRITE target; the computed DesiredSize
+    // is exposed via desired_size() immediately after a Measure pass. `available`
+    // is the bounded or unbounded (Size::Infinite()) bound a parent offers; an
+    // unbounded axis never stretches (the DesiredSize WRAPS to content) and
+    // Size::Infinite() never escapes into a DesiredSize (always finite).
+    //
+    // RESOLUTION SCRIPT (recorded, NO-GAP — not silent):
+    //   - S125 fills the protected measure_natural_size() override on the Text
+    //     leaf + panels (the content-extent seam this contract calls first).
+    //   - S127 upgrades measure_natural_size into the canonical
+    //     MeasureOverride/ArrangeOverride virtual pair (a NAMED upgrade at the
+    //     pair's own step, not silent churn). Do NOT extend this seam silently.
+    void Measure(const vaml::Size& available);
+
+    // The element's un-finalized CONTENT extent for a given available bound
+    // (the S123 measure seam). Base UIElement has no content -> {0,0}; S125
+    // overrides it on Text/panels. Protected so only the layout machinery
+    // invokes it; Measure() is the public entry.
+    [[nodiscard]] virtual vaml::Size measure_natural_size(const vaml::Size& available) const;
+
     // --- Margin (REAL DP) --------------------------------------------------
     // Default 0. The child's outer inset removed from its parent's available
     // bounds to form its LayoutSlot (S122/WPF-faithful).

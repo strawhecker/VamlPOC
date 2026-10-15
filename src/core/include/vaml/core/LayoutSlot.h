@@ -60,4 +60,24 @@ VAML_CORE_EXPORT Rect compute_final_rect(const LayoutSlot& slot,
                                          HorizontalAlignment hAlign,
                                          VerticalAlignment vAlign);
 
+// Computes a child's MEASURED DesiredSize from its un-finalized content extent
+// (`natural`) against the `available` bounds, honoring the S123 infinity-aware
+// stretch-vs-wrap contract. S123's UIElement::Measure calls this to finalize
+// its DesiredSize; S125/S129/S131 panels reuse it when measuring children.
+// WPF-faithful + infinity-aware (INFINITE available = Size::Infinite(),
+// the "unbounded axis" sentinel S123 consumes):
+//   * Stretch axis + FINITE available   -> DesiredSize = available (fills).
+//   * Stretch axis + INFINITE available -> DesiredSize = natural (cannot
+//     stretch to infinity, so the axis WRAPS to content).
+//   * Non-Stretch axis (Left/Center/Right / Top/Center/Bottom) + FINITE
+//     available -> DesiredSize = min(natural, available) (wrap/clamp).
+//   * Non-Stretch axis + INFINITE available -> DesiredSize = natural
+//     (min(x, infinity) == x).
+// Never negative: the result is clamped >= 0 and `Size::Infinite()` never
+// escapes into a DesiredSize (a measured size is always finite).
+VAML_CORE_EXPORT Size compute_measured_desired(Size natural,
+                                               Size available,
+                                               HorizontalAlignment hAlign,
+                                               VerticalAlignment vAlign);
+
 } // namespace vaml

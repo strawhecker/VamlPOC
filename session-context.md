@@ -1,70 +1,76 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S122 (no commits; no NEW md files)
-- plan_repo_state : S122 complete — **SPRINT 3** (S120/UIElement base; S121 visual children; S122 layout
-                    slot geometry + alignment all done; S123 Measure next). S122 (dep:S121) RESOLVED the
-                    S120 layout-slot sentinel (removed) and authored the real layout data model:
-                    Geometry.h (Size/Rect), LayoutSlot.h (alignments + compute_final_rect), UIElement
-                    3 layout DPs + desired_size/final_rect read targets. GREEN on both lanes from first
-                    principles.
-- plan_digest     : S122 (dep:S121): ADDED src/core/include/vaml/core/Geometry.h (Size w/h + Size::Infinite()
-                    +inf sentinel for S123 Measure; Rect x/y/w/h + left/top/right/bottom), ADDED
-                    src/core/include/vaml/core/LayoutSlot.h (HorizontalAlignment/VerticalAlignment enums
-                    Stretch default/Left-Top/Center/Right-Bottom; struct LayoutSlot{Rect bounds}; real
-                    VAML_CORE_EXPORT compute_final_rect(slot,desired,margin,hAlign,vAlign) — S124 consumes),, ADDED src/core/src/LayoutSlot.cpp (inset by margin clamped>=0; child =
-                    available on Stretch else min(desired,available); offset Center=(avail-child)/2,
-                    Right/Bottom=avail-child), MOD src/core/include/vaml/core/UIElement.h (removed layout-
-                    slot sentinel -> RESOLVED BY S122 note; added desired_size()/final_rect() const refs +
-                    set_margin/margin, set_horizontal_alignment/horizontal_alignment,
-                    set_vertical_alignment/vertical_alignment + includes), MOD src/core/src/UIElement.cpp
-                    (Impl gains desiredSize/finalRect; 3 new DPs registered Margin(Thickness,def 0)/HAlign/
-                    VAlign(Int32,def 0) + member defs), MOD src/core/CMakeLists.txt (+LayoutSlot.cpp),
-                    ADDED test/unit/LayoutSlot_test.cpp (10 TEST_CASEs: Stretch fills inset slot; Left/Top
-                    pinch; Center half-offset; Right/Bottom full-offset; margin shrinks available+origin;
-                    desired>available clamps; margin>slot clamps to 0 never-negative; Infinite desired stays
-                    bounded; Margin/align defaults+roundtrip; layout DPs S043 attached-aware; wrong-tag ->
-                    ValueTypeMismatch; desired_size/final_rect default 0), MOD test/unit/CMakeLists.txt
-                    (+LayoutSlot_test.cpp), ADDED build/verify_s122.cmd, MOD docs/roadmap.md — S122 [DONE]
-                    with full detail.
+- last_command    : implementit S123 (no commits; no NEW md files)
+- plan_repo_state : S123 complete — **SPRINT 3** (S120/UIElement base; S121 visual children; S122 layout
+                    slot geometry + alignment; S123 Measure contract infra-aware all done; S124 Arrange
+                    next). S123 (dep:S122) authored the concrete Measure contract: UIElement::Measure(avail)
+                    -> writes desired_size() (S122 field) via the infinity-aware stretch-vs-wrap finalizer
+                    compute_measured_desired, plus the protected measure_natural_size() seam. GREEN on both
+                    lanes from first principles.
+- plan_digest     : S123 (dep:S122): MOD src/core/include/vaml/core/UIElement.h (added Measure(const Size&)
+                    public entry + virtual protected Size measure_natural_size(const Size&) const — the
+                    content-extent seam; resolution comment: S125 fills it (Text/panels), S127 upgrades to
+                    MeasureOverride/ArrangeOverride; base returns {0,0}), MOD src/core/src/UIElement.cpp
+                    (Measure = measure_natural_size -> compute_measured_desired -> writes impl_->desiredSize;
+                    base measure_natural_size {0,0}), MOD src/core/include/vaml/core/LayoutSlot.h +
+                    src/core/src/LayoutSlot.cpp (added VAML_CORE_EXPORT Size compute_measured_desired(
+                    natural, available, hAlign, vAlign) — the infinity-aware stretch-vs-wrap finalizer:
+                    Stretch+finite->available fills; Stretch+infinite->natural (wraps, never fills into
+                    infinity); non-Stretch+finite->min(natural,available); non-Stretch+infinite->natural;
+                    clamped >= 0, Size::Infinite() never escapes a DesiredSize), ADDED test/unit/
+                    Measure_test.cpp (14 TEST_CASEs, incl. a test-local ContentLeaf overriding
+                    measure_natural_size to prove the seam), MOD test/unit/CMakeLists.txt (+Measure_test.cpp),
+                    ADDED build/verify_s123.cmd, MOD docs/roadmap.md — S123 [DONE] with full detail.
 - files_touched   :
-    ADDED    src/core/include/vaml/core/Geometry.h             (Size, Rect pure value types)
-    ADDED    src/core/include/vaml/core/LayoutSlot.h           (alignments + LayoutSlot + compute_final_rect)
-    ADDED    src/core/src/LayoutSlot.cpp                       (compute_final_rect definition)
-    MODIFIED src/core/include/vaml/core/UIElement.h           (removed layout-slot sentinel; layout API)
-    MODIFIED src/core/src/UIElement.cpp                       (Impl slots + 3 layout DPs + member defs)
-    MODIFIED src/core/CMakeLists.txt                          (+ LayoutSlot.cpp)
-    ADDED    test/unit/LayoutSlot_test.cpp                     (10 S122 TEST_CASEs)
-    MODIFIED test/unit/CMakeLists.txt                          (+ LayoutSlot_test.cpp)
-    ADDED    build/verify_s122.cmd                             (S122 windows-msvc lane)
-    MODIFIED docs/roadmap.md                                   (S122 [DONE])
-    MODIFIED session-context.md (this — S122 completion)
-- build_status    : GREEN — BOTH CI LANES (verified from first principles at S122). windows-msvc:
-                    msvc-debug (VS 2026) via build/verify_s122.cmd — configure+build warning-clean +
-                    ctest 1/1 PASS, all 10 LayoutSlot_test cases green (62/62 objects built). ubuntu-clang:
+    MODIFIED src/core/include/vaml/core/UIElement.h           (+ Measure(const Size&) + virtual protected
+                                                               measure_natural_size seam)
+    MODIFIED src/core/src/UIElement.cpp                       (+ Measure + base measure_natural_size)
+    MODIFIED src/core/include/vaml/core/LayoutSlot.h          (+ compute_measured_desired decl)
+    MODIFIED src/core/src/LayoutSlot.cpp                      (+ compute_measured_desired def)
+    ADDED    test/unit/Measure_test.cpp                        (14 S123 TEST_CASEs incl. ContentLeaf seam)
+    MODIFIED test/unit/CMakeLists.txt                          (+ Measure_test.cpp)
+    ADDED    build/verify_s123.cmd                             (S123 windows-msvc lane)
+    MODIFIED docs/roadmap.md                                   (S123 [DONE])
+    MODIFIED session-context.md (this — S123 completion)
+- build_status    : GREEN — BOTH CI LANES (verified from first principles at S123). windows-msvc:
+                    msvc-debug (VS 2026) via build/verify_s123.cmd — configure+build warning-clean +
+                    ctest 1/1 PASS (63/63 objects built, Measure_test 14 cases green). ubuntu-clang:
                     clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build +
                     ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646> doctest
                     deprecation from third_party (not this TU; non-error, already downgraded via
                     -Wno-error=#warnings in the test CMakeLists). (windows-clang-debug is NOT a lane — not
                     built/tested/flagged per standing rule.)
-- next_step       : S123. S123 (dep:S122) = Sprint 3, fourth token — Measure contract (infinity-aware):
-                    Measure(available)->DesiredSize; stretch vs wrap. Consumes Size::Infinite() +
-                    desired_size()/Measure.
+- next_step       : S124. S124 (dep:S123) = Sprint 3, fifth token — Arrange contract + clip:
+                    Arrange(finalRect); clip bounds honored by render slot. Consumes final_rect() +
+                    compute_final_rect (S122) + Measure/DesiredSize (S123).
 - notes           :
-    - S122 RESOLVED the S120 layout-slot sentinel in-place (its own resolution point, not a backfill):
-      the sentinel tag is REMOVED from UIElement.h (only the transform-owner sentinel -> S208 remains).
-      No new MINIMAL REAL introduced.
-    - compute_final_rect is a FREE function in LayoutSlot.h (not a UIElement method) — keeps geometry
-      math in the value domain, reusable by Arrange + panel measure logic, testable without elements,
-      matches the parse_thickness precedent. S124's Arrange consumes it (MINIMAL-REAL-kept, not a stub).
+    - S123 authored the concrete Measure contract. UIElement::Measure(available) -> writes desired_size()
+      (the S122 field) via compute_measured_desired — an infinity-aware stretch-vs-wrap finalizer
+      (S122's compute_final_rect value-domain precedent). protected virtual measure_natural_size() =
+      the content-extent seam (base {0,0}); S125 fills it (Text+panels), S127 upgrades it into
+      MeasureOverride/ArrangeOverride — a NAMED upgrade recorded in the resolution comment (not silent).
+    - compute_measured_desired is a FREE function in LayoutSlot.h (like compute_final_rect) — kept in the
+      value domain, reusable by S125/S129/S131 panel measure logic, testable without elements. Stretch+finite
+      fills; Stretch+infinite wraps (to content, never fills into infinity); non-Stretch+finite clamps to
+      min(natural,available); non-Stretch+infinite keeps natural. Clamped >= 0; Size::Infinite() NEVER
+      escapes a DesiredSize (infinite axes resolved before the clamp).
+    - Repeated Measure with a changed available RECOMPUTES desired_size (recompute, never cumulate); the
+      test-local ContentLeaf (overriding measure_natural_size) proves content extent flows through the
+      finalizer — the exact seam S125 fills.
+    - No new MINIMAL REAL introduced (measure_natural_size is a real contract seam with a declared,
+      forward-resolvable NAMED resolution at S125/S127 — not a silent backfill; NOT tagged as a sentinel).
+    - NO-GAP accounting: S124 consumes final_rect()/compute_final_rect (Arrange); S125 fills the seam
+      (Text leaf + panels); S127 upgrades to MeasureOverride/ArrangeOverride; S129/S131 reuse
+      compute_measured_desired.
     - Margin/HorizontalAlignment/VerticalAlignment are REAL DPs self-registered alongside Visibility/
       Opacity; default Stretch(0)/0; NOT inherited; S043 attached-aware (resolve on plain DependencyObjects).
-    - NO-GAP: S123 consumes Size::Infinite()+desired_size()/Measure; S124 consumes compute_final_rect()+
-      final_rect()/Arrange; S129+ (StackPanel/Grid) consume alignment+Margin.
+    - NO-GAP: S124 consumes final_rect()/compute_final_rect (Arrange); S125 fills the seam; S129+
+      (StackPanel/Grid) consume alignment+Margin + compute_measured_desired.
     - NO NEW md files (directive honored). No commits made (per command).
     - COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088, S089, S090,
-      S091, S092, S093, S094, S095, S096, S097, S120, S121, and now S122 is outstanding, awaiting your
-      authorization. After commit+push: repo is the committed good state; SPRINT 3 continues (next is
-      S123). Laptop-added files uncommitted as well — one commit covers all.
+      S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, and now S123 is outstanding, awaiting
+      your authorization. After commit+push: repo is the committed good state; SPRINT 3 continues (next
+      is S124). Laptop-added files uncommitted as well — one commit covers all.
     - Ownership model: a parent OWNS its children (std::vector<std::unique_ptr<UIElement>> in the
       pimpl), resolving the S091/S120-recorded ownership-transfer note. take_child is the TRANSFER
       (detach returns ownership + clears parent link); remove_child detaches + destroys. Detach
@@ -76,8 +82,3 @@
       ownership invariant, std::logic_error); detach first (take_child) then attach is legal.
     - MINIMAL REAL seeds NOT re-based (their sentinels forbid silent extension). S121 builds/tests
       the visual tree on UIElement directly.
-    - NO NEW md files (directive honored). No commits made (per command).
-    - COMMITIT STATUS: commit+push of S032..S044 (incl. S036_1..S036_5), S045, S046..S049, S080..S086,
-      S087, S088, S089, S090, S091, S092, S093, S094, S095, S096, S097, S120, and now S121 is
-      outstanding, awaiting your authorization. After commit+push: repo is the committed good state;
-      SPRINT 3 continues (next is S122). Laptop-added files uncommitted as well — one commit covers all.
