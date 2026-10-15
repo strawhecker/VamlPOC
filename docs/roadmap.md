@@ -147,7 +147,7 @@
 
 ---
 ## Sprint 3 — Element / scene graph + measure/arrange layout  (goal: full layout contract)  [token S120+]
-- S120 dep:S097  UIElement base (derives DependencyObject): visibility, opacity, transform owner slot, layout slot.
+- S120 dep:S097  UIElement base (derives DependencyObject): visibility, opacity, transform owner slot, layout slot. [DONE — src/core/include/vaml/core/UIElement.h + src/core/src/UIElement.cpp + test/unit/UIElement_test.cpp + MOD src/core/CMakeLists.txt + test/unit/CMakeLists.txt + build/verify_s120.cmd. UIElement : DependencyObject with TWO REAL DPs + TWO sentinel-only slots (NO fabricated members). Visibility — REAL Int32 DP, default Visible, NOT inherited; typed set_visibility/visibility + Set/Get(PropertyId); wrong-tag -> ValueTypeMismatch. Opacity — REAL Double DP, default 1.0, INHERITED (PropertyFlags::Inherits), validate [0,1] (out-of-range REJECTED, store unchanged); read-side cascade (S040), local-wins, descendant-push notification (S041/S044) all proven. Self-registration: first UIElement ctor registers both DPs globally once (Meyers-static guard, mirrors register_builtin_elements) — both resolve against plain DependencyObjects via S043 attached-aware global resolution. layout slot sentinel -> RESOLVED BY S122; transform owner sentinel -> RESOLVED BY S208 (renamed, below). MINIMAL REAL seeds NOT re-based (their own sentinels forbid it). Tests (10 TEST_CASEs, Shouldly): derives DependencyObject via dynamic_cast; Visibility default/typed-roundtrip/Set-Get path/wrong-tag/not-inherited (anti-claim); Opacity default/set-get/out-of-range-rejects/Set-Get path/cascade/local-wins/descendant-push; both DP resolve globally on plain DependencyObjects. Both CI lanes green (windows-msvc via build/verify_s120.cmd + ubuntu-clang via /mnt/hgfs/VamlPOC clang-debug).]
 - S121 dep:S120  Create/attach/detach children; parent traversal; visual-tree-walk tests.
 - S122 dep:S121  LayoutSlot + final rect + DesiredSize + Margin slot + alignment.
 - S123 dep:S122  Measure contract (infinity-aware): Measure(available)->DesiredSize; stretch vs wrap.
@@ -200,7 +200,7 @@
       TintMode=Monochrome uses this; TintMode=Preserve samples the multicolor texture.
 - S206 dep:S205  Draw text + rect from shared descriptor layout; batch same-shader draws.
 - S207 dep:S206  Scene→command-buffer encoder: walk visual tree → draw list by material; z-order via tree order.
-- S208 dep:S207  Encoder honors Opacity + Clip (draw grouping).
+- S208 dep:S207  Encoder honors Opacity + Clip + RenderTransform (draw grouping); each element's transform composes the draw Model matrix into the MVP. [S120 transform-owner resolution: introduces the real per-element transform member/type + performs it at the renderer — RESOLVES UIElement's transform-owner sentinel (see S120) and the earlier S200 MVP/UI-scale projection composes a per-element Model matrix.]
 - S209 dep:S208  GPU batching by texture+material; minimal pipeline switches; retired-buffer lifetime via fence.
 - S210 dep:S209  Render-thread loop end-to-end (single thread first): retained scene drawn each frame.
 - S211 dep:S210  Marshalled-change consumption per frame (UI thread mutates, render thread draws) — first wire.

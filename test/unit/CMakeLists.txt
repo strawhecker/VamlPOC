@@ -38,6 +38,7 @@ add_executable(vaml-core-tests
     ParsedRoundtrip_test.cpp
     ElementFactoryRegistry_test.cpp
     ElementResolver_test.cpp
+    UIElement_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp
