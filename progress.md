@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S049 (SURVIVOR + checkpoint advance to S080) [token: S049]
-- Next step to do     : S080 [token: S080]
-- PENDING work        : none (S049 complete; Sprint 1 closed; S080 is next — Sprint 2, VAML markup parser: XML scanner).
+- Last completed step : S097 (SURVIVOR + checkpoint advance to S120) [token: S097]
+- Next step to do     : S120 [token: S120]
+- PENDING work        : none (S097 complete; Sprint 2 closed; S120 is next — Sprint 3, element/scene graph + measure/arrange layout: UIElement base).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -35,7 +35,11 @@
 ## GUARD RAILS (codified from S003 — mirror of docs/roadmap.md; survives roadmap trimming)
 - **MINIMAL REAL**: permanent, linkable, forward-resolvable seed (kept+extended, NOT a stub);
   tagged with searchable sentinel `// [MINIMAL REAL] <comp> — RESOLVED BY <token>`; removable only
-  by its declaring step. Active: vulkan→S161, tools→S287, Color→S089, Thickness→S089.
+  by its declaring step. Active (S097): vulkan→S161, tools→S287, built-in element seeds (S087,
+  in `vaml/core/Element.h`) → Button→S401, StackPanel→S129, Grid→S131, Text→S400, TextBox→S402,
+  CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440; VamlReader event hooks (S092,
+  `vaml/core/VamlReader.h`) → S322. RESOLVED: Color + Thickness (S089 — their real parsing
+  semantics now live on the types via parse_color/parse_thickness).
 - **NO-GAP GUARANTEE**: no feature/symbol left for silent backfill; every MINIMAL REAL has an
   explicit resolution authored at the same step that delivers real content.
 - **NO LAZY LLM SYNDROME**: default posture is to reason the opposite of lazy; MINIMAL REAL is
@@ -130,6 +134,64 @@
   VS 2026) + ubuntu-clang (clang-debug via /mnt/hgfs/VamlPOC, Ubuntu VM clang 21) — configure/build
   warning-as-error clean + ctest 1/1 PASS. windows-clang-debug is NOT a lane.
 - **Next = S080** (Sprint 2, VAML markup parser — XML scanner; the first token of the next sprint).
+
+---
+
+## SPRINT 2 — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S080..S096, wrapped at S097)
+- **Goal met (S080–S096): the VAML markup parser + runtime reader (text → ParsedElement tree →
+  live DependencyObject tree) is complete, green on both compilers, and refactor-gated.** The
+  runtime path is FIRST — Sprint 2 delivers text→tree→live objects before the compiled VBAML path
+  (Sprint 7). Sprint-2 closing = S095 (golden-doc full suite) → S096 (refactor gate) → S097 (wrap).
+- **Full parser/reader pipeline delivered (real public symbols, none MINIMAL REAL / none STUB):**
+  `XmlScanner` (elements, attributes, self-closing, comments, CDATA, entities, nested tags, per-element
+  namespace scope, x-language directive classification, attribute-value grammar) — S080–S084;
+  `XmlScanException` structured scan-error taxonomy (19 categories, 1:1 per malformed path, line/col) —
+  S081; `ParsedElement`/`ParsedAttribute` + `parse_vaml()` (tags + children + content tree) +
+  `XmlParseException::UnterminatedElement` — S085; round-trip golden (S086); `ElementFactoryRegistry` +
+  `Element` MINIMAL REAL seeds + `register_builtin_elements()` — S087; `resolve_element()` +
+  `ElementResolutionException(UnknownType)` naming type+line — S088; `ValueConverterRegistry` +
+  `register_builtin_converters()` (Int32/Thickness/Color/Bool) + `parse_color`/`parse_thickness`
+  (RESOLVES the S030 Color/Thickness markers) — S089; `VamlReaderError::UnknownLiteral` +
+  `try_infer_type` — S090; `VamlReader::Load(text/ParsedElement)` live tree builder + retained_objects
+  + parent links + unknown-property baseline — S091; x:Name/x:Class registry + deferred markup
+  extensions (S2 tag) + MINIMAL REAL event hooks + DuplicateName — S092; integration gates — S093/S094
+  (S093 no-hooks pure-text; S094 error-taxonomy consolidation + `ClassOnNonRoot`); FULL-SUITE golden
+  docs — S095.
+- **Golden-doc full suite (S095, the capstone):** `GoldenDocs_test.cpp` asserts the ENTIRE S2 pipe
+  (`text → parse_vaml → ParsedElement → Load → live tree`) on realistic documents across FOUR axes —
+  parser golden canonical string, live reader tree (types/retained order/parent chain/x:Name registry/
+  root_class/converted values incl. attached), deferred surface (MerkupExtension {Binding} retained
+  verbatim, event handler routed, x:Key deferred), and live text-path==parsed-path parity — plus a
+  golden B error-taxonomy gate (unknown element/attribute, malformed value, duplicate x:Name, x:Class
+  on non-root each fire the RIGHT structured exception) and a clean-minimal no-hooks/no-extensions
+  control. TEST-ONLY, zero new product symbols.
+- **Key design decisions recorded (searchable, NO-GAP / NO-LAZY-LLM):** the scanner is hand-rolled
+  (no external XML lib — no manual XML dep, verified at S096); namespaces resolve on the URI not the
+  letter "x" (any prefix mapped to kXamlLanguageNamespace is the x-language); attached-style dots
+  (Grid.Row) are NOT namespace separators; markup-extension detection honors balanced braces;
+  ParsedElement is tags+children+content (not a pseudo-element sentinel) so readers distinguish text
+  from elements at the type level; element type resolution keyed on local_name (so `<vm:Button>`
+  resolves "Button"); "carried, not re-scanned" — the tree carries the scanner's classified metadata;
+  `resolve_element` is the SINGLE-ELEMENT primitive, consumed by build(); `ValueConversionError` has
+  three orthogonal categories (UnknownType/MalformedValue/UnknownLiteral); the reader routes registered
+  event keys to DeferredEventHandlers and records isExtension values as DeferredExtensions (the "S2
+  tag" {Binding}, resolved by S252).
+- **Deferred to future sprints (all recorded, NOT silent):** {Binding} markup resolution → S252/S253;
+  x:Key resource-key → S361; x:Null → S084 (tagged, already deferred); event-handler wiring → S322;
+  VBAML compiled path → Sprint 7; re-serializer/serializer → S282/S283; visual-tree children list →
+  S121; real control logic (from the element seeds) → each control's sprint (S129/S131/S400-S405/S440).
+- **MINIMAL REAL carried forward RESOLVED/unresolved:** RESOLVED in Sprint 2 — Color + Thickness
+  (S089, parse_color/parse_thickness, sentinels removed). Introduced + still UNRESOLVED: built-in
+  element seeds (S087, Element.h) → Button→S401, StackPanel→S129, Grid→S131, Text→S400, TextBox→S402,
+  CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440; VamlReader event hooks (S092) → S322.
+  Still unresolved (pre-existing): vulkan→S161, tools→S287. All carry searchable sentinels; NO-GAP intact.
+- **Invariants intact:** [ADR-001..012], layer-rule (core has NO Vulkan/GLFW deps), no-managed,
+  no-stub, NO-GAP GUARANTEE, NO LAZY LLM SYNDROME.
+- **Build lanes both green (from first principles):** windows-msvc (msvc-debug via build/verify_s*.cmd,
+  VS 2026) + ubuntu-clang (clang-debug via /mnt/hgfs/VamlPOC, Ubuntu VM clang 21) — configure/build
+  warning-as-error clean (except the pre-existing, downgraded upstream <ciso646> doctest deprecation) +
+  ctest 1/1 PASS through the S096 gate.
+- **Next = S120** (Sprint 3, element/scene graph + measure/arrange — UIElement base, first token).
 
 ---
 
