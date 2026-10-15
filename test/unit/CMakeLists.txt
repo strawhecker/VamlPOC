@@ -40,6 +40,7 @@ add_executable(vaml-core-tests
     ElementResolver_test.cpp
     UIElement_test.cpp
     VisualTree_test.cpp
+    LayoutSlot_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp

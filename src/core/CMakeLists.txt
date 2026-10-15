@@ -25,6 +25,7 @@ vaml_add_library(core
     src/ValueConverter.cpp
     src/Color.cpp
     src/Thickness.cpp
+    src/LayoutSlot.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()

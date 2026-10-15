@@ -16,10 +16,13 @@
 //      S208 — building a transform DP now would invent an API against zero
 //      consumers (heuristic: don't commit detailed rules before behavior is
 //      known). See docs/roadmap.md S208.
-//   4. layout slot — a MINIMAL REAL SENTINEL ONLY (comment-level). The real
-//      layout geometry (LayoutSlot / DesiredSize / final rect / Margin /
-//      alignment) is authored at S122, which explicitly owns it. S120 only
-//      designates UIElement as the layout host; no member is fabricated here.
+//   4. layout slot — RESOLVED BY S122. The real layout geometry (LayoutSlot /
+//      DesiredSize / final rect / Margin / alignment) is authored at S122,
+//      which owns it: UIElement exposes DesiredSize + final rect (S123/S124
+//      write them) and the Margin/HorizontalAlignment/VerticalAlignment DPs,
+//      and the alignment algorithm lives in LayoutSlot.h. The layout-slot
+//      SENTINEL introduced by S120 is REMOVED here per its resolution contract
+//      (resolution at the feature's own step, not a backfill).
 //
 // WHY REAL DPs FOR VISIBILITY + OPACITY (and not slots): both are WPF-faithful
 // per-element render state that a real consumer honors at the renderer
@@ -62,6 +65,10 @@
 #include "vaml/core/PropertyId.h" // PropertyId (Set/Get key)
 #include "vaml/core/Value.h"      // Value, ValueType
 
+#include "vaml/core/Geometry.h"     // Size, Rect
+#include "vaml/core/LayoutSlot.h"   // HorizontalAlignment, VerticalAlignment
+#include "vaml/core/Thickness.h"    // Thickness (Margin DP)
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -81,7 +88,6 @@ enum class Visibility : std::uint8_t
     Collapsed = 2, // neither rendered nor laid out
 };
 
-// [MINIMAL REAL] UIElement layout slot — RESOLVED BY S122 (Sprint 3). Do NOT extend silently; do NOT backfill.
 // [MINIMAL REAL] UIElement transform owner — RESOLVED BY S208 (Sprint 5, renamed to include RenderTransform). Do NOT extend silently; do NOT backfill.
 class VAML_CORE_EXPORT UIElement : public DependencyObject
 {
@@ -90,6 +96,35 @@ public:
     // S121: the pimpl owns the visual children (unique_ptr<UIElement>), so the
     // destructor must be out-of-line (default) for the Impl to be complete here.
     ~UIElement() override;
+
+    // --- Layout slot (RESOLVED BY S122) ------------------------------------
+    // DesiredSize + final rect are the S123/S124 WRITE targets, exposed
+    // read-side now so the layout contract is visible. desired_size() is the
+    // field S123's Measure writes (default 0x0); final_rect() is the field
+    // S124's Arrange writes (default 0). Margin + Horizontal/VerticalAlignment
+    // are REAL registered DPs (S043 attached-aware), defaulting to 0/Stretch.
+
+    // The child's measured DesiredSize (written by Measure at S123). Default
+    // 0x0 until the first Measure pass.
+    [[nodiscard]] const vaml::Size& desired_size() const noexcept;
+
+    // The child's arranged final rect (written by Arrange at S124). Default 0
+    // until the first Arrange pass.
+    [[nodiscard]] const vaml::Rect& final_rect() const noexcept;
+
+    // --- Margin (REAL DP) --------------------------------------------------
+    // Default 0. The child's outer inset removed from its parent's available
+    // bounds to form its LayoutSlot (S122/WPF-faithful).
+    [[nodiscard]] SetResult set_margin(const vaml::Thickness& value);
+    [[nodiscard]] vaml::Thickness margin() const;
+
+    // --- HorizontalAlignment (REAL DP; default Stretch) --------------------
+    [[nodiscard]] SetResult set_horizontal_alignment(vaml::HorizontalAlignment value);
+    [[nodiscard]] vaml::HorizontalAlignment horizontal_alignment() const;
+
+    // --- VerticalAlignment (REAL DP; default Stretch) ----------------------
+    [[nodiscard]] SetResult set_vertical_alignment(vaml::VerticalAlignment value);
+    [[nodiscard]] vaml::VerticalAlignment vertical_alignment() const;
 
     // --- Visibility (REAL DP; not inherited) ----------------------------
     // Default Visible. Per-element render state (NOT inherited — WPF-faithful).

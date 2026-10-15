@@ -48,6 +48,22 @@ void register_uielement_properties()
                 const double x = v.get<double>();
                 return x >= 0.0 && x <= 1.0;
             }));
+
+    // Margin: default 0 (S122), NOT inherited (each element's margin is its
+    // own outer inset). The payload rides the Thickness value path.
+    (void)DependencyProperty::Register(
+        "Margin", ValueType::Thickness, "UIElement",
+        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+
+    // HorizontalAlignment / VerticalAlignment: default Stretch(0), NOT
+    // inherited, stored via the Int32 value path (enum rides Int32, the same
+    // convention as Visibility in S120).
+    (void)DependencyProperty::Register(
+        "HorizontalAlignment", ValueType::Int32, "UIElement",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "VerticalAlignment", ValueType::Int32, "UIElement",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
 // Runs register_uielement_properties() at most once (first UIElement ctor).
@@ -71,6 +87,11 @@ void ensure_uielement_properties_registered()
 struct UIElement::Impl
 {
     std::vector<std::unique_ptr<UIElement>> children;
+
+    // S122 layout-slot membership (RESOLVED): DesiredSize (S123 writes) +
+    // final rect (S124 writes), read via desired_size()/final_rect().
+    vaml::Size desiredSize;
+    vaml::Rect finalRect;
 };
 
 VAML_CORE_EXPORT
@@ -105,6 +126,58 @@ VAML_CORE_EXPORT
 double UIElement::opacity() const
 {
     return Get(PropertyId::of("Opacity")).get<double>();
+}
+
+// --- S122 layout slot (RESOLVED BY S122) ------------------------------------
+
+VAML_CORE_EXPORT
+const vaml::Size& UIElement::desired_size() const noexcept
+{
+    return impl_->desiredSize;
+}
+
+VAML_CORE_EXPORT
+const vaml::Rect& UIElement::final_rect() const noexcept
+{
+    return impl_->finalRect;
+}
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_margin(const vaml::Thickness& value)
+{
+    return Set(PropertyId::of("Margin"), Value::Thickness(value));
+}
+
+VAML_CORE_EXPORT
+vaml::Thickness UIElement::margin() const
+{
+    return Get(PropertyId::of("Margin")).get<vaml::Thickness>();
+}
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_horizontal_alignment(vaml::HorizontalAlignment value)
+{
+    return Set(PropertyId::of("HorizontalAlignment"), Value::Int32(static_cast<std::int32_t>(value)));
+}
+
+VAML_CORE_EXPORT
+vaml::HorizontalAlignment UIElement::horizontal_alignment() const
+{
+    return static_cast<vaml::HorizontalAlignment>(
+        Get(PropertyId::of("HorizontalAlignment")).get<std::int32_t>());
+}
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_vertical_alignment(vaml::VerticalAlignment value)
+{
+    return Set(PropertyId::of("VerticalAlignment"), Value::Int32(static_cast<std::int32_t>(value)));
+}
+
+VAML_CORE_EXPORT
+vaml::VerticalAlignment UIElement::vertical_alignment() const
+{
+    return static_cast<vaml::VerticalAlignment>(
+        Get(PropertyId::of("VerticalAlignment")).get<std::int32_t>());
 }
 
 // --- S121 visual children ---------------------------------------------------
