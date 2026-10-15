@@ -39,6 +39,7 @@ add_executable(vaml-core-tests
     ElementFactoryRegistry_test.cpp
     ElementResolver_test.cpp
     UIElement_test.cpp
+    VisualTree_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp

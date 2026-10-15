@@ -17,7 +17,10 @@
 #include "vaml/core/PropertyMetadata.h"
 #include "vaml/core/PropertyFlags.h"
 
+#include <algorithm>
+#include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace vaml {
 
@@ -62,11 +65,23 @@ void ensure_uielement_properties_registered()
 
 } // namespace
 
+// S121 pimpl: the owned, ordered visual children list. A parent OWNS its
+// children (unique_ptr — resolving the S091/S120 ownership-transfer note).
+// Index order is the visual/z-order (WPF-faithful ordered Children collection).
+struct UIElement::Impl
+{
+    std::vector<std::unique_ptr<UIElement>> children;
+};
+
 VAML_CORE_EXPORT
 UIElement::UIElement()
+    : impl_(std::make_unique<Impl>())
 {
     ensure_uielement_properties_registered();
 }
+
+VAML_CORE_EXPORT
+UIElement::~UIElement() = default;
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_visibility(Visibility v)
@@ -90,6 +105,117 @@ VAML_CORE_EXPORT
 double UIElement::opacity() const
 {
     return Get(PropertyId::of("Opacity")).get<double>();
+}
+
+// --- S121 visual children ---------------------------------------------------
+
+// Internal attach: owns `child`, wires the S039/S041 parent link + inheritance-
+// scope edge, appends as the LAST visual child. Reparent discipline: a child
+// that ALREADY has a parent cannot be attached (single-parent ownership
+// invariant) — detach first via take_child/remove_child.
+VAML_CORE_EXPORT
+void UIElement::attach_child(std::unique_ptr<UIElement> child)
+{
+    if (child == nullptr)
+    {
+        throw std::invalid_argument("UIElement::attach_child: null child");
+    }
+    if (child->parent() != nullptr)
+    {
+        throw std::logic_error(
+            "UIElement::add_child: child already has a parent; detach it first (take_child/remove_child)");
+    }
+    UIElement* raw = child.get();
+    // set_parent(this) registers `raw` into THIS element's inheritance-scope
+    // (S041 inverse edge) so Inherits/InheritOnly (e.g. Opacity) cascade through
+    // the visual child. Order: install the parent link BEFORE owning, so the
+    // inherited-Opacity read inside any observer sees a coherent tree.
+    raw->set_parent(this);
+    impl_->children.push_back(std::move(child));
+}
+
+VAML_CORE_EXPORT
+void UIElement::add_child(std::unique_ptr<UIElement> child)
+{
+    attach_child(std::move(child));
+}
+
+VAML_CORE_EXPORT
+std::size_t UIElement::remove_child(std::size_t index)
+{
+    if (index >= impl_->children.size())
+    {
+        throw std::out_of_range("UIElement::remove_child: index out of range");
+    }
+    auto it = impl_->children.begin() + static_cast<std::ptrdiff_t>(index);
+    UIElement* child = it->get();
+    // Unwind the S041 inheritance-scope edge + parent link BEFORE destroying so
+    // no dangling scope edge survives the removal (NO-LAZY).
+    child->set_parent(nullptr);
+    impl_->children.erase(it); // destroys the owned child
+    return impl_->children.size();
+}
+
+VAML_CORE_EXPORT
+std::unique_ptr<UIElement> UIElement::take_child(std::size_t index)
+{
+    if (index >= impl_->children.size())
+    {
+        throw std::out_of_range("UIElement::take_child: index out of range");
+    }
+    auto it = impl_->children.begin() + static_cast<std::ptrdiff_t>(index);
+    UIElement* child = it->get();
+    // Unwind the parent link + inheritance-scope edge BEFORE transferring so the
+    // detached child is fully cut from this parent (its OWN children keep their
+    // sub-tree intact).
+    child->set_parent(nullptr);
+    std::unique_ptr<UIElement> detached = std::move(*it);
+    impl_->children.erase(it);
+    return detached;
+}
+
+VAML_CORE_EXPORT
+std::size_t UIElement::child_count() const noexcept
+{
+    return impl_->children.size();
+}
+
+VAML_CORE_EXPORT
+UIElement* UIElement::child_at(std::size_t index) const noexcept
+{
+    if (index >= impl_->children.size())
+    {
+        return nullptr;
+    }
+    return impl_->children[index].get();
+}
+
+VAML_CORE_EXPORT
+const std::vector<UIElement*> UIElement::children() const noexcept
+{
+    std::vector<UIElement*> raw;
+    raw.reserve(impl_->children.size());
+    for (const auto& c : impl_->children)
+    {
+        raw.push_back(c.get());
+    }
+    return raw;
+}
+
+VAML_CORE_EXPORT
+void UIElement::walk(const std::function<void(UIElement&)>& visitor) const
+{
+    // Depth-first PRE-ORDER walk: this element first (if it has a non-null
+    // visitor), then each child in index order, recursively. The visitor may
+    // freely read owner-free (non-owning) state; the tree is never mutated here.
+    if (visitor)
+    {
+        visitor(const_cast<UIElement&>(*this));
+    }
+    for (const auto& c : impl_->children)
+    {
+        c->walk(visitor);
+    }
 }
 
 } // namespace vaml

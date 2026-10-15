@@ -47,12 +47,28 @@
 //     Grid->S131, etc.). S121 builds/tests the visual tree on UIElement
 //     directly.
 
+// S121 (dep:S120) — visual children (create/attach/detach), parent traversal,
+// visual-tree walk. SCOPE = structural children + traversal ONLY (the S121
+// title). Layout geometry (LayoutSlot/DesiredSize/final rect/Margin/alignment)
+// is S122's explicit step; Measure/Arrange is S123+; none of that is fabricated
+// here. The visual children list is DISTINCT from the S041 inheritance-scope:
+// attaching a child also calls set_parent(this) so the S039/S041 parent link +
+// inverse inheritance-scope edge stay coherent (Opacity's cascade flows through
+// the visual child via that link — proven by test). A parent OWNS its children
+// (unique_ptr), resolving the S091/S120-recorded ownership-transfer note.
+
 #include "vaml/core/DependencyObject.h"
 
 #include "vaml/core/PropertyId.h" // PropertyId (Set/Get key)
 #include "vaml/core/Value.h"      // Value, ValueType
 
+#include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace vaml {
 
@@ -71,6 +87,9 @@ class VAML_CORE_EXPORT UIElement : public DependencyObject
 {
 public:
     UIElement();
+    // S121: the pimpl owns the visual children (unique_ptr<UIElement>), so the
+    // destructor must be out-of-line (default) for the Impl to be complete here.
+    ~UIElement() override;
 
     // --- Visibility (REAL DP; not inherited) ----------------------------
     // Default Visible. Per-element render state (NOT inherited — WPF-faithful).
@@ -85,6 +104,74 @@ public:
     // flows to children; a child's own set wins locally. Consumed by S208.
     [[nodiscard]] SetResult set_opacity(double value);
     [[nodiscard]] double opacity() const;
+
+    // --- Visual children (S121: create/attach/detach + parent traversal) ----
+    // A parent OWNS its children (std::unique_ptr). Attaching a child ALSO
+    // calls set_parent(this), wiring the S039 parent link + the S041 inverse
+    // inheritance-scope edge (so Inherits like Opacity cascade through the
+    // visual child). The visual children list is DISTINCT from the S041
+    // inheritance-scope: set_parent registers the inheritance edge for ANY
+    // DependencyObject; the visual list below is UIElement-only structure.
+
+    // Creates a child of type T (default-constructible, derives UIElement) and
+    // attaches it as the LAST child. Returns a NON-OWNING pointer to the
+    // appended child (the parent owns it). T must construct with the given
+    // args; the resolved type must be UIElement (static_assert).
+    template <typename T = UIElement, typename... Args>
+    [[nodiscard]] T* create_child(Args&&... args)
+    {
+        static_assert(std::is_base_of<UIElement, T>::value,
+                      "create_child<T>: T must derive from UIElement");
+        auto child = std::make_unique<T>(std::forward<Args>(args)...);
+        T* raw = child.get();
+        attach_child(std::move(child));
+        return raw;
+    }
+
+    // Attaches an already-constructed owned child as the LAST child, wiring the
+    // parent link + inheritance scope edge (set_parent(this)). The parent takes
+    // ownership. After attach, `child` is owned by this element.
+    void add_child(std::unique_ptr<UIElement> child);
+
+    // Detaches + DESTROYS the child at `index`. Removes it from the visual
+    // children AND clears its parent link (set_parent(nullptr) unwinds the S041
+    // inheritance-scope edge), so no dangling scope edge survives. Returns the
+    // number of children still remaining (convenience). Throws std::out_of_range
+    // for an index >= child_count().
+    [[nodiscard]] std::size_t remove_child(std::size_t index);
+
+    // Detaches the child at `index` and TRANSFERS OWNERSHIP back to the caller
+    // (the parent OWNS its children, so the only ownership-safe way to keep a
+    // child alive across a detach is to return the unique_ptr). Clears the
+    // parent link (set_parent(nullptr) unwinds the S041 inheritance-scope edge).
+    // The removed child's parent() becomes nullptr and it is no longer in the
+    // visual children. Throws std::out_of_range for an index >= child_count().
+    [[nodiscard]] std::unique_ptr<UIElement> take_child(std::size_t index);
+
+    // --- Parent traversal / visual-tree walk ------------------------------
+    [[nodiscard]] std::size_t child_count() const noexcept;
+    // NON-OWNING pointer to the child at `index` (nullptr for an out-of-range
+    // index, so a walker can bound-check without throwing).
+    [[nodiscard]] UIElement* child_at(std::size_t index) const noexcept;
+    // NON-OWNING read-only view of the children, in index (z/visual) order.
+    [[nodiscard]] const std::vector<UIElement*> children() const noexcept;
+    // Depth-first pre-order walk over THIS element and all descendants in the
+    // visual tree, invoking `visitor(UIElement&)` on each visited element
+    // (this first, then children in order). Non-recursive internals are guarded
+    // against deep trees; the visitor may read owner-free (non-owning) state.
+    void walk(const std::function<void(UIElement&)>& visitor) const;
+
+    // --- Reparent discipline ------------------------------------------------
+    // A child owned by parent A cannot attach to parent B: add_child detects a
+    // child that ALREADY has a non-null parent and throws std::logic_error
+    // (single-parent ownership invariant). Detach first (take_child/remove_child)
+    // to move a child between parents.
+
+private:
+    void attach_child(std::unique_ptr<UIElement> child);
+
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace vaml
