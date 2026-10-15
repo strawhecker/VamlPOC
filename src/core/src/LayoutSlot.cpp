@@ -125,4 +125,29 @@ Size compute_measured_desired(Size natural,
     return { outW, outH };
 }
 
+VAML_CORE_EXPORT
+Rect clip_to_bounds(const Rect& content, const Rect& clipBounds)
+{
+    // The S124 rectangular clip op. Intersect `content` with `clipBounds`,
+    // clamped so the result is always a sub-rect of clipBounds (never escapes
+    // it) and never has negative geometry. A disjoint intersection yields an
+    // EMPTY zero-rect (nothing renders) — the same "no negative geometry from
+    // the layout/arrange contract" guarantee the fit functions uphold.
+    const float cl = clipBounds.left();
+    const float ct = clipBounds.top();
+    const float cr = clipBounds.right();
+    const float cb = clipBounds.bottom();
+
+    const float left   = std::max(content.left(), cl);
+    const float top    = std::max(content.top(), ct);
+    const float right  = std::min(content.right(), cr);
+    const float bottom = std::min(content.bottom(), cb);
+
+    // An empty (disjoint) intersection is an empty zero-rect at the clip's
+    // top-left — never a negative width/height, never a rect outside the clip.
+    const float w = std::max(0.0f, right - left);
+    const float h = std::max(0.0f, bottom - top);
+    return { left, top, w, h };
+}
+
 } // namespace vaml

@@ -80,4 +80,23 @@ VAML_CORE_EXPORT Size compute_measured_desired(Size natural,
                                                HorizontalAlignment hAlign,
                                                VerticalAlignment vAlign);
 
+// The S124 rectangular CLIP op — "clip bounds honored by render slot".
+// Returns `content ∩ clipBounds` (the clipped content rect), clamped so the
+// result is ALWAYS a sub-rect of `clipBounds`, never escapes it, and never has
+// negative geometry:
+//   * content ⊆ clipBounds   -> returned unchanged (fully visible).
+//   * partial overlap         -> returned clamped to clipBounds (the overflowing
+//                               edges are cut to the clip edge).
+//   * disjoint (no overlap)   -> an EMPTY zero-rect (nothing renders).
+// The clip bounds are the element's render slot — S124's final_rect() — so the
+// renderer (S208) clips each element to its own final_rect(), and ScrollViewer
+// (S405) clips a scrolled viewport via the same op. This is REAL rectangular
+// clipping (the value-domain precedent of compute_final_rect/compute_measured_
+// desired). It is NOT arbitrary-geometry clipping: Geometry.h today only has
+// Size/Rect, and WPF's arbitrary Clip Geometry is not representable until the
+// renderer introduces geometry (S208). Recorded NO-GAP, not silent — the
+// rectangular render-slot clip is the S124 scope; arbitrary-geometry clip is
+// S208's. Consumes `Rect` from Geometry.h.
+VAML_CORE_EXPORT Rect clip_to_bounds(const Rect& content, const Rect& clipBounds);
+
 } // namespace vaml

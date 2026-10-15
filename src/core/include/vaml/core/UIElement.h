@@ -134,6 +134,37 @@ public:
     // invokes it; Measure() is the public entry.
     [[nodiscard]] virtual vaml::Size measure_natural_size(const vaml::Size& available) const;
 
+    // --- Arrange contract (S124) -------------------------------------------
+    // Arrange(arrangeSlot) -> final_rect(). The write-side pair to Measure:
+    // consumes the S122 compute_final_rect(slot, desired, margin, hAlign,
+    // vAlign) with the element's own desired_size() (written by S123's
+    // Measure), margin(), horizontal_alignment(), vertical_alignment(); writes
+    // the S122 final_rect() field. Repeated Arrange with a new slot RECOMPUTES
+    // (recompute, never cumulate — same discipline as Measure/S123).
+    //
+    // RENDER SLOT == CLIP BOUNDS: final_rect() IS the render slot where the
+    // renderer (S208) draws the element, AND the extent that clip honors —
+    // content overflowing final_rect() is not rendered. The rectangular clip
+    // op the renderer + ScrollViewer (S405) consume is vaml::clip_to_bounds
+    // (LayoutSlot.h); the base content (empty) fits any slot, so a base
+    // UIElement needs no override clip (see the Arrange test for the slot
+    // equality). No ArrangeOverride seam is added here — that is S127's named
+    // upgrade (mirrors how S123 kept measure_natural_size without a
+    // MeasureOverride). Do NOT extend this seam silently.
+    //
+    // RESOLUTION SCRIPT (recorded, NO-GAP — not silent):
+    //   - S125 calls Arrange on children after measuring them (panels arrange
+    //     each child into its arranged slot).
+    //   - S126 (LayoutManager) drives the Measure+Arrange passes over the dirty
+    //     subgraph.
+    //   - S127 upgrades measure_natural_size into the canonical
+    //     MeasureOverride/ArrangeOverride virtual pair (a NAMED upgrade at the
+    //     pair's own step, not silent churn).
+    //   - S208 (renderer) consumes final_rect() as the render slot + applies
+    //     clip_to_bounds; S405 (ScrollViewer) clips its viewport via
+    //     clip_to_bounds.
+    void Arrange(const vaml::Rect& arrangeSlot);
+
     // --- Margin (REAL DP) --------------------------------------------------
     // Default 0. The child's outer inset removed from its parent's available
     // bounds to form its LayoutSlot (S122/WPF-faithful).

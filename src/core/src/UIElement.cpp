@@ -205,6 +205,25 @@ void UIElement::Measure(const Size& available)
         natural, available, horizontal_alignment(), vertical_alignment());
 }
 
+// --- S124 Arrange contract --------------------------------------------------
+
+VAML_CORE_EXPORT
+void UIElement::Arrange(const Rect& arrangeSlot)
+{
+    // The S124 contract: Arrange(arrangeSlot) -> final_rect(). This is the
+    // write-side pair to Measure: consume the S122 alignment algorithm
+    // (compute_final_rect) with the element's own measured DesiredSize +
+    // Margin + alignments, and write the S122 final_rect() read target.
+    //
+    // final_rect() is BOTH the render slot (where S208 draws the element) AND
+    // the clip bounds (content overflowing it is not rendered). A base
+    // UIElement has no content, so its final_rect == clip bounds trivially;
+    // panels/leaves arrange their children into this slot at S125.
+    const LayoutSlot slot{ arrangeSlot };
+    impl_->finalRect = vaml::compute_final_rect(
+        slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
+}
+
 // --- S121 visual children ---------------------------------------------------
 
 // Internal attach: owns `child`, wires the S039/S041 parent link + inheritance-

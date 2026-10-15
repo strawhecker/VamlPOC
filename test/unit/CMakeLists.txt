@@ -42,6 +42,7 @@ add_executable(vaml-core-tests
     VisualTree_test.cpp
     LayoutSlot_test.cpp
     Measure_test.cpp
+    Arrange_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp
