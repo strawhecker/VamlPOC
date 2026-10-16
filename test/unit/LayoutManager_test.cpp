@@ -11,16 +11,17 @@
 //   * vaml::LayoutManager is the NON-OWNING driver: UpdateLayout() runs a
 //     Measure pass iff the root is measure-dirty, an Arrange pass iff the root
 //     is arrange-dirty, so a clean UpdateLayout() is a TRUE NO-OP. The measure-
-//     subgraph is driven through the virtual measure_natural_size() seam (S123):
-//     a panel re-measures ONLY dirty children, reading clean children's stored
-//     desired_size(). The root is arranged into its own measured DesiredSize at
-//     origin 0 (a top-level element has no external slot; a real window viewport
-//     arrives at the window sprints, recorded NO-GAP).
-//   * S127 upgrades the seam to MeasureOverride/ArrangeOverride; the arrange-
-//     subgraph auto-driving is completed THERE (the current seam deliberately
-//     has NO virtual Arrange — recorded at S124, not silent). S126 PROVES the
-//     dirty-respect mechanism on BOTH axes so S127 plugs it in: the dirty-aware
-//     panel re-arranges only dirty children via the S125-pattern arrange method,
+//     subgraph is driven through the virtual MeasureOverride() seam (S127,
+//     upgraded from S123's measure_natural_size): a panel re-measures ONLY
+//     dirty children, reading clean children's stored desired_size(). The root
+//     is arranged into its own measured DesiredSize at origin 0 (a top-level
+//     element has no external slot; a real window viewport arrives at the
+//     window sprints, recorded NO-GAP).
+//   * S127 (RESOLVED) upgraded the seam to MeasureOverride/ArrangeOverride; the
+//     arrange-subgraph auto-driving is completed THERE (the S123/S124 seam
+//     deliberately had NO virtual Arrange — recorded at S124, not silent). S126
+//     PROVES the dirty-respect mechanism on BOTH axes so S127 plugs it in via
+//     ArrangeOverride: the dirty-aware panel re-arranges only dirty children,
 //     leaving clean children's final_rect untouched.
 //
 // Test-local subclasses (zero product symbols, mirrors the S125 archetype
@@ -46,11 +47,10 @@ Rect rect_of(float x, float y, float w, float h)
     return { x, y, w, h };
 }
 
-// A leaf with real content extent, used to COUNT measure invocations (the S123
-// measure seam is virtual, so a leaf can observe how many times it is measured)
-// and to carry a per-instance desired size. Arrange is NOT virtual in the S123/
-// S124 seam (S127 upgrades it), so arrange dirty-respect is observed via
-// final_rect() changes, not a per-instance counter.
+// A leaf with real content extent, used to COUNT measure invocations (the S127
+// MeasureOverride seam is virtual, so a leaf can observe how many times it is
+// measured) and to carry a per-instance desired size. Arrange dirty-respect is
+// observed via final_rect() changes, not a per-instance arrange counter.
 class CountingLeaf : public UIElement
 {
 public:
@@ -59,7 +59,7 @@ public:
     int measureCount() const { return measureCount_; }
 
 protected:
-    Size measure_natural_size(const Size& available) const override
+    Size MeasureOverride(const Size& available) const override
     {
         ++measureCount_;
         (void)available;
@@ -72,7 +72,7 @@ private:
 };
 
 // A dirty-aware single-column stack (S125 archetype rule; real StackPanel ->
-// S129). The KEY S126 contract: measure_natural_size() re-measures ONLY dirty
+// S129). The KEY S126 contract: MeasureOverride() re-measures ONLY dirty
 // children (a clean child's stored desired_size() is reused, so a clean child
 // is NOT re-measured); a dirty-aware arrange re-arranges ONLY dirty children
 // (a clean child's final_rect is left untouched). measureCount_ lets a test
@@ -86,7 +86,9 @@ public:
     // each child's desired height. A clean child is left UNTOUCHED (its
     // final_rect from its prior arrange stays), proving arrange dirty-respect.
     // This is the S125-pattern arrange the manager's top-level arrange pass
-    // delegates to; S127's ArrangeOverride integrates it (recorded NO-GAP).
+    // delegates to (kept here as the S126 dirty-respect proof; S127's
+    // ArrangeOverride auto-drive is proven in MeasureArrangeOverride_test.cpp,
+    // and S129 integrates dirty-respect into the real arrange override).
     void arrange_dirty(const Rect& arrangeSlot)
     {
         float y = arrangeSlot.y;
@@ -105,7 +107,7 @@ protected:
     // The panel's own content is its children: re-measure ONLY dirty children
     // against a column offer (available width, unbounded height), reuse clean
     // children's stored desired_size(), derive width = max + height = sum.
-    Size measure_natural_size(const Size& available) const override
+    Size MeasureOverride(const Size& available) const override
     {
         ++measureCount_;
         float width = 0.0f;

@@ -121,18 +121,20 @@ public:
     // Size::Infinite() never escapes into a DesiredSize (always finite).
     //
     // RESOLUTION SCRIPT (recorded, NO-GAP — not silent):
-    //   - S125 fills the protected measure_natural_size() override on the Text
-    //     leaf + panels (the content-extent seam this contract calls first).
-    //   - S127 upgrades measure_natural_size into the canonical
+    //   - S125 filled the protected measure_natural_size() override on the Text
+    //     leaf + panels (the content-extent seam this contract called first).
+    //   - S127 (RESOLVED) upgraded measure_natural_size into the canonical
     //     MeasureOverride/ArrangeOverride virtual pair (a NAMED upgrade at the
-    //     pair's own step, not silent churn). Do NOT extend this seam silently.
+    //     pair's own step, not silent churn). measure_natural_size no longer
+    //     exists; MeasureOverride is the seam Measure now calls. Do NOT extend
+    //     this seam silently.
     void Measure(const vaml::Size& available);
 
     // The element's un-finalized CONTENT extent for a given available bound
-    // (the S123 measure seam). Base UIElement has no content -> {0,0}; S125
-    // overrides it on Text/panels. Protected so only the layout machinery
-    // invokes it; Measure() is the public entry.
-    [[nodiscard]] virtual vaml::Size measure_natural_size(const vaml::Size& available) const;
+    // (the S127 MeasureOverride seam). Base UIElement has no content -> {0,0};
+    // S129/S131 panels and S400 Text override it. Protected so only the layout
+    // machinery invokes it; Measure() is the public entry that calls it.
+    [[nodiscard]] virtual vaml::Size MeasureOverride(const vaml::Size& available) const;
 
     // --- Arrange contract (S124) -------------------------------------------
     // Arrange(arrangeSlot) -> final_rect(). The write-side pair to Measure:
@@ -148,22 +150,38 @@ public:
     // op the renderer + ScrollViewer (S405) consume is vaml::clip_to_bounds
     // (LayoutSlot.h); the base content (empty) fits any slot, so a base
     // UIElement needs no override clip (see the Arrange test for the slot
-    // equality). No ArrangeOverride seam is added here — that is S127's named
-    // upgrade (mirrors how S123 kept measure_natural_size without a
-    // MeasureOverride). Do NOT extend this seam silently.
+    // equality). S127 (RESOLVED) added the ArrangeOverride virtual here, so
+    // Arrange now auto-invokes a panel's ArrangeOverride; the arrange-subgraph
+    // auto-drive (LayoutManager -> root Arrange -> panel ArrangeOverride ->
+    // children arranged) completes on this seam. Do NOT extend this seam
+    // silently.
     //
     // RESOLUTION SCRIPT (recorded, NO-GAP — not silent):
-    //   - S125 calls Arrange on children after measuring them (panels arrange
+    //   - S125 called Arrange on children after measuring them (panels arrange
     //     each child into its arranged slot).
     //   - S126 (LayoutManager) drives the Measure+Arrange passes over the dirty
     //     subgraph.
-    //   - S127 upgrades measure_natural_size into the canonical
+    //   - S127 (RESOLVED) upgraded measure_natural_size into the canonical
     //     MeasureOverride/ArrangeOverride virtual pair (a NAMED upgrade at the
-    //     pair's own step, not silent churn).
+    //     pair's own step, not silent churn). ArrangeScope: Arrange now
+    //     auto-invokes this element's ArrangeOverride(final_rect).
+    //   - S129 (StackPanel) + S131 (Grid) adopt MeasureOverride/ArrangeOverride
+    //     for their real panel algorithms.
     //   - S208 (renderer) consumes final_rect() as the render slot + applies
     //     clip_to_bounds; S405 (ScrollViewer) clips its viewport via
     //     clip_to_bounds.
     void Arrange(const vaml::Rect& arrangeSlot);
+
+    // The element's arrange-side virtual (S127). Receives the element's FULL
+    // final render slot (final_rect(), computed by Arrange: margin + alignment
+    // against the arrangeSlot) so a panel lays out its children into its own
+    // render slot. Default no-op (a base leaf has nothing to place); panels
+    // (S129/S131) override it. Protected so only the layout machinery invokes
+    // it; Arrange() is the public entry that calls it after computing
+    // final_rect(). This is the seam that completes the arrange-subgraph
+    // auto-drive (LayoutManager -> root Arrange -> panel ArrangeOverride ->
+    // children arranged).
+    virtual void ArrangeOverride(const vaml::Rect& finalSlot);
 
     // --- Layout invalidation (S126) ----------------------------------------
     // WPF-faithful dirty flags: each element knows whether it needs a Measure

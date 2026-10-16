@@ -4,9 +4,9 @@
 // Under test:
 //   1. UIElement::Measure(available) -> writes desired_size() (S122 field)
 //      via the infinity-aware stretch-vs-wrap finalizer compute_measured_desired.
-//   2. The protected measure_natural_size() seam — base returns {0,0}; a
+//   2. The protected MeasureOverride() seam (S127) — base returns {0,0}; a
 //      test-local subclass overrides it to prove content-extent flows through
-//      the finalizer (the seam S125 fills for Text/panels).
+//      the finalizer (the seam S129/S400 fills for panels/Text).
 //   3. compute_measured_desired directly — the pure value-domain min/stretch
 //      rules, incl. Size::Infinite() never escapes and DesiredSize is never
 //      negative.
@@ -32,18 +32,18 @@ using vaml::VerticalAlignment;
 
 namespace {
 
-// A test-local leaf that carries a real content extent through the S123 seam.
-// Mirrors what S125's Text/panel overrides will do: measure_natural_size
-// reports the un-finalized content size for the given available bound.
+// A test-local leaf that carries a real content extent through the S127 seam.
+// Mirrors what S129/400 Text/panel overrides will do: MeasureOverride reports
+// the un-finalized content size for the given available bound.
 class ContentLeaf : public UIElement
 {
 public:
     explicit ContentLeaf(Size natural) : natural_(natural) {}
 
 protected:
-    Size measure_natural_size(const Size& available) const override
+    Size MeasureOverride(const Size& available) const override
     {
-        // S125 content seam: ignore `available` for a fixed-extent leaf and
+        // S127 content seam: ignore `available` for a fixed-extent leaf and
         // report the natural extent (proves the finalizer, not the seam, does
         // the stretch-vs-wrap). (void) available for the base-behavior case.
         (void)available;
@@ -173,7 +173,7 @@ TEST_CASE("S123: repeated Measure with a changed available recomputes desired_si
     SHOULD(ShouldlyString(el.desired_size().height).ShouldBe(30.0f));
 }
 
-// --- Seam: test-local content leaf flows through the finalizer -----------------
+// --- Seam (S127 MeasureOverride): test-local content leaf flows through the finalizer ---
 
 TEST_CASE("S123: content leaf — Stretch finite fills available, overriding natural extent")
 {

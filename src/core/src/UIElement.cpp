@@ -191,12 +191,13 @@ vaml::VerticalAlignment UIElement::vertical_alignment() const
 // --- S123 Measure contract ------------------------------------------------
 
 VAML_CORE_EXPORT
-Size UIElement::measure_natural_size(const Size& available) const
+Size UIElement::MeasureOverride(const Size& available) const
 {
     // Base UIElement has no content; a leaf with content (Text) or a panel
-    // with children measures its content in its S125 override. Keeping this
-    // virtual is the S123-declared seam S125 fills. `available` is unused by
-    // the base (no content), so silence the unused-parameter diagnostic.
+    // with children measures its content in its S129/S131/S400 override. This
+    // is the S127 MeasureOverride seam (upgraded from S123's
+    // measure_natural_size). `available` is unused by the base (no content),
+    // so silence the unused-parameter diagnostic.
     (void)available;
     return Size{ 0.0f, 0.0f };
 }
@@ -208,7 +209,7 @@ void UIElement::Measure(const Size& available)
     // seam for the natural (un-finalized) extent, then finalize it through the
     // infinity-aware stretch-vs-wrap rule (compute_measured_desired) and write
     // the S122 desired_size() read target.
-    const Size natural = measure_natural_size(available);
+    const Size natural = MeasureOverride(available);
     impl_->desiredSize = vaml::compute_measured_desired(
         natural, available, horizontal_alignment(), vertical_alignment());
     // A completed Measure pass clears this element's measure-dirty flag (S126):
@@ -221,6 +222,19 @@ void UIElement::Measure(const Size& available)
 // --- S124 Arrange contract --------------------------------------------------
 
 VAML_CORE_EXPORT
+void UIElement::ArrangeOverride(const Rect& finalSlot)
+{
+    // The S127 arrange-side virtual. Receives the element's FULL final render
+    // slot (final_rect()). Base UIElement has no children, so a leaf has
+    // nothing to place — default no-op. Panels (S129/S131) override this to
+    // lay out their children into their own render slot, completing the
+    // arrange-subgraph auto-drive (LayoutManager -> root Arrange -> panel
+    // ArrangeOverride -> children arranged). `finalSlot` is unused by the
+    // base, so silence the unused-parameter diagnostic.
+    (void)finalSlot;
+}
+
+VAML_CORE_EXPORT
 void UIElement::Arrange(const Rect& arrangeSlot)
 {
     // The S124 contract: Arrange(arrangeSlot) -> final_rect(). This is the
@@ -230,14 +244,22 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     //
     // final_rect() is BOTH the render slot (where S208 draws the element) AND
     // the clip bounds (content overflowing it is not rendered). A base
-    // UIElement has no content, so its final_rect == clip bounds trivially;
-    // panels/leaves arrange their children into this slot at S125.
+    // UIElement has no content, so its final_rect == clip bounds trivially.
+    //
+    // S127 auto-drive: after computing final_rect(), Arrange invokes
+    // ArrangeOverride(final_rect()) so a panel places its children into its
+    // OWN render slot automatically (LayoutManager -> root Arrange -> panel
+    // ArrangeOverride -> children arranged). This removes the S125/S126 manual
+    // arrange-call pattern; the arrange-subgraph auto-drive completes here.
     const LayoutSlot slot{ arrangeSlot };
     impl_->finalRect = vaml::compute_final_rect(
         slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
     // A completed Arrange pass clears this element's arrange-dirty flag (S126),
     // mirroring Measure's clear of the measure bit.
     impl_->arrangeDirty = false;
+    // S127: hand the element its final render slot so a panel arranges its
+    // children into it (the arrange-subgraph auto-drive).
+    ArrangeOverride(impl_->finalRect);
 }
 
 // --- S126 layout invalidation ------------------------------------------------

@@ -45,15 +45,16 @@ Rect rect_of(float x, float y, float w, float h)
 }
 
 // A test-local leaf that carries a real content extent through the S123/124
-// seam — the exact pattern S125's Text/panel overrides will use. Its Measured
-// DesiredSize drives the Arrange slot so the pairing is concrete, not trivial.
+// seam — the exact pattern S129/400's panel/Text overrides will use. Its
+// Measured DesiredSize drives the Arrange slot so the pairing is concrete,
+// not trivial.
 class ContentLeaf : public UIElement
 {
 public:
     explicit ContentLeaf(Size natural) : natural_(natural) {}
 
 protected:
-    Size measure_natural_size(const Size& available) const override
+    Size MeasureOverride(const Size& available) const override
     {
         (void)available;
         return natural_;

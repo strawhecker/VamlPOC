@@ -1,30 +1,33 @@
 // S125 (dep:S124) — Leaf elements (Text) measure to content; panels measure children.
 //
 // ARCHITECTURE: S125 is delivered as a TEST-ONLY archetype gate (accepted at plan time).
-// It proves the two layout archetypes on the CURRENT S123/S124 seam — the protected
-// measure_natural_size() (S123) + Arrange/final_rect + clip_to_bounds (S124) — via
-// test-local UIElement subclasses. It does NOT re-base / extend the seeded `Text`
-// (RESOLVED BY S400) or `StackPanel` (RESOLVED BY S129) controls: repo-wide convention —
-// MINIMAL REAL control seeds are re-based only at their own resolution sprint, and S125
-// declares no resolution. Zero new product symbols.
+// It proves the two layout archetypes on the S123/S124 seam — the S127-upgraded
+// protected MeasureOverride() (ex-S123 measure_natural_size, renamed at S127) +
+// Arrange/final_rect + clip_to_bounds (S124) — via test-local UIElement subclasses. It
+// does NOT re-base / extend the seeded `Text` (RESOLVED BY S400) or `StackPanel`
+// (RESOLVED BY S129) controls: repo-wide convention — MINIMAL REAL control seeds are
+// re-based only at their own resolution sprint, and S125 declares no resolution. Zero
+// new product symbols.
 //
 // ARCHETYPE 1 — "Leaf elements (Text) measure to content":
 //   A leaf (TextLikeLeaf) carries a real content extent and returns it from
-//   measure_natural_size(). The S123 Measure contract then finalizes it (stretch-vs-wrap,
+//   MeasureOverride(). The S123 Measure contract then finalizes it (stretch-vs-wrap,
 //   infinity-aware) into desired_size(); the S124 Arrange contract aligns it inside a slot
 //   into final_rect(). Proves leaves measure to their content.
 //
 // ARCHETYPE 2 — "Panels measure children":
 //   A panel (ChildMeasuringPanel, single-column stack) — an *archetype rule only*; the
 //   REAL StackPanel algorithm + last-child-stretch belongs to S129 (recorded NO-GAP, not
-//   silent). It overrides measure_natural_size() to call child->Measure(...) on each child
+//   silent). It overrides MeasureOverride() to call child->Measure(...) on each child
 //   and derive its own DesiredSize from the children's DesiredSizes (width = max, height =
-//   sum), then arrange_children() places each child into its column slot via child->Arrange.
-//   Proves panels measure children + arrange each into its slot.
+//   sum), then ArrangeOverride() places each child into its column slot via child->Arrange.
+//   Proves panels measure children + arrange each into its slot automatically through
+//   Arrange (the S127 arrange-subgraph auto-drive).
 //
 // Handoffs (NO-GAP): S126 (LayoutManager) drives Measure+Arrange over the dirty subgraph;
-// S127 upgrades the seam to MeasureOverride/ArrangeOverride; S129/S400 re-base the real
-// StackPanel/Text controls onto this proven archetype. Nothing is left as a silent backfill.
+// S127 (RESOLVED) upgraded the seam to MeasureOverride/ArrangeOverride and completed the
+// arrange auto-drive; S129/S400 re-base the real StackPanel/Text controls onto this
+// proven archetype. Nothing is left as a silent backfill.
 //
 // Uses the Shouldly-for-doctest vocabulary (S036_5 standing convention).
 // doctest's main comes from smoke_test.cpp.
@@ -55,7 +58,7 @@ Rect rect_of(float x, float y, float w, float h)
 }
 
 // ARCHETYPE 1 — a leaf whose content is a real extent ("Text measures to content").
-// measure_natural_size() returns the content extent; the S123 Measure finalizes it
+// MeasureOverride() returns the content extent; the S123 Measure finalizes it
 // (stretch-vs-wrap, infinity-aware) and S124 Arrange aligns it inside a slot.
 class TextLikeLeaf : public UIElement
 {
@@ -63,7 +66,7 @@ public:
     explicit TextLikeLeaf(Size content) : content_(content) {}
 
 protected:
-    Size measure_natural_size(const Size& available) const override
+    Size MeasureOverride(const Size& available) const override
     {
         (void)available;
         return content_;
@@ -74,11 +77,13 @@ private:
 };
 
 // ARCHETYPE 2 — a single-column stack *archetype rule only* (real StackPanel algorithm +
-// last-child-stretch -> S129, recorded NO-GAP). measure_natural_size() measures each child
+// last-child-stretch -> S129, recorded NO-GAP). MeasureOverride() measures each child
 // against the panel's available width + unbounded height and derives the panel's own
 // DesiredSize from the children's DesiredSizes (width = max, height = sum). arrange_children()
 // then places each child into its own column slot (full row width, child-desired height) via
-// child->Arrange, so each child's own alignment is honored within its slot.
+// child->Arrange, so each child's own alignment is honored within its slot. (S127's
+// ArrangeOverride auto-drive is proven in MeasureArrangeOverride_test.cpp; this archetype's
+// manual arrange is retained unmodified as the zero-semantic-change rename target.)
 class ChildMeasuringPanel : public UIElement
 {
 public:
@@ -112,7 +117,7 @@ protected:
     // The panel's own content is its children: measure each child against a column offer
     // (available width, unbounded height — a vertical stack lets each child wrap to content
     // vertically), then derive width = max of children, height = sum of children.
-    Size measure_natural_size(const Size& available) const override
+    Size MeasureOverride(const Size& available) const override
     {
         float width = 0.0f;
         float height = 0.0f;
