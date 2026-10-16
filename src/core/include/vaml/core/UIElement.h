@@ -165,6 +165,42 @@ public:
     //     clip_to_bounds.
     void Arrange(const vaml::Rect& arrangeSlot);
 
+    // --- Layout invalidation (S126) ----------------------------------------
+    // WPF-faithful dirty flags: each element knows whether it needs a Measure
+    // pass (measureDirty) and/or an Arrange pass (arrangeDirty). A fresh
+    // element starts dirty on BOTH axes (never laid out -> measured/arranged
+    // on its first pass). InvalidateMeasure/InvalidateArrange SET the local
+    // flag (short-circuited when already set, so a redundant invalidation does
+    // NOT re-walk the chain) and PROPAGATE it up the parent chain: a parent's
+    // DesiredSize is a function of its children, so a child invalidation
+    // dirties every ancestor to the root. The S126 LayoutManager consumes these
+    // gates (UpdateLayout runs a measure pass iff the root is measure-dirty, an
+    // arrange pass iff the root is arrange-dirty) so a clean UpdateLayout is a
+    // true no-op, and a panel re-measures/re-arranges only its DIRTY children.
+
+    // Marks this element (and every ancestor to the root) as needing a Measure
+    // pass. No-op if this element is already measure-dirty (coalescing: many
+    // invalidations collapse to one pass). Wiring: the S123/S124 contract writes
+    // the S122 DesiredSize/final rect; dirty flags are the change-driven trigger
+    // that lets the LayoutManager (and panels) skip clean subgraphs.
+    void InvalidateMeasure();
+
+    // Marks this element (and every ancestor to the root) as needing an Arrange
+    // pass. Independent of the measure axis (see tests). No-op if already
+    // arrange-dirty.
+    void InvalidateArrange();
+
+    // True if this element needs a Measure pass (never measured, or re-
+    // invalidated since the last measure).
+    [[nodiscard]] bool is_measure_dirty() const noexcept;
+
+    // True if this element needs an Arrange pass (never arranged, or re-
+    // invalidated since the last arrange).
+    [[nodiscard]] bool is_arrange_dirty() const noexcept;
+
+    // True if EITHER axis is dirty (needs a measure OR an arrange pass).
+    [[nodiscard]] bool is_layout_dirty() const noexcept;
+
     // --- Margin (REAL DP) --------------------------------------------------
     // Default 0. The child's outer inset removed from its parent's available
     // bounds to form its LayoutSlot (S122/WPF-faithful).

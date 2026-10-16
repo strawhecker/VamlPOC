@@ -92,6 +92,14 @@ struct UIElement::Impl
     // final rect (S124 writes), read via desired_size()/final_rect().
     vaml::Size desiredSize;
     vaml::Rect finalRect;
+
+    // S126 layout-dirty flags. A fresh element is dirty on BOTH axes (never
+    // laid out). InvalidateMeasure/InvalidateArrange set + propagate them; the
+    // S126 LayoutManager gates its Measure/Arrange passes on the root's bits,
+    // and panels clear their dirty children's bits during the passes — so one
+    // UpdateLayout leaves a fully clean tree.
+    bool measureDirty  = true;
+    bool arrangeDirty = true;
 };
 
 VAML_CORE_EXPORT
@@ -203,6 +211,11 @@ void UIElement::Measure(const Size& available)
     const Size natural = measure_natural_size(available);
     impl_->desiredSize = vaml::compute_measured_desired(
         natural, available, horizontal_alignment(), vertical_alignment());
+    // A completed Measure pass clears this element's measure-dirty flag (S126):
+    // it no longer needs measuring. The LayoutManager gates its pass on the
+    // root's bit; panels re-measure only dirty children, each of which clears
+    // its own bit here, so one pass over a dirty subgraph leaves it clean.
+    impl_->measureDirty = false;
 }
 
 // --- S124 Arrange contract --------------------------------------------------
@@ -222,6 +235,88 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     const LayoutSlot slot{ arrangeSlot };
     impl_->finalRect = vaml::compute_final_rect(
         slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
+    // A completed Arrange pass clears this element's arrange-dirty flag (S126),
+    // mirroring Measure's clear of the measure bit.
+    impl_->arrangeDirty = false;
+}
+
+// --- S126 layout invalidation ------------------------------------------------
+
+VAML_CORE_EXPORT
+void UIElement::InvalidateMeasure()
+{
+    // Short-circuit: an already-measure-dirty element needs no re-walk (the
+    // whole chain above it is already dirty from when it was first dirtied).
+    if (impl_->measureDirty)
+    {
+        return;
+    }
+    impl_->measureDirty = true;
+    // Propagate to the root: a parent's DesiredSize derives from its children,
+    // so a child invalidation dirties every ancestor's measure pass. Walk the
+    // S039/S041 parent link; stop at the root (parent() == nullptr). Each
+    // ancestor is marked unconditionally here (the local short-circuit prevents
+    // a redundant walk, but the chain must stay dirty for the manager's pass).
+    for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
+    {
+        auto* ue = dynamic_cast<UIElement*>(p);
+        if (ue == nullptr)
+        {
+            // A non-UIElement ancestor cannot own a measure pass (only
+            // UIElement subclasses participate in the visual tree / layout);
+            // nothing to mark above it — stop.
+            break;
+        }
+        if (ue->impl_->measureDirty)
+        {
+            // Already dirty: the chain above this ancestor is already dirty
+            // from an earlier invalidation — no need to keep walking.
+            break;
+        }
+        ue->impl_->measureDirty = true;
+    }
+}
+
+VAML_CORE_EXPORT
+void UIElement::InvalidateArrange()
+{
+    // Mirror of InvalidateMeasure on the arrange axis.
+    if (impl_->arrangeDirty)
+    {
+        return;
+    }
+    impl_->arrangeDirty = true;
+    for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
+    {
+        auto* ue = dynamic_cast<UIElement*>(p);
+        if (ue == nullptr)
+        {
+            break;
+        }
+        if (ue->impl_->arrangeDirty)
+        {
+            break;
+        }
+        ue->impl_->arrangeDirty = true;
+    }
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_measure_dirty() const noexcept
+{
+    return impl_->measureDirty;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_arrange_dirty() const noexcept
+{
+    return impl_->arrangeDirty;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_layout_dirty() const noexcept
+{
+    return impl_->measureDirty || impl_->arrangeDirty;
 }
 
 // --- S121 visual children ---------------------------------------------------
