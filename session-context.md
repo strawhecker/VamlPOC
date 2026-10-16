@@ -1,76 +1,69 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S127 (no commits; no NEW md files)
-- plan_repo_state : S127 complete — **SPRINT 3** (S120/UIElement base; S121 visual children; S122 layout
+- last_command    : implementit S128 (no commits; no NEW md files)
+- plan_repo_state : S128 complete — **SPRINT 3** (S120/UIElement base; S121 visual children; S122 layout
                     slot geometry + alignment; S123 Measure contract infinity-aware; S124 Arrange contract +
                     clip; S125 leaf/panel measure archetypes TEST-ONLY gate; S126 InvalidateMeasure/
                     InvalidateArrange + LayoutManager dirty-subgraph driver; S127 MeasureOverride/
-                    ArrangeOverride virtuals done; S128 next). S127 (dep:S126) RESOLVED the S123-recorded
-                    NAMED seam upgrade: renamed measure_natural_size -> MeasureOverride (Measure still
-                    finalizes via compute_measured_desired — stretch-vs-wrap intact) AND added the new
-                    arrange-side virtual ArrangeOverride, auto-invoked by Arrange(final_rect()) — completing
-                    the arrange-subgraph AUTO-DRIVE (LayoutManager -> root Arrange -> panel ArrangeOverride
-                    -> children arranged). GREEN on both lanes from first principles.
-- plan_digest     : S127 (dep:S126): MOD src/core/include/vaml/core/UIElement.h (measure_natural_size ->
-                    MeasureOverride rename + new protected ArrangeOverride virtual + updated Arrange/
-                    Measure resolution-script comments), MOD src/core/src/UIElement.cpp (Measure calls
-                    MeasureOverride; Arrange computes final_rect then calls ArrangeOverride(final_rect);
-                    add ArrangeOverride no-op definition), MOD 4 existing test files (Measure_test,
-                    Arrange_test, LeafPanelArchetype_test, LayoutManager_test — rename-only zero-semantic-
-                    change), ADDED test/unit/MeasureArrangeOverride_test.cpp (5 TEST_CASEs, auto-drive +
-                    no-op + margin-inset + live-invocation + stretch-vs-wrap-intact), MOD
-                    test/unit/CMakeLists.txt (+MeasureArrangeOverride_test.cpp), ADDED build/verify_s127.cmd,
-                    MOD docs/roadmap.md — S127 [DONE] with full detail.
+                    ArrangeOverride virtuals; S128 dirty-only subpass TEST-ONLY gate done; S129 next).
+                    S128 (dep:S127) is the FORMAL multi-level proof that changing a CHILD confines
+                    re-measure/re-arrange to that child's subtree-influence (the leaf + its ancestor chain),
+                    leaving friend subtrees and clean siblings untouched — on the real
+                    R > (P1 > (A,B), P2 > (C,D)) tree shape plus a 4-level deep chain. TEST-ONLY — zero new
+                    product symbols; the mechanism was already real (S126 dirty bits + LayoutManager;
+                    S127 MeasureOverride/ArrangeOverride auto-drive). GREEN on both lanes from first
+                    principles.
+- plan_digest     : S128 (dep:S127): ADDED test/unit/DirtyOnlySubpass_test.cpp (test-local DirtyLeaf counts
+                    BOTH MeasureOverride [mutable] + ArrangeOverride [non-const]; DirtyStack realizes the
+                    S126 dirty-respect INSIDE the S127 ArrangeOverride auto-drive — MeasureOverride
+                    re-measures ONLY dirty children, ArrangeOverride re-arranges ONLY dirty children;
+                    6 TEST_CASEs: leaf-A confinement + clean-sibling/friend-branch untouched; branch
+                    confinement directional (C/P2 vs P1); subgraph coalescing (A+B -> one pass); arrange-axis
+                    confinement via auto-drive (A.arrange+1, B final_rect reused, measure axis frozen);
+                    deep 4-level tree fully clean both axes; clean UpdateLayout true no-op after a confined
+                    pass), MOD test/unit/CMakeLists.txt (+DirtyOnlySubpass_test.cpp), ADDED
+                    build/verify_s128.cmd, MOD docs/roadmap.md — S128 [DONE] with full detail.
 - files_touched   :
-    MODIFIED src/core/include/vaml/core/UIElement.h        (S127 rename + new ArrangeOverride virtual)
-    MODIFIED src/core/src/UIElement.cpp                    (Measure->MeasureOverride; Arrange invokes ArrangeOverride)
-    MODIFIED test/unit/Measure_test.cpp                    (rename-only: override now MeasureOverride)
-    MODIFIED test/unit/Arrange_test.cpp                    (rename-only: override now MeasureOverride)
-    MODIFIED test/unit/LeafPanelArchetype_test.cpp         (rename-only: overrides now MeasureOverride)
-    MODIFIED test/unit/LayoutManager_test.cpp              (rename-only: overrides now MeasureOverride)
-    ADDED    test/unit/MeasureArrangeOverride_test.cpp     (S127 auto-drive + virtual live-proof tests)
-    MODIFIED test/unit/CMakeLists.txt                      (+ MeasureArrangeOverride_test.cpp)
-    ADDED    build/verify_s127.cmd                         (S127 windows-msvc lane)
-    MODIFIED docs/roadmap.md                               (S127 [DONE])
-    MODIFIED session-context.md (this — S127 completion)
-- build_status    : GREEN — BOTH CI LANES (verified from first principles at S127). windows-msvc:
-                    msvc-debug (VS 2026) via build/verify_s127.cmd — configure+build warning-clean +
-                    ctest 1/1 PASS (MeasureArrangeOverride_test 5 cases green + all prior S120-S126 tests
-                    still green after the rename — NO unbuildable window). ubuntu-clang:
-                    clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build +
-                    ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646> doctest
-                    deprecation from third_party (not this TU; non-error, already downgraded via
-                    -Wno-error=#warnings in the test CMakeLists). (windows-clang-debug is NOT a lane — not
-                    built/tested/flagged per standing rule.)
-- next_step       : S128. S128 (dep:S127) = Sprint 3, ninth token — Dirty-only subpass: changing a child
-                    re-measures only subtree (test).
+    ADDED    test/unit/DirtyOnlySubpass_test.cpp          (S128 dirty-only-subpass TEST-ONLY gate)
+    MODIFIED test/unit/CMakeLists.txt                      (+ DirtyOnlySubpass_test.cpp)
+    ADDED    build/verify_s128.cmd                         (S128 windows-msvc lane)
+    MODIFIED docs/roadmap.md                               (S128 [DONE])
+    MODIFIED session-context.md (this — S128 completion)
+- build_status    : GREEN — BOTH CI LANES (verified from first principles at S128). windows-msvc:
+                    msvc-debug (VS 2026) via build/verify_s128.cmd — configure+build warning-clean +
+                    ctest 1/1 PASS (DirtyOnlySubpass_test 6 cases green INSIDE the full suite, 488 cases;
+                    all prior S120-S127 tests still green). ubuntu-clang: clang-debug (Ubuntu VM
+                    192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS
+                    (488 cases green, S128:* 6 cases all green). Only Clang warnings = pre-existing
+                    upstream <ciso646> doctest deprecation from third_party (not this TU; non-error,
+                    already downgraded via -Wno-error=#warnings in the test CMakeLists).
+                    (windows-clang-debug is NOT a lane — not built/tested/flagged per standing rule.)
+- next_step       : S129. S129 (dep:S128) = Sprint 3, tenth token — StackPanel (vertical+horizontal;
+                    orientation prop; last-child-stretch).
 - notes           :
-    - S127 real product surface (no MINIMAL REAL, no STUB): MeasureOverride (the renamed S123 measure
-      seam, same signature + semantics) + ArrangeOverride (the new arrange-side virtual). measure_natural_size
-      no longer exists anywhere (grep-clean across src/ + test/). Arrange() still computes final_rect() via
-      compute_final_rect (the S124 margin+alignment contract, UNCHANGED) and then auto-invokes
-      ArrangeOverride(final_rect()).
-    - ArrAUTO-DRIVE: LayoutManager::UpdateLayout -> root->Arrange -> ArrangeOverride(final_rect) -> panel
-      arranges its children via child->Arrange. This removes the S125/S126 manual arrange-call pattern for
-      the arrange subgraph; completes the S124-recorded "no virtual Arrange -> S127" named upgrade (not
-      silent).
-    - No behavior change to Measure's finalizer, Arrange's final-rect math, dirty flags, or the LayoutManager
-      driver. The 4 prior consumers were updated rename-only (zero semantic change), keeping the whole
-      S120-S126 suite green at this step (NO-GAP, no unbuildable window).
-    - New MeasureArrangeOverride_test.cpp (Shouldly, 5 TEST_CASEs): base MeasureOverride {0,0} + base
-      ArrangeOverride no-op (a base element's children are NOT auto-arranged); HEADLINE — AutoDrivePanel
-      (MeasureOverride+ArrangeOverride) with children driven by lm.UpdateLayout() ALONE stacks children
-      into the panel's render slot with correct final_rects + clears children's arrange bits; ArrangeOverride
-      receives final_rect (a panel margin offsets children placement to the inset origin); counting overrides
-      prove Measure invokes MeasureOverride and Arrange invokes ArrangeOverride (rename + auto-drive are
-      live); Measure still finalizes first (Stretch finite fills available into desired_size — the S123
-      rule intact).
-    - NO-GAP: S129 (real StackPanel) + S131 (Grid) adopt MeasureOverride/ArrangeOverride for their real
-      panel algorithms; S128 formal dirty-only-subpass gate; S208 (renderer) consumes final_rect() as the
-      render slot + applies clip_to_bounds; S405 (ScrollViewer) clips via clip_to_bounds. S127 does NOT
-      re-base the seeded controls (their sentinels forbid it).
+    - S128 is TEST-ONLY: zero new product symbols. The headline (*changing a child re-measures only
+      subtree*) is certified on a multi-level tree where unrelated branches (P2/C/D) and clean-in-subtree
+      siblings (B) each have their own measure/arrange counters. The test-local DirtyStack is the
+      S125 archetype rule only (real StackPanel -> S129); it proves BOTH axes: MeasureOverride re-measures
+      only dirty children (clean desired_size reused, width=max/height=sum) and ArrangeOverride
+      (auto-invoked by Arrange via the S127 auto-drive) re-arranges only dirty children (clean final_rect
+      left untouched). DirtyLeaf counts BOTH MeasureOverride + ArrangeOverride so arrange confinement is
+      observable per leaf, closing the S127 auto-drive's observable-gap.
+    - 6 TEST_CASEs (Shouldly vocabulary): (1) invalidating leaf A re-measures A+P1+R only; clean B (sibling
+      IN the subtree) + P2/C/D untouched; whole tree measure-clean. (2) branch confinement is directional —
+      invalidating C (under P2) re-measures only C/P2/R; the P1 branch entirely untouched. (3) subgraph
+      coalescing — invalidating A AND B before ONE UpdateLayout collapses to ONE pass: P1+1/R+1/A+1/B+1,
+      P2 untouched. (4) arrange-axis confinement via the auto-drive — InvalidateArrange on A re-arranges A
+      only (+1), B's final_rect reused unchanged (B.arrange frozen), P2 arrangeCount unchanged, tree
+      arrange-clean. (5) a deep 4-level tree is left fully clean on BOTH axes after one confined subpass.
+      (6) after a confined subpass a clean UpdateLayout is a true no-op (measure+arrange counts frozen) —
+      the subpass is strictly dirty-driven.
+    - NO-GAP clean: S129 (real StackPanel) + S131 (Grid) adopt this exact dirty-respect in their real
+      panel algorithms — the explicit, scheduled resolution points, recorded, never a silent backfill. No
+      MINIMAL REAL introduced/resolved. S128 does NOT re-base the seeded controls (their sentinels forbid
+      it).
     - NO NEW md files (directive honored). No commits made (per command).
     - COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088, S089, S090,
-      S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125, S126, and now S127 is
-      outstanding, awaiting your authorization. After commit+push: repo is the committed good state;
-      SPRINT 3 continues (next is S128). Laptop-added files uncommitted as well — one commit covers all.
+      S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125, S126, S127, and now S128
+      is outstanding, awaiting your authorization. After commit+push: repo is the committed good state;
+      SPRINT 3 continues (next is S129). Laptop-added files uncommitted as well — one commit covers all.
