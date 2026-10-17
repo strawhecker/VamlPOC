@@ -1,7 +1,7 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S132+S133 (no commits; no NEW md files)
-- plan_repo_state : S130+**S130_1**+**S131**+**S132**+**S133** complete — **SPRINT 3** (S120/UIElement base;
+- last_command    : implementit S134+S135 (no commits; no NEW md files)
+- plan_repo_state : S130+**S130_1**+**S131**+**S132**+**S133**+**S134**+**S135** complete — **SPRINT 3** (S120/UIElement base;
                     S121 visual children; S122 layout slot geometry + alignment; S123 Measure contract
                     infinity-aware; S124 Arrange contract + clip; S125 leaf/panel measure archetypes
                     TEST-ONLY gate; S126 InvalidateMeasure/InvalidateArrange + LayoutManager dirty-subgraph
@@ -9,40 +9,62 @@
                     gate; S129 StackPanel real panel done; S130 exhaustive DesiredSize/stretch suite done;
                     S130_1 margin-aware Measure resolution done; S131 Grid real panel done (row/col
                     definitions + Absolute/Auto/Star resolution + attached Grid.Row/Grid.Column + basic
-                    no-span cell measure/arrange); **S132 Grid ColumnSpan/RowSpan + span-aware two-pass
-                    measure/arrange math done**; **S133 exhaustive star+span test-only suite done**).
-                    S132 (dep:S131): attached Grid.RowSpan/Grid.ColumnSpan DPs (default 1, clamped) + new
-                    static resolve_grid_with_spans realizing D2 (auto equal-division) + D1 (star
-                    min/re-award) + merged-span-cell placement, all dirty-respect (S128). S133 (dep:S132):
-                    TEST-ONLY exhaustive star+span gate over the real S132 Grid. GREEN on both lanes from
-                    first principles.
-- plan_digest     : S132 (dep:S131): MOD src/core/include/vaml/core/Element.h (attached Grid.RowSpan/
-                    Grid.ColumnSpan accessors) + MOD src/core/src/Element.cpp (register span DPs + typed
-                    statics + span-aware two-pass MeasureOverride/ArrangeOverride via new static
-                    resolve_grid_with_spans) + ADDED test/unit/GridSpan_test.cpp (S132 focused suite) +
-                    MOD test/unit/CMakeLists.txt (+GridSpan_test.cpp) + ADDED build/verify_s132.cmd +
-                    MOD docs/roadmap.md (S132 [DONE] + S133 NO-GAP) + MOD session-context.md (this) +
-                    MOD progress.md (checkpoint + guard rails + step log). S133 (dep:S132): ADDED
-                    test/unit/Grid_stretch_test.cpp (exhaustive star+span suite, TEST-ONLY) + MOD
-                    test/unit/CMakeLists.txt (+Grid_stretch_test.cpp) + ADDED build/verify_s133.cmd +
-                    MOD docs/roadmap.md (S133 [DONE]) + MOD session-context.md (this) + MOD progress.md
-                    (step log). S132 RESOLVES the S131 NO-GAP hand-off (span dimension): attached
-                    Grid.RowSpan/Grid.ColumnSpan Int32 DPs (default 1, clamped ≥ 1 + to bounds) registered
-                    globally under owner "Grid" (S043) with typed statics; span-aware two-pass
-                    measure/arrange — resolve_grid_with_spans accumulates Auto extents + star content-minima
-                    via equal-division (D2), resolves via resolve_grid_lengths, then D1 min/re-award (a
-                    Star track with a positive share grows to at least its content minimum; no-share star
-                    stays 0); MeasureOverride re-measures ONLY dirty children at their merged-span-cell
-                    slot, ArrangeOverride places each child into its merged-span rect {anchor origin, Σ
-                    spanned extents} honoring alignment+margin, arrange ONLY dirty children (S128). Panel
-                    DesiredSize = Σ(non-star) + Σ(star content-minima). No MINIMAL REAL introduced. S133 =
-                    the exhaustive star+span suite (recorded, not silent): 17 TEST_CASEs in five parts
-                    (star proportional sizing / star+span / auto+span / span placement / dirty-respect) via
-                    a test-local RecordLeaf (S125/S130 pattern). NO-GAP clean on both steps.
+                    no-span cell measure/arrange); S132 Grid ColumnSpan/RowSpan + span-aware two-pass
+                    measure/arrange math done; S133 exhaustive star+span test-only suite done; **S134
+                    WrapPanel REAL panel done (flow/wrap/aligned rows)**; **S135 WrapPanel dedicated
+                    test-only suite done**).
+                    S134 (dep:S133): REAL WrapPanel — UIElement-derived; WrapDirection DP (reuses the S129
+                    Orientation enum: Vertical=0, Horizontal=1), default HORIZONTAL, not inherited,
+                    self-registered (S043 attached-aware); flow/wrap/align algorithm in Element.cpp (measure
+                    offers children Size::Infinite() on BOTH axes — natural-extent basis refined from the
+                    accepted natural-width basis so rows are content-heighted; Horizontal wraps on max-row-
+                    width, Desired={maxRowW,ΣrowH}; Vertical wraps on max-col-height, Desired={ΣcolW,maxColH};
+                    arrange reproduces the wraps + gives each row its extent (row height = tallest) and
+                    honors each child's OWN alignment/margin inside its slot); registered built-in (9→10,
+                    ElementFactoryRegistry_test.cpp updated at THIS step). S135 (dep:S134): TEST-ONLY
+                    dedicated WrapPanel suite (14 TEST_CASEs). GREEN on both lanes from first principles.
+- plan_digest     : S134 (dep:S133): MOD src/core/include/vaml/core/Element.h (WrapPanel class + WrapDirection
+                    DP) + MOD src/core/src/Element.cpp (register_wrappanel_properties + real flow/wrap/align
+                    MeasureOverride/ArrangeOverride + register "WrapPanel" built-in) + MOD
+                    test/unit/ElementFactoryRegistry_test.cpp (9→10 count + WrapPanel resolve) + ADDED
+                    build/verify_s134.cmd + MOD docs/roadmap.md (S134 [DONE]) + MOD session-context.md
+                    (this) + MOD progress.md (step log). S135 (dep:S134): ADDED test/unit/WrapPanel_test.cpp
+                    (dedicated suite, TEST-ONLY) + MOD test/unit/CMakeLists.txt (+WrapPanel_test.cpp) +
+                    ADDED build/verify_s135.cmd + MOD docs/roadmap.md (S135 [DONE]) + MOD session-context.md
+                    (this) + MOD progress.md (step log). S134 = REAL WrapPanel, NOT a seed (NEW element).
+                    DESIGN: WrapDirection reuses the S129 Orientation enum (Vertical=0, Horizontal=1),
+                    default HORIZONTAL (WPF-faithful), NOT inherited, self-registered via the S043 attached-
+                    aware global path; property NAME "WrapDirection" (owner "WrapPanel") deliberately NOT
+                    "Orientation" (StackPanel owns it in the global registry — a same-name pair under a
+                    different owner would be ambiguous to the S091 dotted-key reader). MEASURE offers every
+                    child Size::Infinite() on BOTH axes (the S123 infinity rule — a Stretch child wraps to
+                    content; CROSS axis ALSO unbounded so rows are content-heighted, refining the accepted
+                    "natural-width basis" to a "natural-extent basis" recorded in Element.cpp) and re-measures
+                    ONLY is_measure_dirty() children (S128); Horizontal flows left-to-right, WRAPS when
+                    `rowWidth + childWidth > available.width` (checked ONLY when the row is non-empty, so a
+                    child wider than the whole boundary still gets its own row), DesiredSize = {max row
+                    width, Σ row heights}; Vertical is the mirror (top-to-bottom columns, wrap on height,
+                    DesiredSize = {Σ column widths, max column height}). ARRANGE reproduces the same wraps
+                    (boundary = final_rect extent), gives each row its extent (row height = tallest child on
+                    Horizontal), places each child into its row slot {cursor, rowY, childDesiredW, rowHeight}
+                    via child->Arrange (honoring the child's OWN alignment + margin inside the slot via S124
+                    compute_final_rect — a default-Stretch child fills the row's cross extent while keeping
+                    its natural flow extent = the "aligned rows" headline), re-arranging ONLY is_arrange_dirty()
+                    children (S128). Registered as built-in (count 9→10; ElementFactoryRegistry_test.cpp size
+                    assertions + a WrapPanel resolve assertion updated HERE, not silent). NO ItemWidth/
+                    ItemHeight (WPF fixed-item mode — not in the S134 title, recorded NO-GAP deferred, not
+                    fabricated). NO MINIMAL REAL introduced. S135 = the recorded dedicated WrapPanel test
+                    suite (not a backfill): 14 TEST_CASEs via a test-local RecorderLeaf (S125/S130 pattern) —
+                    derives UIElement; WrapDirection default Horizontal + round-trip + global S043 resolution;
+                    default-Horizontal overflow WRAPS; over-wide child gets its own row; DesiredSize
+                    Horizontal = max/Σ; children measured at natural extent (+inf both axes); aligned rows
+                    (row height = tallest; Stretch fills row height; per-child Top/Center/Bottom); vertical
+                    mirror (WRAPS to new column + DesiredSize Σ/max); empty -> 0; dirty-respect; margin enters
+                    DesiredSize (S130_1). NO-GAP clean on both steps.
                     COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088,
                     S089, S090, S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125,
-                    S126, S127, S128, S129, S130, S130_1, S131, S132, and S133 is outstanding, awaiting your
-                    authorization.
+                    S126, S127, S128, S129, S130, S130_1, S131, S132, S133, S134, and S135 is outstanding,
+                    awaiting your authorization.
                     (S130 record, historical context — superseded by the above: S130 was the dedicated
                     exhaustive StackPanel suite (TEST-ONLY) + S130_1 the margin-aware Measure resolution; the
                     detailed S130 block below is retained for the historical record.) **S130_1 (RESOLUTION, user-directed at review):
@@ -70,29 +92,49 @@
                     D17 now asserts margin ENTERS panel DesiredSize per S130_1; dirty-only re-measure/
                     re-arrange of a Stretch child with a clean sibling untouched).
 - files_touched   :
-    MODIFIED src/core/include/vaml/core/Element.h            (S132: attached Grid.RowSpan/Grid.ColumnSpan accessors + comments)
-    MODIFIED src/core/src/Element.cpp                        (S132: register span DPs + typed statics + span-aware two-pass MeasureOverride/ArrangeOverride + new static resolve_grid_with_spans + D1/D2)
-    ADDED    test/unit/GridSpan_test.cpp                     (S132 focused span suite)
-    ADDED    test/unit/Grid_stretch_test.cpp                 (S133 exhaustive star+span suite)
-    MODIFIED test/unit/CMakeLists.txt                        (+ GridSpan_test.cpp, + Grid_stretch_test.cpp)
-    ADDED    build/verify_s132.cmd                           (S132 windows-msvc lane)
-    ADDED    build/verify_s133.cmd                           (S133 windows-msvc lane)
-    MODIFIED docs/roadmap.md                                 (S132 [DONE] + S133 [DONE])
-    MODIFIED session-context.md (this — S132+S133 completion)
-    MODIFIED progress.md                                     (checkpoint -> S134; guard rails + step log)
-- build_status    : GREEN — BOTH CI LANES (verified from first principles at S132+S133). windows-msvc:
-                    msvc-debug (VS 2026) via build/verify_s132.cmd then build/verify_s133.cmd —
-                    configure+build warning-clean + ctest 1/1 PASS (all S132:* + S133:* cases green, all
-                    prior S131/S130/S130_1/S129/S120-S128 still green). ubuntu-clang: clang-debug (Ubuntu VM
-                    192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS (S132:*
-                    + S133:* all green). Only Clang warnings = pre-existing upstream <ciso646> doctest
-                    deprecation from third_party (not this TU; non-error, already downgraded via
+    MODIFIED src/core/include/vaml/core/Element.h            (S134: WrapPanel class + WrapDirection DP + comments)
+    MODIFIED src/core/src/Element.cpp                        (S134: register_wrappanel_properties + real flow/wrap/align MeasureOverride/ArrangeOverride + register "WrapPanel" built-in)
+    MODIFIED test/unit/ElementFactoryRegistry_test.cpp       (S134: 9→10 built-in count + WrapPanel resolve assertion)
+    ADDED    test/unit/WrapPanel_test.cpp                    (S135 dedicated WrapPanel suite)
+    MODIFIED test/unit/CMakeLists.txt                        (+ WrapPanel_test.cpp)
+    ADDED    build/verify_s134.cmd                           (S134 windows-msvc lane)
+    ADDED    build/verify_s135.cmd                           (S135 windows-msvc lane)
+    MODIFIED docs/roadmap.md                                 (S134 [DONE] + S135 [DONE] + guard-rail WrapPanel resolution)
+    MODIFIED session-context.md (this — S134+S135 completion)
+    MODIFIED progress.md                                     (checkpoint + guard rails + step log)
+- build_status    : GREEN — BOTH CI LANES (verified from first principles at S134+S135). windows-msvc:
+                    msvc-debug (VS 2026) via build/verify_s135.cmd (re-runs S134+S135 together) —
+                    configure+build warning-clean + ctest 1/1 PASS (all S134/S135 cases green, all prior
+                    S133/S132/S131/S130/S130_1/S129/S120-S128 still green). ubuntu-clang: clang-debug
+                    (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1
+                    PASS (WrapPanel tests all green). Only Clang warnings = pre-existing upstream <ciso646>
+                    doctest deprecation from third_party (not this TU; non-error, already downgraded via
                     -Wno-error=#warnings in the test CMakeLists). (windows-clang-debug is NOT a lane — not
                     built/tested/flagged per standing rule.)
-- next_step       : S134. S134 (dep:S133) = Sprint 3 — WrapPanel: flow, wraps at boundary, aligned rows.
-                    S132/S133 committed to roadmap as done; the Grid span + star math is complete; next
-                    panel control in the Sprint 3 token range.
+- next_step       : next roadmap token after S135 (Sprint 3 — S134/S135 committed to roadmap as done; the
+                    WrapPanel control + its test suite are complete; S135 is the last defined Sprint-3
+                    token, so the next token is to be assigned per the roadmap conventions).
 - notes           :
+    - S134 delivers the REAL WrapPanel — a NEW element (no S087 seed existed), so the built-in element
+      count rose 9→10 and the ElementFactoryRegistry_test.cpp `size().ShouldBe(9u)` assertions (two of
+      them: the startup gate + the idempotent gate) were updated to 10 at THIS step, plus a WrapPanel
+      registry-resolve assertion authored HERE (registration belongs to S134, not a silent backfill).
+    - S134 refinement (recorded in Element.cpp): the S134 measure offers children Size::Infinite() on
+      BOTH axes — the accepted plan said "natural-width basis" (unbounded flow axis), but the CROSS axis
+      is ALSO offered unbounded so a default-Stretch child cannot fill a finite cross offer: rows stay
+      CONTENT-HEIGHTED (row height = tallest child), which is what makes the "aligned rows" headline
+      (per-child alignment within a content row) real. Refined at implementation, documented in
+      Element.cpp + roadmap S134.
+    - S134 property NAME is "WrapDirection" (owner "WrapPanel") — deliberately NOT "Orientation"
+      (StackPanel owns "Orientation" in the global registry; a same-name pair under a different owner
+      would be ambiguous to the S091 dotted-key dotted resolution). It rides the Int32 value path via
+      the S129 Orientation enum (Vertical=0, Horizontal=1), default Horizontal (WPF-faithful), NOT
+      inherited.
+    - NO ItemWidth/ItemHeight (WPF fixed-item mode) — not in the S134 title; recorded NO-GAP (deferred,
+      not fabricated). No MINIMAL REAL introduced (− no new sentinel; − no resolution beyond S129/S131
+      stays pending for WrapPanel).
+    - S135 is TEST-ONLY (zero new product symbols beyond S134) — the recorded dedicated WrapPanel suite
+      via a test-local RecorderLeaf (S125/S130 pattern). 14 TEST_CASEs.
     - S131 RESOLVES the S087 Grid MINIMAL REAL seed at its own sprint (NO-GAP, not a backfill).
       GridLength.h is a pure header-only value type (like Color/Thickness/Geometry), NOT a MINIMAL REAL
       marker — complete + real on delivery. The attached DPs use the real global names "Grid.Row"/
@@ -151,6 +193,6 @@
       no float-tolerance is needed.
     - COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088, S089, S090,
       S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125, S126, S127, S128,
-      S129, S130, S130_1, S131, S132, and S133 is outstanding, awaiting your authorization. After
-      commit+push: repo is the committed good state; SPRINT 3 continues (next is S134). Laptop-added files
-      uncommitted as well — one commit covers all.
+      S129, S130, S130_1, S131, S132, S133, S134, and S135 is outstanding, awaiting your authorization.
+      After commit+push: repo is the committed good state; SPRINT 3 continues (next roadmap token after
+      S135). Laptop-added files uncommitted as well — one commit covers all.

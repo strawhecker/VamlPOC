@@ -47,6 +47,7 @@ using vaml::StackPanel;
 using vaml::Text;
 using vaml::TextBox;
 using vaml::Window;
+using vaml::WrapPanel;
 using vaml::register_builtin_elements;
 using vaml::test::ShouldThrow;
 
@@ -77,6 +78,16 @@ TEST_CASE("S087: register+create returns a live object of the concrete type")
 
     std::unique_ptr<DependencyObject> o = r.create("ButtonS087");
     assertConcrete<Button>(o);
+}
+
+TEST_CASE("S087: register+create returns a live object of the concrete type (WrapPanel)")
+{
+    // S134: a WrapPanel concrete instance resolves from the registry (the
+    // typeName -> concrete-type dispatch is real, not a generic blob).
+    ElementFactoryRegistry r;
+    r.register_element("WrapPanelS134", [] { return std::make_unique<WrapPanel>(); });
+    std::unique_ptr<DependencyObject> o = r.create("WrapPanelS134");
+    assertConcrete<WrapPanel>(o);
 }
 
 TEST_CASE("S087: create produces a fresh instance per call")
@@ -206,6 +217,8 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     SHOULD(ShouldlyIntegral(g.is_registered("Slider")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ScrollViewer")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Window")).ShouldBe(true));
+    // S134: WrapPanel is a real built-in (registered at S134, not a seed).
+    SHOULD(ShouldlyIntegral(g.is_registered("WrapPanel")).ShouldBe(true));
 
     // The S087 headline: create("Button") etc. yields the CONCRETE type, not a
     // generic blob — the typeName -> type dispatch is real end-to-end.
@@ -218,9 +231,12 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<Slider>(g.create("Slider"));
     assertConcrete<ScrollViewer>(g.create("ScrollViewer"));
     assertConcrete<Window>(g.create("Window"));
+    // S134: the registry-resolve assertion is authored at THIS step (the
+    // element was registered here, not silently backfilled later).
+    assertConcrete<WrapPanel>(g.create("WrapPanel"));
 
-    // Size matches the full built-in set (exactly 9 elements).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(9u));
+    // Size matches the full built-in set (10 elements: 9 seeds + WrapPanel).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(10u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -229,7 +245,7 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     register_builtin_elements(); // second population must NOT throw
     ElementFactoryRegistry& g = ElementFactoryRegistry::global();
     // Exactly the built-in set, no duplicates (a duplicate would have thrown or
-    // inflated size).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(9u));
+    // inflated size). S134: WrapPanel adds the 10th built-in.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(10u));
     assertConcrete<Button>(g.create("Button"));
 }

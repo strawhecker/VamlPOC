@@ -4,9 +4,9 @@
 // bearer (empty ctor) deriving DependencyObject. NO members / logic here — the
 // real content of each control is authored at its OWN resolution sprint (see
 // Element.h sentinels). The controls that have reached their sprints are
-// StackPanel (S129) and Grid (S131), which RESOLVE their seeds here: re-based
-// onto UIElement and delivered as REAL panels. The remaining seeds stay thin
-// until their own sprints.
+// StackPanel (S129), Grid (S131) and WrapPanel (S134), which RESOLVE here:
+// re-based onto UIElement and delivered as REAL panels. The remaining seeds
+// stay thin until their own sprints.
 //
 // register_builtin_elements() is the single startup registration call that
 // populates ElementFactoryRegistry::global() with every roadmap element name the
@@ -88,6 +88,32 @@ void ensure_grid_properties_registered()
     {
         registered = true;
         register_grid_properties();
+    }
+}
+
+// Registers the WrapPanel WrapDirection DP into the global table exactly once
+// per process (Meyers-static guard; a second call is a no-op — mirrors
+// UIElement's self-registration). WrapDirection is GLOBALLY registered so it
+// resolves on any DependencyObject via S043 attached-aware resolution, and
+// defaults to Horizontal (1), NOT inherited (a panel's wrap direction is its
+// own). The property NAME is "WrapDirection" (owner "WrapPanel") — StackPanel
+// already owns "Orientation" in the global registry, so reusing that name
+// under a different owner would be ambiguous to the S091 dotted-key reader.
+void register_wrappanel_properties()
+{
+    (void)DependencyProperty::Register(
+        "WrapDirection", ValueType::Int32, "WrapPanel",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+}
+
+// Runs register_wrappanel_properties() at most once (first WrapPanel ctor).
+void ensure_wrappanel_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_wrappanel_properties();
     }
 }
 
@@ -338,6 +364,198 @@ VAML_CORE_EXPORT
 std::int32_t Grid::column_span(const DependencyObject& obj)
 {
     return obj.Get(PropertyId::of("Grid.ColumnSpan")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+WrapPanel::WrapPanel()
+{
+    ensure_wrappanel_properties_registered();
+}
+
+// --- S134 WrapPanel: WrapDirection DP + real flow/wrap/align panel ----------
+
+VAML_CORE_EXPORT
+SetResult WrapPanel::set_wrap_direction(Orientation o)
+{
+    // Rides the Int32 value path (the enum stores as Int32, same convention as
+    // Orientation on StackPanel / Visibility / alignment enums).
+    return Set(PropertyId::of("WrapDirection"),
+               Value::Int32(static_cast<std::int32_t>(o)));
+}
+
+VAML_CORE_EXPORT
+Orientation WrapPanel::wrap_direction() const
+{
+    return static_cast<Orientation>(Get(PropertyId::of("WrapDirection")).get<std::int32_t>());
+}
+
+// The flow/wrap/align measure. Children are measured at NATURAL (unbounded)
+// size on BOTH axes so the wrap decision uses content-correct extents and rows
+// are content-heighted:
+//   * Horizontal — each child is offered {∞, ∞} (the S123 infinity rule: a
+//     Stretch child given infinite wraps to its natural content on every
+//     axis). Row accumulators track the running row width/height; a child
+//     WRAPS to a new row when `rowWidth + childWidth > available.width`
+//     (checked ONLY when the row is non-empty, so a single child wider than
+//     the whole boundary still gets its own row). DesiredSize = {max row
+//     width, Σ row heights}.
+//   * Vertical   — the mirror: each child offered {∞, ∞}, wrap when
+//     `colHeight + childHeight > available.height` (col non-empty);
+//     DesiredSize = {Σ column widths, max column height}.
+// The CROSS axis is also unbounded (natural), NOT `available`: offering the
+// finite cross extent to a default-Stretch child would make it report the
+// full available cross size, so every row would be the full available height
+// instead of content-sized — defeating the "aligned rows" headline (row height
+// = tallest child, per-child alignment within that content row). This refines
+// the accepted S134 plan's "natural-width basis" to a "natural-extent basis".
+// Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
+// child reuses its stored desired_size(). Measure() (base) then finalizes this
+// natural extent via the S123 infinity-aware stretch-vs-wrap rule.
+VAML_CORE_EXPORT
+Size WrapPanel::MeasureOverride(const Size& available) const
+{
+    float width  = 0.0f;   // running max (Horizontal) / Σ (Vertical) — finalized below
+    float height = 0.0f;
+
+    if (wrap_direction() == Orientation::Horizontal)
+    {
+        const Size childAvail = Size::Infinite();
+        float rowWidth  = 0.0f;
+        float rowHeight = 0.0f;
+        float maxRowW   = 0.0f;
+        float sumRowH   = 0.0f;
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* child = child_at(i);
+            if (child->is_measure_dirty())
+            {
+                child->Measure(childAvail);
+            }
+            const float cw = child->desired_size().width;
+            const bool rowNonEmpty = (rowWidth > 0.0f);
+            if (rowNonEmpty && rowWidth + cw > available.width)
+            {
+                maxRowW = (rowWidth > maxRowW) ? rowWidth : maxRowW;
+                sumRowH += rowHeight;
+                rowWidth = 0.0f;
+                rowHeight = 0.0f;
+            }
+            rowWidth += cw;
+            rowHeight = (child->desired_size().height > rowHeight)
+                            ? child->desired_size().height
+                            : rowHeight;
+        }
+        maxRowW = (rowWidth > maxRowW) ? rowWidth : maxRowW;
+        sumRowH += rowHeight;
+        width  = maxRowW;
+        height = sumRowH;
+    }
+    else
+    {
+        const Size childAvail = Size::Infinite();
+        float colWidth  = 0.0f;
+        float colHeight = 0.0f;
+        float maxColH   = 0.0f;
+        float sumColW   = 0.0f;
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* child = child_at(i);
+            if (child->is_measure_dirty())
+            {
+                child->Measure(childAvail);
+            }
+            const float ch = child->desired_size().height;
+            const bool colNonEmpty = (colHeight > 0.0f);
+            if (colNonEmpty && colHeight + ch > available.height)
+            {
+                maxColH = (colHeight > maxColH) ? colHeight : maxColH;
+                sumColW += colWidth;
+                colWidth = 0.0f;
+                colHeight = 0.0f;
+            }
+            colWidth = (child->desired_size().width > colWidth)
+                           ? child->desired_size().width
+                           : colWidth;
+            colHeight += ch;
+        }
+        maxColH = (colHeight > maxColH) ? colHeight : maxColH;
+        sumColW += colWidth;
+        width  = sumColW;
+        height = maxColH;
+    }
+
+    return { width, height };
+}
+
+// The arrange-side virtual (S127). Receives the panel's FULL final render slot
+// (final_rect()). Reproduces the SAME wrap decisions made at measure (the wrap
+// boundary is finalSlot's flow extent), so children land in the SAME rows/
+// columns and their S123-measured natural desired extents are preserved.
+//   * Horizontal — for each row: row y advances by the row height (tallest
+//     child in the row), each child placed into {cursor, rowY, childDesiredW,
+//     rowHeight}; a row wraps when `cursor + childDesiredW > finalSlot.right()`
+//     (row non-empty). Each child's OWN alignment (Vertical/Horizontal + Margin)
+//     is honored inside its slot via child->Arrange (S124 compute_final_rect),
+//     so a default-Stretch child fills the row's height while keeping its
+//     natural width (aligned row).
+//   * Vertical   — the mirror (columns lay left-to-right; column x advances by
+//     the column width; each child into {colX, cursor, colWidth, childDesiredH}).
+// Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children; clean
+// children keep their final_rect untouched.
+VAML_CORE_EXPORT
+void WrapPanel::ArrangeOverride(const Rect& finalSlot)
+{
+    if (wrap_direction() == Orientation::Horizontal)
+    {
+        float rowY = finalSlot.y;
+        float cursor = finalSlot.x;
+        float rowHeight = 0.0f;
+        const std::size_t n = child_count();
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            UIElement* child = child_at(i);
+            const float childW = child->desired_size().width;
+            const float childH = child->desired_size().height;
+            if ((cursor - finalSlot.x) > 0.0f && cursor + childW > finalSlot.right())
+            {
+                // Wrap: commit the current row's cross extent, start the next.
+                rowY += rowHeight;
+                cursor = finalSlot.x;
+                rowHeight = 0.0f;
+            }
+            rowHeight = (childH > rowHeight) ? childH : rowHeight;
+            if (child->is_arrange_dirty())
+            {
+                child->Arrange(Rect{ cursor, rowY, childW, rowHeight });
+            }
+            cursor += childW;
+        }
+        return;
+    }
+
+    // Vertical (columns top-to-bottom, laid left-to-right).
+    float colX = finalSlot.x;
+    float cursor = finalSlot.y;
+    float colWidth = 0.0f;
+    const std::size_t n = child_count();
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        UIElement* child = child_at(i);
+        const float childW = child->desired_size().width;
+        const float childH = child->desired_size().height;
+        if ((cursor - finalSlot.y) > 0.0f && cursor + childH > finalSlot.bottom())
+        {
+            colX += colWidth;
+            cursor = finalSlot.y;
+            colWidth = 0.0f;
+        }
+        colWidth = (childW > colWidth) ? childW : colWidth;
+        if (child->is_arrange_dirty())
+        {
+            child->Arrange(Rect{ colX, cursor, colWidth, childH });
+        }
+        cursor += childH;
+    }
 }
 
 VAML_CORE_EXPORT
@@ -667,6 +885,9 @@ void register_builtin_elements()
     registry.register_element("Slider",       [] { return std::make_unique<Slider>(); });
     registry.register_element("ScrollViewer", [] { return std::make_unique<ScrollViewer>(); });
     registry.register_element("Window",       [] { return std::make_unique<Window>(); });
+    // S134: WrapPanel is a REAL panel (not a seed) — it reaches its resolution
+    // sprint HERE (same as StackPanel/Grid), so it is registered directly.
+    registry.register_element("WrapPanel",    [] { return std::make_unique<WrapPanel>(); });
 }
 
 } // namespace vaml

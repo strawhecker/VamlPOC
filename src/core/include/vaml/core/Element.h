@@ -166,6 +166,47 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
+// WrapPanel — REAL panel control (S134). Flows children along the wrap axis
+// (WrapDirection Horizontal: left-to-right rows; Vertical: top-to-bottom
+// columns), WRAPPING to a new row/column when the boundary is exceeded, with
+// each row/column ALIGNED (children share a line and align within its extent).
+//
+// NATURAL-WIDTH MEASURE BASIS: children are measured at NATURAL (unbounded)
+// size so the wrap decision uses content-correct extents (the S123 infinity
+// rule — a Stretch child given infinite wraps to content, never fabricates a
+// size against infinity). At arrange each child is placed into its row/column
+// slot = {cursor, rowOrigin, natural flow extent, row extent}, and child->Arrange
+// (S124 compute_final_rect) honors the child's OWN alignment + Margin inside
+// that slot — a Stretch child fills the row's cross extent while keeping its
+// natural flow extent (the "aligned rows" headline).
+//
+// WrapDirection rides the Int32 value path (reuses the Orientation enum type:
+// Vertical=0, Horizontal=1) with DEFAULT HORIZONTAL (WPF-faithful). The
+// property name is "WrapDirection" (owner "WrapPanel") — deliberately NOT
+// "Orientation", which StackPanel already owns in the global registry (a
+// same-name pair under a different owner would be ambiguous to the S091
+// dotted-key resolution). The flow/wrap/align algorithm lives in Element.cpp.
+class VAML_CORE_EXPORT WrapPanel final : public UIElement
+{
+public:
+    WrapPanel();
+
+    // --- WrapDirection (REAL DP; default Horizontal, not inherited) -------
+    // Also settable via Set/Get(PropertyId("WrapDirection")).
+    [[nodiscard]] SetResult set_wrap_direction(Orientation o);
+    [[nodiscard]] Orientation wrap_direction() const;
+
+protected:
+    // S134 real panel algorithm (see Element.cpp): measure children at natural
+    // unbounded size, wrap when the flow axis exceeds `available`; DesiredSize
+    // = {max row width, Σ row heights} (Horizontal) / {Σ col widths, max col
+    // height} (Vertical); arrange lays children into row/column slots honoring
+    // each child's own alignment within the row extent. Dirty-respect (S128):
+    // re-measure/re-arrange ONLY dirty children.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+};
+
 // [MINIMAL REAL] Element Text — RESOLVED BY S400 (Sprint 10). Do NOT extend silently; do NOT backfill.
 class VAML_CORE_EXPORT Text final : public DependencyObject
 {
