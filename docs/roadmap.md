@@ -198,11 +198,59 @@
 - S136 dep:S135  Canvas: explicit position via attached Left/Top (attached props via S1).
 - S137 dep:S136  Canvas tests.
 - S138 dep:S137  Layout suite green both compilers; REFACTOR GATE(S3).
-- S139 dep:S138  SURVIVOR + checkpoint advance to S160.
+- S139 dep:S138  SURVIVOR + checkpoint advance to S147 (Sprint 3.5 retrofit).
+
+---
+## Sprint 3.5 — Allocation & ownership discipline (retrofit of S0–S3 hot paths)  [token S140+]
+> RATIONALE (reasoning agreement, latest who/what/why): eliminate the two orthogonal sources of heap
+> churn in the shipped hot paths before the renderer (S210/S211) and binding engine (S240+) are built on
+> them. (1) OBJECT churn: per-object make_unique<Impl>() + per-node unordered_map lifts; (2) STRING churn:
+> transient std::string(id.name()) materialized per lookup. Both removed by: a token-keyed (string_view)
+> identity-keyed SIMD probe store + a thread-local retain-forever block pool + interned/string_view keys.
+> Retrofit rule agreed: past steps are REWRITTEN in place to the intended end-state (no deadwood, no
+> "historical record" preservation); SOLID/release discipline (freeze + annotate) begins only at first release.
+>
+> Store contract (agreed spec): non-owning `string_view` key, UTF-8 canonical, pure C++. Insertion-ordered
+> append-only array; SIMD-probe on 32-byte groups (AVX2, no AVX-512) of 8-bit search bytes; empty marker 0xFF;
+> probe byte = fold_bytes(sv) (rotating-XOR over bytes) & 0x7F; growth = memmove+append rounded up to a
+> 32-entry group, never re-probe / reorder / shrink; erase/tombstone never applies (append-only); full
+> string_view compare disambiguates collisions; index<n bounds the scan to the used prefix. One PD type
+> (no common/root), no unordered_map/flat_hash_map, no pimpl heap node (store is block-resident), retain-
+> forever free-list, thread-local pool, opt-in master destroy_all(). Symbolic/team-fidelity: names stay as
+> programmers know them; token derived 1:1 at intern time, never redefined.
+- S140 dep:S139  Intern property names / attribute strings to a canonical UTF-8 identity; the store key is a
+                 non-owning string_view into a process-lifetime intern pool (never removed, never relocated).
+                 Kills the per-lookup transient std::string(id.name()) at Get/Set/effective/prop-subscribe/
+                 drain. [Rewrites S036/S038/S041/PropertyRegistry name-key contract in place.]
+- S141 dep:S140  Author the SIMD probe store (identity-keyed, no hash): insertion-ordered append-only array,
+                 32-byte/32-lane groups (8-bit search bytes), empty marker 0xFF, probe = fold_bytes(sv)&0x7F,
+                 memmove+append growth rounded to 32, never re-probe/reorder/shrink. New net-new type; NOT a
+                 generic flat_hash_map. [Rewrites S036/S039 store mechanism in place; removes unordered_map.]
+- S142 dep:S141  Collapse DependencyObject/UIElement pimpl + store into ONE block-resident unit (object
+                 header → block-slot offset, no per-object heap hop); single PD type (no common/root), store
+                 inline-started in the slot, heap-grown on demand. [Rewrites S036/S037/S039/S120 in place;
+                 pimpl removed, not preserved.]
+- S143 dep:S142  Relocate the per-object pending mutex out of DependencyObject into the thread-affine
+                 ChangeQueue; re-key ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty
+                 GlobalTable onto the S140 token + S141 store. [Rewrites S037/S041/S038 in place; change
+                 notification contract (QUEUED/coalescing/registration order) behavior-unchanged.]
+- S144 dep:S143  Migrate the three lookup registries to the token-keyed store (ElementFactoryRegistry,
+                 ValueConverterRegistry, DependencyProperty global table); out-param accessors for
+                 UIElement::children()/collect_descendant_effectives (no return-by-value); reserve() the
+                 parser/reader vectors. [Rewrites S087/S089/S091/S121 in place; keeps MINIMAL REAL contracts.]
+- S145 dep:S144  Block pool free-list (thread-local, retain-forever, opt-in master destroy_all): dole
+                 DependencyObject/UIElement from blocks, recycle to free-list, never delete; SIMD store sized
+                 per block slot + monotonic spill. The object-side half of the allocation fix. [Rewrites
+                 S120/S121 element/layout ownership to route frees back to the pool.]
+- S146 dep:S145  REFACTOR GATE(S3.5): remove ALL dead pre-retrofit surface (pimpl heap nodes, unordered_map/
+                 std::string-key paths, by-value children(), owned-name gotchas); full build + ctest green
+                 both compilers; ASan no-leak; steady-state heap-churn counter recorded (feeds S628).
+- S147 dep:S146  SURVIVOR + checkpoint; re-target S160's dep to S147; record the allocator-policy ADR
+                 (feeds S722) + thread-local pool note (feeds S624/S626).
 
 ---
 ## Sprint 4 — Vulkan window + swapchain + first pixels (single-thread proof)  [token S160+]
-- S160 dep:S139  Platform window via GLFW (Win32 + X11); resize + input callback stub surface.
+- S160 dep:S147  Platform window via GLFW (Win32 + X11); resize + input callback stub surface.
 - S161 dep:S160  CMake finds glfw3 + vulkan + VMA; link vaml-vulkan. [RESOLVES S003 vulkan MINIMAL REAL marker → replace version marker with real surface + remove its sentinel tag]
 - S162 dep:S161  Vulkan instance + surface + physical device + queue family selection; validation layers debug-only.
 - S163 dep:S162  Best-GPU auto-selection: score ALL physical devices (DISCRETE>INTEGRATED>OTHER; device-local memory; apiVersion tiebreak); filter to present-capable families; VAML_PREFERRED_GPU name override; log full ranked list at init. Identical code in VamlPOC.cpp + VamlPOC-linux/main.cpp; two-GPU Windows proves multi-adapter selection; single-GPU Linux proves ranking+override path. [both apps, not CI]
