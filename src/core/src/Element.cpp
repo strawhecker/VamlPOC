@@ -70,6 +70,14 @@ void register_grid_properties()
     (void)DependencyProperty::Register(
         "Grid.Column", ValueType::Int32, "Grid",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // S132 span DPs: a child's CELL SPAN (rows × columns). Same attached-aware
+    // model + Int32 path; default 1 (no explicit span = single cell).
+    (void)DependencyProperty::Register(
+        "Grid.RowSpan", ValueType::Int32, "Grid",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Grid.ColumnSpan", ValueType::Int32, "Grid",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
 }
 
 // Runs register_grid_properties() at most once (first Grid ctor).
@@ -81,6 +89,127 @@ void ensure_grid_properties_registered()
         registered = true;
         register_grid_properties();
     }
+}
+
+// --- S132 span-aware track resolution (shared by measure + arrange) ---------
+//
+// Realizes the S132 D1/D2 decisions:
+//   * D2 (Auto equal-division): a spanning child's content contributes
+//     desired / span-count to EACH spanned Auto track (not the full extent to
+//     one track) — the WPF-faithful rule. For a single cell (span 1) this is
+//     just the child's desired extent, so the S131 no-span behavior is a
+//     special case (NO-GAP preserved).
+//   * D1 (star min/re-award): every child's content also sets a CONTENT MINIMUM
+//     (desired / span-count) on each spanned track. A resolved Star track is
+//     re-awarded to at least that minimum (so a spanning child whose content
+//     exceeds its proportional share forces the spanned star track to grow to
+//     fit the content). Non-spanning star tracks obey the same rule with
+//     span-count 1 (a single cell's content grows its star track) — WPF star
+//     behavior. The content minima are kept separately so the panel DesiredSize
+//     reports the content-natural extent (star minimums, not proportional
+//     shares that depend on the available offer).
+//
+// The resolved track extents (+ content-star-minima) are what both Measure
+// (merged-cell second pass + DesiredSize) and Arrange (merged-span rect) need.
+struct GridTrackResolution
+{
+    std::vector<float> col;               // resolved column extents
+    std::vector<float> row;               // resolved row extents
+    std::vector<float> starMinCol;        // content minima for star columns
+    std::vector<float> starMinRow;        // content minima for star rows
+};
+
+GridTrackResolution resolve_grid_with_spans(
+    const Grid& grid,
+    std::size_t nRows,
+    std::size_t nCols,
+    float availW,
+    float availH)
+{
+    GridTrackResolution out;
+    out.col.assign(nCols, 0.0f);
+    out.row.assign(nRows, 0.0f);
+    out.starMinCol.assign(nCols, 0.0f);
+    out.starMinRow.assign(nRows, 0.0f);
+
+    std::vector<float> autoCol(nCols, 0.0f);
+    std::vector<float> autoRow(nRows, 0.0f);
+
+    // Accumulate Auto extents + Star content minima from every child's STORED
+    // desired extent, distributed equally across its span (D2 / D1).
+    for (std::size_t i = 0; i < grid.child_count(); ++i)
+    {
+        UIElement* c = grid.child_at(i);
+        const std::int32_t colRaw = std::max<std::int32_t>(Grid::column(*c), 0);
+        const std::int32_t rowRaw = std::max<std::int32_t>(Grid::row(*c), 0);
+        const std::size_t col = static_cast<std::size_t>(
+            std::min<std::int32_t>(colRaw, static_cast<std::int32_t>(nCols) - 1));
+        const std::size_t r = static_cast<std::size_t>(
+            std::min<std::int32_t>(rowRaw, static_cast<std::int32_t>(nRows) - 1));
+
+        const std::int32_t cspanRaw = std::max<std::int32_t>(Grid::column_span(*c), 1);
+        const std::int32_t rspanRaw = std::max<std::int32_t>(Grid::row_span(*c), 1);
+        const std::size_t cspan = static_cast<std::size_t>(
+            std::min<std::int32_t>(cspanRaw, static_cast<std::int32_t>(nCols) - static_cast<std::int32_t>(col)));
+        const std::size_t rspan = static_cast<std::size_t>(
+            std::min<std::int32_t>(rspanRaw, static_cast<std::int32_t>(nRows) - static_cast<std::int32_t>(r)));
+
+        // Equal-division across the span (D2). Span-count clamped >= 1.
+        const float perCol = c->desired_size().width / static_cast<float>(cspan);
+        const float perRow = c->desired_size().height / static_cast<float>(rspan);
+
+        for (std::size_t k = col; k < col + cspan; ++k)
+        {
+            autoCol[k] = std::max(autoCol[k], perCol);
+            out.starMinCol[k] = std::max(out.starMinCol[k], perCol);
+        }
+        for (std::size_t k = r; k < r + rspan; ++k)
+        {
+            autoRow[k] = std::max(autoRow[k], perRow);
+            out.starMinRow[k] = std::max(out.starMinRow[k], perRow);
+        }
+    }
+
+    std::vector<GridLength> colDefs;
+    colDefs.reserve(nCols);
+    for (const auto& d : grid.column_definitions())
+    {
+        colDefs.push_back(d.width);
+    }
+    std::vector<GridLength> rowDefs;
+    rowDefs.reserve(nRows);
+    for (const auto& d : grid.row_definitions())
+    {
+        rowDefs.push_back(d.height);
+    }
+
+    out.col = resolve_grid_lengths(colDefs, autoCol, availW);
+    out.row = resolve_grid_lengths(rowDefs, autoRow, availH);
+
+    // D1 star min/re-award: a Star track that received a POSITIVE proportional
+    // share grows to at least its content minimum (so a spanning/single-cell
+    // child whose content exceeds the share re-awards the track to fit it).
+    // Gated on `resolved > 0`: a star with NO share (totalStar==0, or a zero-
+    // weight track) stays 0 regardless of content — WPF-faithful, keeps the
+    // A4/A5/A6 "star collapses to 0 when there is no proportional share"
+    // contract. A star with a positive share never shrinks below its content
+    // and is never negative.
+    for (std::size_t k = 0; k < nCols; ++k)
+    {
+        if (colDefs[k].unitType == GridUnitType::Star && out.col[k] > 0.0f)
+        {
+            out.col[k] = std::max(out.col[k], out.starMinCol[k]);
+        }
+    }
+    for (std::size_t k = 0; k < nRows; ++k)
+    {
+        if (rowDefs[k].unitType == GridUnitType::Star && out.row[k] > 0.0f)
+        {
+            out.row[k] = std::max(out.row[k], out.starMinRow[k]);
+        }
+    }
+
+    return out;
 }
 
 } // namespace
@@ -185,6 +314,30 @@ VAML_CORE_EXPORT
 std::int32_t Grid::column(const DependencyObject& obj)
 {
     return obj.Get(PropertyId::of("Grid.Column")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Grid::set_row_span(DependencyObject& obj, std::int32_t value)
+{
+    return obj.Set(PropertyId::of("Grid.RowSpan"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Grid::row_span(const DependencyObject& obj)
+{
+    return obj.Get(PropertyId::of("Grid.RowSpan")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Grid::set_column_span(DependencyObject& obj, std::int32_t value)
+{
+    return obj.Set(PropertyId::of("Grid.ColumnSpan"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Grid::column_span(const DependencyObject& obj)
+{
+    return obj.Get(PropertyId::of("Grid.ColumnSpan")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -323,68 +476,44 @@ void StackPanel::ArrangeOverride(const Rect& finalSlot)
     }
 }
 
-// --- S131 Grid: row/col resolution + basic (no-span) cell measure/arrange ---
+// --- S131/S132 Grid: row/col resolution + span-aware measure/arrange ---------
 //
 // The measure pass resolves both track axes against `available` and measures
-// each child into its cell:
+// each child into its (single or MERGED) cell:
 //   1. Measure every child at an unbounded-width / finite-height offer so its
 //      desired extent is content-based (S123 infinity-aware).
-//   2. Auto column extents = max over the children's desired WIDTH in that
-//      column; Auto row extents = max over the children's desired HEIGHT in
-//      that row (the no-span basic scope — each child occupies one cell).
-//   3. Resolve all column then all row lengths via resolve_grid_lengths
-//      (Absolute = value; Auto = measured; Star = proportional remaining).
-//   4. Re-measure ONLY dirty children at their resolved cell slot so a Stretch
-//      child fills its cell (S128 dirty-respect).
-// The panel's own DesiredSize = Σ(Absolute + Auto-resolved) on each axis —
-// Star tracks contribute their MINIMUM (0) here; min/sun sizing fidelity is
-// S132/S133's named scope (recorded NO-GAP, not silent).
+//   2. Auto extents + star content-minima accumulated via the span-aware equal-
+//      division rule (D2): a spanning child contributes desired/span to each
+//      spanned track (S132).
+//   3. Resolve all column then all row lengths via resolve_grid_lengths, then
+//      D1 star min/re-award: a Star track grows to at least its content
+//      minimum (S132).
+//   4. Re-measure ONLY dirty children at their resolved MERGED cell slot
+//      (S128 dirty-respect; a Stretch child now fills its whole spanned cell).
+// The panel's own DesiredSize = Σ(non-star resolved) + Σ(star content-minima)
+// — the content-natural extent a parent should offer the panel.
 VAML_CORE_EXPORT
 Size Grid::MeasureOverride(const Size& available) const
 {
     const std::size_t nRows = impl_->rows.size();
     const std::size_t nCols = impl_->cols.size();
 
-    std::vector<float> autoCol(nCols, 0.0f);
-    std::vector<float> autoRow(nRows, 0.0f);
-
     // First measure pass: content-based offer (unbounded width, finite height)
-    // so Auto extents reflect content, then accumulate per-cell maxima.
+    // so desired extents reflect content (S123 infinity-aware).
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* c = child_at(i);
-        const std::size_t col = static_cast<std::size_t>(
-            std::min<std::int32_t>(std::max(Grid::column(*c), 0), static_cast<std::int32_t>(nCols) - 1));
-        const std::size_t r = static_cast<std::size_t>(
-            std::min<std::int32_t>(std::max(Grid::row(*c), 0), static_cast<std::int32_t>(nRows) - 1));
         if (c->is_measure_dirty())
         {
             c->Measure(Size{ Size::Infinite().width, available.height });
         }
-        autoCol[col] = std::max(autoCol[col], c->desired_size().width);
-        autoRow[r] = std::max(autoRow[r], c->desired_size().height);
     }
 
-    // Column definitions + resolution.
-    std::vector<GridLength> colDefs;
-    colDefs.reserve(nCols);
-    for (const auto& d : impl_->cols)
-    {
-        colDefs.push_back(d.width);
-    }
-    const std::vector<float> colResolved = resolve_grid_lengths(colDefs, autoCol, available.width);
+    const GridTrackResolution res =
+        resolve_grid_with_spans(*this, nRows, nCols, available.width, available.height);
 
-    // Row definitions + resolution.
-    std::vector<GridLength> rowDefs;
-    rowDefs.reserve(nRows);
-    for (const auto& d : impl_->rows)
-    {
-        rowDefs.push_back(d.height);
-    }
-    const std::vector<float> rowResolved = resolve_grid_lengths(rowDefs, autoRow, available.height);
-
-    // Second pass: re-measure ONLY dirty children at their resolved cell slot
-    // (a Stretch child now fills its cell; a non-Stretch child wraps within).
+    // Second pass: re-measure ONLY dirty children at their resolved MERGED cell
+    // slot (S128 dirty-respect; a Stretch child fills its whole spanned cell).
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* c = child_at(i);
@@ -396,25 +525,53 @@ Size Grid::MeasureOverride(const Size& available) const
             std::min<std::int32_t>(std::max(Grid::column(*c), 0), static_cast<std::int32_t>(nCols) - 1));
         const std::size_t r = static_cast<std::size_t>(
             std::min<std::int32_t>(std::max(Grid::row(*c), 0), static_cast<std::int32_t>(nRows) - 1));
-        c->Measure(Size{ colResolved[col], rowResolved[r] });
+        // Merged (spanned) cell extent: sum of the resolved tracks the child's
+        // span covers.
+        const std::int32_t cspanRaw = std::max<std::int32_t>(Grid::column_span(*c), 1);
+        const std::int32_t rspanRaw = std::max<std::int32_t>(Grid::row_span(*c), 1);
+        const std::size_t cspan = static_cast<std::size_t>(
+            std::min<std::int32_t>(cspanRaw, static_cast<std::int32_t>(nCols) - static_cast<std::int32_t>(col)));
+        const std::size_t rspan = static_cast<std::size_t>(
+            std::min<std::int32_t>(rspanRaw, static_cast<std::int32_t>(nRows) - static_cast<std::int32_t>(r)));
+
+        float mergedW = 0.0f;
+        float mergedH = 0.0f;
+        for (std::size_t k = col; k < col + cspan; ++k)
+        {
+            mergedW += res.col[k];
+        }
+        for (std::size_t k = r; k < r + rspan; ++k)
+        {
+            mergedH += res.row[k];
+        }
+        c->Measure(Size{ mergedW, mergedH });
     }
 
-    // Panel DesiredSize = Σ(Absolute + Auto) on each axis; Star contributes 0
-    // minimum (basic scope — recorded NO-GAP, not silent).
+    // Panel DesiredSize = Σ(non-star resolved) + Σ(star content-minima) on each
+    // axis — the content-natural extent (S131 basic scope delivered star=0
+    // minimum; S132 upgrades to the star content-minimum, NO-GAP).
     float desiredW = 0.0f;
     float desiredH = 0.0f;
     for (std::size_t c = 0; c < nCols; ++c)
     {
-        if (colDefs[c].unitType != GridUnitType::Star)
+        if (impl_->cols[c].width.unitType != GridUnitType::Star)
         {
-            desiredW += colResolved[c];
+            desiredW += res.col[c];
+        }
+        else
+        {
+            desiredW += res.starMinCol[c];
         }
     }
     for (std::size_t r = 0; r < nRows; ++r)
     {
-        if (rowDefs[r].unitType != GridUnitType::Star)
+        if (impl_->rows[r].height.unitType != GridUnitType::Star)
         {
-            desiredH += rowResolved[r];
+            desiredH += res.row[r];
+        }
+        else
+        {
+            desiredH += res.starMinRow[r];
         }
     }
     desiredW = std::max(0.0f, desiredW);
@@ -427,60 +584,31 @@ Size Grid::MeasureOverride(const Size& available) const
 }
 
 // The arrange-side virtual (S127). Receives the panel's FULL final render slot.
-// Resolves every track length against finalSlot's extent, computes the cell
-// ORIGINS as cumulative track sums, and places each child into its cell
-// {origin, cell size} via child->Arrange (honoring the child's own alignment +
-// margin inside the cell). Dirty-respect (S128): re-arrange ONLY
-// is_arrange_dirty() children; clean children keep their final_rect untouched.
-// Basic no-span scope (each child occupies exactly one cell) — RowSpan/
-// ColumnSpan is S132's named step (recorded NO-GAP, not silent).
+// Resolves every track length against finalSlot's extent (span-aware, S132),
+// computes the cell ORIGINS as cumulative track sums, and places each child
+// into its MERGED span rect {anchor origin, Σ spanned extents} via child->Arrange
+// (honoring the child's own alignment + margin inside the merged cell).
+// Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children; clean
+// children keep their final_rect untouched.
 VAML_CORE_EXPORT
 void Grid::ArrangeOverride(const Rect& finalSlot)
 {
     const std::size_t nRows = impl_->rows.size();
     const std::size_t nCols = impl_->cols.size();
 
-    // Recompute Auto extents from the children's STORED desired_size (no re-
-    // measure in arrange — arrange is size/position only).
-    std::vector<float> autoCol(nCols, 0.0f);
-    std::vector<float> autoRow(nRows, 0.0f);
-    for (std::size_t i = 0; i < child_count(); ++i)
-    {
-        UIElement* c = child_at(i);
-        const std::size_t col = static_cast<std::size_t>(
-            std::min<std::int32_t>(std::max(Grid::column(*c), 0), static_cast<std::int32_t>(nCols) - 1));
-        const std::size_t r = static_cast<std::size_t>(
-            std::min<std::int32_t>(std::max(Grid::row(*c), 0), static_cast<std::int32_t>(nRows) - 1));
-        autoCol[col] = std::max(autoCol[col], c->desired_size().width);
-        autoRow[r] = std::max(autoRow[r], c->desired_size().height);
-    }
-
-    std::vector<GridLength> colDefs;
-    colDefs.reserve(nCols);
-    for (const auto& d : impl_->cols)
-    {
-        colDefs.push_back(d.width);
-    }
-    std::vector<GridLength> rowDefs;
-    rowDefs.reserve(nRows);
-    for (const auto& d : impl_->rows)
-    {
-        rowDefs.push_back(d.height);
-    }
-
-    const std::vector<float> colResolved = resolve_grid_lengths(colDefs, autoCol, finalSlot.width);
-    const std::vector<float> rowResolved = resolve_grid_lengths(rowDefs, autoRow, finalSlot.height);
+    const GridTrackResolution res =
+        resolve_grid_with_spans(*this, nRows, nCols, finalSlot.width, finalSlot.height);
 
     // Cell origins: cumulative track sums from the slot origin.
     std::vector<float> colX(nCols + 1, finalSlot.x);
     std::vector<float> rowY(nRows + 1, finalSlot.y);
     for (std::size_t c = 0; c < nCols; ++c)
     {
-        colX[c + 1] = colX[c] + colResolved[c];
+        colX[c + 1] = colX[c] + res.col[c];
     }
     for (std::size_t r = 0; r < nRows; ++r)
     {
-        rowY[r + 1] = rowY[r] + rowResolved[r];
+        rowY[r + 1] = rowY[r] + res.row[r];
     }
 
     for (std::size_t i = 0; i < child_count(); ++i)
@@ -490,7 +618,20 @@ void Grid::ArrangeOverride(const Rect& finalSlot)
             std::min<std::int32_t>(std::max(Grid::column(*c), 0), static_cast<std::int32_t>(nCols) - 1));
         const std::size_t r = static_cast<std::size_t>(
             std::min<std::int32_t>(std::max(Grid::row(*c), 0), static_cast<std::int32_t>(nRows) - 1));
-        const Rect cell{ colX[col], rowY[r], colResolved[col], rowResolved[r] };
+        const std::int32_t cspanRaw = std::max<std::int32_t>(Grid::column_span(*c), 1);
+        const std::int32_t rspanRaw = std::max<std::int32_t>(Grid::row_span(*c), 1);
+        const std::size_t cspan = static_cast<std::size_t>(
+            std::min<std::int32_t>(cspanRaw, static_cast<std::int32_t>(nCols) - static_cast<std::int32_t>(col)));
+        const std::size_t rspan = static_cast<std::size_t>(
+            std::min<std::int32_t>(rspanRaw, static_cast<std::int32_t>(nRows) - static_cast<std::int32_t>(r)));
+
+        // Merged span rect: anchor origin + Σ spanned track extents.
+        const Rect cell{
+            colX[col],
+            rowY[r],
+            colX[col + cspan] - colX[col],
+            rowY[r + rspan] - rowY[r],
+        };
         if (c->is_arrange_dirty())
         {
             c->Arrange(cell);

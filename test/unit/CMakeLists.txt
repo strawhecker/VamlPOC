@@ -50,6 +50,8 @@ add_executable(vaml-core-tests
     StackPanel_test.cpp
     StackPanel_stretch_test.cpp
     Grid_test.cpp
+    GridSpan_test.cpp
+    Grid_stretch_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp

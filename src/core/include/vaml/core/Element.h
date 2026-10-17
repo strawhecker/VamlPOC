@@ -126,14 +126,33 @@ public:
     // owned by Grid but the value is stored on any DependencyObject (the S043
     // attached-aware path). Default 0 (a child with no explicit cell lands in
     // row 0, column 0). Int32 value path; globally registered under owner
-    // "Grid" via the S043 attached-aware machinery. Typed statics:
+    // "Grid" via the S043 attached-aware machinery. Typed statics.
+    // NOTE: Grid.Row/Column select the ANCHOR cell; a child whose
+    // RowSpan/ColumnSpan (S132) > 1 fills the merged cell starting at the
+    // anchor.
     [[nodiscard]] static SetResult set_row(DependencyObject& obj, std::int32_t value);
     [[nodiscard]] static std::int32_t row(const DependencyObject& obj);
     [[nodiscard]] static SetResult set_column(DependencyObject& obj, std::int32_t value);
     [[nodiscard]] static std::int32_t column(const DependencyObject& obj);
 
+    // --- ATTACHED Grid.RowSpan / Grid.ColumnSpan (REAL DPs, S132) --------
+    // The number of rows/columns a child CELL SPANS (RowSpan rows × ColumnSpan
+    // columns). S132 extends the S131 basic no-span cells with the span
+    // dimension ("cells consumed by spans") + the span-aware two-pass math.
+    // Same S043 attached-aware model as Grid.Row/Grid.Column (value stored on
+    // the child). Default 1 (a child without an explicit span occupies exactly
+    // one cell). Spans clamp to ≥ 1 and to grid bounds. Typed statics:
+    [[nodiscard]] static SetResult set_row_span(DependencyObject& obj, std::int32_t value);
+    [[nodiscard]] static std::int32_t row_span(const DependencyObject& obj);
+    [[nodiscard]] static SetResult set_column_span(DependencyObject& obj, std::int32_t value);
+    [[nodiscard]] static std::int32_t column_span(const DependencyObject& obj);
+
 protected:
-    // S131 real panel algorithm (see Element.cpp): MeasureOverride resolves
+    // S131/S132 real panel algorithm (see Element.cpp): MeasureOverride resolves
+    // row/col track lengths (span-aware two-pass, S132) then measures each
+    // child into its (merged or single) cell, re-measuring ONLY dirty children
+    // (S128); ArrangeOverride places each child into its cell/merged-span rect,
+    // re-arranging ONLY dirty children (S128).
     // row/col track lengths then measures each non-spanning child into its
     // cell, re-measuring ONLY dirty children (S128); ArrangeOverride places
     // each cell child at its cell origin + size, re-arranging ONLY dirty

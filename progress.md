@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S131 (Grid: row/col definitions; Absolute/Auto/Star resolution) [token: S131]
-- Next step to do     : S132 [token: S132]
-- PENDING work        : none (S131 complete; Sprint 3 — S131 resolved the S087 Grid seed: re-based onto UIElement as a real panel (row/col definitions + Absolute/Auto/Star resolution via resolve_grid_lengths + attached Grid.Row/Grid.Column + basic no-span cell measure/arrange). S132 = Grid ColumnSpan/RowSpan + measure+arrange math; S133 = Grid star-sizing + span tests.
+- Last completed step : S133 (Grid star-sizing + span tests; exhaustive) [token: S133]
+- Next step to do     : S134 (WrapPanel: flow, wraps at boundary, aligned rows) [token: S134]
+- PENDING work        : none (S133 complete; Sprint 3 — S132 resolved the S131 NO-GAP hand-off with span-aware two-pass measure/arrange math (attached Grid.RowSpan/Grid.ColumnSpan, D1 star min/re-award, D2 auto equal-division, merged-span rect, dirty-respect); S133 delivered the exhaustive star+span test-only suite. Next S134 = WrapPanel.)
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -41,7 +41,8 @@
   `vaml/core/VamlReader.h`) → S322. RESOLVED: Color + Thickness (S089 — their real parsing
   semantics now live on the types via parse_color/parse_thickness); StackPanel (S129 — real panel);
   Grid (S131 — real panel: row/col definitions + Absolute/Auto/Star resolution + attached
-  Grid.Row/Grid.Column).
+  Grid.Row/Grid.Column; S132 adds attached Grid.RowSpan/Grid.ColumnSpan + span-aware
+  measure/arrange).
 - **NO-GAP GUARANTEE**: no feature/symbol left for silent backfill; every MINIMAL REAL has an
   explicit resolution authored at the same step that delivers real content.
 - **NO LAZY LLM SYNDROME**: default posture is to reason the opposite of lazy; MINIMAL REAL is
@@ -1258,3 +1259,57 @@
   seeds (vulkan→S161, tools→S287, Color→S089, Thickness→S089) carry forward unresolved, NO-GAP intact. Checkpoint
   advanced: Sprint 1 CLOSED, next = S080 (Sprint 2 — VAML markup parser, XML scanner). No NEW md files
   (directive honored), no build (docs-only per plan S049 bound). Next = S080.
+
+### Sprint 3 — Element / scene graph + measure/arrange layout  (S120–S139)
+
+- [x] S132 Grid ColumnSpan/RowSpan + span-aware measure+arrange math — ✅
+  SURVIVOR: MOD src/core/include/vaml/core/Element.h + MOD src/core/src/Element.cpp + ADDED
+  test/unit/GridSpan_test.cpp + MOD test/unit/CMakeLists.txt (+GridSpan_test.cpp) + ADDED
+  build/verify_s132.cmd + MOD docs/roadmap.md + session-context.md (no commits; no NEW md files).
+  RESOLVES the S131-recorded NO-GAP hand-off (the span dimension). PRODUCT:
+  (1) ATTACHED `Grid.RowSpan`/`Grid.ColumnSpan` Int32 DPs (default 1, clamped ≥ 1 and to grid bounds)
+  registered globally under owner "Grid" via the S043 attached-aware path (mirroring Grid.Row/
+  Grid.Column), with typed statics `Grid::set_row_span/set_column_span(row_span/column_span)`.
+  (2) Span-aware two-pass measure/arrange in Element.cpp via a new static `resolve_grid_with_spans`
+  (shared by MeasureOverride + ArrangeOverride): D2 Auto equal-division (a spanning child contributes
+  desired/span-count to EACH spanned Auto track; single cell = span 1 = the S131 no-span behavior,
+  NO-GAP preserved); D1 star min/re-award (a Star track that received a POSITIVE proportional share
+  grows to at least its content minimum, so a spanning/single-cell child whose content exceeds the
+  share re-awards the track to fit; a no-share star — totalStar==0 or zero weight — stays 0, keeping
+  the S131 resolve contract); merged-span-cell re-measure of ONLY dirty children (S128); merged-span
+  rect placement {anchor origin, Σ spanned extents} honoring child alignment+margin, arranging ONLY
+  dirty children (S128). Panel DesiredSize = Σ(non-star resolved) + Σ(star content-minima) — the
+  content-natural extent (upgrades S131's star=0 minimum, NO-GAP). No MINIMAL REAL introduced.
+  TESTS (test/unit/GridSpan_test.cpp, 7 TEST_CASEs, Shouldly vocabulary, real "Grid.RowSpan"/
+  "Grid.ColumnSpan" names): span DPs default 1 + set/read on a plain DependencyObject + raw S043
+  Set/Get path; D2 auto equal-division (2-wide 50/50; 3-row 1/3); merged placement (origin at anchor,
+  size = Σ tracks); span clamp (huge → bounds, negative → 1); Stretch-in-merged-cell; D1 star
+  re-award with spans. NO-GAP clean: S133 = the exhaustive star+span suite (recorded, not silent);
+  S132 resolves the S131 span hand-off; no new MINIMAL REAL. Both CI lanes from first principles green:
+  windows-msvc (build/verify_s132.cmd, msvc-debug warning-clean + ctest 1/1 PASS) + ubuntu-clang
+  (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS). Only Clang warnings = pre-existing
+  upstream <ciso646> doctest deprecation (non-error, already downgraded). Next = S133.
+
+- [x] S133 Grid star-sizing + span tests (exhaustive) — ✅
+  SURVIVOR: ADDED test/unit/Grid_stretch_test.cpp + MOD test/unit/CMakeLists.txt
+  (+Grid_stretch_test.cpp) + ADDED build/verify_s133.cmd + MOD docs/roadmap.md + session-context.md
+  (no commits; no NEW md files). TEST-ONLY — zero new product symbols (the S040/S042/S044/S125/
+  S128/S130 test-only precedent). S131/S132 recorded S133 as the named exhaustive star+span gate
+  (NO-GAP, not a silent backfill): it asserts the REAL S132 Grid (span-aware two-pass +
+  Grid.RowSpan/Grid.ColumnSpan) over the D1/D2 decisions settled at S132 (D2 = auto equal-division;
+  D1 = star min/re-award). Instrument = a test-local RecordLeaf (S125/S130 pattern) recording the
+  exact measure offer + final arrange slot on both axes, so Stretch-vs-Wrap and the merged-cell span
+  extents are observable. 17 TEST_CASEs in five parts: PART A — star proportional sizing (1:1 equal;
+  3:1 by weight; star after absolute+auto taken with clean-exact numbers; star clamp when fixed >
+  available; totalStar==0 all-zero; zero-weight star beside a positive sibling; star never negative +
+  D1 single-cell re-award). PART B — star+span (a spanning child re-awards the spanned star track D1;
+  span across star+auto mixed; Stretch fills a merged star cell). PART C — auto+span D2 (2-wide 50/50;
+  content-driven auto grows for a spanning child). PART D — span placement (mixed rowspan+columnspan
+  merged rect; whole-grid span fills the grid; alignment honored inside the merged cell; span clamps).
+  PART E — dirty-respect with spans (re-arranging ONLY a dirty spanning child leaves a clean sibling
+  untouched). NO-GAP clean: no MINIMAL REAL introduced/resolved; S132 resolved the span surface at its
+  own step, S133 is the recorded exhaustive suite, not a backfill. Both CI lanes from first principles
+  green: windows-msvc (build/verify_s133.cmd, msvc-debug warning-clean + ctest 1/1 PASS) + ubuntu-clang
+  (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS). Only Clang warnings = pre-existing
+  upstream <ciso646> doctest deprecation (non-error, already downgraded). Next = S134 (WrapPanel:
+  flow, wraps at boundary, aligned rows).

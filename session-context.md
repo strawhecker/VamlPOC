@@ -1,47 +1,47 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S131 (no commits; no NEW md files)
-- plan_repo_state : S130+**S130_1**+**S131** complete — **SPRINT 3** (S120/UIElement base; S121 visual
-                    children; S122 layout slot geometry + alignment; S123 Measure contract infinity-aware;
-                    S124 Arrange contract + clip; S125 leaf/panel measure archetypes TEST-ONLY gate; S126
-                    InvalidateMeasure/InvalidateArrange + LayoutManager dirty-subgraph driver; S127
-                    MeasureOverride/ArrangeOverride virtuals; S128 dirty-only subpass TEST-ONLY gate; S129
-                    StackPanel real panel done; S130 exhaustive DesiredSize/stretch suite done; S130_1
-                    margin-aware Measure resolution done; **S131 Grid real panel done** — resolves the S087
-                    Grid seed at its own step (row/col definitions + Absolute/Auto/Star resolution + attached
-                    Grid.Row/Grid.Column + basic no-span cell measure/arrange); S132 Grid span math next).
-                    S131 (dep:S130_1): re-based Grid onto UIElement; NEW GridLength.h (GridLength value type +
-                    RowDefinition/ColumnDefinition + the headline public resolver vaml::resolve_grid_lengths);
-                    attached Grid.Row/Grid.Column DPs via S043; basic no-span MeasureOverride/ArrangeOverride
-                    with dirty-respect (S128). GREEN on both lanes from first principles.
-- plan_digest     : S131 (dep:S130_1): MOD src/core/include/vaml/core/{Element,GridLength surface}.h +
-                    MOD src/core/src/Element.cpp + ADDED src/core/include/vaml/core/GridLength.h +
-                    ADDED test/unit/Grid_test.cpp (S131 focused suite) + MOD test/unit/CMakeLists.txt
-                    (+Grid_test.cpp) + ADDED build/verify_s131.cmd + MOD docs/roadmap.md (S131 [DONE] +
-                    S132/S133 NO-GAP) + MOD session-context.md (this) + MOD progress.md (checkpoint + guard
-                    rails). RESOLVES the S087 Grid MINIMAL REAL seed at its own sprint (NO-GAP, not a
-                    backfill): Grid re-based onto UIElement with owned row/column definition vectors +
-                    implicit-Auto default tracks; NEW header-only GridLength.h — GridUnitType{Auto,Pixel,Star}
-                    + GridLength factories/equality + RowDefinition/ColumnDefinition + the HEADLINE public
-                    resolver `vaml::resolve_grid_lengths(defs, autoMeasured, available) -> vector<float>`
-                    (Absolute=value clamped; Auto=measured clamped; Star=proportional share of
-                    max(0, available-ΣAbs-ΣAuto) by weight, star>=0, totalStar==0->all stars 0); attached
-                    Grid.Row/Grid.Column Int32 DPs (default 0) registered globally under owner "Grid" (S043)
-                    with typed statics; basic no-span MeasureOverride/ArrangeOverride (resolve both axes,
-                    re-measure/re-arrange ONLY dirty children — S128; cell origins = cumulative track sums;
-                    panel DesiredSize = Σ(Absolute+Auto), Star contributes 0 minimum recorded NO-GAP).
-                    Tests (13 cases): derivation; implicit-Auto default; track round-trip + empty-collapse;
-                    GridLength factories/equality; resolver math (all-Absolute; Auto-uses-measured; Star 3:1;
-                    mixed 2:1; star-clamp when fixed>available; zero-weight star vs totalStar==0); attached
-                    DPs default + set/read + raw S043 path; fixed 2x2 placement; Auto column to widest child;
-                    Star split 2:1 + Stretch fills star cell; DesiredSize from Abs+Auto; dirty-respect.
-                    NO-GAP hand-off recorded in roadmap: S132 = RowSpan/ColumnSpan + extended two-pass
-                    measure/arrange math; S133 = exhaustive star-sizing + span suite — both S131's named
-                    hand-offs, NOT silent backfills. StackPanel untouched; S120 transform-owner sentinel
-                    untouched (S208).
+- last_command    : implementit S132+S133 (no commits; no NEW md files)
+- plan_repo_state : S130+**S130_1**+**S131**+**S132**+**S133** complete — **SPRINT 3** (S120/UIElement base;
+                    S121 visual children; S122 layout slot geometry + alignment; S123 Measure contract
+                    infinity-aware; S124 Arrange contract + clip; S125 leaf/panel measure archetypes
+                    TEST-ONLY gate; S126 InvalidateMeasure/InvalidateArrange + LayoutManager dirty-subgraph
+                    driver; S127 MeasureOverride/ArrangeOverride virtuals; S128 dirty-only subpass TEST-ONLY
+                    gate; S129 StackPanel real panel done; S130 exhaustive DesiredSize/stretch suite done;
+                    S130_1 margin-aware Measure resolution done; S131 Grid real panel done (row/col
+                    definitions + Absolute/Auto/Star resolution + attached Grid.Row/Grid.Column + basic
+                    no-span cell measure/arrange); **S132 Grid ColumnSpan/RowSpan + span-aware two-pass
+                    measure/arrange math done**; **S133 exhaustive star+span test-only suite done**).
+                    S132 (dep:S131): attached Grid.RowSpan/Grid.ColumnSpan DPs (default 1, clamped) + new
+                    static resolve_grid_with_spans realizing D2 (auto equal-division) + D1 (star
+                    min/re-award) + merged-span-cell placement, all dirty-respect (S128). S133 (dep:S132):
+                    TEST-ONLY exhaustive star+span gate over the real S132 Grid. GREEN on both lanes from
+                    first principles.
+- plan_digest     : S132 (dep:S131): MOD src/core/include/vaml/core/Element.h (attached Grid.RowSpan/
+                    Grid.ColumnSpan accessors) + MOD src/core/src/Element.cpp (register span DPs + typed
+                    statics + span-aware two-pass MeasureOverride/ArrangeOverride via new static
+                    resolve_grid_with_spans) + ADDED test/unit/GridSpan_test.cpp (S132 focused suite) +
+                    MOD test/unit/CMakeLists.txt (+GridSpan_test.cpp) + ADDED build/verify_s132.cmd +
+                    MOD docs/roadmap.md (S132 [DONE] + S133 NO-GAP) + MOD session-context.md (this) +
+                    MOD progress.md (checkpoint + guard rails + step log). S133 (dep:S132): ADDED
+                    test/unit/Grid_stretch_test.cpp (exhaustive star+span suite, TEST-ONLY) + MOD
+                    test/unit/CMakeLists.txt (+Grid_stretch_test.cpp) + ADDED build/verify_s133.cmd +
+                    MOD docs/roadmap.md (S133 [DONE]) + MOD session-context.md (this) + MOD progress.md
+                    (step log). S132 RESOLVES the S131 NO-GAP hand-off (span dimension): attached
+                    Grid.RowSpan/Grid.ColumnSpan Int32 DPs (default 1, clamped ≥ 1 + to bounds) registered
+                    globally under owner "Grid" (S043) with typed statics; span-aware two-pass
+                    measure/arrange — resolve_grid_with_spans accumulates Auto extents + star content-minima
+                    via equal-division (D2), resolves via resolve_grid_lengths, then D1 min/re-award (a
+                    Star track with a positive share grows to at least its content minimum; no-share star
+                    stays 0); MeasureOverride re-measures ONLY dirty children at their merged-span-cell
+                    slot, ArrangeOverride places each child into its merged-span rect {anchor origin, Σ
+                    spanned extents} honoring alignment+margin, arrange ONLY dirty children (S128). Panel
+                    DesiredSize = Σ(non-star) + Σ(star content-minima). No MINIMAL REAL introduced. S133 =
+                    the exhaustive star+span suite (recorded, not silent): 17 TEST_CASEs in five parts
+                    (star proportional sizing / star+span / auto+span / span placement / dirty-respect) via
+                    a test-local RecordLeaf (S125/S130 pattern). NO-GAP clean on both steps.
                     COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088,
                     S089, S090, S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125,
-                    S126, S127, S128, S129, S130, S130_1, and now S131 is outstanding, awaiting your
+                    S126, S127, S128, S129, S130, S130_1, S131, S132, and S133 is outstanding, awaiting your
                     authorization.
                     (S130 record, historical context — superseded by the above: S130 was the dedicated
                     exhaustive StackPanel suite (TEST-ONLY) + S130_1 the margin-aware Measure resolution; the
@@ -70,27 +70,28 @@
                     D17 now asserts margin ENTERS panel DesiredSize per S130_1; dirty-only re-measure/
                     re-arrange of a Stretch child with a clean sibling untouched).
 - files_touched   :
-    MODIFIED src/core/include/vaml/core/Element.h            (S131: Grid re-based onto UIElement; row/col defs; attached Row/Column; GridLength include)
-    ADDED    src/core/include/vaml/core/GridLength.h         (S131: GridLength value type + Row/ColDefinition + resolve_grid_lengths)
-    MODIFIED src/core/src/Element.cpp                        (S131: Grid ctor/pimpl/defs/attached statics/Measure+ArrangeOverride)
-    ADDED    test/unit/Grid_test.cpp                         (S131 focused Grid suite)
-    MODIFIED test/unit/CMakeLists.txt                        (+ Grid_test.cpp)
-    ADDED    build/verify_s131.cmd                           (S131 windows-msvc lane)
-    MODIFIED docs/roadmap.md                                 (S131 [DONE] + S132/S133 NO-GAP)
-    MODIFIED session-context.md (this — S131 completion)
-    MODIFIED progress.md                                     (checkpoint -> S132; GAURD RAILS Grid resolved)
-- build_status    : GREEN — BOTH CI LANES (verified from first principles at S131). windows-msvc:
-                    msvc-debug (VS 2026) via build/verify_s131.cmd — configure+build warning-clean +
-                    ctest 1/1 PASS (all S131:* cases green, all prior S120-S130_1 + S129 still green AFTER
-                    the Grid re-base). ubuntu-clang: clang-debug (Ubuntu VM 192.168.198.129, clang 21,
-                    /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS (S131:* all green). Only Clang
-                    warnings = pre-existing upstream <ciso646> doctest deprecation from third_party (not
-                    this TU; non-error, already downgraded via -Wno-error=#warnings in the test CMakeLists).
-                    (windows-clang-debug is NOT a lane — not built/tested/flagged per standing rule.)
-- next_step       : S132. S132 (dep:S131) = Sprint 3 — Grid ColumnSpan/RowSpan + the extended two-pass
-                    measure/arrange math (cells consumed by spans). S131 recorded S132 + S133 as its named
-                    NO-GAP hand-offs (not silent backfills). S132 builds on the GridLength resolver +
-                    attached DPs + the S131 basic measure/arrange algorithm.
+    MODIFIED src/core/include/vaml/core/Element.h            (S132: attached Grid.RowSpan/Grid.ColumnSpan accessors + comments)
+    MODIFIED src/core/src/Element.cpp                        (S132: register span DPs + typed statics + span-aware two-pass MeasureOverride/ArrangeOverride + new static resolve_grid_with_spans + D1/D2)
+    ADDED    test/unit/GridSpan_test.cpp                     (S132 focused span suite)
+    ADDED    test/unit/Grid_stretch_test.cpp                 (S133 exhaustive star+span suite)
+    MODIFIED test/unit/CMakeLists.txt                        (+ GridSpan_test.cpp, + Grid_stretch_test.cpp)
+    ADDED    build/verify_s132.cmd                           (S132 windows-msvc lane)
+    ADDED    build/verify_s133.cmd                           (S133 windows-msvc lane)
+    MODIFIED docs/roadmap.md                                 (S132 [DONE] + S133 [DONE])
+    MODIFIED session-context.md (this — S132+S133 completion)
+    MODIFIED progress.md                                     (checkpoint -> S134; guard rails + step log)
+- build_status    : GREEN — BOTH CI LANES (verified from first principles at S132+S133). windows-msvc:
+                    msvc-debug (VS 2026) via build/verify_s132.cmd then build/verify_s133.cmd —
+                    configure+build warning-clean + ctest 1/1 PASS (all S132:* + S133:* cases green, all
+                    prior S131/S130/S130_1/S129/S120-S128 still green). ubuntu-clang: clang-debug (Ubuntu VM
+                    192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1 PASS (S132:*
+                    + S133:* all green). Only Clang warnings = pre-existing upstream <ciso646> doctest
+                    deprecation from third_party (not this TU; non-error, already downgraded via
+                    -Wno-error=#warnings in the test CMakeLists). (windows-clang-debug is NOT a lane — not
+                    built/tested/flagged per standing rule.)
+- next_step       : S134. S134 (dep:S133) = Sprint 3 — WrapPanel: flow, wraps at boundary, aligned rows.
+                    S132/S133 committed to roadmap as done; the Grid span + star math is complete; next
+                    panel control in the Sprint 3 token range.
 - notes           :
     - S131 RESOLVES the S087 Grid MINIMAL REAL seed at its own sprint (NO-GAP, not a backfill).
       GridLength.h is a pure header-only value type (like Color/Thickness/Geometry), NOT a MINIMAL REAL
@@ -133,8 +134,23 @@
       stored desired_size — so b stayed 50x20. Fixed by explicitly invalidating b's MEASURE
       (b->InvalidateMeasure()) before the panel re-measure, which is the correct dirty-driven flow.
     - NO NEW md files (directive honored). No commits made (per command).
+    - S132 RESOLVES the S131 NO-GAP hand-off (the span dimension): attached Grid.RowSpan/Grid.ColumnSpan
+      DPs (default 1, clamped ≥ 1 and to grid bounds) + span-aware two-pass measure/arrange. Decisions
+      settled at review: D1 = star min/re-award (a Star track with a POSITIVE proportional share grows to
+      at least its content minimum; a no-share star — totalStar==0 or zero weight — stays 0, keeping the
+      S131 resolve contract). D2 = auto equal-division (a spanning child contributes desired/span-count to
+      EACH spanned Auto track; single cell = span 1 = the S131 no-span behavior). Panel DesiredSize =
+      Σ(non-star) + Σ(star content-minima). The D1 gate (`resolved > 0`) was added during bring-up so a
+      star with no proportional share does NOT grow to content (keeps the S131 A4/A5/A6 star-collapses-to-0
+      contract); the star re-award tests use recorder leaves that FILL their track (default-Stretch) so the
+      track extent is observable as the slot width.
+    - S133 is TEST-ONLY (zero new product symbols) — the recorded exhaustive star+span gate over the real
+      S132 Grid. Instrument = a test-local RecordLeaf (S125/S130 pattern) recording measure offer +
+      arrange slot on both axes. 17 TEST_CASEs in five parts (star proportional / star+span / auto+span /
+      span placement / dirty-respect). A3 uses clean-exact numbers (remaining 300 split 2:1 = 200/100) so
+      no float-tolerance is needed.
     - COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088, S089, S090,
       S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125, S126, S127, S128,
-      S129, S130, S130_1, and now S131 is outstanding, awaiting your authorization. After commit+push:
-      repo is the committed good state; SPRINT 3 continues (next is S132). Laptop-added files uncommitted
-      as well — one commit covers all.
+      S129, S130, S130_1, S131, S132, and S133 is outstanding, awaiting your authorization. After
+      commit+push: repo is the committed good state; SPRINT 3 continues (next is S134). Laptop-added files
+      uncommitted as well — one commit covers all.
