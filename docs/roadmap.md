@@ -246,7 +246,7 @@
 >
 > Store contract (agreed spec): non-owning `string_view` key, UTF-8 canonical, pure C++. Insertion-ordered
 > append-only array; SIMD-probe on 32-byte groups (AVX2, no AVX-512) of 8-bit search bytes; empty marker 0xFF;
-> probe byte = fold_bytes(sv) (rotating-XOR over bytes) & 0x7F; growth = memmove+append rounded up to a
+> probe byte = fold_bytes(sv) (rotating-XOR over bytes) % 255; growth = memmove+append rounded up to a
 > 32-entry group, never re-probe / reorder / shrink; erase/tombstone never applies (append-only); full
 > string_view compare disambiguates collisions; index<n bounds the scan to the used prefix. One PD type
 > (no common/root), no unordered_map/flat_hash_map, no pimpl heap node (store is block-resident), retain-
@@ -282,7 +282,7 @@
                  the S141 SIMD store is its mechanism; dependency ordering note: listed after S140 but depends
                  on S141 — dep-chain governs execution, the token id is identity only.]
 - S141 dep:S140  Author the SIMD probe store (identity-keyed, no hash): insertion-ordered append-only array,
-                 32-byte/32-lane groups (8-bit search bytes), empty marker 0xFF, probe = fold_bytes(sv)&0x7F,
+                 32-byte/32-lane groups (8-bit search bytes), empty marker 0xFF, probe = fold_bytes(sv)%255,
                  memmove+append growth rounded to 32, never re-probe/reorder/shrink. New net-new type; NOT a
                  generic flat_hash_map. [Rewrites S036/S039 store mechanism in place; removes unordered_map.]
                  The store's PUBLIC face is authored at S140_1: intern() = probe→hit/miss→retain+insert. One
