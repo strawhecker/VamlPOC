@@ -1,6 +1,6 @@
 #pragma once
-// VAML built-in element classes — MINIMAL REAL seeds (S087) + the first real
-// re-based control (StackPanel, S129).
+// VAML built-in element classes — MINIMAL REAL seeds (S087) + the real
+// re-based controls (StackPanel, S129; Grid, S131).
 //
 // The remaining seeds are THIN, PERMANENT, LINKABLE concrete classes deriving
 // DependencyObject that give the S087 ElementFactoryRegistry real registered
@@ -22,7 +22,8 @@
 //
 // Resolution sprints are already declared in docs/roadmap.md (verified):
 //     StackPanel -> S129 (RESOLVED — re-based onto UIElement here)
-//     Button      -> S401   Grid -> S131   Text -> S400
+//     Grid       -> S131 (RESOLVED — re-based onto UIElement here)
+//     Button      -> S401   Text -> S400
 //     TextBox     -> S402   CheckBox   -> S404   Slider -> S403
 //     ScrollViewer-> S405   Window     -> S440
 //
@@ -30,11 +31,13 @@
 // registration call that populates ElementFactoryRegistry::global() once.
 
 #include "vaml/core/DependencyObject.h"
-#include "vaml/core/UIElement.h" // StackPanel's base (S129 re-base — RESOLVED seed)
+#include "vaml/core/GridLength.h" // GridLength, RowDefinition, ColumnDefinition (S131)
+#include "vaml/core/UIElement.h"  // StackPanel/Grid's base (S129/S131 re-base — RESOLVED seeds)
 
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 namespace vaml {
 
@@ -83,11 +86,65 @@ protected:
     void ArrangeOverride(const vaml::Rect& finalSlot) override;
 };
 
-// [MINIMAL REAL] Element Grid — RESOLVED BY S131 (Sprint 3 layout). Do NOT extend silently; do NOT backfill.
-class VAML_CORE_EXPORT Grid final : public DependencyObject
+// Grid — REAL panel control (S131). RESOLVES the S087 MINIMAL REAL seed at its
+// own sprint (NO-GAP, not a backfill). Re-based onto UIElement (was
+// DependencyObject) so it participates in the visual tree + Measure/Arrange.
+//
+// S131 delivers the row/column DEFINITION model + Absolute/Auto/Star
+// resolution + the BASIC no-span cell measure/arrange. Span support
+// (RowSpan/ColumnSpan) + the extended two-pass math is S132's NAMED scope;
+// the exhaustive star+span suite is S133 — recorded NO-GAP, not silent.
+//
+// TRACK DEFINITIONS ride the registerable rows/columns vectors (below), so a
+// Grid can be declared in VAML as Grid.RowDefinitions / Grid.ColumnDefinitions
+// child collections of RowDefinition/ColumnDefinition objects. Children are
+// placed into cells via the ATTACHED Grid.Row / Grid.Column DPs.
+//
+// NO-GAP hand-off (recorded, not silent): S132 = RowSpan/ColumnSpan + the
+// extended measure/arrange math (cells consumed by spans, two-pass); S133 =
+// exhaustive star-sizing + span test suite.
+class VAML_CORE_EXPORT Grid final : public UIElement
 {
 public:
     Grid();
+    // S131: the pimpl owns the row/column definition vectors, so the
+    // destructor must be out-of-line (default) for Impl to be complete here.
+    ~Grid() override;
+
+    // --- Track definitions (REAL, S131) ----------------------------------
+    // Row/column definitions are owned vectors managed by the Grid. Default:
+    // one Auto-size row + one Auto-size column (a Grid with no definitions
+    // still has a single implicit Auto track). Setters take an owned vector;
+    // getters return a const view for inspection.
+    void set_row_definitions(std::vector<RowDefinition> rows);
+    void set_column_definitions(std::vector<ColumnDefinition> cols);
+    [[nodiscard]] const std::vector<RowDefinition>& row_definitions() const noexcept;
+    [[nodiscard]] const std::vector<ColumnDefinition>& column_definitions() const noexcept;
+
+    // --- ATTACHED Grid.Row / Grid.Column (REAL DPs, S131) ----------------
+    // The cell position of a child. These are ATTACHED properties: the key is
+    // owned by Grid but the value is stored on any DependencyObject (the S043
+    // attached-aware path). Default 0 (a child with no explicit cell lands in
+    // row 0, column 0). Int32 value path; globally registered under owner
+    // "Grid" via the S043 attached-aware machinery. Typed statics:
+    [[nodiscard]] static SetResult set_row(DependencyObject& obj, std::int32_t value);
+    [[nodiscard]] static std::int32_t row(const DependencyObject& obj);
+    [[nodiscard]] static SetResult set_column(DependencyObject& obj, std::int32_t value);
+    [[nodiscard]] static std::int32_t column(const DependencyObject& obj);
+
+protected:
+    // S131 real panel algorithm (see Element.cpp): MeasureOverride resolves
+    // row/col track lengths then measures each non-spanning child into its
+    // cell, re-measuring ONLY dirty children (S128); ArrangeOverride places
+    // each cell child at its cell origin + size, re-arranging ONLY dirty
+    // children (S128). Basic no-span scope: spans are S132's named step.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    // Pimpl so the owned row/column definition vectors are complete here.
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 // [MINIMAL REAL] Element Text — RESOLVED BY S400 (Sprint 10). Do NOT extend silently; do NOT backfill.

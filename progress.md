@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S097 (SURVIVOR + checkpoint advance to S120) [token: S097]
-- Next step to do     : S120 [token: S120]
-- PENDING work        : none (S097 complete; Sprint 2 closed; S120 is next — Sprint 3, element/scene graph + measure/arrange layout: UIElement base).
+- Last completed step : S131 (Grid: row/col definitions; Absolute/Auto/Star resolution) [token: S131]
+- Next step to do     : S132 [token: S132]
+- PENDING work        : none (S131 complete; Sprint 3 — S131 resolved the S087 Grid seed: re-based onto UIElement as a real panel (row/col definitions + Absolute/Auto/Star resolution via resolve_grid_lengths + attached Grid.Row/Grid.Column + basic no-span cell measure/arrange). S132 = Grid ColumnSpan/RowSpan + measure+arrange math; S133 = Grid star-sizing + span tests.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -35,11 +35,13 @@
 ## GUARD RAILS (codified from S003 — mirror of docs/roadmap.md; survives roadmap trimming)
 - **MINIMAL REAL**: permanent, linkable, forward-resolvable seed (kept+extended, NOT a stub);
   tagged with searchable sentinel `// [MINIMAL REAL] <comp> — RESOLVED BY <token>`; removable only
-  by its declaring step. Active (S097): vulkan→S161, tools→S287, built-in element seeds (S087,
-  in `vaml/core/Element.h`) → Button→S401, StackPanel→S129, Grid→S131, Text→S400, TextBox→S402,
+  by its declaring step. Active: vulkan→S161, tools→S287, built-in element seeds (S087,
+  in `vaml/core/Element.h`) → Button→S401, Text→S400, TextBox→S402,
   CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440; VamlReader event hooks (S092,
   `vaml/core/VamlReader.h`) → S322. RESOLVED: Color + Thickness (S089 — their real parsing
-  semantics now live on the types via parse_color/parse_thickness).
+  semantics now live on the types via parse_color/parse_thickness); StackPanel (S129 — real panel);
+  Grid (S131 — real panel: row/col definitions + Absolute/Auto/Star resolution + attached
+  Grid.Row/Grid.Column).
 - **NO-GAP GUARANTEE**: no feature/symbol left for silent backfill; every MINIMAL REAL has an
   explicit resolution authored at the same step that delivers real content.
 - **NO LAZY LLM SYNDROME**: default posture is to reason the opposite of lazy; MINIMAL REAL is
