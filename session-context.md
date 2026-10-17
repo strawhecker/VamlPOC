@@ -1,6 +1,6 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S136+S137 (no commits; no NEW md files)
+- last_command    : implementit S138+S139 (no commits; no NEW md files)
 - plan_repo_state : S130+**S130_1**+**S131**+**S132**+**S133**+**S134**+**S135**+**S136**+**S137** complete — **SPRINT 3** (S120/UIElement base;
                     S121 visual children; S122 layout slot geometry + alignment; S123 Measure contract
                     infinity-aware; S124 Arrange contract + clip; S125 leaf/panel measure archetypes
@@ -87,29 +87,45 @@
                     D17 now asserts margin ENTERS panel DesiredSize per S130_1; dirty-only re-measure/
                     re-arrange of a Stretch child with a clean sibling untouched).
 - files_touched   :
-    MODIFIED src/core/include/vaml/core/Element.h           (S136: Canvas class + attached Left/Top DPs + comments)
-    MODIFIED src/core/src/Element.cpp                       (S136: register_canvas_properties + real absolute-position MeasureOverride/ArrangeOverride + register "Canvas" built-in)
-    MODIFIED test/unit/ElementFactoryRegistry_test.cpp      (S136: 10→11 built-in count + Canvas resolve assertion)
-    ADDED    test/unit/Canvas_test.cpp                      (S137 dedicated Canvas suite)
-    MODIFIED test/unit/CMakeLists.txt                       (+ Canvas_test.cpp)
-    ADDED    build/verify_s137.cmd                          (S137 windows-msvc lane — also verifies the S136 product)
-    MODIFIED docs/roadmap.md                                (S136 [DONE] + S137 [DONE] + guard-rail Canvas resolution)
-    MODIFIED session-context.md (this — S136+S137 completion)
-    MODIFIED progress.md                                    (checkpoint + guard rails + step log)
-- build_status    : GREEN — BOTH CI LANES (verified from first principles at S136+S137). windows-msvc:
-                    msvc-debug (VS 2026) via build/verify_s137.cmd (re-runs S136+S137 together) —
-                    configure+build warning-clean + ctest 1/1 PASS (all S136/S137 cases green, all prior
-                    S135/S134/S133/S132/S131/S130/S130_1/S129/S120-S128 still green). ubuntu-clang:
+    MODIFIED docs/roadmap.md                                (S138 [DONE] — REFACTOR GATE(S3) + S139 [DONE] — SURVIVOR)
+    MODIFIED progress.md                                    (checkpoint regenerated last=S139/next=S140 + SPRINT 3 SURVIVOR block + guard rails MINIMAL REAL list)
+    MODIFIED session-context.md (this — S138+S139 completion)
+- build_status    : GREEN — BOTH CI LANES (verified from first principles at the S138 REFACTOR GATE).
+                    windows-msvc: msvc-debug (VS 2026) via build/verify_s137.cmd — configure+build
+                    warning-as-error clean + ctest 1/1 PASS (all Sprint-3 cases green). ubuntu-clang:
                     clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build +
-                    ctest 1/1 PASS (Canvas tests all green). Only Clang warnings = pre-existing upstream
-                    <ciso646> doctest deprecation from third_party (not this TU; non-error, already
-                    downgraded via -Wno-error=#warnings in the test CMakeLists). (windows-clang-debug is
+                    ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646> doctest
+                    deprecation from third_party (non-error, already downgraded). (windows-clang-debug is
                     NOT a lane — not built/tested/flagged per standing rule.)
-- next_step       : next roadmap token after S137 — **S138 (dep:S137) Layout suite green both compilers;
-                    REFACTOR GATE(S3)**, then **S139 SURVIVOR + checkpoint advance to S147 (Sprint 3.5
-                    retrofit)**. The Canvas control + its test suite are complete; S137 closes the last
-                    Sprint-3 panel + test pair before the S138 refactor gate.
+- next_step       : next roadmap token after S139 — **S140 (dep:S139) Sprint 3.5 — Intern property names /
+                    attribute strings to a canonical UTF-8 identity; the store key is a non-owning
+                    string_view into a process-lifetime intern pool** (Allocation & ownership discipline
+                    retrofit of S0–S3 hot paths). Sprint 3 is CLOSED (S138 refactor gate + S139 wrap done);
+                    the S140 retrofit is the next unimplemented task.
 - notes           :
+    - S138 = REFACTOR GATE(S3), docs-only (no code change). Both CI lanes verified from first principles
+      at this gate (windows-msvc via build/verify_s137.cmd msvc-debug + ubuntu-clang via
+      /mnt/hgfs/VamlPOC clang-debug) — both ctest 1/1 PASS, warning-clean. Grep-audit clean: no
+      STUB/TODO/FIXME/backfill scaffold markers in src/core (the only "backfill"/"dead code"/"unused"
+      hits are sanctioned affirmative "NOT a backfill — NO-GAP" statements in Color/Thickness.cpp + genuine
+      code comments). No dead/unused layout surface: desired_size/final_rect/margin/alignment DPs/dirty
+      bits/Measure-Arrange seam/LayoutManager all consumed by the four REAL panels or recorded future
+      consumers (S208/S405). All MINIMAL REAL sentinels intact + forward-resolvable; StackPanel/Grid/
+      WrapPanel/Canvas RESOLVED (sentinels removed at S129/S131/S134/S136). NO-GAP satisfied.
+    - S139 = SURVIVOR + checkpoint advance, docs-only (no build). Added the consolidated `## SPRINT 3 —
+      SURVIVOR` block (distills S120–S138); regenerated checkpoint to last=S139/next=S140/PENDING none;
+      GUARD RAILS MINIMAL REAL list updated (StackPanel/Grid/WrapPanel/Canvas RESOLVED; carried forward:
+      vulkan→S161, tools→S287, element seeds, event-hooks→S322, transform-owner→S208). DECISION
+      (driver-confirmed at plan time, recorded): the checkpoint advances to S140 (the Sprint 3.5 first
+      retrofit step, next unimplemented), NOT the literal "S147" of the original title — matching every
+      prior wrap precedent and keeping the step list gapless (NO-GAP).
+    - NO NEW md files (directive honored). No commits made (per command).
+    - COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088, S089, S090,
+      S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125, S126, S127, S128,
+      S129, S130, S130_1, S131, S132, S133, S134, S135, S136, S137, S138, and S139 is outstanding,
+      awaiting your authorization. After commit+push: repo is the committed good state; SPRINT 3 CLOSED,
+      next roadmap token after S139 = S140 (Sprint 3.5 retrofit first step). Laptop-added files
+      uncommitted as well — one commit covers all.
     - S136 delivers the REAL Canvas — a NEW element (no S087 seed existed), so the built-in element
       count rose 10→11 and the ElementFactoryRegistry_test.cpp `size().ShouldBe(10u)` assertions (two of
       them: the startup gate + the idempotent gate) were updated to 11 at THIS step, plus a Canvas

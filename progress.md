@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S137 (Canvas tests) [token: S137]
-- Next step to do     : S138 (dep:S137) Layout suite green both compilers; REFACTOR GATE(S3), then S139 SURVIVOR + checkpoint advance to S147
-- PENDING work        : none (S137 complete; Sprint 3 — S136 delivered the REAL Canvas (UIElement-derived; attached Left/Top DPs, Double path, default NaN = "not set"; absolute-position measure/arrange; registered built-in, count 10→11) and S137 the dedicated Canvas test-only suite.)
+- Last completed step : S139 (SURVIVOR + checkpoint advance) [token: S139]
+- Next step to do     : S140 (dep:S139) Sprint 3.5 — Intern property names / attribute strings to a canonical UTF-8 identity (Allocation & ownership discipline retrofit)
+- PENDING work        : none (S139 complete; Sprint 3 CLOSED — S138 REFACTOR GATE(S3) verified both CI lanes green + clean grep-audit; S139 SURVIVOR + checkpoint advanced to S140.)
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -38,7 +38,8 @@
   by its declaring step. Active: vulkan→S161, tools→S287, built-in element seeds (S087,
   in `vaml/core/Element.h`) → Button→S401, Text→S400, TextBox→S402,
   CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440; VamlReader event hooks (S092,
-  `vaml/core/VamlReader.h`) → S322. RESOLVED: Color + Thickness (S089 — their real parsing
+  `vaml/core/VamlReader.h`) → S322; UIElement transform-owner (S120, `vaml/core/UIElement.h`) → S208.
+  RESOLVED: Color + Thickness (S089 — their real parsing
   semantics now live on the types via parse_color/parse_thickness); StackPanel (S129 — real panel);
   Grid (S131 — real panel: row/col definitions + Absolute/Auto/Star resolution + attached
   Grid.Row/Grid.Column; S132 adds attached Grid.RowSpan/Grid.ColumnSpan + span-aware
@@ -200,6 +201,65 @@
 - **Next = S120** (Sprint 3, element/scene graph + measure/arrange — UIElement base, first token).
 
 ---
+
+## SPRINT 3 — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S120..S138, wrapped at S139)
+- **Goal met (S120–S138): the element/scene-graph + measure/arrange layout system is complete, green on
+  both compilers, and refactor-gated. UIElement base + visual tree + a WPF-faithful infinity-aware
+  Measure/Arrange contract + four REAL panels (StackPanel/Grid/WrapPanel/Canvas) + a dirty-flag
+  LayoutManager driver, all real + tested + green on both CI lanes.** Sprint-3 closing = S136 (Canvas
+  product) → S137 (Canvas tests) → S138 (refactor gate) → S139 (wrap).
+- **Full element/layout system delivered (real public symbols, none MINIMAL REAL / none STUB):**
+  layout value primitives — `LayoutSlot.h` + `Size`/`Rect`/`layout_slot` + `compute_final_rect(slot,
+  desired, margin, hAlign, vAlign)` (the arrange math: origin advances + slot shrinks by margin,
+  non-Stretch pins inside) + `clip_to_bounds(content, clipBounds)` (rectangular render-slot clip) —
+  S122/S124; `UIElement` base (derives DependencyObject; parent link, visual children + traversal,
+  `Margin`/`HorizontalAlignment`/`VerticalAlignment`/`Width`/`Height`/`MinWidth`/`MaxWidth`/… DPs,
+  infinity-aware `Measure(available)` finalizer `compute_measured_desired` — finite-fills / unbounded-
+  wraps / non-Stretch clamps to min(natural,available), the S123 stretch-vs-wrap rule) —
+  S120–S123/S126; the protected virtual `MeasureOverride(const Size&)` (natural content extent) +
+  `ArrangeOverride(const Rect&)` (auto-drive: `Arrange` computes final_rect then auto-invokes
+  ArrangeOverride) — S127; the `LayoutManager` dirty-flag driver (`InvalidateMeasure`/`InvalidateArrange`
+  propagate up-to-root with short-circuit, `UpdateLayout` runs a measure pass iff root measure-dirty +
+  arrange pass iff root arrange-dirty, TRUE no-op when clean) — S126; **REAL panels**: `StackPanel`
+  (Orientation DP default Vertical, last-child-stretch, dirty-only re-measure/re-arrange) — S129/S130;
+  `Grid` (GridLength {Auto/Pixel/Star} + RowDefinition/ColumnDefinition, resolve_grid_lengths, attached
+  Grid.Row/Grid.Column, Absolute/Auto/Star resolution, attached Grid.RowSpan/Grid.ColumnSpan + span-aware
+  two-pass D1/D2 math, dirty-only) — S131/S132/S133; `WrapPanel` (WrapDirection DP default Horizontal,
+  natural-extent flow/wrap/align, aligned rows, dirty-only) — S134/S135; `Canvas` (attached Left/Top
+  Double DPs default **NaN = "not set"**; absolute-position measure/arrange; bounding-extent DesiredSize
+  clamped >= 0; dirty-only) — S136/S137.
+- **Key design decisions recorded (searchable, NO-GAP / NO-LAZY-LLM):** the Infinity sentinel is the
+  "available is unconstrained" marker and is guarded by `is_infinite()` in the finalizers; `Measure` is
+  WPF-faithful margin handling (shrink available by Margin → MeasureOverride(inner) → finalize → add
+  Margin back into DesiredSize, clamped to available) and `compute_final_rect` strips the margin back
+  out (margin never counted twice) — the S130_1 resolution; the Arrange auto-drive (ArrangeOverride
+  receiving final_rect) is what lets LayoutManager arrange a whole subtree from the root alone; dirty-
+  confinement: a child invalidation re-measures/re-arranges only that child's subtree-influence (leaf +
+  ancestor chain), never friend subtrees or clean siblings (S128 proof on R>(P1>(A,B),P2>(C,D)) +
+  4-level chain); each REAL panel adopts the dirty-only-subpass discipline inside MeasureOverride/
+  ArrangeOverride (re-measure/re-arrange ONLY is_*_dirty() children, reuse clean desired_size/final_rect);
+  four REAL panels share one pattern: measure offers each child, derives panel DesiredSize from children,
+  arrange places each child into its slot honoring alignment+margin via child->Arrange.
+- **Deferred to future sprints (all recorded, NOT silent):** `Canvas`'s and `ScrollViewer`'s render-slot
+  clip consumption → S208 (renderer) / S405 (ScrollViewer); `Text`/`Button`/etc. real control logic from
+  the S087 element seeds → each control's sprint (S400–S405/S440); visual-tree children list already
+  delivered S121; transform-owner → S208; the S209 renderer consumes final_rect() as render slot +
+  clip_to_bounds.
+- **MINIMAL REAL carried forward RESOLVED/unresolved:** RESOLVED in Sprint 3 — `StackPanel` (S129, real
+  panel, sentinel removed), `Grid` (S131, real panel + S132 spans, sentinel removed), `WrapPanel` (S134,
+  real panel, NEW element no sentinel), `Canvas` (S136, real panel, NEW element no sentinel). Still
+  UNRESOLVED (carried forward): `vulkan`→S161; `tools`→S287; built-in element seeds → Button→S401,
+  Text→S400, TextBox→S402, CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440; VamlReader event
+  hooks→S322; UIElement transform-owner→S208. All carry searchable sentinels; NO-GAP intact.
+- **Invariants intact:** [ADR-001..012], layer-rule (core has NO Vulkan/GLFW deps), no-managed, no-stub,
+  NO-GAP GUARANTEE, NO LAZY LLM SYNDROME.
+- **Build lanes both green (from first principles, at the S138 gate):** windows-msvc (msvc-debug via
+  build/verify_s137.cmd, VS 2026, warning-as-error clean + ctest 1/1 PASS) + ubuntu-clang (clang-debug
+  via /mnt/hgfs/VamlPOC, Ubuntu VM clang 21, ctest 1/1 PASS; only pre-existing upstream <ciso646> doctest
+  deprecation from third_party, non-error). windows-clang-debug is NOT a lane (not built/tested/flagged
+  per standing rule).
+- **Next = S140** (Sprint 3.5, Allocation & ownership discipline retrofit — intern property names to a
+  canonical UTF-8 identity; the first token of the next sprint).
 
 ## STEP LOG  (append-only; new steps land at the BOTTOM)
 
