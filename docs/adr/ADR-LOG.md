@@ -175,4 +175,25 @@
 - Consequences: Every decision is production-quality from day one (ADR-015 icons, ADR-016 bindings); roadmap
   wording updated to "v1" not "POC"; the S949 sample-app worked example is "the sample app," not "the POC app."
 
+## ADR-018 — Lock governance: ONLY the human architect approves any lock; locks are never hidden
+- Status: ACCEPTED (operative project contract; injected at Sprint 3.5)
+- Context: The project is lockless-first (render thread + UI/work threads + per-thread change ring, ADR-002/ADR-003).
+  During Sprint 3.5 planning, the intern-pool design briefly framed a process-global pool whose pointer-identity
+  shortcut would have forced a global mutex on every insert. Analysis showed (a) pointer-identity is not how this
+  codebase compares today (PropertyId::operator== is content), (b) it would serialize a path that should be
+  lock-free in practice, and (c) it added deadlock surface. The user (3M+ lines of lockless programming) mandates:
+  locks only when they cannot be avoided, and always visible so callers can plan around them. Hiding a lock from a
+  user does not remove the user's responsibility for a sound system — it makes their job harder.
+- Decision: **ONLY the human architect may approve ANY use of a lock/mutex/semaphore/etc.** in this codebase.
+  An agent/LLM introducing a lock must (a) surface it as an explicit review item with rationale (why it cannot be
+  avoided), (b) obtain the human architect's approval, and (c) mark the lock site with a searchable comment naming
+  the approval. **Locks are never hidden:** every cross-thread lock is declared in the public/docs surface so
+  callers can plan around it. **Standing pre-approved lock:** the S037/S041 per-thread ChangeQueue pending-queue
+  mutex (genuinely cross-thread marshalling, already user-visible). All other locks require the approval gate.
+- Consequences: The intern subsystem (S141/S140_1/S140) is THREAD-LOCAL + LOCKLESS by design — zero new locks in
+  Sprint 3.5; pointer-identity is rejected in favor of content equality. S143's mutex relocation is executed under
+  this approval (it is the standing pre-approved lock, moved, not new). S145's object pool is thread-affine
+  (S037) and therefore needs NO lock — distinct from the rejected process-global string-pool framing. Future locks
+  (S620 async layout, etc.) require the same approval gate. Recorded in the roadmap GUARD RAILS + this log.
+
 ## END OF ADR LOG (seed)

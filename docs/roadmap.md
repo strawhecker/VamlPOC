@@ -56,6 +56,20 @@
   steps coherent **by design**, justified and recorded in this documentation, never a shortcut
   taken for convenience.
 
+### LOCK GOVERNANCE — ADR-018 (operative project contract)
+- **ONLY the human architect may approve ANY use of a lock/mutex/semaphore/etc.** in this codebase.
+- An agent/LLM introducing a lock must (a) surface it as an explicit review item with rationale (why
+  it cannot be avoided), (b) obtain the human architect's approval, and (c) mark the lock site with
+  a searchable comment naming the approval.
+- **Locks are never hidden:** every cross-thread lock is declared in the public/docs surface so
+  callers can plan around it.
+- **Standing pre-approved lock:** the S037/S041 per-thread ChangeQueue pending-queue mutex
+  (genuinely cross-thread marshalling, already user-visible). All other locks require the approval
+  gate.
+- **Sprint 3.5 adds ZERO new locks by design** — the intern subsystem (S141/S140_1/S140) is
+  thread-local lockless (ADR-018). Any future lock (e.g. S143's mutex relocation, S620 async layout)
+  requires the same approval gate. Recorded in `adr/ADR-LOG.md` as ADR-018.
+
 ## Conventions
 - `dep:S00X` = this step requires S00X complete first. Multiple deps separated by `+`.
 - `dep:-` = no dependency (root step of its sprint).
@@ -240,7 +254,11 @@
 > churn in the shipped hot paths before the renderer (S210/S211) and binding engine (S240+) are built on
 > them. (1) OBJECT churn: per-object make_unique<Impl>() + per-node unordered_map lifts; (2) STRING churn:
 > transient std::string(id.name()) materialized per lookup. Both removed by: a token-keyed (string_view)
-> identity-keyed SIMD probe store + a thread-local retain-forever block pool + interned/string_view keys.
+> CONTENT-keyed SIMD probe store (THREAD-LOCAL, LOCKLESS — ADR-018) + a thread-local retain-forever
+> block pool (the object-side half, S145) + interned/string_view keys. Equality is by CONTENT (SIMD
+> full compare), NEVER pointer-identity — a caller's address is never a usable pre-check (their bytes
+> are not in the pool), and cross-thread interned views are content-compared. The earlier
+> pointer-identity / global-lock framing is REJECTED (ADR-018).
 > Retrofit rule agreed: past steps are REWRITTEN in place to the intended end-state (no deadwood, no
 > "historical record" preservation); SOLID/release discipline (freeze + annotate) begins only at first release.
 >
@@ -250,43 +268,53 @@
 > 32-entry group, never re-probe / reorder / shrink; erase/tombstone never applies (append-only); full
 > string_view compare disambiguates collisions; index<n bounds the scan to the used prefix. One PD type
 > (no common/root), no unordered_map/flat_hash_map, no pimpl heap node (store is block-resident), retain-
-> forever free-list, thread-local pool, opt-in master destroy_all(). The intern pool is PUBLIC — it is the
+> forever free-list, thread-local pool (ADR-018: LOCKLESS — each thread owns its store; zero locks, zero
+> deadlock surface), opt-in master destroy_all(). The intern pool is PUBLIC — it is the
 > `vaml::intern(string_view) -> string_view` retained-string primitive (S140_1), usable by internal hot paths
-> AND external programmers alike: probe the SIMD store; on HIT return the existing permanent view
-> (identity-dedup); on MISS retain the bytes into the pool, insert into the store, return the new permanent
-> view. LIFETIME CONTRACT (rewritten from the old "caller must lifetime them for us"): the caller is NOT
-> required to outlive us — anything that flows through intern() is retained forever (once in, always there,
-> never removed, never relocated); the store accepts an external non-owning string_view under the old
-> self-lifetimed contract ONLY when that view already points into the intern pool. WARNING (stated, not
-> hidden): persistent retention is unbounded and reclaimed-never — do NOT call intern() on unbounded or
-> unpredictable-valued data (only bounded vocabulary + parsed document text). We consume intern() ourselves
-> for BOTH identity keys AND parser/reader-produced tree text. Symbolic/team-fidelity: names stay as
+> AND external programmers alike: probe the CALLING THREAD's SIMD store BY VALUE; on HIT return the existing
+> view (content-dedup); on MISS retain the bytes into the thread-local pool, insert into the store, return the
+> new view. SINGLE by-value call (`intern`); NO by-reference/pointer variant, NO reverse-index auto-conversion
+> — reserved only for a future consumer that authors its own address shortcut AT ITS OWN STEP (S620,
+> measure-first). Equality is by CONTENT (SIMD), NEVER pointer-identity — the caller's address is not a
+> usable pre-check, and cross-thread interned views are compared by content only. LIFETIME CONTRACT
+> (rewritten): the caller is NOT required to outlive us — anything that flows through intern() is retained for
+> the LIFE OF THE INTERNING THREAD (once in, always there, never removed, never relocated); do NOT pass an
+> interned view ACROSS threads — carry literals/owned strings across threads instead. WARNING (stated, not
+> hidden): persistent retention is unbounded and reclaimed-never per thread — do NOT call intern() on
+> unbounded or unpredictable-valued data (only bounded vocabulary + parsed document text). We consume intern()
+> ourselves for BOTH identity keys AND parser/reader-produced tree text. Symbolic/team-fidelity: names stay as
 > programmers know them; token derived 1:1 at intern time, never redefined.
 - S140 dep:S139  Intern property names / attribute strings to a canonical UTF-8 identity (the S140_1 pool). The
-                 store key is a non-owning string_view into the process-lifetime intern pool (never removed,
-                 never relocated). SCOPE (disambiguated): the SAME pool interns BOTH lookup identity (name keys)
-                 AND parser/reader-produced tree text — ParsedElement/ParsedAttribute (namespace_uri, local_name,
-                 prefix, attribute value, element content), VamlReader deferred structs (key/source), and
-                 scanner-emitted text all become pool-backed string_view, never owning std::string. Kills the
-                 per-lookup transient std::string(id.name()) at Get/Set/effective/prop-subscribe/drain AND the
-                 parser's owned-string churn. [Rewrites S036/S038/S041/PropertyRegistry name-key contract in place.]
+                 store key is a non-owning string_view into the THREAD-LOCAL intern pool (retained for the life of
+                 the interning thread, never removed, never relocated; content-equal by SIMD — ADR-018). SCOPE
+                 (disambiguated): the SAME pool interns BOTH lookup identity (name keys) AND parser/reader-produced
+                 tree text — ParsedElement/ParsedAttribute (namespace_uri, local_name, prefix, attribute value,
+                 element content), VamlReader deferred structs (key/source), and scanner-emitted text all become
+                 pool-backed string_view, never owning std::string. Kills the per-lookup transient
+                 std::string(id.name()) at Get/Set/effective/prop-subscribe/drain AND the parser's owned-string
+                 churn. [Rewrites S036/S038/S041/PropertyRegistry name-key contract in place.]
 - S140_1 dep:S141  Author the PUBLIC retained-string primitive `vaml::intern(string_view) -> string_view` — the
-                 intern pool's public face (accepts std::string via implicit view conversion too): SIMD-probe +
-                 full compare on the S141 store — HIT returns the existing permanent view (identity-dedup); MISS
-                 retains the bytes into the pool, inserts into the store, returns the new permanent view.
-                 LIFETIME CONTRACT (rewritten): caller is NOT required to outlive us — intern() retains forever
-                 (once in, always there, never removed, never relocated); pointer-identity == equality by
-                 construction. We consume intern() ourselves for both identity keys and parser/reader tree text
-                 (S140). WARNING recorded in the header: persistent retention is unbounded/reclaimed-never — do
-                 not intern unbounded or unpredictable-valued data. [New net-new public type; NOT flat_hash_map;
-                 the S141 SIMD store is its mechanism; dependency ordering note: listed after S140 but depends
-                 on S141 — dep-chain governs execution, the token id is identity only.]
-- S141 dep:S140  Author the SIMD probe store (identity-keyed, no hash): insertion-ordered append-only array,
+                 intern pool's public face (accepts std::string via implicit view conversion too): SIMD-probe BY
+                 VALUE + full compare on the CALLING THREAD's S141 store — HIT returns the existing view
+                 (content-dedup); MISS retains the bytes into the pool, inserts into the store, returns the new
+                 view. LIFETIME CONTRACT (thread-scoped): caller is NOT required to outlive us — intern() retains
+                 for the life of the interning thread (once in, always there, never removed, never relocated); do
+                 NOT pass interned views across threads. Equality is by CONTENT (SIMD), NOT pointer-identity — the
+                 pointer-identity == equality premise is REJECTED (it would force a global lock and is not how
+                 this codebase compares today; PropertyId::operator== is content; ADR-018). SINGLE by-value call;
+                 no by-reference variant, no reverse index. WARNING recorded in the header: persistent retention
+                 is unbounded/reclaimed-never per thread — do not intern unbounded or unpredictable-valued data.
+                 [New net-new public type; NOT flat_hash_map; the S141 SIMD store is its mechanism; THREAD-LOCAL +
+                 LOCKLESS by design (ADR-018); dependency ordering note: listed after S140 but depends on S141 —
+                 dep-chain governs execution, the token id is identity only.]
+- S141 dep:S140  Author the SIMD probe store (CONTENT-keyed, no hash): insertion-ordered append-only array,
                  32-byte/32-lane groups (8-bit search bytes), empty marker 0xFF, probe = fold_bytes(sv)%255,
                  memmove+append growth rounded to 32, never re-probe/reorder/shrink. New net-new type; NOT a
-                 generic flat_hash_map. [Rewrites S036/S039 store mechanism in place; removes unordered_map.]
-                 The store's PUBLIC face is authored at S140_1: intern() = probe→hit/miss→retain+insert. One
-                 mechanism, two consumers (internal identity + public intern()).
+                 generic flat_hash_map. THREAD-LOCAL + LOCKLESS (ADR-018 — a thread owns its store; reads and
+                 writes single-threaded by construction, zero deadlock surface). [Rewrites S036/S039 store
+                 mechanism in place; removes unordered_map.] The store's PUBLIC face is authored at S140_1:
+                 intern() = probe→hit/miss→retain+insert. One mechanism, two consumers (internal identity + public
+                 intern()).
 - S142 dep:S141  Collapse DependencyObject/UIElement pimpl + store into ONE block-resident unit (object
                  header → block-slot offset, no per-object heap hop); single PD type (no common/root), store
                  inline-started in the slot, heap-grown on demand. [Rewrites S036/S037/S039/S120 in place;
@@ -294,25 +322,31 @@
 - S143 dep:S142  Relocate the per-object pending mutex out of DependencyObject into the thread-affine
                  ChangeQueue; re-key ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty
                  GlobalTable onto the S140 token + S141 store. [Rewrites S037/S041/S038 in place; change
-                 notification contract (QUEUED/coalescing/registration order) behavior-unchanged.]
+                 notification contract (QUEUED/coalescing/registration order) behavior-unchanged. The kept
+                 mutex relocation is EXECUTED UNDER ADR-018 (approval already recorded — it is the standing
+                 pre-approved S037/S041 lock); no new lock is introduced.]
 - S144 dep:S143  Migrate the three lookup registries to the token-keyed store (ElementFactoryRegistry,
-                 ValueConverterRegistry, DependencyProperty global table), keyed off intern()'s returned identity
-                 (pointer-equal views) so try_create/convert/TryGet stop touching owning strings; accessors
-                 (registered_names(), VamlReader::names()) return string_view, NOT by-value vector<std::string>
-                 (removes the owned-name gotchas); out-param accessors for UIElement::children()/
-                 collect_descendant_effectives (no return-by-value); reserve() the parser/reader vectors.
-                 [Rewrites S087/S089/S091/S121 in place; keeps MINIMAL REAL contracts.]
-- S145 dep:S144  Block pool free-list (thread-local, retain-forever, opt-in master destroy_all): dole
-                 DependencyObject/UIElement from blocks, recycle to free-list, never delete; SIMD store sized
-                 per block slot + monotonic spill. The object-side half of the allocation fix. [Rewrites
-                 S120/S121 element/layout ownership to route frees back to the pool.]
+                 ValueConverterRegistry, DependencyProperty global table), keyed by CONTENT (SIMD by-value),
+                 NOT pointer-identity — registries stay content-keyed so try_create/convert/TryGet stop
+                 touching owning strings via the by-value SIMD probe (the pointer-equal-views premise is
+                 dropped; ADR-018); accessors (registered_names(), VamlReader::names()) return string_view,
+                 NOT by-value vector<std::string> (removes the owned-name gotchas); out-param accessors for
+                 UIElement::children()/collect_descendant_effectives (no return-by-value); reserve() the
+                 parser/reader vectors. [Rewrites S087/S089/S091/S121 in place; keeps MINIMAL REAL contracts.]
+- S145 dep:S144  Block pool free-list (thread-local, retain-forever, LOCKLESS — the object pool stays
+                 thread-affine per S037/ADR-018, so it needs NO lock, unlike the process-global string pool
+                 framing that was rejected; opt-in master destroy_all): dole DependencyObject/UIElement from
+                 blocks, recycle to free-list, never delete; SIMD store sized per block slot + monotonic spill.
+                 The object-side half of the allocation fix. [Rewrites S120/S121 element/layout ownership to
+                 route frees back to the pool.]
 - S146 dep:S145  REFACTOR GATE(S3.5): remove ALL dead pre-retrofit surface (pimpl heap nodes, unordered_map/
                  std::string-key paths, by-value children(), owned-name gotchas, parser/scanner-owned std::string
                  members); assert the public API accepts string_view or intern()-produced views everywhere — no
                  surviving ownership/dangling surface; full build + ctest green both compilers; ASan no-leak;
                  steady-state heap-churn counter recorded (feeds S628).
 - S147 dep:S146  SURVIVOR + checkpoint; re-target S160's dep to S147; record the allocator-policy ADR
-                 (feeds S722) + thread-local pool note (feeds S624/S626).
+                 (feeds S722) + thread-local pool note (feeds S624/S626) + reaffirm LOCK GOVERNANCE ADR-018
+                 (Sprint 3.5 added zero new locks; the S143 mutex relocation is the sole kept, approved lock).
 
 ---
 ## Sprint 4 — Vulkan window + swapchain + first pixels (single-thread proof)  [token S160+]
