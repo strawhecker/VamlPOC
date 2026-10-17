@@ -205,13 +205,34 @@ Size UIElement::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 void UIElement::Measure(const Size& available)
 {
-    // The S123 contract: Measure(available) -> DesiredSize. Ask the content
-    // seam for the natural (un-finalized) extent, then finalize it through the
-    // infinity-aware stretch-vs-wrap rule (compute_measured_desired) and write
-    // the S122 desired_size() read target.
-    const Size natural = MeasureOverride(available);
-    impl_->desiredSize = vaml::compute_measured_desired(
-        natural, available, horizontal_alignment(), vertical_alignment());
+    // The S123 contract: Measure(available) -> DesiredSize, WPF-faithful margin
+    // handling (S130_1 — resolves the S130-recorded fidelity gap; not silent):
+    // the offered `available` is first SHRUNK by this element's Margin (a
+    // margin'd child's content wraps within its INNER constraint, mirroring
+    // WPF FrameworkElement.MeasureCore), MeasureOverride sees that inner size,
+    // the infinity-aware stretch-vs-wrap rule (compute_measured_desired)
+    // finalizes against the inner size, and the margin is then ADDED BACK into
+    // DesiredSize — so a margin'd element reports a LARGER DesiredSize that
+    // legitimately propagates into a parent panel's DesiredSize (WPF StackPanel
+    // DesiredSize includes child margins). The margin-inflated extent is
+    // clamped to the original `available` (never exceeds the offer, never
+    // negative) — the same anti-overflow, anti-negative guarantee S123 upholds.
+    const Thickness m = margin();
+    const float innerAvailW = std::max(0.0f, available.width - m.left - m.right);
+    const float innerAvailH = std::max(0.0f, available.height - m.top - m.bottom);
+    const Size inner{ innerAvailW, innerAvailH };
+
+    const Size natural = MeasureOverride(inner);
+    Size d = vaml::compute_measured_desired(
+        natural, inner, horizontal_alignment(), vertical_alignment());
+
+    d.width += m.left + m.right;
+    d.height += m.top + m.bottom;
+    impl_->desiredSize = {
+        std::max(0.0f, std::min(d.width, available.width)),
+        std::max(0.0f, std::min(d.height, available.height)),
+    };
+
     // A completed Measure pass clears this element's measure-dirty flag (S126):
     // it no longer needs measuring. The LayoutManager gates its pass on the
     // root's bit; panels re-measure only dirty children, each of which clears

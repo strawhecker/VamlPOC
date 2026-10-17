@@ -503,16 +503,18 @@ TEST_CASE("S130 D16: panel DesiredSize recomputes from the CURRENT children — 
     SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
 }
 
-TEST_CASE("S130 D17: child Margin is an ARRANGE-time inset — it does NOT enter the panel's measure-time DesiredSize")
+TEST_CASE("S130 D17: child Margin ENTERS the panel's DesiredSize (WPF-faithful, S130_1 resolved)")
 {
-    // TEST-TRUTH (accepted S130 blocker resolution): the shipped S129
-    // StackPanel::MeasureOverride derives its natural extent from each child's
-    // raw desired_size(); it does NOT add child margins (a child's Margin only
-    // insets at arrange time via compute_final_rect). So a margin'd child's
-    // desired_size() is unchanged, and the panel's DesiredSize does NOT grow with
-    // child margins. This diverges from WPF (which WOULD include child margins in
-    // the panel DesiredSize); that fidelity gap is recorded NO-GAP for S131
-    // (Grid) or a dedicated StackPanel margin step — never a silent omission.
+    // S130_1 RESOLUTION (accepted at S130 review): the S130 D17 note flagged the
+    // WPF-fidelity gap where VAML's measure path EXCLUDED child margins from a
+    // panel's DesiredSize (WPF FrameworkElement.MeasureCore ADDS margin back into
+    // DesiredSize, so WPF StackPanel DesiredSize DOES include child margins).
+    // S130_1 closed that gap: UIElement::Measure now shrinks the offered size by
+    // the element's margin (its content wraps within the INNER constraint), then
+    // ADDS the margin back into desired_size() — so a margin'd child reports a
+    // margin-inflated DesiredSize that legitimately propagates into a parent
+    // panel's DesiredSize. This test asserts the RESOLVED behavior (test-the-
+    // truth, now WPF-faithful): the margin IS included.
     StackPanel panel;
     RecorderLeaf* a = panel.create_child<RecorderLeaf>(Size{ 100.0f, 30.0f });
     RecorderLeaf* b = panel.create_child<RecorderLeaf>(Size{ 50.0f, 20.0f });
@@ -525,16 +527,18 @@ TEST_CASE("S130 D17: child Margin is an ARRANGE-time inset — it does NOT enter
     SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
 
-    // Give b a real margin; re-measure. b's desired_size() is UNCHANGED by its
-    // margin, so the panel's DesiredSize is unchanged too (margins do not
-    // propagate into the measure-time extent).
+    // Give b a real margin (10 L, 5 T, 10 R, 5 B) and invalidate b's MEASURE so
+    // the panel (S128 dirty-respect) re-measures it with the margin applied.
+    // Under S130_1, b's desired_size() is now MARGIN-INFLATED (50+20 width,
+    // 20+10 height), and that inflated extent propagates into the panel's
+    // DesiredSize (width max 100; height 30 + 30 = 60) — matching WPF.
     (void)b->set_margin(Thickness{ 10.0f, 5.0f, 10.0f, 5.0f });
-    panel.InvalidateMeasure();
+    b->InvalidateMeasure();
     panel.Measure(Size::Infinite());
-    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(50.0f)); // margin-invariant
-    SHOULD(ShouldlyString(b->desired_size().height).ShouldBe(20.0f));
-    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f)); // NOT +20
-    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f)); // NOT +10
+    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(70.0f));   // 50 + 10 + 10
+    SHOULD(ShouldlyString(b->desired_size().height).ShouldBe(30.0f));  // 20 + 5 + 5
+    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(60.0f)); // 30 + (20+margin10)
 }
 
 TEST_CASE("S130 D18: dirty scoping of stretch — re-measuring a dirty Stretch child recomputes; a clean sibling is untouched")

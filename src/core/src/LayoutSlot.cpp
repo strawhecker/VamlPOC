@@ -28,14 +28,24 @@ Rect compute_final_rect(const LayoutSlot& slot,
     const float availW = std::max(0.0f, slot.bounds.width - ml - mr);
     const float availH = std::max(0.0f, slot.bounds.height - mt - mb);
 
-    // 2. Child size: Stretch fills the available slot; Left/Center/Right and
-    //    Top/Center/Bottom pinch to at most desired (clamped to available).
+    // 2. S130_1 (WPF ArrangeCore-faithful): DesiredSize is now MARGIN-INFLATED
+    //    (Measure adds margin back, so it propagates into a parent panel's
+    //    DesiredSize). Before aligning, strip the margin OUT to recover the
+    //    element's inner desired extent — otherwise the margin would be counted
+    //    TWICE (once in the inflated desired, once in the inset slot). This is
+    //    WPF's `innerDesiredSize = DesiredSize - margin` inside ArrangeCore.
+    const float innerW = std::max(0.0f, desired.width - ml - mr);
+    const float innerH = std::max(0.0f, desired.height - mt - mb);
+
+    // 3. Child size: Stretch fills the available slot; Left/Center/Right and
+    //    Top/Center/Bottom pinch to at most the INNER desired (clamped to
+    //    available).
     const bool hStretch = (hAlign == HorizontalAlignment::Stretch);
     const bool vStretch = (vAlign == VerticalAlignment::Stretch);
-    const float childW = hStretch ? availW : std::min(desired.width, availW);
-    const float childH = vStretch ? availH : std::min(desired.height, availH);
+    const float childW = hStretch ? availW : std::min(innerW, availW);
+    const float childH = vStretch ? availH : std::min(innerH, availH);
 
-    // 3. Offset by alignment: Center=(available - child)/2 (floor toward 0 via
+    // 4. Offset by alignment: Center=(available - child)/2 (floor toward 0 via
     //    max(0,...) for the integer-division-free positive case); Right/Bottom
     //    = available - child (>= 0 because child <= available).
     float ox = 0.0f;
