@@ -24,9 +24,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S135 (WrapPanel tests) [token: S135]
-- Next step to do     : next roadmap token after S135 (Sprint 3 — S135 is the last defined Sprint-3 token; the next token is to be assigned per the roadmap conventions)
-- PENDING work        : none (S135 complete; Sprint 3 — S134 delivered the REAL WrapPanel (UIElement-derived; WrapDirection DP default Horizontal; flow/wrap/align; registered built-in, count 9→10) and S135 the dedicated WrapPanel test-only suite.)
+- Last completed step : S137 (Canvas tests) [token: S137]
+- Next step to do     : S138 (dep:S137) Layout suite green both compilers; REFACTOR GATE(S3), then S139 SURVIVOR + checkpoint advance to S147
+- PENDING work        : none (S137 complete; Sprint 3 — S136 delivered the REAL Canvas (UIElement-derived; attached Left/Top DPs, Double path, default NaN = "not set"; absolute-position measure/arrange; registered built-in, count 10→11) and S137 the dedicated Canvas test-only suite.)
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -43,7 +43,9 @@
   Grid (S131 — real panel: row/col definitions + Absolute/Auto/Star resolution + attached
   Grid.Row/Grid.Column; S132 adds attached Grid.RowSpan/Grid.ColumnSpan + span-aware
   measure/arrange); WrapPanel (S134 — REAL panel: UIElement-derived, WrapDirection DP default
-  Horizontal, flow/wrap/align; a NEW element, not a seed).
+  Horizontal, flow/wrap/align; a NEW element, not a seed); Canvas (S136 — REAL panel:
+  UIElement-derived, attached Canvas.Left/Canvas.Top DPs (Double, default NaN = "not set"),
+  absolute-position measure/arrange; a NEW element, not a seed).
 - **NO-GAP GUARANTEE**: no feature/symbol left for silent backfill; every MINIMAL REAL has an
   explicit resolution authored at the same step that delivers real content.
 - **NO LAZY LLM SYNDROME**: default posture is to reason the opposite of lazy; MINIMAL REAL is
@@ -1373,3 +1375,60 @@
   ctest 1/1 PASS) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS).
   Only Clang warnings = pre-existing upstream <ciso646> doctest deprecation (non-error, already
   downgraded).
+
+- [x] S136 Canvas: explicit position via attached Left/Top (attached props via S1) — ✅
+  SURVIVOR: MOD src/core/include/vaml/core/Element.h + MOD src/core/src/Element.cpp + MOD
+  test/unit/ElementFactoryRegistry_test.cpp (10→11 built-in count + Canvas resolve) + MOD
+  docs/roadmap.md + session-context.md (no commits; no NEW md files). REAL panel — NEW element (no
+  S087 seed existed). PRODUCT: `Canvas final : UIElement` (visual-tree + Measure/Arrange) with TWO
+  REAL ATTACHED DPs, `Canvas.Left` + `Canvas.Top` (Double value path), default **NaN** = "not set"
+  (the NaN contract introduced explicitly at THIS step — the S1 value path had no NaN convention
+  before S136; user-directed at review to mirror WPF), NOT inherited, self-registered via the S043
+  attached-aware global path (Meyers-static `ensure_canvas_properties_registered()`, registered
+  globally under owner "Canvas" so they resolve on ANY DependencyObject). Typed statics
+  `Canvas::set_left/set_top/left/top` + raw S043 Set/Get(PropertyId) path. REAL absolute-position
+  panel algorithm in Element.cpp: MEASURE offers every child `Size::Infinite()` on BOTH axes (S123
+  infinity rule, same basis as WrapPanel S134 — a child measures at its NATURAL content extent
+  regardless of explicit position) and re-measures ONLY is_measure_dirty() children (S128);
+  DesiredSize = the BOUNDING EXTENT of the arranged children — per child `rightEdge = effLeft +
+  child.desired.w`, `bottomEdge = effTop + child.desired.h` where `effX = is_nan(v) ? 0 : v`
+  (NaN = "not set" -> effective 0), DesiredSize axis = max over children of that edge, clamped >= 0
+  (never negative, never NaN — NaN axes zeroed BEFORE the max fold so no NaN reaches the bounding
+  math). ARRANGE places each child at its EXPLICIT origin {effLeft, effTop} (NaN collapses to 0 =
+  the canvas origin, effective top-left) at the child's measured NATURAL size via child->Arrange —
+  honoring the child's OWN alignment + margin inside that slot through compute_final_rect (S124/
+  S130_1 contract) — so children at distinct origins are ABSOLUTE (no panel flow/stacking);
+  re-arranges ONLY is_arrange_dirty() children (S128). Registered as a built-in
+  (`register_builtin_elements()` +"Canvas") — count 10→11, so the S087 ElementFactoryRegistry_test
+  .cpp size assertions updated at THIS step + a Canvas resolve assertion added HERE. NO MINIMAL REAL
+  introduced. NO-GAP hand-off: S137 = the dedicated Canvas test suite (recorded, not silent). Both CI
+  lanes from first principles green (the S136 product is most directly verified by S137's
+  build/verify_s137.cmd, which runs the product + S137 tests): windows-msvc (build/verify_s137.cmd,
+  msvc-debug warning-clean + ctest 1/1 PASS) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug
+  configure+build+ctest 1/1 PASS). Only Clang warnings = pre-existing upstream <ciso646> doctest
+  deprecation (non-error, already downgraded). Next = S137.
+
+- [x] S137 Canvas tests — ✅
+  SURVIVOR: ADDED test/unit/Canvas_test.cpp + MOD test/unit/CMakeLists.txt (+Canvas_test.cpp) +
+  ADDED build/verify_s137.cmd + MOD docs/roadmap.md + session-context.md (no commits; no NEW md
+  files). TEST-ONLY — zero new product symbols beyond S136 (the S040/S042/S044/S125/S128/S130/S133/
+  S135 test-only precedent). S136 recorded S137 as its dedicated test suite (NO-GAP, not a silent
+  backfill): it asserts the REAL S136 Canvas (explicit Left/Top via attached DPs + absolute
+  placement) over the S123 infinity-aware finalizer, the S124 arrange math, and the S126/S127
+  dirty-driver. Instrument = a test-local RecorderLeaf (S125/S130 pattern) recording the exact
+  measure offer + final arrange slot on both axes. 14 TEST_CASEs, Shouldly vocabulary: derives
+  UIElement via dynamic_cast; Canvas.Left/Top default to NaN (not set); typed round-trip on finite
+  values; explicit 0 is DISTINCT from unset (NaN) — round-trips as 0; Left/Top resolve globally on a
+  plain DependencyObject (S043 attached-aware, default NaN); children measured at NATURAL extent on
+  BOTH axes (+inf offer); empty canvas -> DesiredSize 0 + arrange no-op; DesiredSize = bounding
+  extent incl. finite offsets + NaN axes ignored as 0; DesiredSize clamps >= 0 for negative coords;
+  a child at Left=10,Top=20 lands exactly there at measured size; an un-set axis (NaN) collapses to
+  the origin (0,0); multiple children at distinct origins are ABSOLUTE (no panel flow); negative
+  Left/Top honored at the origin; a margin'd child lands at its origin with margin honored (S130_1),
+  a default-Stretch child keeps its natural extent (nothing to stretch into), dirty-respect (a clean
+  child is NOT re-measured nor re-arranged; an arrange-invalidated child IS re-arranged but a clean
+  one is not). NO-GAP clean: no MINIMAL REAL introduced/resolved; S136 resolved the Canvas surface at
+  its own step, S137 is the recorded suite, not a backfill. Both CI lanes from first principles green:
+  windows-msvc (build/verify_s137.cmd, msvc-debug warning-clean + ctest 1/1 PASS) + ubuntu-clang
+  (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS). Only Clang warnings = pre-existing
+  upstream <ciso646> doctest deprecation (non-error, already downgraded). Next = S138.

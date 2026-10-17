@@ -53,6 +53,7 @@ add_executable(vaml-core-tests
     GridSpan_test.cpp
     Grid_stretch_test.cpp
     WrapPanel_test.cpp
+    Canvas_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp

@@ -4,9 +4,9 @@
 // bearer (empty ctor) deriving DependencyObject. NO members / logic here — the
 // real content of each control is authored at its OWN resolution sprint (see
 // Element.h sentinels). The controls that have reached their sprints are
-// StackPanel (S129), Grid (S131) and WrapPanel (S134), which RESOLVE here:
-// re-based onto UIElement and delivered as REAL panels. The remaining seeds
-// stay thin until their own sprints.
+// StackPanel (S129), Grid (S131), WrapPanel (S134) and Canvas (S136), which
+// RESOLVE here: re-based onto UIElement and delivered as REAL panels. The
+// remaining seeds stay thin until their own sprints.
 //
 // register_builtin_elements() is the single startup registration call that
 // populates ElementFactoryRegistry::global() with every roadmap element name the
@@ -25,7 +25,9 @@
 #include "vaml/core/PropertyMetadata.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -114,6 +116,39 @@ void ensure_wrappanel_properties_registered()
     {
         registered = true;
         register_wrappanel_properties();
+    }
+}
+
+// Registers the two Canvas ATTACHED DPs (Left + Top) into the global table
+// exactly once per process (Meyers-static guard; a second call is a no-op).
+// They are GLOBALLY registered under owner "Canvas" so they resolve on ANY
+// DependencyObject via the S043 attached-aware path — a child's explicit
+// position is stored on the child (the object holding the value), not on the
+// Canvas.
+//
+// NaN default = "not set" (the S136 NaN contract): a child with no explicit
+// coordinate collapses to the origin (0,0) at layout time. The Double value
+// path; default registered as NaN, NOT inherited (each child's position is its
+// own).
+void register_canvas_properties()
+{
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    (void)DependencyProperty::Register(
+        "Canvas.Left", ValueType::Double, "Canvas",
+        PropertyMetadata::WithDefault(Value::Double(nan), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Canvas.Top", ValueType::Double, "Canvas",
+        PropertyMetadata::WithDefault(Value::Double(nan), PropertyFlags::None));
+}
+
+// Runs register_canvas_properties() at most once (first Canvas ctor).
+void ensure_canvas_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_canvas_properties();
     }
 }
 
@@ -372,6 +407,12 @@ WrapPanel::WrapPanel()
     ensure_wrappanel_properties_registered();
 }
 
+VAML_CORE_EXPORT
+Canvas::Canvas()
+{
+    ensure_canvas_properties_registered();
+}
+
 // --- S134 WrapPanel: WrapDirection DP + real flow/wrap/align panel ----------
 
 VAML_CORE_EXPORT
@@ -555,6 +596,108 @@ void WrapPanel::ArrangeOverride(const Rect& finalSlot)
             child->Arrange(Rect{ colX, cursor, colWidth, childH });
         }
         cursor += childH;
+    }
+}
+
+// --- S136 Canvas: attached Left/Top + real absolute-position panel ----------
+
+VAML_CORE_EXPORT
+SetResult Canvas::set_left(DependencyObject& obj, double value)
+{
+    // Value rides the Double path on the attached name (S043 attached-aware:
+    // the key is owned by Canvas, stored on `obj`).
+    return obj.Set(PropertyId::of("Canvas.Left"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Canvas::left(const DependencyObject& obj)
+{
+    return obj.Get(PropertyId::of("Canvas.Left")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Canvas::set_top(DependencyObject& obj, double value)
+{
+    return obj.Set(PropertyId::of("Canvas.Top"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Canvas::top(const DependencyObject& obj)
+{
+    return obj.Get(PropertyId::of("Canvas.Top")).get<double>();
+}
+
+// The measure-side virtual. Canvas never constrains its children: every child
+// is offered Size::Infinite() on BOTH axes (the S123 infinity rule, same
+// basis as WrapPanel S134), so each child measures at its NATURAL (content)
+// extent regardless of its explicit position. DesiredSize = the BOUNDING
+// EXTENT of the arranged children:
+//   per child: rightEdge  = effLeft  + child.desired.w
+//              bottomEdge = effTop   + child.desired.h
+//   where effLeft = is_nan(left(child))  ? 0 : left(child)   (NaN = "not set"
+//   -> effective 0, the S136 NaN contract's layout-time collapse).
+//   DesiredSize axis = max over children of that edge, clamped >= 0 (never
+//   negative, never NaN — NaN axes are zeroed BEFORE the max fold, so no NaN
+//   ever reaches the bounding math).
+// Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
+// child reuses its stored desired_size().
+VAML_CORE_EXPORT
+Size Canvas::MeasureOverride(const Size& available) const
+{
+    (void)available; // Canvas never constrains children on either axis.
+    const Size childAvail = Size::Infinite();
+
+    float width  = 0.0f;
+    float height = 0.0f;
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* child = child_at(i);
+        if (child->is_measure_dirty())
+        {
+            child->Measure(childAvail);
+        }
+        const double l = left(*child);
+        const double t = top(*child);
+        const float effLeft = std::isnan(l) ? 0.0f : static_cast<float>(l);
+        const float effTop  = std::isnan(t) ? 0.0f : static_cast<float>(t);
+        const float rightEdge  = effLeft + child->desired_size().width;
+        const float bottomEdge = effTop  + child->desired_size().height;
+        width  = (rightEdge  > width)  ? rightEdge  : width;
+        height = (bottomEdge > height) ? bottomEdge : height;
+    }
+    // Clamp >= 0: a negative explicit coordinate must not produce a negative
+    // DesiredSize (a child fully above/left of the origin still fits a 0 box).
+    return Size{ std::max(0.0f, width), std::max(0.0f, height) };
+}
+
+// The arrange-side virtual (S127). Receives the canvas's FULL final render slot
+// (final_rect()). Places each child at its EXPLICIT origin {effLeft, effTop}
+// (NaN collapses to 0 -> the canvas origin, the effective top-left), at the
+// child's measured NATURAL desired size, via child->Arrange — which honors the
+// child's OWN alignment + margin inside that slot through compute_final_rect
+// (S124/S130_1 contract). Children at distinct origins do NOT stack/flow — the
+// positions are absolute. Dirty-respect (S128): re-arrange ONLY
+// is_arrange_dirty() children; clean children keep their final_rect untouched.
+VAML_CORE_EXPORT
+void Canvas::ArrangeOverride(const Rect& finalSlot)
+{
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* child = child_at(i);
+        if (!child->is_arrange_dirty())
+        {
+            continue;
+        }
+        const double l = left(*child);
+        const double t = top(*child);
+        const float effLeft = std::isnan(l) ? 0.0f : static_cast<float>(l);
+        const float effTop  = std::isnan(t) ? 0.0f : static_cast<float>(t);
+        child->Arrange(Rect{
+            finalSlot.x + effLeft,
+            finalSlot.y + effTop,
+            child->desired_size().width,
+            child->desired_size().height,
+        });
     }
 }
 
@@ -888,6 +1031,10 @@ void register_builtin_elements()
     // S134: WrapPanel is a REAL panel (not a seed) — it reaches its resolution
     // sprint HERE (same as StackPanel/Grid), so it is registered directly.
     registry.register_element("WrapPanel",    [] { return std::make_unique<WrapPanel>(); });
+    // S136: Canvas is a REAL panel (not a seed) — it reaches its resolution
+    // sprint HERE (same as StackPanel/Grid/WrapPanel), so it is registered
+    // directly. Built-in count 10 -> 11.
+    registry.register_element("Canvas",       [] { return std::make_unique<Canvas>(); });
 }
 
 } // namespace vaml

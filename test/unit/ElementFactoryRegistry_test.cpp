@@ -34,6 +34,7 @@
 #include <vector>
 
 using vaml::Button;
+using vaml::Canvas;
 using vaml::CheckBox;
 using vaml::DependencyObject;
 using vaml::ElementAlreadyRegistered;
@@ -88,6 +89,16 @@ TEST_CASE("S087: register+create returns a live object of the concrete type (Wra
     r.register_element("WrapPanelS134", [] { return std::make_unique<WrapPanel>(); });
     std::unique_ptr<DependencyObject> o = r.create("WrapPanelS134");
     assertConcrete<WrapPanel>(o);
+}
+
+TEST_CASE("S087: register+create returns a live object of the concrete type (Canvas)")
+{
+    // S136: a Canvas concrete instance resolves from the registry (the
+    // typeName -> concrete-type dispatch is real, not a generic blob).
+    ElementFactoryRegistry r;
+    r.register_element("CanvasS136", [] { return std::make_unique<Canvas>(); });
+    std::unique_ptr<DependencyObject> o = r.create("CanvasS136");
+    assertConcrete<Canvas>(o);
 }
 
 TEST_CASE("S087: create produces a fresh instance per call")
@@ -219,6 +230,8 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     SHOULD(ShouldlyIntegral(g.is_registered("Window")).ShouldBe(true));
     // S134: WrapPanel is a real built-in (registered at S134, not a seed).
     SHOULD(ShouldlyIntegral(g.is_registered("WrapPanel")).ShouldBe(true));
+    // S136: Canvas is a real built-in (registered at S136, not a seed).
+    SHOULD(ShouldlyIntegral(g.is_registered("Canvas")).ShouldBe(true));
 
     // The S087 headline: create("Button") etc. yields the CONCRETE type, not a
     // generic blob — the typeName -> type dispatch is real end-to-end.
@@ -234,9 +247,11 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // S134: the registry-resolve assertion is authored at THIS step (the
     // element was registered here, not silently backfilled later).
     assertConcrete<WrapPanel>(g.create("WrapPanel"));
+    // S136: the registry-resolve assertion is authored at THIS step.
+    assertConcrete<Canvas>(g.create("Canvas"));
 
-    // Size matches the full built-in set (10 elements: 9 seeds + WrapPanel).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(10u));
+    // Size matches the full built-in set (11 elements: 9 seeds + WrapPanel + Canvas).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(11u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -245,7 +260,7 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     register_builtin_elements(); // second population must NOT throw
     ElementFactoryRegistry& g = ElementFactoryRegistry::global();
     // Exactly the built-in set, no duplicates (a duplicate would have thrown or
-    // inflated size). S134: WrapPanel adds the 10th built-in.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(10u));
+    // inflated size). S134: WrapPanel adds the 10th built-in; S136: Canvas the 11th.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(11u));
     assertConcrete<Button>(g.create("Button"));
 }

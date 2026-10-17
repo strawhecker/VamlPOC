@@ -207,6 +207,62 @@ protected:
     void ArrangeOverride(const vaml::Rect& finalSlot) override;
 };
 
+// Canvas — REAL panel control (S136). Positions each child at an EXPLICIT
+// (left, top) coordinate via the ATTACHED Canvas.Left / Canvas.Top DPs, so
+// children are placed ABSOLUTELY within the canvas (no panel flow/stacking).
+//
+// MEASURE BASIS: Canvas never constrains its children — MeasureOverride offers
+// every child Size::Infinite() on BOTH axes (the S123 infinity rule, same
+// basis as WrapPanel S134), so a child measures at its NATURAL (content)
+// extent. DesiredSize = the BOUNDING EXTENT of the arranged children: the
+// maximum over children of (effective Left + child.desired.w) on the width
+// axis and (effective Top + child.desired.h) on the height axis, clamped >= 0
+// (never negative, never NaN).
+//
+// ARRANGE BASIS: ArrangeOverride places each child at its EXPLICIT origin
+// {eff_Left, eff_Top}, where eff_X = is_nan(v) ? 0 : v (a child with no
+// explicit coordinate lands at the canvas origin 0,0 — the effective
+// WPF-faithful top-left collapse), at the child's measured NATURAL desired
+// size via child->Arrange, honoring the child's OWN margin/alignment inside
+// that slot through compute_final_rect (S124/S130_1 contract). Children at
+// distinct origins do NOT stack/flow — positions are absolute.
+//
+// NaN contract (introduced explicitly at this step — the S1 value path had no
+// NaN convention before S136): NaN on an attached positional axis = "not set"
+// -> effective 0. This is part of the product contract, not a stub.
+//
+// Dirty-respect (S128): MeasureOverride re-measures ONLY is_measure_dirty()
+// children; ArrangeOverride re-arranges ONLY is_arrange_dirty() children.
+class VAML_CORE_EXPORT Canvas final : public UIElement
+{
+public:
+    Canvas();
+
+    // --- ATTACHED Canvas.Left / Canvas.Top (REAL DPs, S136) --------------
+    // The child's explicit (x, y) position within the canvas. ATTACHED
+    // properties: the key is owned by Canvas but the value is stored on any
+    // DependencyObject (the S043 attached-aware path). Default NaN = "not
+    // set" -> a child with no explicit coordinate collapses to the origin
+    // (0,0) at layout time. Double value path; globally registered under
+    // owner "Canvas" via the S043 attached-aware machinery. Typed statics:
+    [[nodiscard]] static SetResult set_left(DependencyObject& obj, double value);
+    [[nodiscard]] static double left(const DependencyObject& obj);
+    [[nodiscard]] static SetResult set_top(DependencyObject& obj, double value);
+    [[nodiscard]] static double top(const DependencyObject& obj);
+
+protected:
+    // S136 real panel algorithm (see Element.cpp): MeasureOverride offers every
+    // child Size::Infinite() on BOTH axes (natural extent, S123), re-measuring
+    // ONLY dirty children (S128); DesiredSize = the bounding extent of arranged
+    // children (max over children of eff coordinate + child extent, clamped
+    // >= 0, never NaN). ArrangeOverride places each child at its explicit
+    // origin {eff_Left, eff_Top} at its measured natural size, honoring the
+    // child's own alignment + margin (compute_final_rect, S124/S130_1),
+    // re-arranging ONLY dirty children (S128).
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+};
+
 // [MINIMAL REAL] Element Text — RESOLVED BY S400 (Sprint 10). Do NOT extend silently; do NOT backfill.
 class VAML_CORE_EXPORT Text final : public DependencyObject
 {

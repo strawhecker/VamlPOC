@@ -1,7 +1,7 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S134+S135 (no commits; no NEW md files)
-- plan_repo_state : S130+**S130_1**+**S131**+**S132**+**S133**+**S134**+**S135** complete — **SPRINT 3** (S120/UIElement base;
+- last_command    : implementit S136+S137 (no commits; no NEW md files)
+- plan_repo_state : S130+**S130_1**+**S131**+**S132**+**S133**+**S134**+**S135**+**S136**+**S137** complete — **SPRINT 3** (S120/UIElement base;
                     S121 visual children; S122 layout slot geometry + alignment; S123 Measure contract
                     infinity-aware; S124 Arrange contract + clip; S125 leaf/panel measure archetypes
                     TEST-ONLY gate; S126 InvalidateMeasure/InvalidateArrange + LayoutManager dirty-subgraph
@@ -22,49 +22,44 @@
                     arrange reproduces the wraps + gives each row its extent (row height = tallest) and
                     honors each child's OWN alignment/margin inside its slot); registered built-in (9→10,
                     ElementFactoryRegistry_test.cpp updated at THIS step). S135 (dep:S134): TEST-ONLY
-                    dedicated WrapPanel suite (14 TEST_CASEs). GREEN on both lanes from first principles.
-- plan_digest     : S134 (dep:S133): MOD src/core/include/vaml/core/Element.h (WrapPanel class + WrapDirection
-                    DP) + MOD src/core/src/Element.cpp (register_wrappanel_properties + real flow/wrap/align
-                    MeasureOverride/ArrangeOverride + register "WrapPanel" built-in) + MOD
-                    test/unit/ElementFactoryRegistry_test.cpp (9→10 count + WrapPanel resolve) + ADDED
-                    build/verify_s134.cmd + MOD docs/roadmap.md (S134 [DONE]) + MOD session-context.md
-                    (this) + MOD progress.md (step log). S135 (dep:S134): ADDED test/unit/WrapPanel_test.cpp
-                    (dedicated suite, TEST-ONLY) + MOD test/unit/CMakeLists.txt (+WrapPanel_test.cpp) +
-                    ADDED build/verify_s135.cmd + MOD docs/roadmap.md (S135 [DONE]) + MOD session-context.md
-                    (this) + MOD progress.md (step log). S134 = REAL WrapPanel, NOT a seed (NEW element).
-                    DESIGN: WrapDirection reuses the S129 Orientation enum (Vertical=0, Horizontal=1),
-                    default HORIZONTAL (WPF-faithful), NOT inherited, self-registered via the S043 attached-
-                    aware global path; property NAME "WrapDirection" (owner "WrapPanel") deliberately NOT
-                    "Orientation" (StackPanel owns it in the global registry — a same-name pair under a
-                    different owner would be ambiguous to the S091 dotted-key reader). MEASURE offers every
-                    child Size::Infinite() on BOTH axes (the S123 infinity rule — a Stretch child wraps to
-                    content; CROSS axis ALSO unbounded so rows are content-heighted, refining the accepted
-                    "natural-width basis" to a "natural-extent basis" recorded in Element.cpp) and re-measures
-                    ONLY is_measure_dirty() children (S128); Horizontal flows left-to-right, WRAPS when
-                    `rowWidth + childWidth > available.width` (checked ONLY when the row is non-empty, so a
-                    child wider than the whole boundary still gets its own row), DesiredSize = {max row
-                    width, Σ row heights}; Vertical is the mirror (top-to-bottom columns, wrap on height,
-                    DesiredSize = {Σ column widths, max column height}). ARRANGE reproduces the same wraps
-                    (boundary = final_rect extent), gives each row its extent (row height = tallest child on
-                    Horizontal), places each child into its row slot {cursor, rowY, childDesiredW, rowHeight}
-                    via child->Arrange (honoring the child's OWN alignment + margin inside the slot via S124
-                    compute_final_rect — a default-Stretch child fills the row's cross extent while keeping
-                    its natural flow extent = the "aligned rows" headline), re-arranging ONLY is_arrange_dirty()
-                    children (S128). Registered as built-in (count 9→10; ElementFactoryRegistry_test.cpp size
-                    assertions + a WrapPanel resolve assertion updated HERE, not silent). NO ItemWidth/
-                    ItemHeight (WPF fixed-item mode — not in the S134 title, recorded NO-GAP deferred, not
-                    fabricated). NO MINIMAL REAL introduced. S135 = the recorded dedicated WrapPanel test
-                    suite (not a backfill): 14 TEST_CASEs via a test-local RecorderLeaf (S125/S130 pattern) —
-                    derives UIElement; WrapDirection default Horizontal + round-trip + global S043 resolution;
-                    default-Horizontal overflow WRAPS; over-wide child gets its own row; DesiredSize
-                    Horizontal = max/Σ; children measured at natural extent (+inf both axes); aligned rows
-                    (row height = tallest; Stretch fills row height; per-child Top/Center/Bottom); vertical
-                    mirror (WRAPS to new column + DesiredSize Σ/max); empty -> 0; dirty-respect; margin enters
-                    DesiredSize (S130_1). NO-GAP clean on both steps.
+                    dedicated WrapPanel suite (14 TEST_CASEs). S136 (dep:S135): REAL Canvas — UIElement-
+                    derived absolute-position panel; TWO REAL ATTACHED DPs (Canvas.Left + Canvas.Top,
+                    Double path, default NaN = "not set", NOT inherited, S043 attached-aware global path);
+                    NaN contract introduced at this step; measure offers children Size::Infinite() on BOTH
+                    axes, DesiredSize = bounding extent (eff coord + child extent, NaN axis -> 0, clamped
+                    >= 0, never NaN); arrange places each child at its explicit origin (NaN -> 0 = canvas
+                    origin), natural size, honoring child alignment + margin (compute_final_rect); positions
+                    absolute, no flow; dirty-respect (S128); registered built-in (10→11, registry test
+                    updated at THIS step). S137 (dep:S136): TEST-ONLY dedicated Canvas suite (14
+                    TEST_CASEs). GREEN on both lanes from first principles.
+- plan_digest     : S136 (dep:S135): MOD src/core/include/vaml/core/Element.h (Canvas class + attached
+                    Left/Top DPs + comments) + MOD src/core/src/Element.cpp (register_canvas_properties +
+                    real absolute-position MeasureOverride/ArrangeOverride + register "Canvas" built-in) +
+                    MOD test/unit/ElementFactoryRegistry_test.cpp (10→11 count + Canvas resolve) + MOD
+                    docs/roadmap.md (S136 [DONE]) + MOD session-context.md (this) + MOD progress.md (step
+                    log). S137 (dep:S136): ADDED test/unit/Canvas_test.cpp (dedicated suite, TEST-ONLY) +
+                    MOD test/unit/CMakeLists.txt (+Canvas_test.cpp) + ADDED build/verify_s137.cmd + MOD
+                    docs/roadmap.md (S137 [DONE]) + MOD session-context.md (this) + MOD progress.md (step
+                    log). S136 = REAL Canvas, NOT a seed (NEW element). DESIGN: attached Left/Top ride the
+                    Double value path with default NaN = "not set" (the NaN contract, matching user-directive
+                    to mirror WPF — introduced at this step); effX = is_nan(v) ? 0 : v in both measure
+                    (DesiredSize bounding extent, clamped >= 0, never NaN) and arrange (NaN -> canvas origin,
+                    effective top-left); measure offers children Size::Infinite() on BOTH axes (S123 infinity
+                    rule, same basis as WrapPanel S134); arrange places each child at its explicit origin at
+                    natural size, honoring child alignment + margin via compute_final_rect (S124/S130_1);
+                    positions absolute (no flow); dirty-respect (S128); registered built-in count 10→11 with
+                    the registry test updated at THIS step. NO MINIMAL REAL introduced. NO-GAP hand-off:
+                    S137 = the dedicated Canvas test suite. S137 = the recorded dedicated Canvas suite (not
+                    a backfill): 14 TEST_CASEs via a test-local RecorderLeaf (S125/S130 pattern) — derives
+                    UIElement; Left/Top default NaN; typed round-trip; explicit 0 distinct from unset; S043
+                    global resolution; natural-extent measure (+inf both axes); empty -> 0; bounding
+                    DesiredSize incl. finite offsets + NaN-as-0 + clamp >= 0; explicit origin placement;
+                    NaN -> (0,0); absolute multi-child; negative coords; margin interplay (S130_1) +
+                    dirty-respect.
                     COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088,
                     S089, S090, S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125,
-                    S126, S127, S128, S129, S130, S130_1, S131, S132, S133, S134, and S135 is outstanding,
-                    awaiting your authorization.
+                    S126, S127, S128, S129, S130, S130_1, S131, S132, S133, S134, S135, S136, and S137 is
+                    outstanding, awaiting your authorization.
                     (S130 record, historical context — superseded by the above: S130 was the dedicated
                     exhaustive StackPanel suite (TEST-ONLY) + S130_1 the margin-aware Measure resolution; the
                     detailed S130 block below is retained for the historical record.) **S130_1 (RESOLUTION, user-directed at review):
@@ -92,47 +87,50 @@
                     D17 now asserts margin ENTERS panel DesiredSize per S130_1; dirty-only re-measure/
                     re-arrange of a Stretch child with a clean sibling untouched).
 - files_touched   :
-    MODIFIED src/core/include/vaml/core/Element.h            (S134: WrapPanel class + WrapDirection DP + comments)
-    MODIFIED src/core/src/Element.cpp                        (S134: register_wrappanel_properties + real flow/wrap/align MeasureOverride/ArrangeOverride + register "WrapPanel" built-in)
-    MODIFIED test/unit/ElementFactoryRegistry_test.cpp       (S134: 9→10 built-in count + WrapPanel resolve assertion)
-    ADDED    test/unit/WrapPanel_test.cpp                    (S135 dedicated WrapPanel suite)
-    MODIFIED test/unit/CMakeLists.txt                        (+ WrapPanel_test.cpp)
-    ADDED    build/verify_s134.cmd                           (S134 windows-msvc lane)
-    ADDED    build/verify_s135.cmd                           (S135 windows-msvc lane)
-    MODIFIED docs/roadmap.md                                 (S134 [DONE] + S135 [DONE] + guard-rail WrapPanel resolution)
-    MODIFIED session-context.md (this — S134+S135 completion)
-    MODIFIED progress.md                                     (checkpoint + guard rails + step log)
-- build_status    : GREEN — BOTH CI LANES (verified from first principles at S134+S135). windows-msvc:
-                    msvc-debug (VS 2026) via build/verify_s135.cmd (re-runs S134+S135 together) —
-                    configure+build warning-clean + ctest 1/1 PASS (all S134/S135 cases green, all prior
-                    S133/S132/S131/S130/S130_1/S129/S120-S128 still green). ubuntu-clang: clang-debug
-                    (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build + ctest 1/1
-                    PASS (WrapPanel tests all green). Only Clang warnings = pre-existing upstream <ciso646>
-                    doctest deprecation from third_party (not this TU; non-error, already downgraded via
-                    -Wno-error=#warnings in the test CMakeLists). (windows-clang-debug is NOT a lane — not
-                    built/tested/flagged per standing rule.)
-- next_step       : next roadmap token after S135 (Sprint 3 — S134/S135 committed to roadmap as done; the
-                    WrapPanel control + its test suite are complete; S135 is the last defined Sprint-3
-                    token, so the next token is to be assigned per the roadmap conventions).
+    MODIFIED src/core/include/vaml/core/Element.h           (S136: Canvas class + attached Left/Top DPs + comments)
+    MODIFIED src/core/src/Element.cpp                       (S136: register_canvas_properties + real absolute-position MeasureOverride/ArrangeOverride + register "Canvas" built-in)
+    MODIFIED test/unit/ElementFactoryRegistry_test.cpp      (S136: 10→11 built-in count + Canvas resolve assertion)
+    ADDED    test/unit/Canvas_test.cpp                      (S137 dedicated Canvas suite)
+    MODIFIED test/unit/CMakeLists.txt                       (+ Canvas_test.cpp)
+    ADDED    build/verify_s137.cmd                          (S137 windows-msvc lane — also verifies the S136 product)
+    MODIFIED docs/roadmap.md                                (S136 [DONE] + S137 [DONE] + guard-rail Canvas resolution)
+    MODIFIED session-context.md (this — S136+S137 completion)
+    MODIFIED progress.md                                    (checkpoint + guard rails + step log)
+- build_status    : GREEN — BOTH CI LANES (verified from first principles at S136+S137). windows-msvc:
+                    msvc-debug (VS 2026) via build/verify_s137.cmd (re-runs S136+S137 together) —
+                    configure+build warning-clean + ctest 1/1 PASS (all S136/S137 cases green, all prior
+                    S135/S134/S133/S132/S131/S130/S130_1/S129/S120-S128 still green). ubuntu-clang:
+                    clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build +
+                    ctest 1/1 PASS (Canvas tests all green). Only Clang warnings = pre-existing upstream
+                    <ciso646> doctest deprecation from third_party (not this TU; non-error, already
+                    downgraded via -Wno-error=#warnings in the test CMakeLists). (windows-clang-debug is
+                    NOT a lane — not built/tested/flagged per standing rule.)
+- next_step       : next roadmap token after S137 — **S138 (dep:S137) Layout suite green both compilers;
+                    REFACTOR GATE(S3)**, then **S139 SURVIVOR + checkpoint advance to S147 (Sprint 3.5
+                    retrofit)**. The Canvas control + its test suite are complete; S137 closes the last
+                    Sprint-3 panel + test pair before the S138 refactor gate.
 - notes           :
-    - S134 delivers the REAL WrapPanel — a NEW element (no S087 seed existed), so the built-in element
-      count rose 9→10 and the ElementFactoryRegistry_test.cpp `size().ShouldBe(9u)` assertions (two of
-      them: the startup gate + the idempotent gate) were updated to 10 at THIS step, plus a WrapPanel
-      registry-resolve assertion authored HERE (registration belongs to S134, not a silent backfill).
-    - S134 refinement (recorded in Element.cpp): the S134 measure offers children Size::Infinite() on
-      BOTH axes — the accepted plan said "natural-width basis" (unbounded flow axis), but the CROSS axis
-      is ALSO offered unbounded so a default-Stretch child cannot fill a finite cross offer: rows stay
-      CONTENT-HEIGHTED (row height = tallest child), which is what makes the "aligned rows" headline
-      (per-child alignment within a content row) real. Refined at implementation, documented in
-      Element.cpp + roadmap S134.
-    - S134 property NAME is "WrapDirection" (owner "WrapPanel") — deliberately NOT "Orientation"
-      (StackPanel owns "Orientation" in the global registry; a same-name pair under a different owner
-      would be ambiguous to the S091 dotted-key dotted resolution). It rides the Int32 value path via
-      the S129 Orientation enum (Vertical=0, Horizontal=1), default Horizontal (WPF-faithful), NOT
-      inherited.
-    - NO ItemWidth/ItemHeight (WPF fixed-item mode) — not in the S134 title; recorded NO-GAP (deferred,
-      not fabricated). No MINIMAL REAL introduced (− no new sentinel; − no resolution beyond S129/S131
-      stays pending for WrapPanel).
+    - S136 delivers the REAL Canvas — a NEW element (no S087 seed existed), so the built-in element
+      count rose 10→11 and the ElementFactoryRegistry_test.cpp `size().ShouldBe(10u)` assertions (two of
+      them: the startup gate + the idempotent gate) were updated to 11 at THIS step, plus a Canvas
+      registry-resolve assertion authored HERE (registration belongs to S136, not a silent backfill).
+    - S136 NaN contract (user-directed at review — "we shall do the same" as WPF): Canvas.Left/Top
+      default to NaN = "not set", the WPF-faithful sentinel, rather than my initially-recommended 0.0.
+      The S1 value path had no NaN convention before S136, so the NaN contract is introduced explicitly
+      at THIS step (part of the product, not a stub): "NaN on an attached positional axis = not set ->
+      effective 0". Both Measure (DesiredSize bounding extent) and Arrange (canvas origin) collapse an
+      un-set axis to 0 (effX = is_nan(v) ? 0 : v) BEFORE any arithmetic — so no NaN ever reaches the
+      DesiredSize min/max fold (never negative, never NaN). An EXPLICIT `Left="0"` stays 0 and is distinct
+      from unset (the S043 value path preserves the authored double; a test proves the round-trip).
+    - S136 measures offers children Size::Infinite() on BOTH axes (the S123 infinity rule, same basis as
+      WrapPanel S134) so a child measures at its NATURAL content extent regardless of its explicit
+      position; DesiredSize = the bounding extent max over children of (eff coord + child extent), clamped
+      >= 0. Arrange places each child at its explicit origin {effLeft, effTop} at natural size, honoring
+      the child's OWN alignment + margin via compute_final_rect (S124/S130_1) — positions are ABSOLUTE
+      (children at distinct origins do not stack/flow). Dirty-respect (S128): re-measure/re-arrange ONLY
+      dirty children.
+    - S137 is TEST-ONLY (zero new product symbols beyond S136) — the recorded dedicated Canvas suite
+      via a test-local RecorderLeaf (S125/S130 pattern). 14 TEST_CASEs.
     - S135 is TEST-ONLY (zero new product symbols beyond S134) — the recorded dedicated WrapPanel suite
       via a test-local RecorderLeaf (S125/S130 pattern). 14 TEST_CASEs.
     - S131 RESOLVES the S087 Grid MINIMAL REAL seed at its own sprint (NO-GAP, not a backfill).
@@ -193,6 +191,7 @@
       no float-tolerance is needed.
     - COMMITIT STATUS: commit+push of S032..S044, S045, S046..S049, S080..S086, S087, S088, S089, S090,
       S091, S092, S093, S094, S095, S096, S097, S120, S121, S122, S123, S124, S125, S126, S127, S128,
-      S129, S130, S130_1, S131, S132, S133, S134, and S135 is outstanding, awaiting your authorization.
-      After commit+push: repo is the committed good state; SPRINT 3 continues (next roadmap token after
-      S135). Laptop-added files uncommitted as well — one commit covers all.
+      S129, S130, S130_1, S131, S132, S133, S134, S135, S136, and S137 is outstanding, awaiting your
+      authorization. After commit+push: repo is the committed good state; SPRINT 3 continues (next
+      roadmap token after S137 = S138 refactor gate). Laptop-added files uncommitted as well — one commit
+      covers all.
