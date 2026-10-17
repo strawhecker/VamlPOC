@@ -48,6 +48,7 @@ add_executable(vaml-core-tests
     MeasureArrangeOverride_test.cpp
     DirtyOnlySubpass_test.cpp
     StackPanel_test.cpp
+    StackPanel_stretch_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp
