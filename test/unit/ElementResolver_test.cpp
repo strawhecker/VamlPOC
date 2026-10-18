@@ -26,6 +26,7 @@
 #include "vaml/core/Element.h"               // Button + register_builtin_elements
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/ElementResolver.h"       // resolve_element + exception
+#include "vaml/core/Intern.h"                // vaml::intern (S140)
 #include "vaml/core/ParsedElement.h"         // ParsedElement + parse_vaml
 
 #include <exception>
@@ -49,12 +50,15 @@ namespace {
 
 // S088: builds an element with the given type identity at line/col. Mirrors the
 // fields applyElementIdentity sets: tagName / local_name / line / col.
+// S140: tagName/local_name are string_view backed by the intern pool — the
+// std::string temporaries die at return, so we MUST intern() to get a stable,
+// caller-independent view (the same lifetime contract parse_vaml honors).
 ParsedElement makeElement(std::string tagName, std::string localName,
                           std::size_t line, std::size_t col)
 {
     ParsedElement el;
-    el.tagName = tagName;
-    el.local_name = localName;
+    el.tagName = vaml::intern(tagName);
+    el.local_name = vaml::intern(localName);
     el.line = line;
     el.col = col;
     return el;

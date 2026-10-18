@@ -110,8 +110,8 @@ private:
 struct DeferredExtension
 {
     const DependencyObject* target = nullptr;
-    std::string key;
-    std::string source;
+    std::string_view key;    // S140: interned (pool-backed, no owned churn)
+    std::string_view source; // S140: interned
 };
 
 // S092 (Strand C) — ONE deferred event handler on a built object. `target` is
@@ -123,8 +123,8 @@ struct DeferredExtension
 struct DeferredEventHandler
 {
     const DependencyObject* target = nullptr;
-    std::string eventName;
-    std::string handlerName;
+    std::string_view eventName;   // S140: interned
+    std::string_view handlerName; // S140: interned
 };
 
 class VAML_CORE_EXPORT VamlReader
@@ -213,7 +213,7 @@ private:
     // Converts a plain string literal into a Value of the DP's bound type.
     // String -> identity; otherwise routes through ValueConverterRegistry::global()
     // via the type-name mapping. Throws ValueConversionException (S089/S090).
-    static Value convertLiteral(const DependencyProperty& dp, const std::string& literal);
+    static Value convertLiteral(const DependencyProperty& dp, std::string_view literal);
 
     std::vector<std::unique_ptr<DependencyObject>> retained_;
 

@@ -12,7 +12,9 @@
 
 #include "vaml/core/ChangeRecorder.h"
 
-#include <string>
+#include "vaml/core/Intern.h" // S140: affinity-thread interned name keys
+
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -21,21 +23,23 @@ namespace vaml {
 
 struct ChangeRecorder::Impl
 {
-    // One pending notification per DISTINCT property. `name` is an OWNED std::string
-    // copied from the PropertyId so the record outlives the registering key (a
-    // PropertyId is a non-owning std::string_view — S036/S037 gotcha).
+    // One pending notification per DISTINCT property. `name` is an INTERNED
+    // std::string_view (thread-local retain-forever pool, S140/ADR-018): the
+    // recorder is single-threaded and its per-thread interned views are stable
+    // for the thread's life, content-equal across re-interns. This removes the
+    // transient std::string(id.name()) per record/lookup.
     struct Pending
     {
-        std::string name;
-        Value       oldValue;
-        Value       newValue;
+        std::string_view name;
+        Value            oldValue;
+        Value            newValue;
     };
 
-    // Insertion-ordered index: `order` stores owned names in first-record order;
-    // `byName` maps each owned name to its pending record. `pending_count()` is
-    // order.size() (== byName.size()).
-    std::vector<std::string>            order;
-    std::unordered_map<std::string, Pending> byName;
+    // Insertion-ordered index: `order` stores interned names in first-record
+    // order; `byName` maps each interned view to its pending record.
+    // `pending_count()` is order.size() (== byName.size()).
+    std::vector<std::string_view>          order;
+    std::unordered_map<std::string_view, Pending> byName;
 };
 
 VAML_CORE_EXPORT
@@ -56,8 +60,9 @@ ChangeRecorder& ChangeRecorder::operator=(ChangeRecorder&&) noexcept = default;
 VAML_CORE_EXPORT
 void ChangeRecorder::record(PropertyId id, const Value& oldValue, const Value& newValue)
 {
-    // Own the name (S036/S037 gotcha): copy the view into a stable std::string key.
-    const std::string name(id.name());
+    // Intern the name to the calling thread's canonical view (S140) — stable
+    // for the thread's life, content-equal across re-interns.
+    const std::string_view name = vaml::intern(id.name());
 
     auto [it, inserted] = impl_->byName.try_emplace(name, Impl::Pending{name, oldValue, newValue});
     if (inserted)
@@ -73,7 +78,7 @@ void ChangeRecorder::record(PropertyId id, const Value& oldValue, const Value& n
 VAML_CORE_EXPORT
 bool ChangeRecorder::has_pending(PropertyId id) const
 {
-    return impl_->byName.count(std::string(id.name())) != 0;
+    return impl_->byName.count(vaml::intern(id.name())) != 0;
 }
 
 VAML_CORE_EXPORT
@@ -93,7 +98,7 @@ std::size_t ChangeRecorder::flush(const NotifyFn& notify)
     snapshot.byName.swap(impl_->byName);
 
     std::size_t emitted = 0;
-    for (const std::string& name : snapshot.order)
+    for (const std::string_view& name : snapshot.order)
     {
         auto it = snapshot.byName.find(name);
         if (it == snapshot.byName.end())

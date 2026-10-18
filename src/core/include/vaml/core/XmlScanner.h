@@ -173,11 +173,11 @@ enum class AttributeValueKind
 // namespace_uri == kXamlLanguageNamespace (None otherwise).
 struct XmlAttribute
 {
-    std::string name;
-    std::string value;
-    std::string prefix;      // "" if no ':' — S082
-    std::string local_name;  // full name sans the "prefix:" part — S082
-    std::string namespace_uri; // resolved from the (non-default) prefix — S082
+    std::string_view name;      // S140: interned (thread-local pool)
+    std::string_view value;     // S140: interned
+    std::string_view prefix;    // "" if no ':' — S082 (S140: interned/substr of interned name)
+    std::string_view local_name;  // full name sans the "prefix:" part — S082 (S140: interned)
+    std::string_view namespace_uri; // resolved from the (non-default) prefix — S082 (S140: interned)
     XmlDirectiveType directive = XmlDirectiveType::None; // S083
     // S084: value classification. value_kind is QuotedLiteral by default;
     // MarkupExtension when the decoded value is `{...}`-tagged (balanced).
@@ -192,8 +192,8 @@ struct XmlAttribute
 // S087's step (recorded NO-GAP, not a silent omission).
 struct ClrNamespaceReference
 {
-    std::string clrNamespace; // e.g. "Ns.Name" (may be empty if malformed)
-    std::string assembly;     // e.g. "Asm" (empty when no ';assembly=' present)
+    std::string_view clrNamespace; // e.g. "Ns.Name" (S140: interned)
+    std::string_view assembly;     // e.g. "Asm" (S140: interned)
 };
 
 // A single scanned token. `name` is the tag name (open/close); `value` carries
@@ -204,19 +204,19 @@ struct ClrNamespaceReference
 struct XmlToken
 {
     XmlTokenType type = XmlTokenType::EndOfInput;
-    std::string name;
-    std::string value;
+    std::string_view name;   // S140: interned (thread-local pool, no lifetime dependency on `input`)
+    std::string_view value;  // S140: interned (Text/Comment/CData content)
     bool self_closing = false;
     std::vector<XmlAttribute> attributes;
     // S082: namespace declarations (xmlns / xmlns:prefix) seen on this
     // ElementOpen, as (declaredPrefix, uri) pairs — prefix "" = default.
-    std::vector<std::pair<std::string, std::string>> xmlns;
+    std::vector<std::pair<std::string_view, std::string_view>> xmlns;
     // S082: `name` split on the first ':' (prefix "" when none). `.` is NOT a
     // namespace separator. Prefixed element -> namespace_uri resolved from the
     // prefixed scope; unprefixed -> the DEFAULT namespace (may be "").
-    std::string prefix;
-    std::string local_name;
-    std::string namespace_uri;
+    std::string_view prefix;
+    std::string_view local_name;
+    std::string_view namespace_uri;
     std::size_t line = 0;
     std::size_t col = 0;
 };
@@ -354,7 +354,7 @@ private:
     // S082: assigns `name` split on the first ':' into (prefix, local). The '.'
     // attached-owner form ("Grid.Row") is NOT split — only ':' is; prefix is ""
     // when there is no ':'.
-    static void splitName(const std::string& name, std::string& prefix, std::string& local);
+    static void splitName(std::string_view name, std::string& prefix, std::string& local);
     // S082: resolves a (already split) prefix to a namespace URI from the
     // innermost scope. "" prefix -> the DEFAULT namespace (unprefixed element);
     // unmapped prefix -> "" (unknown-ns authority is S085/S087, recorded).

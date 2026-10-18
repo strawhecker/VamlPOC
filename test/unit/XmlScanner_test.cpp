@@ -58,8 +58,8 @@ std::vector<TokenRec> drain(const std::string& src)
     {
         TokenRec r;
         r.type = tok.type;
-        r.name = tok.name;
-        r.value = tok.value;
+        r.name = std::string(tok.name);   // S140: interned view -> owned rec
+        r.value = std::string(tok.value);
         r.self_closing = tok.self_closing;
         r.attributes = tok.attributes;
         r.line = tok.line;
@@ -101,7 +101,7 @@ std::string describe(const TokenRec& r)
     }
     for (const XmlAttribute& a : r.attributes)
     {
-        s += " @" + a.name + "=" + a.value;
+        s += " @" + std::string(a.name) + "=" + std::string(a.value);
     }
     s += " L" + std::to_string(r.line) + "C" + std::to_string(r.col);
     return s;
@@ -127,7 +127,7 @@ std::string attrValue(const TokenRec& r, const std::string& name)
     {
         if (a.name == name)
         {
-            return a.value;
+            return std::string(a.value); // S140: interned view -> owned
         }
     }
     return "<missing:" + name + ">";

@@ -9,6 +9,8 @@
 add_executable(vaml-core-tests
     smoke_test.cpp
     shouldly_test.cpp
+    Intern_test.cpp
+    InternStore_test.cpp
     Value_test.cpp
     Value_roundtrip_test.cpp
     PropertyKeyRegistry_test.cpp
@@ -73,6 +75,7 @@ vaml_apply_compiler_policy(vaml-core-tests)
 # fail our own strict bar.
 target_include_directories(vaml-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/src  # test-only seam: S141 InternStore internal header
 )
 target_include_directories(vaml-core-tests SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party

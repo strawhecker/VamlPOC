@@ -1,7 +1,21 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : implementit S138+S139 (no commits; no NEW md files)
-- plan_repo_state : S130+**S130_1**+**S131**+**S132**+**S133**+**S134**+**S135**+**S136**+**S137** complete — **SPRINT 3** (S120/UIElement base;
+- last_command    : **S140 FULLY COMPLETE** (S140 + S140_1 + S141 done, both halves; the S140_2 split was
+                    merged back — tree-text finished within S140) + **GREEN ON BOTH CI LANES**
+                    (windows-msvc 613 tests/4661 asserts via build/verify_s140.cmd; ubuntu-clang
+                    clang-debug 1/1 suite pass + S140_1/S141/S086/S088/S095 suites all green;
+                    no commits)
+- plan_repo_state : **S140 (FULL) + S140_1 + S141 COMPLETE + GREEN (BOTH LANES)** (S141 InternStore thread-local
+                    lockless SIMD store + S140_1 vaml::intern() public primitive + S140 identity keys:
+                    DependencyObject per-object store/subs + ChangeRecorder re-keyed to interned
+                    string_view, killing the transient std::string(id.name()) at Get/Set/effective/
+                    prop-subscribe/drain; PendingWrite + ChangeQueue kept owned std::string per
+                    ADR-018 cross-thread rationale) + S140 TREE-TEXT: scanner token/attribute/clr-ns
+                    intern-at-emission, ParsedElement/ParsedAttribute + element content intern at
+                    finalize (ParseFrame contentScratch), VamlReader DeferredExtension/EventHandler +
+                    convertLiteral string_view, S2 test TUs converted (incl. a fixed dangling-view bug
+                    in ElementResolver_test.makeElement). Next = S142. Prior sprints complete
+                    (Sprint 3 S120-S139 closed). (Prior full record below.)
                     S121 visual children; S122 layout slot geometry + alignment; S123 Measure contract
                     infinity-aware; S124 Arrange contract + clip; S125 leaf/panel measure archetypes
                     TEST-ONLY gate; S126 InvalidateMeasure/InvalidateArrange + LayoutManager dirty-subgraph

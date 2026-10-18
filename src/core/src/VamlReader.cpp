@@ -94,14 +94,14 @@ void ensure_startup_registrations()
 
 VAML_CORE_EXPORT
 Value VamlReader::convertLiteral(const DependencyProperty& dp,
-                                 const std::string& literal)
+                                 std::string_view literal)
 {
     const ValueType bound = dp.metadata().boundType();
 
     // A String-typed property takes the literal verbatim (no converter).
     if (bound == ValueType::String)
     {
-        return Value::String(literal);
+        return Value::String(std::string(literal)); // value PAST the parser holds owned data
     }
 
     const std::string_view typeName = converterNameFor(bound);
@@ -110,7 +110,7 @@ Value VamlReader::convertLiteral(const DependencyProperty& dp,
         // A property whose bound type has no registered converter cannot be set
         // from a plain literal — UnknownType, since no target converter exists.
         throw ValueConversionException(
-            ValueConversionError::UnknownType, std::string(), literal,
+            ValueConversionError::UnknownType, std::string(), std::string(literal),
             "no value converter registered for the property's bound type (UnknownType)");
     }
 
@@ -134,7 +134,9 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         // x:Key -> S361 and x:Null -> S084 paths remain deferred unchanged.
         if (attr.directive == XmlDirectiveType::Name)
         {
-            const std::string& name = attr.value;
+            // x:Name registry keys are OWNED std::string (per-Load, small,
+            // exposed via names()); materialize from the interned view.
+            const std::string name(attr.value);
             if (name_registered(names_, name))
             {
                 // WPF-faithful: a name scope with a repeated name is an error;
@@ -159,10 +161,10 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
             if (depth != 0)
             {
                 throw VamlReaderException(
-                    VamlReaderError::ClassOnNonRoot, attr.value,
-                    "x:Class on a non-root element '" + attr.value + "'");
+                    VamlReaderError::ClassOnNonRoot, std::string(attr.value),
+                    "x:Class on a non-root element '" + std::string(attr.value) + "'");
             }
-            root_class_ = attr.value;
+            root_class_ = std::string(attr.value);
             continue;
         }
         if (attr.directive != XmlDirectiveType::None)
@@ -205,8 +207,8 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         if (dp == nullptr)
         {
             throw VamlReaderException(
-                VamlReaderError::UnknownProperty, attr.key,
-                "unknown property '" + attr.key + "'");
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "unknown property '" + std::string(attr.key) + "'");
         }
 
         const Value value = convertLiteral(*dp, attr.value);

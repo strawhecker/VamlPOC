@@ -9,6 +9,8 @@
 // category keeps that promise for the clr-namespace throw site.
 #include "vaml/core/XmlScanner.h"
 
+#include "vaml/core/Intern.h" // S140: pool-backed string_view token text
+
 #include <algorithm>
 #include <cctype>
 #include <utility>
@@ -38,7 +40,7 @@ bool isNameChar(char c)
 // ONLY when the attribute's resolved namespace_uri == kXamlLanguageNamespace.
 // Case-sensitive (XAML is case-sensitive): the four directives are Name,
 // Class, Key, Null; any other local in the language namespace maps to None.
-XmlDirectiveType classifyXDirective(const std::string& local)
+XmlDirectiveType classifyXDirective(std::string_view local)
 {
     if (local == "Name")
     {
@@ -154,17 +156,17 @@ XmlScanner::XmlScanner(std::string_view input)
 
 // S082: split on the FIRST ':' only. The '.' (attached-owner) form is NOT a
 // namespace separator, so only ':' matters. A name with no ':' has prefix "".
-void XmlScanner::splitName(const std::string& name, std::string& prefix, std::string& local)
+void XmlScanner::splitName(std::string_view name, std::string& prefix, std::string& local)
 {
     const std::size_t colon = name.find(':');
     if (colon == std::string::npos)
     {
         prefix.clear();
-        local = name;
+        local = std::string(name);
         return;
     }
-    prefix = name.substr(0, colon);
-    local = name.substr(colon + 1);
+    prefix = std::string(name.substr(0, colon));
+    local = std::string(name.substr(colon + 1));
 }
 
 // S082: tokenizes a "clr-namespace:" mapping value. The parser-side
@@ -185,9 +187,9 @@ ClrNamespaceReference parse_clr_namespace(std::string_view value, bool* isClrNam
     if (value.compare(0, kPrefix.size(), kPrefix) != 0)
     {
         // Not a clr-namespace mapping — a plain value (e.g. a normal attribute
-        // string the consumer also runs through this helper).
-        result.clrNamespace = std::string(value);
-        result.assembly.clear();
+        // string the consumer also runs through this helper). Interned view.
+        result.clrNamespace = intern(value);
+        result.assembly = std::string_view();
         if (isClrNamespace)
         {
             *isClrNamespace = false;
@@ -213,8 +215,8 @@ ClrNamespaceReference parse_clr_namespace(std::string_view value, bool* isClrNam
                                "malformed clr-namespace mapping (empty namespace)", line, col);
     }
 
-    result.clrNamespace = std::string(nsPart);
-    result.assembly.clear();
+    result.clrNamespace = intern(nsPart);
+    result.assembly = std::string_view();
 
     if (semi != std::string_view::npos)
     {
@@ -224,7 +226,7 @@ ClrNamespaceReference parse_clr_namespace(std::string_view value, bool* isClrNam
         constexpr std::string_view kAssemb = ";assembly=";
         if (tail.compare(0, kAssemb.size(), kAssemb) == 0)
         {
-            result.assembly = std::string(tail.substr(kAssemb.size()));
+            result.assembly = intern(tail.substr(kAssemb.size()));
         }
         else
         {
@@ -544,7 +546,7 @@ void XmlScanner::scanCData(std::string& content)
 void XmlScanner::scanElementOpen(XmlToken& out)
 {
     out.type = XmlTokenType::ElementOpen;
-    out.name = scanName();
+    out.name = intern(scanName()); // buffered name -> interned view
     out.self_closing = false;
 
     // Attribute / xmlns loop. xmlns and xmlns:p are NAMESPACE DECLARATIONS
@@ -583,7 +585,7 @@ void XmlScanner::scanElementOpen(XmlToken& out)
             fail(XmlScanError::MalformedStartTag, "malformed start tag (expected attribute or '>')");
         }
         XmlAttribute attr;
-        attr.name = scanName();
+        std::string attrNameBuf = scanName(); // buffered; interned below
         skipWhitespace();
         if (atEnd() || peek() != '=')
         {
@@ -595,18 +597,20 @@ void XmlScanner::scanElementOpen(XmlToken& out)
         {
             fail(XmlScanError::AttributeValueNotQuoted, "attribute value must be quoted");
         }
-        attr.value = scanAttributeValue(peek());
+        std::string attrValueBuf = scanAttributeValue(peek());
+        attr.name = intern(attrNameBuf);
+        attr.value = intern(attrValueBuf);
 
         // S082: classify. "xmlns" sets the DEFAULT namespace; "xmlns:p" sets a
         // prefixed namespace. Both are declarations, not attributes.
-        if (attr.name == "xmlns")
+        if (attrNameBuf == "xmlns")
         {
-            out.xmlns.emplace_back(std::string(), std::move(attr.value));
+            out.xmlns.emplace_back(std::string_view(), attr.value);
             continue;
         }
-        if (attr.name.compare(0, 6, "xmlns:") == 0)
+        if (attrNameBuf.compare(0, 6, "xmlns:") == 0)
         {
-            out.xmlns.emplace_back(attr.name.substr(6), std::move(attr.value));
+            out.xmlns.emplace_back(intern(std::string_view(attrNameBuf).substr(6)), attr.value);
             continue;
         }
         out.attributes.push_back(std::move(attr));
@@ -622,21 +626,27 @@ void XmlScanner::scanElementOpen(XmlToken& out)
                                         : nsStack_.back());
     for (const auto& decl : out.xmlns)
     {
-        nsStack_.back()[decl.first] = decl.second;
+        // nsStack_ is owned map<string,string> (scope mutation); copy the
+        // interned decl views into it.
+        nsStack_.back()[std::string(decl.first)] = std::string(decl.second);
     }
 
     // Resolve each ordinary attribute's namespace against the applied scope.
     for (XmlAttribute& attr : out.attributes)
     {
-        splitName(attr.name, attr.prefix, attr.local_name);
+        std::string attrPrefix;
+        std::string attrLocal;
+        splitName(attr.name, attrPrefix, attrLocal);
+        attr.prefix = intern(attrPrefix);
+        attr.local_name = intern(attrLocal);
         if (attr.prefix.empty())
         {
             // The default namespace does NOT apply to attributes (XML rule).
-            attr.namespace_uri.clear();
+            attr.namespace_uri = std::string_view();
         }
         else
         {
-            attr.namespace_uri = resolvePrefix(attr.prefix);
+            attr.namespace_uri = intern(resolvePrefix(std::string(attr.prefix)));
         }
         // S083: classify an x-language directive when this attribute's
         // RESOLVED namespace is the canonical XAML language URI. Keyed on the
@@ -652,9 +662,13 @@ void XmlScanner::scanElementOpen(XmlToken& out)
     }
 
     // Split + resolve the element's own name against the applied scope.
-    splitName(out.name, out.prefix, out.local_name);
-    out.namespace_uri = out.prefix.empty() ? resolvePrefix("")
-                                           : resolvePrefix(out.prefix);
+    std::string elemPrefix;
+    std::string elemLocal;
+    splitName(out.name, elemPrefix, elemLocal);
+    out.prefix = intern(elemPrefix);
+    out.local_name = intern(elemLocal);
+    out.namespace_uri = intern(out.prefix.empty() ? resolvePrefix("")
+                                                  : resolvePrefix(std::string(out.prefix)));
 
     if (out.self_closing)
     {
@@ -663,7 +677,7 @@ void XmlScanner::scanElementOpen(XmlToken& out)
     }
     else
     {
-        stack_.push_back(out.name);
+        stack_.push_back(std::string(out.name));
     }
 }
 
@@ -694,7 +708,8 @@ void XmlScanner::scanElementClose(XmlToken& out)
 {
     // Precondition: positioned just past "</".
     out.type = XmlTokenType::ElementClose;
-    out.name = scanName();
+    std::string nameBuf = scanName();
+    out.name = intern(nameBuf);
     skipWhitespace();
     if (atEnd() || peek() != '>')
     {
@@ -702,9 +717,9 @@ void XmlScanner::scanElementClose(XmlToken& out)
     }
     advance(); // consume '>'
 
-    if (stack_.empty() || stack_.back() != out.name)
+    if (stack_.empty() || stack_.back() != std::string(out.name))
     {
-        fail(XmlScanError::MismatchedEndTag, "mismatched or stray end tag </" + out.name + ">");
+        fail(XmlScanError::MismatchedEndTag, "mismatched or stray end tag </" + std::string(out.name) + ">");
     }
     stack_.pop_back();
     // S082: pop the matching namespace scope frame (pushed on this ElementOpen).
@@ -717,7 +732,7 @@ void XmlScanner::scanElementClose(XmlToken& out)
 void XmlScanner::scanText(XmlToken& out)
 {
     out.type = XmlTokenType::Text;
-    out.value.clear();
+    std::string buf;
     while (!atEnd())
     {
         const char c = peek();
@@ -727,11 +742,12 @@ void XmlScanner::scanText(XmlToken& out)
         }
         if (c == '&')
         {
-            appendDecodedEntity(out.value);
+            appendDecodedEntity(buf);
             continue;
         }
-        out.value.push_back(advance());
+        buf.push_back(advance());
     }
+    out.value = intern(buf);
     // Whitespace-only text is still a Text token in S080 (the S085 parser
     // decides whether to keep it); no collapsing here.
 }
@@ -740,13 +756,13 @@ bool XmlScanner::scanMarkup(XmlToken& out)
 {
     // Precondition: peek() == '<' and we have not consumed it yet.
     out.attributes.clear();
-    out.name.clear();
-    out.value.clear();
+    out.name = std::string_view();
+    out.value = std::string_view();
     out.self_closing = false;
     out.xmlns.clear();
-    out.prefix.clear();
-    out.local_name.clear();
-    out.namespace_uri.clear();
+    out.prefix = std::string_view();
+    out.local_name = std::string_view();
+    out.namespace_uri = std::string_view();
 
     const std::size_t tokenLine = line();
     const std::size_t tokenCol = col();
@@ -768,7 +784,9 @@ bool XmlScanner::scanMarkup(XmlToken& out)
             out.type = XmlTokenType::Comment;
             out.line = tokenLine;
             out.col = tokenCol;
-            scanComment(out.value);
+            std::string commentBuf;
+            scanComment(commentBuf);
+            out.value = intern(commentBuf);
             return true;
         }
         if (startsWith("[CDATA["))
@@ -780,7 +798,9 @@ bool XmlScanner::scanMarkup(XmlToken& out)
             out.type = XmlTokenType::CData;
             out.line = tokenLine;
             out.col = tokenCol;
-            scanCData(out.value);
+            std::string cdataBuf;
+            scanCData(cdataBuf);
+            out.value = intern(cdataBuf);
             return true;
         }
         fail(XmlScanError::UnrecognizedMarkup, "unrecognized '<!' markup");
@@ -806,13 +826,13 @@ bool XmlScanner::scanMarkup(XmlToken& out)
 bool XmlScanner::next(XmlToken& out)
 {
     out.attributes.clear();
-    out.name.clear();
-    out.value.clear();
+    out.name = std::string_view();
+    out.value = std::string_view();
     out.self_closing = false;
     out.xmlns.clear();
-    out.prefix.clear();
-    out.local_name.clear();
-    out.namespace_uri.clear();
+    out.prefix = std::string_view();
+    out.local_name = std::string_view();
+    out.namespace_uri = std::string_view();
 
     // Whitespace between tokens is skipped except inside Text (scanText reads
     // until '<' including whitespace, so nothing to skip here when text is

@@ -298,7 +298,7 @@ private:
     // ancestor that does not register the property, or has no local, contributes
     // nothing). A same-class member so it may read the pimpl of any instance on
     // the parent chain.
-    static Value nearest_ancestor_local(const DependencyObject& self, const std::string& name);
+    static Value nearest_ancestor_local(const DependencyObject& self, std::string_view name);
 
     // S041 §2.4 descendant push, driven by S039's pull model so each descendant
     // receives its OWN effective-old -> effective-new delta (never the parent's
@@ -323,9 +323,9 @@ private:
     // descendant's OWN notification queue ONLY when old != new (local-wins /
     // inherited-unchanged descendants produce no notification).
     static std::vector<std::pair<DependencyObject*, Value>> collect_descendant_effectives(
-        const DependencyObject& root, const std::string& name, bool captureAttachedInherits);
+        const DependencyObject& root, std::string_view name, bool captureAttachedInherits);
     void notify_descendants(
-        const std::string& name,
+        std::string_view name,
         const std::vector<std::pair<DependencyObject*, Value>>& before);
 
     // Recursive scope walker used by collect_descendant_effectives(): walks
@@ -336,7 +336,7 @@ private:
     // registered attached Inherits/InheritOnly property (S044: passive attached
     // descendants must be notified even without a local store entry).
     void visit_scope(
-        const std::string& name,
+        std::string_view name,
         std::vector<std::pair<DependencyObject*, Value>>& out,
         bool captureAttachedInherits) const;
 

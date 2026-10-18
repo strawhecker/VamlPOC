@@ -79,14 +79,14 @@ enum class XmlParseError
 // classified metadata so consumers never re-scan.
 struct ParsedAttribute
 {
-    std::string key;        // full raw attribute name (Grid.Row, Width, x:Name)
-    std::string value;      // decoded value string
+    std::string_view key;        // full raw attribute name (Grid.Row, Width, x:Name) — S140 interned
+    std::string_view value;      // decoded value string — S140 interned
     bool isExtension = false; // true when value classified MarkupExtension (S084)
 
-    // Extended (carried forward from the scanner, no re-scan):
-    std::string prefix;                         // S082: "" when no ':' split
-    std::string local_name;                     // S082: full name sans "prefix:"
-    std::string namespace_uri;                  // S082: resolved (non-default) ns
+    // Extended (carried forward from the scanner, no re-scan); S140 interned:
+    std::string_view prefix;                         // S082: "" when no ':' split
+    std::string_view local_name;                     // S082: full name sans "prefix:"
+    std::string_view namespace_uri;                  // S082: resolved (non-default) ns
     XmlDirectiveType directive = XmlDirectiveType::None; // S083: x-language directive
     AttributeValueKind value_kind = AttributeValueKind::QuotedLiteral; // S084
     bool numeric = false;                       // S084: scalar numeric detected
@@ -100,15 +100,15 @@ struct ParsedAttribute
 // split of the element name + the self-closing flag.
 struct ParsedElement
 {
-    std::string tagName;     // full element name (StackPanel, local:Button)
-    std::string ns;          // resolved namespace URI (empty when none)
+    std::string_view tagName;     // full element name (StackPanel, local:Button) — S140 interned
+    std::string_view ns;          // resolved namespace URI (empty when none) — S140 interned
     std::vector<ParsedAttribute> attributes;
     std::vector<ParsedElement> children;
-    std::string content;     // text between the element's bounding tokens (as authored)
+    std::string content;     // text between the element's bounding tokens (as authored) — S140 interned
 
-    // Extended (carried forward from the scanner):
-    std::string prefix;      // S082: "" when no ':' split
-    std::string local_name;  // S082: element name sans "prefix:"
+    // Extended (carried forward from the scanner); S140 interned:
+    std::string_view prefix;      // S082: "" when no ':' split
+    std::string_view local_name;  // S082: element name sans "prefix:"
     bool self_closing = false; // S080: <a/> versus <a></a>
     // S088: 1-based source position of the element's opening '<'. Carried from
     // the scanner's ElementOpen token (which already computed them — S085's

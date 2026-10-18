@@ -284,16 +284,37 @@
 > unbounded or unpredictable-valued data (only bounded vocabulary + parsed document text). We consume intern()
 > ourselves for BOTH identity keys AND parser/reader-produced tree text. Symbolic/team-fidelity: names stay as
 > programmers know them; token derived 1:1 at intern time, never redefined.
-- S140 dep:S139  Intern property names / attribute strings to a canonical UTF-8 identity (the S140_1 pool). The
-                 store key is a non-owning string_view into the THREAD-LOCAL intern pool (retained for the life of
-                 the interning thread, never removed, never relocated; content-equal by SIMD — ADR-018). SCOPE
-                 (disambiguated): the SAME pool interns BOTH lookup identity (name keys) AND parser/reader-produced
-                 tree text — ParsedElement/ParsedAttribute (namespace_uri, local_name, prefix, attribute value,
-                 element content), VamlReader deferred structs (key/source), and scanner-emitted text all become
-                 pool-backed string_view, never owning std::string. Kills the per-lookup transient
-                 std::string(id.name()) at Get/Set/effective/prop-subscribe/drain AND the parser's owned-string
-                 churn. [Rewrites S036/S038/S041/PropertyRegistry name-key contract in place.]
-- S140_1 dep:S141  Author the PUBLIC retained-string primitive `vaml::intern(string_view) -> string_view` — the
+- S140 dep:S139  [DONE — FULLY IMPLEMENTED, both halves (identity keys + parser/reader tree text); the S140_2
+                 split token was merged back here (the work was finished within S140; no redundant step). BOTH CI
+                 lanes green from first principles: windows-msvc (build/verify_s140.cmd msvc-debug, 613 tests /
+                 4661 asserts, warning-clean) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest
+                 1/1 + S140_1 7/7 + S141 7/7 + S086/S088/S095 all green; only pre-existing third-party <ciso646>
+                 doctest warning). New build/verify_s140.cmd + InternStore_test.cpp + Intern_test.cpp. ADR-018:
+                 ZERO new locks.]
+                 Intern property names / attribute strings to a canonical UTF-8 identity (the S140_1 pool). The
+                 store key is a non-owning string_view into the THREAD-LOCAL intern pool (retained for the life
+                 of the interning thread, never removed, never relocated; content-equal by SIMD — ADR-018).
+                 TWO halves, both implemented: (1) IDENTITY KEYS — kills the per-lookup transient
+                 std::string(id.name()) at Get/Set/effective/prop-subscribe/drain by re-keying the thread-affine
+                 per-object stores (DependencyObject store/subs + ChangeRecorder) to interned string_view.
+                 PendingWrite + ChangeQueue KEEP owned std::string (genuinely cross-thread marshalling —
+                 interning on a foreign thread would dangle; ADR-018 kept-lock rationale). (2) TREE TEXT — the
+                 parser/reader half: XmlScanner token/attribute/clr-namespace fields buffer-and-intern at the
+                 emission boundary; ParsedElement/ParsedAttribute fields + element content intern at finalization
+                 (a ParseFrame contentScratch accumulates then interns); VamlReader DeferredExtension/
+                 DeferredEventHandler key/source/eventName/handlerName intern at record; convertLiteral takes
+                 string_view. The S2 test TUs that compare the now-string_view fields were converted
+                 (XmlScanner_test, ParsedRoundtrip_test, GoldenDocs_test, ElementResolver_test — makeElement
+                 now interns, fixing a real dangling-view bug the scrub caught; others already string_view-safe).
+                 x:Name registry names_/root_class_ STAY owned std::string (small, per-Load, not hot-path;
+                 accessor-return change is S144's body). [Rewrites S036/S038/S041 name-key contract in place on
+                 the lookup path + the parser's owned-string churn; PropertyRegistry/DependencyProperty::GlobalTable
+                 global registries stay owned std::string here — cross-thread, cannot hold thread-local intern
+                 views — their relocation onto the SIMD store is S143/S144's body (DECISION 1, recorded not
+                 silent); pimpl rationale kept (ABI + unordered_map-out-of-header), per-object pimpl churn is
+                 S145's scope not S140.]
+- S140_1 dep:S141  [DONE — implemented (vaml/core/Intern.h + src/Intern.cpp, thread_local store binding); BOTH CI
+                 Author the PUBLIC retained-string primitive `vaml::intern(string_view) -> string_view` — the
                  intern pool's public face (accepts std::string via implicit view conversion too): SIMD-probe BY
                  VALUE + full compare on the CALLING THREAD's S141 store — HIT returns the existing view
                  (content-dedup); MISS retains the bytes into the pool, inserts into the store, returns the new
@@ -307,7 +328,10 @@
                  [New net-new public type; NOT flat_hash_map; the S141 SIMD store is its mechanism; THREAD-LOCAL +
                  LOCKLESS by design (ADR-018); dependency ordering note: listed after S140 but depends on S141 —
                  dep-chain governs execution, the token id is identity only.]
-- S141 dep:S140  Author the SIMD probe store (CONTENT-keyed, no hash): insertion-ordered append-only array,
+- S141 dep:S140  [DONE — implemented too (src/InternStore.h/.cpp, SIMD probe store, thread-local lockless); BOTH
+                 CI lanes green (InternStore_test 7/7 on both); verify via build/verify_s140.cmd; ADR-018 zero
+                 new locks (the dep-chain S141-<S140_1-<S140 was executed build-order store-<intern-<rewrite).]
+                 Author the SIMD probe store (CONTENT-keyed, no hash): insertion-ordered append-only array,
                  32-byte/32-lane groups (8-bit search bytes), empty marker 0xFF, probe = fold_bytes(sv)%255,
                  memmove+append growth rounded to 32, never re-probe/reorder/shrink. New net-new type; NOT a
                  generic flat_hash_map. THREAD-LOCAL + LOCKLESS (ADR-018 — a thread owns its store; reads and

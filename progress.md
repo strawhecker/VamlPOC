@@ -24,13 +24,23 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S139 (SURVIVOR + checkpoint advance) [token: S139]
-- Next step to do     : S140 (dep:S139) Sprint 3.5 — Intern property names / attribute strings to a canonical UTF-8 identity (Allocation & ownership discipline retrofit)
-- PENDING work        : none (S139 complete; Sprint 3 CLOSED — S138 REFACTOR GATE(S3) verified both CI lanes green + clean grep-audit; S139 SURVIVOR + checkpoint advanced to S140.)
+- Last completed step : S140 (FULL — both halves) + S140_1 + S141 — interned UTF-8 identity, complete
+- Next step to do     : S142 (dep:S141) — Collapse DependencyObject/UIElement pimpl + store into one block-resident unit
+- PENDING work        : none (S140 + S140_1 + S141 fully complete; the S140_2 split token was merged back
+  into S140 — the tree-text half was finished within S140, so no redundant step remains)
+  **State**: S141 InternStore (SIMD probe store, thread-local lockless) + S140_1 vaml::intern() + S140
+  (identity keys: DependencyObject store/subs + ChangeRecorder interned string_view; PendingWrite +
+  ChangeQueue kept owned std::string per ADR-018 cross-thread rationale) AND S140 tree-text (scanner
+  token/attribute/clr-ns intern-at-emission; ParsedElement/ParsedAttribute + content intern at finalize;
+  VamlReader deferred structs intern at record; convertLiteral string_view; S2 test TUs converted incl. a
+  fixed dangling-view bug in ElementResolver_test.makeElement) are IMPLEMENTED + **GREEN ON BOTH CI LANES**:
+  windows-msvc (613 tests / 4661 assertions PASS via build/verify_s140.cmd msvc-debug, warning-clean) AND
+  ubuntu-clang (clang-debug on the VM: full suite 1/1 pass; S140_1 7/7 + S141 7/7 + S086/S088/S095 all
+  green, pre-existing <ciso646> third-party doctest warning only).
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
-  [no-managed] [no-stub rule] [MINIMAL REAL: vulkan→S161, tools→S287, Color→S089, Thickness→S089] [NO-GAP GUARANTEE] [NO LAZY LLM]
+  [no-managed] [no-stub rule] [MINIMAL REAL: vulkan→S161, tools→S287, Color→S089, Thickness→S089] [NO-GAP GUARANTEE] [NO LAZY LLM] [ADR-018 lock governance: ONLY the human architect approves any lock; this delivery adds ZERO new locks]
 
 ## GUARD RAILS (codified from S003 — mirror of docs/roadmap.md; survives roadmap trimming)
 - **MINIMAL REAL**: permanent, linkable, forward-resolvable seed (kept+extended, NOT a stub);

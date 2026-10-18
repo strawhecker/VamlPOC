@@ -172,10 +172,10 @@ const char* kExpectedCanonicalA = R"(<Window x:Class="App.MainView" x:Name="root
 // preserved, children then content, no xml namespaces. NOT product code.
 std::string canonicalize(const ParsedElement& el)
 {
-    std::string out = "<" + el.tagName;
+    std::string out = "<" + std::string(el.tagName);
     for (const ParsedAttribute& a : el.attributes)
     {
-        out += " " + a.key + "=\"" + a.value + "\"";
+        out += " " + std::string(a.key) + "=\"" + std::string(a.value) + "\"";
     }
     if (el.self_closing)
     {
@@ -187,8 +187,8 @@ std::string canonicalize(const ParsedElement& el)
     {
         out += canonicalize(c);
     }
-    out += el.content;
-    out += "</" + el.tagName + ">";
+    out += std::string(el.content);
+    out += "</" + std::string(el.tagName) + ">";
     return out;
 }
 

@@ -4,9 +4,23 @@
 // scanner metadata carried forward, authority boundary, error-taxonomy split).
 #include "vaml/core/ParsedElement.h"
 
+#include "vaml/core/Intern.h" // S140: pool-backed string_view tree text
+
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace vaml {
+
+// S085/S140: a live element build-site. `el` is the element being assembled;
+// `contentScratch` is the owned accumulation buffer for the element's text —
+// interned into `el.content` (string_view) at finalization (ElementClose or a
+// self-closing open), because a single content string_view cannot accumulate.
+struct ParseFrame
+{
+    ParsedElement el;
+    std::string contentScratch;
+};
 
 namespace {
 
@@ -16,12 +30,12 @@ namespace {
 ParsedAttribute toParsedAttribute(const XmlAttribute& a)
 {
     ParsedAttribute out;
-    out.key = a.name; // FULL raw attribute name (Grid.Row, Width, x:Name)
+    out.key = a.name; // FULL raw attribute name (Grid.Row, Width, x:Name) — scanner already interned
     out.value = a.value;
     // isExtension: the roadmap-titled bool — true exactly when S084 classified
     // this value a MarkupExtension (e.g. {Binding Title}).
     out.isExtension = (a.value_kind == AttributeValueKind::MarkupExtension);
-    // Carry the extended scanner metadata forward.
+    // Carry the extended scanner metadata forward (already interned views).
     out.prefix = a.prefix;
     out.local_name = a.local_name;
     out.namespace_uri = a.namespace_uri;
@@ -37,7 +51,7 @@ ParsedAttribute toParsedAttribute(const XmlAttribute& a)
 // reader can name the type + line of an unknown element without re-scanning.
 void applyElementIdentity(ParsedElement& el, const XmlToken& tok)
 {
-    el.tagName = tok.name;       // full element name (StackPanel, local:Button)
+    el.tagName = tok.name;       // full element name (StackPanel, local:Button) — scanner interned
     el.ns = tok.namespace_uri;   // S082 resolved namespace URI (empty when none)
     el.prefix = tok.prefix;      // S082 split
     el.local_name = tok.local_name;
@@ -50,7 +64,9 @@ void applyElementIdentity(ParsedElement& el, const XmlToken& tok)
 // stack is empty) or as a child of the current open element. Returns the open
 // stack (may be unchanged or reduced by a self-closing child, which the caller
 // handles separately). Sets haveRoot / throws on a second root.
-void attach(ParsedElement&& child, std::vector<ParsedElement>& open, ParsedElement& root,
+void attach(ParsedElement&& child,
+            std::vector<struct ParseFrame>& open,
+            ParsedElement& root,
             bool& haveRoot, std::size_t line, std::size_t col)
 {
     if (open.empty())
@@ -67,7 +83,7 @@ void attach(ParsedElement&& child, std::vector<ParsedElement>& open, ParsedEleme
     }
     else
     {
-        open.back().children.push_back(std::move(child));
+        open.back().el.children.push_back(std::move(child));
     }
 }
 
@@ -86,11 +102,13 @@ XmlParseException::XmlParseException(XmlParseError kind, std::string what,
 ParsedElement parse_vaml(std::string_view source)
 {
     // Frame-stack of LIVE build sites. Each non-self-closing ElementOpen pushes
-    // a fresh frame; Text accumulates into the current frame's `content`;
+    // a fresh frame; Text accumulates into the current frame's content SCRATCH
+    // (S140: content is interned to a string_view at finalization, because a
+    // single content view cannot accumulate multiple Text tokens);
     // ElementClose moves the finished frame into its parent (or the single
     // root). The open frames ARE the tree nodes being built — no reference-
     // invalidation hazard, no re-scan.
-    std::vector<ParsedElement> open;
+    std::vector<ParseFrame> open;
 
     ParsedElement root;
     bool haveRoot = false;
@@ -103,20 +121,21 @@ ParsedElement parse_vaml(std::string_view source)
         {
             case XmlTokenType::ElementOpen:
             {
-                ParsedElement el;
-                applyElementIdentity(el, tok);
+                ParseFrame fr;
+                applyElementIdentity(fr.el, tok);
                 for (const XmlAttribute& a : tok.attributes)
                 {
-                    el.attributes.push_back(toParsedAttribute(a));
+                    fr.el.attributes.push_back(toParsedAttribute(a));
                 }
                 if (tok.self_closing)
                 {
                     // Self-closing: no content, no children, closes immediately.
-                    attach(std::move(el), open, root, haveRoot, tok.line, tok.col);
+                    fr.el.content = intern(fr.contentScratch);
+                    attach(std::move(fr.el), open, root, haveRoot, tok.line, tok.col);
                 }
                 else
                 {
-                    open.push_back(std::move(el));
+                    open.push_back(std::move(fr));
                 }
                 break;
             }
@@ -132,20 +151,21 @@ ParsedElement parse_vaml(std::string_view source)
                 {
                     break;
                 }
-                ParsedElement closed = std::move(open.back());
+                ParseFrame closed = std::move(open.back());
                 open.pop_back();
-                attach(std::move(closed), open, root, haveRoot, tok.line, tok.col);
+                closed.el.content = intern(closed.contentScratch);
+                attach(std::move(closed.el), open, root, haveRoot, tok.line, tok.col);
                 break;
             }
 
             case XmlTokenType::Text:
                 // Text between an element's tokens accumulates into the open
-                // element's `content`, kept AS AUTHORED (whitespace included).
-                // Leading/trailing text at top level (open empty) is dropped —
-                // it is not element content.
+                // element's content SCRATCH, kept AS AUTHORED (whitespace
+                // included). Leading/trailing text at top level (open empty) is
+                // dropped — it is not element content.
                 if (!open.empty())
                 {
-                    open.back().content += tok.value;
+                    open.back().contentScratch += tok.value;
                 }
                 break;
 
@@ -168,7 +188,7 @@ ParsedElement parse_vaml(std::string_view source)
         // Reached end-of-input while an element was still open — the ONE
         // structural failure the scanner does not detect (it is iterative and
         // returns EndOfInput at EOF). The parser's own error path.
-        const std::string unclosed = open.back().tagName;
+        const std::string unclosed = std::string(open.back().el.tagName);
         // `tok` holds the EndOfInput token (line/col = the EOF position where
         // the still-open element was detected).
         throw XmlParseException(XmlParseError::UnterminatedElement,

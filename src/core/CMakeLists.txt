@@ -5,6 +5,8 @@
 # API is real (non-stub). Property system begins at S030 (Sprint 1).
 vaml_add_library(core
     src/version.cpp
+    src/Intern.cpp
+    src/InternStore.cpp
     src/Value.cpp
     src/PropertyFlags.cpp
     src/PropertyKey.cpp

@@ -30,11 +30,14 @@
 //     ChangeQueue + notification processor) — recorded via NO-GAP, never a silent
 //     backfill.
 //
-// OWNED-NAME GOTCHA (honored from S036/S037): the pending record keys on an OWNED
-// std::string copied from PropertyId::name(), never on the non-owning
-// std::string_view — so a recorded change outlives whatever PropertyKey/id storage
-// seeded it. Ordering is tracked via an insertion-ordered index (vector + name-map),
-// NOT unordered_map iteration order.
+// NAME-KEY (S140): the pending record keys on an INTERNED std::string_view
+// (thread-local retain-forever pool — ADR-018 lockless). ChangeRecorder is
+// deliberately single-threaded (a pipeline-internal deferral device), so its
+// per-thread interned views are stable for the thread's life and content-equal
+// across re-interns (string_view equality is by content). This removes the
+// transient std::string(id.name()) materialized per record/lookup. Ordering is
+// tracked via an insertion-ordered index (vector + name-map), NOT unordered_map
+// iteration order.
 //
 // Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes no
 // std::vector / std::unordered_map and no std::function value — keeping the ABI

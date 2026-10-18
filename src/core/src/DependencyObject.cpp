@@ -15,11 +15,13 @@
 #include "vaml/core/ChangeQueue.h"       // S041: per-object notification queue
 #include "vaml/core/ChangeRecorder.h"    // S041: per-property coalescing at drain
 #include "vaml/core/DependencyProperty.h" // global descriptor for S039 inheritance
+#include "vaml/core/Intern.h"            // S140: affinity-thread interned name keys (string_view)
 
 #include <algorithm>
 #include <deque>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -78,11 +80,14 @@ struct DependencyObject::Impl
             : name(std::move(n)), coerced(std::move(v)) {}
     };
 
-    // Keyed by the OWNED property NAME (std::string), NOT by PropertyId:
-    // a PropertyId is a non-owning std::string_view that would dangle once the
-    // registering PropertyKey (its storage source) dies. Keying on an owned
-    // std::string makes lookups stable against both SSO and heap-backed names.
-    std::unordered_map<std::string, PropEntry> store;
+    // Keyed by the interned property NAME (thread-local string_view — S140).
+    // This object is affinity-thread-bound (S037), so its per-object store may
+    // safely hold THIS thread's interned views (content-deduped, stable for the
+    // life of the interning affinity thread; ADR-018 thread-local lockless).
+    // Lookups via vaml::intern(id.name()) produce the identical canonical view
+    // (or an equal-content one — string_view equality is by content). This
+    // removes the transient std::string(id.name()) materialized per lookup.
+    std::unordered_map<std::string_view, PropEntry> store;
     std::thread::id                            affinity = std::this_thread::get_id();
 
     // S039 parent link (loose, non-owning). Used by effective-value resolution
@@ -91,11 +96,12 @@ struct DependencyObject::Impl
     DependencyObject* parent = nullptr;
 
     // S041 §2.3 registration-ordered property-changed subscribers, keyed by the
-    // OWNED property NAME (same gotcha as store). `subs[name]` is a vector of
-    // (token, handler) pairs in REGISTRATION ORDER. `nextSubToken` is the
-    // monotonically increasing removal-token counter (never reused, so an
-    // expired token can never alias a live one).
-    std::unordered_map<std::string, std::vector<std::pair<DependencyObject::PropertyChangedToken, DependencyObject::PropertyChangedHandler>>> subs;
+    // INTERNED property NAME (thread-local string_view — S140; same affinity
+    // rationale as `store`). `subs[name]` is a vector of (token, handler) pairs
+    // in REGISTRATION ORDER. `nextSubToken` is the monotonically increasing
+    // removal-token counter (never reused, so an expired token can never alias
+    // a live one).
+    std::unordered_map<std::string_view, std::vector<std::pair<DependencyObject::PropertyChangedToken, DependencyObject::PropertyChangedHandler>>> subs;
     DependencyObject::PropertyChangedToken nextSubToken = 1;
 
     // S041 descendant push: the object's OWN per-thread notification queue
@@ -149,9 +155,11 @@ const PropertyKey& DependencyObject::register_property(PropertyKey key, Property
         throw ValueTypeMismatch("DependencyObject::register_property: key.type() does not match metadata's bound value type");
     }
 
-    // Determine the canonical owned name (dedupe + store key) BEFORE moving
-    // `key` into the entry.
-    const std::string name = key.name();
+    // Determine the canonical interned name (store key) BEFORE moving `key`
+    // into the entry. The thread-local intern view is stable for the life of
+    // this object's affinity thread (S140, ADR-018), so it is a safe
+    // unordered_map<string_view> key.
+    const std::string_view name = vaml::intern(key.name());
 
     const auto [it, inserted] = impl_->store.emplace(
         name, Impl::PropEntry(std::move(key), std::move(metadata)));
@@ -174,7 +182,7 @@ Value DependencyObject::Get(PropertyId id) const
 VAML_CORE_EXPORT
 Value DependencyObject::GetEffectiveValue(PropertyId id) const
 {
-    const auto it = impl_->store.find(std::string(id.name()));
+    const auto it = impl_->store.find(id.name());
     const bool inStore = (it != impl_->store.end());
 
     // The property's metadata provider + this object's local override.
@@ -231,7 +239,7 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
 
     // Inheriting property: resolve the inherited value from the ancestor chain
     // (tolerant — never throws for an ancestor lacking the property).
-    const Value inherited = nearest_ancestor_local(*this, std::string(id.name()));
+    const Value inherited = nearest_ancestor_local(*this, id.name());
 
     if (inheritOnly)
     {
@@ -284,7 +292,7 @@ DependencyObject* DependencyObject::parent() const noexcept
 }
 
 VAML_CORE_EXPORT
-Value DependencyObject::nearest_ancestor_local(const DependencyObject& self, const std::string& name)
+Value DependencyObject::nearest_ancestor_local(const DependencyObject& self, std::string_view name)
 {
     // Straight upward scan for the nearest ancestor with a LOCAL override. A
     // plain-Inherits property's net value is "nearest ancestor with a local
@@ -292,10 +300,14 @@ Value DependencyObject::nearest_ancestor_local(const DependencyObject& self, con
     // defers to ITS own ancestor anyway — so this is exactly equivalent to
     // recursing into each ancestor's effective value, without the throw hazard
     // and re-deriving a single descriptor (flags/default come from the caller).
+    //
+    // The INTERNED canonical view is used for lookup: ancestors are affinity-
+    // thread objects, so their stores hold THIS thread's interned views
+    // (content-equal; string_view equality is by content — S140).
     const DependencyObject* cur = self.parent();
     while (cur != nullptr)
     {
-        const auto it = cur->impl_->store.find(name);
+        const auto it = cur->impl_->store.find(intern(name));
         if (it != cur->impl_->store.end() && !it->second.local.isNull())
         {
             return it->second.local;
@@ -308,7 +320,10 @@ Value DependencyObject::nearest_ancestor_local(const DependencyObject& self, con
 VAML_CORE_EXPORT
 SetResult DependencyObject::Set(PropertyId id, const Value& input)
 {
-    const std::string name = std::string(id.name());
+    // The canonical interned name view (thread-local, content-equal — S140).
+    // Used against this object's affinity-thread store and the interned-global
+    // DependencyProperty read path. NO transient std::string is materialized.
+    const std::string_view name = id.name();
 
     // Resolve the metadata PROVIDER (non-owning) WITHOUT mutating the store
     // (S043 attached-aware global resolution + S037 cross-thread contract):
@@ -370,8 +385,11 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // mutates the affinity-owned store.
     if (impl_->affinity != std::this_thread::get_id())
     {
+        // PendingWrite keeps an OWNED std::string (S037 cross-thread marshal:
+        // the queue traverses threads, so it cannot hold a thread-local intern
+        // view). The affinity-thread drain interns it back to a canonical view.
         std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-        impl_->pending.emplace_back(name, coerced);
+        impl_->pending.emplace_back(std::string(name), coerced);
         return SetResult::QUEUED;
     }
 
@@ -382,10 +400,14 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     if (it == impl_->store.end())
     {
         const DependencyProperty& globalDp = DependencyProperty::Get(name);
-        PropertyKey attachedKey(name, globalDp.metadata().boundType(),
+        // PropertyKey owns its name (std::string); the store KEY is the
+        // INTERNED string_view (canonical, stable for the affinity thread —
+        // S140). The caller's id.name() may point into transient parser
+        // storage, so we MUST intern before using it as a store key.
+        PropertyKey attachedKey(std::string(name), globalDp.metadata().boundType(),
                                 globalDp.owner_type_id(), globalDp.flags());
         auto [matIt, matInserted] = impl_->store.emplace(
-            name, Impl::PropEntry(std::move(attachedKey), &globalDp.metadata()));
+            vaml::intern(name), Impl::PropEntry(std::move(attachedKey), &globalDp.metadata()));
         (void)matInserted;
         it = matIt;
     }
@@ -437,7 +459,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // recorded obligation, delivered here, NOT silent).
     if (inherits)
     {
-        notify_descendants(std::string(id.name()), descendantBefore);
+        notify_descendants(id.name(), descendantBefore);
     }
     return SetResult::APPLIED;
 }
@@ -470,7 +492,11 @@ void DependencyObject::ProcessPendingChanges()
     // fire cb(0->5) then cb(5->7), preserving real-change semantics.
     for (auto& write : snapshot)
     {
-        auto it = impl_->store.find(write.name);
+        // Intern the drained name to the affinity thread's canonical view
+        // (S140): the store is keyed on string_view, and the drained write's
+        // owned name re-interns to an equal-content view (or a matching canon).
+        const std::string_view name = intern(write.name);
+        auto it = impl_->store.find(name);
 
         // S045 DEFENSIVE guard at apply time: resolve the metadata provider
         // BEFORE materializing anything, and skip a write to a property that is
@@ -486,7 +512,7 @@ void DependencyObject::ProcessPendingChanges()
         }
         else
         {
-            const DependencyProperty* globalDp = DependencyProperty::TryGet(write.name);
+            const DependencyProperty* globalDp = DependencyProperty::TryGet(name);
             if (globalDp == nullptr)
             {
                 continue; // unregistered after the write was queued; skip
@@ -505,11 +531,11 @@ void DependencyObject::ProcessPendingChanges()
             // object had a store entry — materialize a BORROWED entry (affinity
             // thread, legal) and apply. If it is NOT globally registered, skip it
             // (property was never registered; nothing to do).
-            const DependencyProperty* globalDp = DependencyProperty::TryGet(write.name);
-            PropertyKey attachedKey(write.name, globalDp->metadata().boundType(),
+            const DependencyProperty* globalDp = DependencyProperty::TryGet(name);
+            PropertyKey attachedKey(std::string(name), globalDp->metadata().boundType(),
                                     globalDp->owner_type_id(), globalDp->flags());
             auto [matIt, matInserted] = impl_->store.emplace(
-                write.name, Impl::PropEntry(std::move(attachedKey), &globalDp->metadata()));
+                name, Impl::PropEntry(std::move(attachedKey), &globalDp->metadata()));
             (void)matInserted;
             it = matIt;
         }
@@ -528,7 +554,7 @@ void DependencyObject::ProcessPendingChanges()
         // BORROWED — owned == nullptr), also capture purely passive descendants
         // with no local store entry (broadened walk). An object-scoped Inherits
         // property keeps the S041 behavior.
-        const DependencyProperty* dp = DependencyProperty::TryGet(write.name);
+        const DependencyProperty* dp = DependencyProperty::TryGet(name);
         const bool inherits =
             has_flag(md.flags(), PropertyFlags::Inherits)
             || (dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits));
@@ -538,7 +564,7 @@ void DependencyObject::ProcessPendingChanges()
             const bool captureAttachedInherits =
                 dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits)
                 && entry.owned == nullptr;
-            descendantBefore = collect_descendant_effectives(*this, write.name, captureAttachedInherits);
+            descendantBefore = collect_descendant_effectives(*this, name, captureAttachedInherits);
         }
 
         md.notifyChanged(currentEffective, write.coerced);
@@ -548,7 +574,7 @@ void DependencyObject::ProcessPendingChanges()
         // exactly like an on-affine one.
         if (inherits)
         {
-            notify_descendants(write.name, descendantBefore);
+            notify_descendants(name, descendantBefore);
         }
     }
 }
@@ -570,11 +596,11 @@ VAML_CORE_EXPORT
 DependencyObject::PropertyChangedToken DependencyObject::add_property_changed(
     PropertyId id, PropertyChangedHandler handler)
 {
-    // Own the name (S036/S037/S038 gotcha) and append in REGISTRATION ORDER.
-    // The token is a monotonically-increasing counter that is never reused, so
-    // an expired token can never alias a live one.
+    // Use the canonical interned name view (thread-local, S140) and append in
+    // REGISTRATION ORDER. The token is a monotonically-increasing counter that
+    // is never reused, so an expired token can never alias a live one.
     const DependencyObject::PropertyChangedToken token = impl_->nextSubToken++;
-    impl_->subs[std::string(id.name())].emplace_back(token, std::move(handler));
+    impl_->subs[id.name()].emplace_back(token, std::move(handler));
     return token;
 }
 
@@ -627,7 +653,7 @@ void DependencyObject::ProcessNotificationQueue()
         // property. The handle vector is copied before invoking so a handler
         // that (un)subscribes mid-fire does not invalidate iteration (registration
         // ORDER is preserved for the captured snapshot).
-        const auto it = impl_->subs.find(std::string(id.name()));
+        const auto it = impl_->subs.find(id.name());
         if (it == impl_->subs.end())
         {
             return; // nobody subscribed to this property
@@ -663,7 +689,7 @@ std::size_t DependencyObject::pending_notification_count() const noexcept
 // be notified on the parent's change, not just materialized/registering ones.
 VAML_CORE_EXPORT
 std::vector<std::pair<DependencyObject*, Value>> DependencyObject::collect_descendant_effectives(
-    const DependencyObject& root, const std::string& name, bool captureAttachedInherits)
+    const DependencyObject& root, std::string_view name, bool captureAttachedInherits)
 {
     std::vector<std::pair<DependencyObject*, Value>> result;
     root.visit_scope(name, result, captureAttachedInherits);
@@ -678,7 +704,7 @@ std::vector<std::pair<DependencyObject*, Value>> DependencyObject::collect_desce
 // Inherits descendant that has no local store entry is still captured so it can
 // be notified. Notify-side filtering (old != new) makes over-capture harmless.
 void DependencyObject::visit_scope(
-    const std::string& name,
+    std::string_view name,
     std::vector<std::pair<DependencyObject*, Value>>& out,
     bool captureAttachedInherits) const
 {
@@ -691,7 +717,9 @@ void DependencyObject::visit_scope(
         // A descendant that registers the property is captured with its current
         // effective value; one that does not is captured ONLY when the property
         // is a globally-registered attached Inherits/InheritOnly property (S044).
-        const auto it = child->impl_->store.find(name);
+        // The descendant's store is affinity-keyed on interned views; intern
+        // `name` to the canonical (content-equal) view for the lookup.
+        const auto it = child->impl_->store.find(intern(name));
         if (it != child->impl_->store.end() || captureAttachedInherits)
         {
             out.emplace_back(child, child->GetEffectiveValue(PropertyId::of(name)));
@@ -710,7 +738,7 @@ void DependencyObject::visit_scope(
 // at the direct child.
 VAML_CORE_EXPORT
 void DependencyObject::notify_descendants(
-    const std::string& name,
+    std::string_view name,
     const std::vector<std::pair<DependencyObject*, Value>>& before)
 {
     for (const auto& [desc, oldEffective] : before)

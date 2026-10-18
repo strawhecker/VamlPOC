@@ -68,10 +68,10 @@ const char* kExpectedCanonical = R"(<Window x:Class="App.MainView" Width="1024" 
 // code; the real tree re-serializer/serializer is S282/S283's step.
 std::string canonicalize(const ParsedElement& el)
 {
-    std::string out = "<" + el.tagName;
+    std::string out = "<" + std::string(el.tagName);
     for (const ParsedAttribute& a : el.attributes)
     {
-        out += " " + a.key + "=\"" + a.value + "\"";
+        out += " " + std::string(a.key) + "=\"" + std::string(a.value) + "\"";
     }
     if (el.self_closing)
     {
@@ -83,8 +83,8 @@ std::string canonicalize(const ParsedElement& el)
     {
         out += canonicalize(c);
     }
-    out += el.content;
-    out += "</" + el.tagName + ">";
+    out += std::string(el.content);
+    out += "</" + std::string(el.tagName) + ">";
     return out;
 }
 
