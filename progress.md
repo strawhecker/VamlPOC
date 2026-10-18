@@ -26,47 +26,27 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT â€” DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S146 (dep:S145) — REFACTOR GATE(S3.5): dead pre-retrofit surface removed; public API string_view/intern-only; ASan no-leak + steady-state heap-churn counter (feeds S628)
-- Next step to do     : S147 (dep:S146) — SURVIVOR + checkpoint; re-target S160's dep to S147; record the allocator-policy ADR (feeds S722) + thread-local pool note (feeds S624/S626) + reaffirm LOCK GOVERNANCE ADR-018
-- PENDING work        : none (S146 fully complete + GREEN both lanes)
-  **State**: S146 (dep:S145) is the Sprint-3.5 REFACTOR GATE. It removes the last dead pre-retrofit
-  surface and re-proves the string_view/intern-only public API with a test-level guarantee. (1) pimpl
-  heap nodes — ALL remaining pimpls COLLAPSED: ChangeQueue (item deques + the S037 std::mutex + affinity
-  marker now direct members), ChangeRecorder (order + byName inlined), ChangeProcessor (queue inlined),
-  DependencyProperty (name_/type_/metadata_/ownerTypeId_ inlined), PropertyMetadata (default/flags/
-  callbacks inlined), ElementFactoryRegistry + PropertyRegistry + ValueConverter (their NameTable probes
-  inlined), LayoutManager (root ptr inlined), Grid::Impl (rows_/cols_ vectors inlined). No Impl heap node
-  / impl_-> trampoline / per-object heap hop survives; NameTable.h was PROMOTED into the public detail
-  tree (vaml/core/detail/NameTable.h, stays vaml::detail) solely to legalize the registry collapses; the
-  ChangeQueue std::mutex (the sole kept approved lock, ADR-018) stays in place across move (only the
-  protected deques + affinity move under lock); the ObjectPool slot was RAISED to 1216 because the
-  collapse grew sizeof(Grid) to 1168 under msvc-debug checked iterators (worst poolable case). The S142
-  DependencyObject/UIElement pimpl was already collapsed earlier. (2) unordered_map/
-  std::string-key paths — the ONE surviving owned-name clump, DependencyObject::subs_ (std::unordered_map
-  <string_view, handlers>), is re-keyed so BOTH add_property_changed and the queue drain call
-  vaml::intern(id.name()): the subscriber key is now a POOL-STABLE retain-forever view, never a transient
-  caller-owned view (subscriptions thread-affine per S037/ADR-018 — zero locks); every hot content-probe
-  path was ALREADY NameTable-intermed at S143/S144. (3) by-value children() — already out-param at S144,
-  re-verified. (4) owned-name gotchas — the subs_ intern-keying is the fix; VamlReader::names() keys were
-  already interned string_views. (5) parser/scanner-owned std::string members — audited: XmlScanner::
-  stack_/nsStack_ + ParseFrame::contentScratch are INTERNAL booking buffers (nesting-depth / scope mirror
-  / frame-lifetime accumulator), NOT public semantic owned strings; documented-not-converted (interning
-  them would be wrong — they are source-mirroring/mutable). ParsedElement::content was already string_view
-  (S140); VamlReader::event_names_/root_class_ are reader-owned S092 MINIMAL REAL seeds, not parser-owned.
-  NEW surface added by this gate: (a) public vaml::intern_master_destroy_all() (mirrors object-pool
-  master_destroy_all; the opt-in ASan-gate teardown hook); (b) vaml::detail::HeapStats + public
-  vaml::heap_allocation_count()/heap_allocation_bytes() (the steady-state heap-churn counter feeding S628,
-  funneled ONLY on the VAML-owned monotonic growth paths — InternStore arena/entry growth + ObjectPool
-  block spill — NOT global new/delete overrides, which would trap doctest/download noise and collide with
-  the host allocator). TESTS: HeapChurn_test.cpp (public-API string_view+intern audit on real register/
-  find/Get/named/Load entry points; repeated-identical-layout and repeated-identical-document-Load both
-  assert the funnel counter is FLAT after warmup — the recorded zero-churn steady state) +
-  Asan_teardown_test.cpp (exit-time destructor hook freeing the retain-forever pools AFTER all tests so
-  ASan reports zero leaks; the S141/S145 thread_local destructors also free them at thread exit, so the
-  ASan lane is deterministic). GREEN ON BOTH CI LANES + ASan lane: see per-lane counts below the history
-  (msvc-debug full suite + clang-debug full suite both PASS, warning-clean; ASan zero-leak both compilers).
-  ADR-018: ZERO new locks (subs_ stays lockless thread-local; HeapStats uses a relaxed atomic; no mutex
-  added anywhere). No commits. Next = S147.
+- Last completed step : S147 (dep:S146) — SURVIVOR + checkpoint; re-target S160's dep to S147 (verified: already dep:S147); record the allocator-policy ADR (ADR-020, feeds S722) + thread-local pool note (feeds S624/S626) + reaffirm LOCK GOVERNANCE ADR-018
+- Next step to do     : S160 (dep:S147) — Sprint 4 — Platform window via GLFW (Win32 + X11); resize + input callback stub surface
+- PENDING work        : none (S147 fully complete; docs-only wrap — both CI lanes already green from S146)
+  **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap — DOCS-ONLY (no build, per the
+  S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
+  principles). (1) RELOCATE: Sprint 3.5 (S140–S147) is consolidated into the `## SPRINT 3.5 — SURVIVOR`
+  block below (intern/SIMD lockless store S140/S141/S140_1, block-resident collapse S142, mutex
+  relocation + registry re-key S143, registry/accessor migration S144, object block pool S145, refactor
+  gate + HeapStats/ASan S146). (2) RETARGET verified: S160 already reads `dep:S147` — no roadmap change
+  needed; S147 re-confirms its own dependency, so Sprint 4 (S160) now depends on the complete, wrapped
+  Sprint 3.5. (3) ALLOCATOR-POLICY ADR recorded as ADR-020 (feeds S722 — the Sprint-3.5 allocation/
+  ownership discipline finalized there). (4) THREAD-LOCAL POOL NOTE recorded (feeds S624 the thread-affine
+  lockless object pool + intern store pattern for the arena/element-pool work, and S626 the
+  copy-on-write multi-UI-thread scale-out rule: cross-thread transfer carries literals/owned strings,
+  never interned views). (5) LOCK GOVERNANCE ADR-018 reaffirmed with the explicit Sprint-3.5 accounting:
+  ZERO new locks added across S140–S147 — the intern store (S141/S140_1/S140) is thread-local lockless,
+  S145's object block pool is thread-local + lockless (thread-affine per S037, so it needs NO lock),
+  S146's HeapStats is a relaxed atomic (no mutex), and the ONLY lock action was S143's relocation of the
+  standing pre-approved S037/S041 ChangeQueue mutex (moved, not created). The roadmap GUARD RAILS + ADR-LOG
+  ADR-018 carry this reaffirmation. Checkpoint regenerated: last = S147, next = S160 (Sprint 4 — Vulkan
+  window + swapchain + first pixels). PENDING none. No commits.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -301,7 +281,86 @@
 - **Next = S140** (Sprint 3.5, Allocation & ownership discipline retrofit â€” intern property names to a
   canonical UTF-8 identity; the first token of the next sprint).
 
-## STEP LOG  (append-only; new steps land at the BOTTOM)
+## SPRINT 3.5 â€” SURVIVOR  (the consolidated surviving state a fresh LLM must assume â€” S140..S147, wrapped at S147)
+- **Goal met (S140â€“S147): the allocation & ownership discipline retrofit eliminated the two orthogonal
+  sources of heap churn in the shipped hot paths (per-object make_unique<Impl>() churn + transient
+  std::string(id.name()) per lookup) before the renderer (S210/S211) and binding engine (S240+) are built
+  on them. Sprint 3.5 closed with an ADR-recorded allocator policy (ADR-020, feeds S722), a
+  thread-local-pool note (feeds S624/S626), and an explicit ZERO-new-locks reaffirmation of ADR-018.**
+  Sprint-3.5 closing = S145 (object block pool) â†’ S146 (refactor gate + HeapStats + ASan) â†’ S147 (wrap).
+- **Full allocation retrofit delivered (real public symbols, none STUB):**
+  `InternStore` (the CONTENT-keyed SIMD probe store: insertion-ordered append-only array, 32-byte/32-lane
+  groups, empty marker 0xFF, probe = fold_bytes % 255, memmove+append growth, never re-probe/reorder/shrink;
+  thread-local + LOCKLESS by construction) â€” S141; the PUBLIC `vaml::intern(string_view) -> string_view`
+  retain-forever retained-string primitive (SIMD-probe by value + full compare on the calling thread's
+  store â€” HIT returns the existing view, MISS retains+inserts+returns the new view; lifetime contract:
+  retained for the life of the interning thread, do NOT pass interned views across threads) â€” S140_1;
+  property names + parser/reader tree text interned to canonical UTF-8 identity (kills the per-lookup
+  transient std::string at Get/Set/effective/prop-subscribe/drain + the parser owned-string churn) â€” S140;
+  `DependencyObject`/`UIElement` pimpl + store COLLAPSED into ONE block-resident unit (object header â†’
+  block-slot offset, no per-object heap hop; single PD type; store inline-started in the slot, heap-grown
+  on demand; pimpl removed NOT preserved, rationale re-grounded on SPEED per ADR-003 revised + ADR-019) â€”
+  S142; the per-object pending mutex RELOCATED into the thread-affine ChangeQueue + ChangeQueue/
+  ChangeRecorder/PropertyRegistry/DependencyProperty::GlobalTable re-keyed onto the S140 token + S141
+  store via `vaml::detail::NameTable<T>` (content-keyed probe store, no unordered_map, self-owned stable
+  keys, no transient std::string on lookup) â€” S143 (the kept S037/S041 ChangeQueue mutex, moved not
+  created â€” ADR-018); the three lookup registries migrated to the token-keyed store (ElementFactoryRegistry,
+  ValueConverterRegistry, DependencyProperty global table) + public accessors return string_view /
+  out-params (registered_names(), VamlReader::names(), UIElement::children(),
+  collect_descendant_effectives) â€” S144; the thread-local LOCKLESS object block pool free-list
+  (`vaml::detail::ObjectPool`, class-scoped operator new/delete on DependencyObject routing every
+  allocation/deallocation beneath the unchanged unique_ptr ownership, dole from blocks / recycle to
+  free-list / never delete, opt-in master_destroy_all, the S142 inline SIMD store rides the block slot) â€”
+  S145; the Sprint-3.5 REFACTOR GATE (ALL remaining pimpls collapsed; the last unordered_map node subs_
+  re-keyed to interned pool-stable views; parser/scanner owned-string members audited as internal booking
+  buffers; public-API string_view/intern-only audit; NEW public `vaml::intern_master_destroy_all()` +
+  `vaml::detail::HeapStats` + public `vaml::heap_allocation_count()/heap_allocation_bytes()` — the
+  steady-state heap-churn counter feeding S628, funneled ONLY on the VAML-owned monotonic growth paths;
+  ASan zero-leak via an exit-time pool-teardown hook) â€” S146.
+- **Key design decisions recorded (ADR-020 — the allocator policy, feeds S722):** the standing
+  allocation/ownership discipline is now (1) content-keyed registries — SIMD by-value full compare,
+  NEVER pointer-identity (a caller's address is never a usable pre-check; cross-thread interned views are
+  compared by content only); (2) `vaml::intern()` is a retained-forever THREAD-LOCAL pool — bounded
+  vocabulary + parsed document text only (WARNING: unbounded/reclaimed-never per thread; do NOT intern
+  unbounded or unpredictable-valued data); (3) the object pool is THREAD-LOCAL + LOCKLESS (thread-affine
+  per S037/ADR-018, so it needs NO lock, unlike the rejected process-global string-pool framing) with
+  class-scoped new/delete beneath unique_ptr ownership, slab reuse never delete; (4) RECYCLE == SLAB
+  REUSE, NOT STATE CARRYOVER (dtor tears down internal state normally, only the object bytes are reused);
+  (5) HeapStats is funneled on MONOTONIC growth ONLY (InternStore arena/entry growth + ObjectPool block
+  spill), never recycle/dedup-hit, so steady state is provably FLAT. Cross-thread discipline is
+  LITERALS / OWNED STRINGS, never interned views. This policy is finalized as an ADR at S722.
+- **THREAD-LOCAL POOL NOTE (feeds S624/S626):** the S141/S140_1 intern store + the S145 ObjectPool are
+  both THREAD-LOCAL + LOCKLESS. For S624 (the per-frame arena allocator + element pool + the S142
+  "children slab" re-scheduled here) this means the arena/element-pool MUST stay thread-affine lockless
+  (mirror the ObjectPool pattern; the children-slab is a distinct low-level data-structure change, kept
+  here per the S145 NO-GAP record). For S626 (thread vs render ring scale-out: multiple UI threads,
+  copy-on-write hot nodes) the rule is binding: copy-on-write hot nodes MUST stay thread-affine —
+  cross-thread transfer carries literals / owned strings, NEVER interned views (an interned view is valid
+  only on the thread that interned it; carrying it across threads is a lifetime bug). This is the same
+  thread-affinity discipline S037/S145 already enforce.
+- **LOCK GOVERNANCE ADR-018 reaffirmed (Sprint 3.5 accounting):** Sprint 3.5 (S140â€“S147) added ZERO
+  new locks by design — the intern subsystem (S141/S140_1/S140) is thread-local lockless, S145's object
+  block pool is thread-local + lockless (thread-affine per S037, needs NO lock), S146's HeapStats is a
+  relaxed atomic (no mutex), and the ONLY lock action across the sprint was S143's relocation of the
+  standing pre-approved S037/S041 ChangeQueue mutex (moved, NOT created). Any future lock (e.g. S620
+  async layout) requires the human-architect approval gate.
+- **Deferred to future sprints (all recorded, NOT silent):** the children-slab container (S142
+  NO-GAP) â†’ re-scheduled to S624 (per the S145 record); allocator-policy ADR FINALIZATION â†’ S722;
+  memory profile gate / bounded memory (ASan) â†’ S628; TSan race-freedom â†’ S620/S723.
+- **MINIMAL REAL carried forward RESOLVED/unresolved:** NONE resolved in Sprint 3.5. Still unresolved
+  (carried forward): `vulkan`â†’S161; `tools`â†’S287; built-in element seeds â†’ Buttonâ†’S401, Textâ†’S400,
+  TextBoxâ†’S402, CheckBoxâ†’S404, Sliderâ†’S403, ScrollViewerâ†’S405, Windowâ†’S440; VamlReader event
+  hooksâ†’S322; UIElement transform-ownerâ†’S208. All carry searchable sentinels; NO-GAP intact.
+- **Invariants intact:** [ADR-001..019] (incl. ADR-020 allocator policy, ADR-018 lock governance),
+  layer-rule (core has NO Vulkan/GLFW deps), no-managed, no-stub, NO-GAP GUARANTEE, NO LAZY LLM
+  SYNDROME.
+- **Build lanes both green (from first principles, at the S146 gate):** windows-msvc (msvc-debug via
+  build/verify_s146.cmd, VS 2026, warning-as-error clean + ctest 1/1 PASS) + ubuntu-clang (clang-debug
+  via /mnt/hgfs/VamlPOC, Ubuntu VM clang 21, ctest 1/1 PASS) + ASan zero-leak both compilers
+  (build/verify_s146_asan.cmd); only pre-existing upstream <ciso646> doctest deprecation from
+  third_party, non-error. windows-clang-debug is NOT a lane (not built/tested/flagged per standing rule).
+- **Next = S160** (Sprint 4, Vulkan window + swapchain + first pixels â€” the first token of the next sprint;
+  S160's dep re-targeted to S147).
 
 ### Sprint 0 â€” Repo, toolchain, CI, test harness   (S000â€“S019)
 - [x] S000 repo skeleton + tracking files (this file, ROADMAP.md, ADR seeds, architecture.md) â€” âœ…
@@ -1631,3 +1690,24 @@ superseded by S142 â€” the pimpl is removed, not preserved; ADR-003 revised
   SURVIVOR: (dep:S144; object-side half of the allocation fix; rewrites S120/S121 element/layout ownership beneath the unique_ptr model; Sprint 3.5 retrofit; ADR-018: ZERO new locks — thread-local + lockless by construction). PREFERRED ROUTE: unique_ptr ownership PRESERVED (single-parent, virtual dtor, detach-without-destroy unchanged); class-scoped operator new/operator delete on DependencyObject route every allocation/deallocation through the pool. NEW vaml::detail::ObjectPool (ObjectPool.{h,cpp}, plain class; thread_local binding in .cpp mirrors InternStore/Intern.cpp): allocate()→free-list pop else monotonic bump else spill (never reset/reorder); deallocate()→intrusive LIFO push, never frees the block / never deletes the object bytes, with contains() forwarding foreign (oversized process-heap) pointers to ::operator delete; master_destroy_all() opt-in teardown. kSlotSize=960=align_up(sizeof(Grid),64) covers the worst case across both CI lanes (msvc-debug /MTd inflates sizeof(Grid) to 952 vs 856 release MSVC / 848 release Linux clang); slot carries the object AND the inline S142 SIMD store (no per-object heap hop; only overflow spills monotonic). RECYCLE == SLAB REUSE NOT STATE CARRYOVER (dtor tears down internal state; slab bytes reused). Tests: ObjectPool_test.cpp — 10 cases / 326 assertions (dole/recycle reuse, LIFO, monotonic bump + spill, never-delete, alignment, contains(), thread-local isolation, master_destroy_all, make_unique<Button> churn integration, create_child<Canvas>/remove_child tree churn; element-size static_asserts guard kSlotSize). SCOPE DECISION (recorded): delivered exactly as titled (object pool + recycling); children_ stays std::vector (amortized O(1), non-shrinking, payload pooled). The S142 NO-GAP "children slab" RE-SCHEDULED (NOT silently dropped) to S624 (the roadmap's "element pool; no heap churn" home) — a distinct low-level data-structure change, NOT bolted onto S145. GREEN BOTH LANES: msvc 638 cases / 5321 asserts (1 intentional should_fail) via verify_s145.cmd; clang-debug 1/1 PASS (638 cases SUCCESS; only pre-existing upstream <ciso646> doctest deprecation). No commits. Next = S146.
 - [x] S146 REFACTOR GATE(S3.5) - DONE
   SURVIVOR: (dep:S145; Sprint-3.5 refactor gate; ADR-018: ZERO new locks — subs_ stays lockless thread-local, HeapStats relaxed atomic, no mutex added anywhere). Crossed OFF the five title dead-surface categories: (1) pimpl heap nodes — ALL remaining pimpls COLLAPSED \(ChangeQueue/ChangeRecorder/ChangeProcessor/DependencyProperty/PropertyMetadata/ElementFactoryRegistry/PropertyRegistry/ValueConverter/LayoutManager \+ Grid::Impl\): no Impl heap node / impl_-> trampoline / per-object heap hop survives; NameTable.h PROMOTED into the public detail tree \(vaml/core/detail/NameTable.h, stays vaml::detail\) to legalize the registry collapses; the ChangeQueue std::mutex inlined as a non-moved member \(sole kept approved lock, ADR-018\); ObjectPool slot RAISED to 1216 \(sizeof\(Grid\)==1168 under msvc-debug checked iterators after the collapse\); the S142 DependencyObject/UIElement pimpl was already collapsed earlier; (2) unordered_map/std::string-key paths — DependencyObject::subs_ (the last retained unordered_map node) re-keyed so BOTH add_property_changed and the queue drain call vaml::intern(id.name()): subscriber key now a POOL-STABLE retain-forever view, never a transient caller-owned view; every hot content-probe path already NameTable-intermed at S143/S144; (3) by-value children() — already out-param at S144, re-verified; (4) owned-name gotchas — the subs_ intern-keying is the fix; VamlReader::names() keys already interned string_views; (5) parser/scanner-owned std::string members — audited + documented-not-converted: XmlScanner::stack_/nsStack_ + ParseFrame::contentScratch are INTERNAL booking buffers (nesting-depth / scope mirror / frame-lifetime accumulator), NOT public semantic owned strings (interning them would be wrong — source-mirroring/mutable); ParsedElement::content already string_view (S140); VamlReader::event_names_/root_class_ reader-owned S092 MINIMAL REAL seeds, not parser-owned. NEW surface: (a) public vaml::intern_master_destroy_all() (mirrors object-pool master_destroy_all; ASan-gate opt-in teardown); (b) vaml::detail::HeapStats + public vaml::heap_allocation_count()/heap_allocation_bytes() — the steady-state heap-churn counter feeding S628, funneled ONLY on the VAML-owned monotonic growth paths (InternStore arena/entry growth + ObjectPool block spill), NOT global new/delete overrides (would trap doctest/download noise + collide with host allocator). Tests: HeapChurn_test.cpp (2 cases: public-API string_view+intern audit on real register/find/Get/named/Load entry points; repeated-identical-layout + repeated-identical-document-Load both assert the funnel counter is FLAT after warmup — the recorded zero-churn steady state) + Asan_teardown_test.cpp (exit-time destructor hook freeing the retain-forever pools AFTER all tests so ASan reports zero leaks; the S141/S145 thread_local destructors also free them at thread exit, so ASan deterministic). GREEN BOTH LANES \+ ASan: msvc-debug 641 cases / 5352 assertions, 0 failed (verified from first principles via verify_s146.cmd); S146 tests = 3 cases / 31 assertions PASS; clang-debug 1/1 PASS; ASan zero-leak both via verify_s146_asan.cmd. No commits. Next = S147.
+- [x] S147 SURVIVOR + checkpoint; re-target S160's dep to S147; record the allocator-policy ADR (feeds S722) + thread-local pool note (feeds S624/S626) + reaffirm LOCK GOVERNANCE ADR-018 - DONE
+  SURVIVOR: (dep:S146; Sprint-3.5 survivor + checkpoint; docs-only, no build, per the S009/S049/S097/S139
+  precedent). (1) Consolidated the `## SPRINT 3.5 â€" SURVIVOR` block above distilling S140-S147 (intern/
+  SIMD lockless store, block-resident store collapse, mutex relocation + registry re-key, registry/
+  accessor migration, object block pool, refactor gate + HeapStats/ASan). (2) Regenerated the CHECKPOINT
+  to last = S147 / next = S160 (Sprint 4 - Vulkan window + swapchain + first pixels), PENDING none.
+  (3) RETARGET verified: S160 already reads `dep:S147` in roadmap - no change needed, S147 re-confirms
+  it (Sprint 4 now depends on the complete, wrapped Sprint 3.5). (4) ALLOCATOR-POLICY ADR recorded as
+  ADR-020 (feeds S722 - the Sprint-3.5 allocation/ownership discipline to be finalized there): content-
+  keyed registries (SIMD by-value, never pointer-identity); vaml::intern() thread-local retain-forever
+  pool (bounded vocabulary + parsed text only; unbounded data WARNED against); thread-local LOCKLESS
+  object pool (class-scoped new/delete beneath unique_ptr, slab reuse never delete); recycle == slab
+  reuse NOT state carryover; HeapStats on monotonic growth only; cross-thread carries literals/owned
+  strings, never interned views. (5) THREAD-LOCAL POOL NOTE recorded (feeds S624 the thread-affine
+  lockless arena/element-pool + children-slab requirement; feeds S626 the binding copy-on-write rule:
+  hot nodes MUST stay thread-affine, cross-thread transfer carries literals/owned strings, NEVER interned
+  views). (6) LOCK GOVERNANCE ADR-018 reaffirmed with the explicit Sprint-3.5 accounting: ZERO new locks
+  added across S140-S147 (intern store + object pool thread-local lockless; HeapStats relaxed atomic;
+  the ONLY lock action was S143's relocation of the standing pre-approved S037/S041 ChangeQueue mutex,
+  moved not created). Marked roadmap S147 [DONE]. No MINIMAL REAL introduced/resolved. No NEW md files
+  (directive honored); no build; no commits. Next = S160.

@@ -67,8 +67,11 @@
   (genuinely cross-thread marshalling, already user-visible). All other locks require the approval
   gate.
 - **Sprint 3.5 adds ZERO new locks by design** — the intern subsystem (S141/S140_1/S140) is
-  thread-local lockless (ADR-018). Any future lock (e.g. S143's mutex relocation, S620 async layout)
-  requires the same approval gate. Recorded in `adr/ADR-LOG.md` as ADR-018.
+  thread-local lockless, S145's object block pool is thread-local + lockless (thread-affine per S037,
+  so it needs NO lock), and S146's HeapStats is a relaxed atomic (no mutex). The ONLY lock action in
+  Sprint 3.5 was S143's relocation of the standing pre-approved S037/S041 ChangeQueue mutex (moved, not
+  created). Any future lock (e.g. S620 async layout) requires the same approval gate. Recorded in
+  `adr/ADR-LOG.md` as ADR-018.
 
 ## Conventions
 - `dep:S00X` = this step requires S00X complete first. Multiple deps separated by `+`.
@@ -509,9 +512,18 @@
                  atomic; the sole kept lock = the S143-relocated ChangeQueue mutex, now an inlined
                  non-moved member). Test counts: 641 cases / 5352 assertions, 0 failed (msvc-debug);
                  S146 tests = 3 cases / 31 assertions.
-- S147 dep:S146  SURVIVOR + checkpoint; re-target S160's dep to S147; record the allocator-policy ADR
-                 (feeds S722) + thread-local pool note (feeds S624/S626) + reaffirm LOCK GOVERNANCE ADR-018
-                 (Sprint 3.5 added zero new locks; the S143 mutex relocation is the sole kept, approved lock).
+- S147 dep:S146  [DONE — docs-only wrap (no build, per the S009/S049/S097/S139 precedent)] SURVIVOR +
+                 checkpoint; re-target S160's dep to S147 (verified: S160 already reads `dep:S147`); record
+                 the allocator-policy ADR (ADR-020, feeds S722) + thread-local pool note (feeds S624/S626)
+                 + reaffirm LOCK GOVERNANCE ADR-018 (Sprint 3.5 added zero new locks; the S143 mutex
+                 relocation is the sole kept, approved lock). Sprint 3.5 (S140–S147) wrapped: intern/SIMD
+                 lockless store (S140/S141/S140_1) + block-resident collapse (S142) + mutex relocation +
+                 registry re-key (S143) + registry/accessor migration (S144) + object block pool (S145) +
+                 refactor gate + HeapStats/ASan (S146) — all real, both CI lanes green, ASan no-leak,
+                 zero new locks. Consolidated SPRINT 3.5 SURVIVOR block written to progress.md;
+                 checkpoint regenerated last = S147 / next = S160 (Sprint 4 — Vulkan window). Allocator
+                 policy recorded as ADR-020 (feeds S722); thread-local pool note (feeds S624/S626)
+                 recorded; ADR-018 reaffirmed with the Sprint-3.5 zero-new-locks statement.
 
 ---
 ## Sprint 4 — Vulkan window + swapchain + first pixels (single-thread proof)  [token S160+]

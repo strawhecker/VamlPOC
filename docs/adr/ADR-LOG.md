@@ -236,4 +236,53 @@
   pipeline" in the project's governing render principle (ADR-012), cargo of GPU-DRIVEN-PRINCIPLE.md.
   Recorded NO-GAP: no future step reverses this line without an ADR revision by the human architect.
 
+## ADR-020 — Allocator policy (Sprint 3.5 discipline; to be finalized at S722)
+- Status: ACCEPTED (recorded at S147; FINALIZATION scheduled at S722)
+- Context: Before the renderer (S210/S211) and binding engine (S240+) are built on the hot paths, Sprint
+  3.5 (S140–S147) had to eliminate the two orthogonal sources of heap churn in the shipped paths: (1)
+  OBJECT churn — per-object make_unique<Impl>() + per-node unordered_map lifts; (2) STRING churn —
+  transient std::string(id.name()) materialized per lookup. The retrofit removed both by a token-keyed
+  (string_view) CONTENT-keyed SIMD probe store (THREAD-LOCAL, LOCKLESS — ADR-018) + a thread-local
+  retain-forever block pool (the object-side half, S145) + interned/string_view keys. This ADR records
+  the standing allocation/ownership discipline that resulted, so future work (S624 arena/element pool,
+  S626 multi-thread scale-out, S722 finalization) inherits it as a contract rather than re-deriving it.
+- Decision (the standing discipline, codified):
+  - **Content-keyed registries, never pointer-identity.** NameTable/intern lookups compare by CONTENT
+    (SIMD full compare by value), NOT by pointer/address — a caller's address is never a usable
+    pre-check (their bytes are not in the pool), and cross-thread interned views are compared by
+    content only. The pointer-identity == premise was REJECTED (it forced a global lock and is not how
+    this codebase compares today, ADR-018).
+  - **`vaml::intern(string_view) -> string_view`** is a RETAINED-FOREVER THREAD-LOCAL pool — HIT returns
+    the existing view (content-dedup), MISS retains+inserts+returns a new view; retained for the life of
+    the interning thread, once in always there, never removed, never relocated. USE ONLY for bounded
+    vocabulary + parsed document text. WARNING (stated): persistent retention is unbounded and
+    reclaimed-never per thread — do NOT intern unbounded or unpredictable-valued data.
+  - **Thread-local LOCKLESS object pool** (`vaml::detail::ObjectPool`) — thread-affine per S037/ADR-018,
+    so it needs NO lock; class-scoped operator new/delete beneath the unchanged unique_ptr ownership;
+    dole from blocks, recycle to a free-list, never delete; opt-in master_destroy_all. RECYCLE == SLAB
+    REUSE, NOT STATE CARRYOVER (the destructor tears down internal state normally; only the object's own
+    slab bytes are reused).
+  - **HeapStats on monotonic growth ONLY** — the `vaml::heap_allocation_count()/heap_allocation_bytes()`
+    steady-state counter is funneled on the VAML-owned monotonic growth paths (InternStore arena/entry
+    growth + ObjectPool block spill), never recycle/dedup-hit, so steady state is provably FLAT (feeds
+    S628).
+  - **Cross-thread discipline:** cross-thread transfer carries LITERALS / OWNED STRINGS, NEVER interned
+    views (an interned view is valid only on the thread that interned it). The genuinely cross-thread
+    datum is the ChangeQueue pending-queue (its mutex is the sole kept, approved lock — ADR-018).
+- Consequences:
+  - **Feeds S722** — this policy is FINALIZED as the allocator-policy ADR at S722 (per the roadmap).
+  - **Feeds S624** — the per-frame arena allocator + element pool + the re-scheduled "children slab"
+    MUST stay thread-affine + lockless, mirroring the ObjectPool pattern (recorded in the S624 roadmap
+    note + the S145 NO-GAP record).
+  - **Feeds S626** — for thread-vs-render ring scale-out (multiple UI threads, copy-on-write hot nodes),
+    copy-on-write hot nodes MUST stay thread-affine; cross-thread transfer carries literals / owned
+    strings, NEVER interned views.
+- **LOCK GOVERNANCE ADR-018 reaffirmed (Sprint 3.5 accounting, recorded at S147):** Sprint 3.5
+  (S140–S147) added **ZERO new locks** by design — the intern subsystem (S141/S140_1/S140) is
+  thread-local lockless, S145's object block pool is thread-local + lockless (thread-affine per S037,
+  needs NO lock), S146's HeapStats is a relaxed atomic (no mutex), and the ONLY lock action across the
+  sprint was **S143's relocation of the standing pre-approved S037/S041 ChangeQueue mutex** (moved, NOT
+  created). Any future lock (e.g. S620 async layout) requires the same human-architect approval gate
+  (ADR-018).
+
 ## END OF ADR LOG (seed)
