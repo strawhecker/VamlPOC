@@ -16,8 +16,11 @@
 // unordered_map, no transient std::string). drain_values() also RE-INTERNS each
 // drained name on the owner thread so the callback receives a canonical view.
 //
-// Storage is pimpl'd so the public header exposes no std::deque / std::string /
-// Value / std::mutex member.
+// S146 (refactor gate) — the pimpl is COLLAPSED: the item deques, the single
+// queue mutex, and the affinity marker are now plain by-value members of
+// ChangeQueue (see ChangeQueue.h). No Impl heap node, no impl_-> trampoline.
+// The S037/S041 queue mutex stays IN PLACE (never moved); only the protected
+// data is moved under lock (standard mutex-owner move practice).
 
 #include "vaml/core/ChangeQueue.h"
 
@@ -31,67 +34,53 @@
 
 namespace vaml {
 
-struct ChangeQueue::Impl
-{
-    // One pending NOTIFICATION (S041). `name` is an OWNED std::string copied
-    // from the PropertyId so the item outlives the registering key.
-    struct Item
-    {
-        std::string name;
-        Value       oldValue;
-        Value       newValue;
-
-        Item(std::string n, Value o, Value v)
-            : name(std::move(n)), oldValue(std::move(o)), newValue(std::move(v)) {}
-    };
-
-    // One pending VALUE WRITE (S037, relocated). `name` is OWNED (cross-thread
-    // marshal: a wrong-thread writer cannot hold a thread-local intern view).
-    struct ValueWrite
-    {
-        std::string name;
-        Value       coerced;
-
-        ValueWrite(std::string n, Value v) : name(std::move(n)), coerced(std::move(v)) {}
-    };
-
-    // TWO FIFO pending deques — one per item family — protected by the SAME
-    // queue_mutex (the ONE cross-thread datum). process()/clear() (notifications)
-    // and drain_values() (value writes) run only on the affinity thread.
-    std::deque<Item>       pending;        // S041 notification family
-    std::deque<ValueWrite> pendingWrites;  // S037 value-write family
-    std::mutex             queue_mutex;
-    std::thread::id        affinity = std::this_thread::get_id();
-};
-
 VAML_CORE_EXPORT
-ChangeQueue::ChangeQueue()
-    : impl_(std::make_unique<Impl>())
-{
-}
+ChangeQueue::ChangeQueue() = default;
 
 VAML_CORE_EXPORT
 ChangeQueue::~ChangeQueue() = default;
 
+// Move ctor: the std::mutex is NOT moved (it stays where it is); only the
+// protected deques + affinity are moved from `other` under `other`'s lock, and
+// the moved-from queue is left with an empty (valid) state. This preserves the
+// mutex-owner invariant the inlined member layout requires.
 VAML_CORE_EXPORT
-ChangeQueue::ChangeQueue(ChangeQueue&&) noexcept = default;
+ChangeQueue::ChangeQueue(ChangeQueue&& other) noexcept
+    : affinity(std::this_thread::get_id())
+{
+    std::lock_guard<std::mutex> lock(other.queue_mutex);
+    pending       = std::move(other.pending);
+    pendingWrites = std::move(other.pendingWrites);
+}
 
+// Move assign: same discipline — move the protected data under `other`'s lock.
 VAML_CORE_EXPORT
-ChangeQueue& ChangeQueue::operator=(ChangeQueue&&) noexcept = default;
+ChangeQueue& ChangeQueue::operator=(ChangeQueue&& other) noexcept
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+    std::lock_guard<std::mutex> lock(other.queue_mutex);
+    pending       = std::move(other.pending);
+    pendingWrites = std::move(other.pendingWrites);
+    affinity      = std::this_thread::get_id();
+    return *this;
+}
 
 VAML_CORE_EXPORT
 void ChangeQueue::enqueue(PropertyId id, const Value& oldValue, const Value& newValue)
 {
     // Own the name (S036/S037/S038 gotcha): copy the view into a stable item.
-    std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-    impl_->pending.emplace_back(std::string(id.name()), oldValue, newValue);
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    pending.emplace_back(std::string(id.name()), oldValue, newValue);
 }
 
 VAML_CORE_EXPORT
 std::size_t ChangeQueue::pending_count() const noexcept
 {
-    std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-    return impl_->pending.size();
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    return pending.size();
 }
 
 VAML_CORE_EXPORT
@@ -99,7 +88,7 @@ std::size_t ChangeQueue::process(const NotifyFn& notify)
 {
     // Drain is affinity-thread-only (mirrors S037 D3): a wrong-thread drain
     // would be a silent no-op hiding bugs — throw (NO-LAZY).
-    if (impl_->affinity != std::this_thread::get_id())
+    if (affinity != std::this_thread::get_id())
     {
         throw WrongThreadException("ChangeQueue::process: must be called from the queue's affinity thread");
     }
@@ -107,10 +96,10 @@ std::size_t ChangeQueue::process(const NotifyFn& notify)
     // Swap the whole queue out under the lock so cross-thread enqueuers hitting
     // during the drain land in a FRESH queue (their notifications drain next
     // call), never into the one we are about to consume (S037/S038 swap-out).
-    std::deque<Impl::Item> snapshot;
+    std::deque<Item> snapshot;
     {
-        std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-        snapshot.swap(impl_->pending);
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        snapshot.swap(pending);
     }
 
     // FIFO replay in enqueue order (a deque, never unordered_map order).
@@ -126,12 +115,12 @@ std::size_t ChangeQueue::process(const NotifyFn& notify)
 VAML_CORE_EXPORT
 void ChangeQueue::clear()
 {
-    if (impl_->affinity != std::this_thread::get_id())
+    if (affinity != std::this_thread::get_id())
     {
         throw WrongThreadException("ChangeQueue::clear: must be called from the queue's affinity thread");
     }
-    std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-    impl_->pending.clear();
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    pending.clear();
 }
 
 // === S143: S037 value-write family (same single mutex + affinity marker) ======
@@ -142,15 +131,15 @@ void ChangeQueue::enqueue_value(std::string_view name, const Value& coerced)
     // Own the name (S037 cross-thread marshal): a wrong-thread writer can never
     // hold/intern into the owner's pool. Same queue_mutex as the notification
     // family — the relocated per-object pending mutex (ADR-018, zero new locks).
-    std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-    impl_->pendingWrites.emplace_back(std::string(name), coerced);
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    pendingWrites.emplace_back(std::string(name), coerced);
 }
 
 VAML_CORE_EXPORT
 std::size_t ChangeQueue::value_pending_count() const noexcept
 {
-    std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-    return impl_->pendingWrites.size();
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    return pendingWrites.size();
 }
 
 VAML_CORE_EXPORT
@@ -160,7 +149,7 @@ std::size_t ChangeQueue::drain_values(const ValueDrainFn& fn)
     // would mutate the affinity-owned store from the wrong thread — throw
     // (NO-LAZY). This is the S037 per-object drain guard, relocated with the
     // queue.
-    if (impl_->affinity != std::this_thread::get_id())
+    if (affinity != std::this_thread::get_id())
     {
         throw WrongThreadException("ChangeQueue::drain_values: must be called from the queue's affinity thread");
     }
@@ -168,10 +157,10 @@ std::size_t ChangeQueue::drain_values(const ValueDrainFn& fn)
     // Swap the whole value-write deque out under the lock so cross-thread
     // writers hitting during the drain land in a FRESH deque (their writes
     // drain next call), never into the one we are about to consume (S037 swap-out).
-    std::deque<Impl::ValueWrite> snapshot;
+    std::deque<ValueWrite> snapshot;
     {
-        std::lock_guard<std::mutex> lock(impl_->queue_mutex);
-        snapshot.swap(impl_->pendingWrites);
+        std::lock_guard<std::mutex> lock(queue_mutex);
+        snapshot.swap(pendingWrites);
     }
 
     // FIFO replay in enqueue order. Each drained name is RE-INTERNED on the
@@ -191,7 +180,7 @@ std::size_t ChangeQueue::drain_values(const ValueDrainFn& fn)
 VAML_CORE_EXPORT
 std::thread::id ChangeQueue::thread_affinity_id() const noexcept
 {
-    return impl_->affinity;
+    return affinity;
 }
 
 } // namespace vaml

@@ -20,4 +20,12 @@ std::string_view intern(std::string_view sv) noexcept
     return g_internStore.intern(sv);
 }
 
+// S146 ASan-gate teardown hook (see Intern.h). Releases this thread's intern
+// arena + entries so the retain-forever pool is freed at process exit and ASan
+// reports zero leaks.
+void intern_master_destroy_all() noexcept
+{
+    g_internStore.master_destroy_all();
+}
+
 } // namespace vaml

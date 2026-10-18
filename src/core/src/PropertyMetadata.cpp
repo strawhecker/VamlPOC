@@ -2,6 +2,11 @@
 // std::function under a pimpl (Impl) so the public header never exposes the
 // ABI of std::function and the metadata stays move-only by deleting copy at
 // the public boundary.
+//
+// S146 (refactor gate) — the pimpl is COLLAPSED: the three callables + default
+// + flags are now plain by-value members of PropertyMetadata (see
+// PropertyMetadata.h). No Impl heap node, no impl_-> trampoline, no per-object
+// heap hop; the metadata stays move-only (copy deleted at the public boundary).
 
 #include "vaml/core/PropertyMetadata.h"
 
@@ -9,82 +14,72 @@
 
 namespace vaml {
 
-struct PropertyMetadata::Impl
-{
-    Impl(Value def, PropertyFlags fl)
-        : defaultValue_(std::move(def))
-        , flags_(fl)
-    {
-    }
-
-    // Self-check helper: the callback is keyed to defaultValue_.type().
-    void ensureTag(ValueType actual) const
-    {
-        if (actual != defaultValue_.type())
-        {
-            throw ValueTypeMismatch("PropertyMetadata: value tag does not match the property's bound value type");
-        }
-    }
-
-    Value            defaultValue_;
-    PropertyFlags    flags_        = PropertyFlags::None;
-    CoerceFunc       coerce_;
-    ValidateFunc     validate_;
-    ChangedFunc      changed_;
-};
-
 VAML_CORE_EXPORT
 PropertyMetadata PropertyMetadata::WithDefault(Value defaultValue, PropertyFlags flags)
 {
-    return PropertyMetadata(std::make_unique<Impl>(std::move(defaultValue), flags));
+    return PropertyMetadata(std::move(defaultValue), flags);
 }
 
 VAML_CORE_EXPORT
 PropertyMetadata PropertyMetadata::with_coerce(CoerceFunc f) &&
 {
-    impl_->coerce_ = std::move(f);
-    return PropertyMetadata(std::move(impl_));
+    coerce_ = std::move(f);
+    // Return a NEW metadata carrying ALL accumulated state (default, flags, and
+    // any callbacks previously installed via an earlier builder hook).
+    PropertyMetadata out(std::move(defaultValue_), flags_);
+    out.coerce_    = std::move(coerce_);
+    out.validate_  = std::move(validate_);
+    out.changed_   = std::move(changed_);
+    return out;
 }
 
 VAML_CORE_EXPORT
 PropertyMetadata PropertyMetadata::with_validate(ValidateFunc f) &&
 {
-    impl_->validate_ = std::move(f);
-    return PropertyMetadata(std::move(impl_));
+    validate_ = std::move(f);
+    PropertyMetadata out(std::move(defaultValue_), flags_);
+    out.coerce_    = std::move(coerce_);
+    out.validate_  = std::move(validate_);
+    out.changed_   = std::move(changed_);
+    return out;
 }
 
 VAML_CORE_EXPORT
 PropertyMetadata PropertyMetadata::with_changed(ChangedFunc f) &&
 {
-    impl_->changed_ = std::move(f);
-    return PropertyMetadata(std::move(impl_));
+    changed_ = std::move(f);
+    PropertyMetadata out(std::move(defaultValue_), flags_);
+    out.coerce_    = std::move(coerce_);
+    out.validate_  = std::move(validate_);
+    out.changed_   = std::move(changed_);
+    return out;
 }
 
 VAML_CORE_EXPORT
-const Value& PropertyMetadata::defaultValue() const noexcept { return impl_->defaultValue_; }
+const Value& PropertyMetadata::defaultValue() const noexcept { return defaultValue_; }
 
 VAML_CORE_EXPORT
-PropertyFlags PropertyMetadata::flags() const noexcept { return impl_->flags_; }
+PropertyFlags PropertyMetadata::flags() const noexcept { return flags_; }
 
 VAML_CORE_EXPORT
-ValueType PropertyMetadata::boundType() const noexcept { return impl_->defaultValue_.type(); }
+ValueType PropertyMetadata::boundType() const noexcept { return defaultValue_.type(); }
 
 VAML_CORE_EXPORT
-bool PropertyMetadata::has_coerce() const noexcept { return static_cast<bool>(impl_->coerce_); }
+bool PropertyMetadata::has_coerce() const noexcept { return static_cast<bool>(coerce_); }
 
 VAML_CORE_EXPORT
-bool PropertyMetadata::has_validate() const noexcept { return static_cast<bool>(impl_->validate_); }
+bool PropertyMetadata::has_validate() const noexcept { return static_cast<bool>(validate_); }
 
 VAML_CORE_EXPORT
-bool PropertyMetadata::has_changed() const noexcept { return static_cast<bool>(impl_->changed_); }
+bool PropertyMetadata::has_changed() const noexcept { return static_cast<bool>(changed_); }
 
 VAML_CORE_EXPORT
 Value PropertyMetadata::coerce(const Value& v) const
 {
-    impl_->ensureTag(v.type());
-    if (impl_->coerce_)
+    ensureTag(v.type());
+    if (coerce_)
     {
-        return impl_->coerce_(v);
+        return coerce_(v);
     }
     return v;
 }
@@ -92,10 +87,10 @@ Value PropertyMetadata::coerce(const Value& v) const
 VAML_CORE_EXPORT
 bool PropertyMetadata::validate(const Value& v) const
 {
-    impl_->ensureTag(v.type());
-    if (impl_->validate_)
+    ensureTag(v.type());
+    if (validate_)
     {
-        return impl_->validate_(v);
+        return validate_(v);
     }
     return true;
 }
@@ -103,11 +98,11 @@ bool PropertyMetadata::validate(const Value& v) const
 VAML_CORE_EXPORT
 void PropertyMetadata::notifyChanged(const Value& oldValue, const Value& newValue) const
 {
-    impl_->ensureTag(oldValue.type());
-    impl_->ensureTag(newValue.type());
-    if (impl_->changed_)
+    ensureTag(oldValue.type());
+    ensureTag(newValue.type());
+    if (changed_)
     {
-        impl_->changed_(oldValue, newValue);
+        changed_(oldValue, newValue);
     }
 }
 
@@ -121,9 +116,20 @@ VAML_CORE_EXPORT
 PropertyMetadata::~PropertyMetadata() = default;
 
 VAML_CORE_EXPORT
-PropertyMetadata::PropertyMetadata(std::unique_ptr<Impl> impl)
-    : impl_(std::move(impl))
+PropertyMetadata::PropertyMetadata(Value defaultValue, PropertyFlags flags)
+    : defaultValue_(std::move(defaultValue))
+    , flags_(flags)
 {
+}
+
+// Self-check helper: the callback is keyed to defaultValue_.type().
+VAML_CORE_EXPORT
+void PropertyMetadata::ensureTag(ValueType actual) const
+{
+    if (actual != defaultValue_.type())
+    {
+        throw ValueTypeMismatch("PropertyMetadata: value tag does not match the property's bound value type");
+    }
 }
 
 } // namespace vaml

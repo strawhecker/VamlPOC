@@ -23,6 +23,8 @@ add_executable(vaml-core-tests
     PropertyMetadata_semantics_test.cpp
     DependencyObject_test.cpp
     DependencyObject_marshalling_test.cpp
+    HeapChurn_test.cpp
+    Asan_teardown_test.cpp
     ChangeRecorder_test.cpp
     ChangeQueue_test.cpp
     ChangeNotificationPipeline_test.cpp

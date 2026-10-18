@@ -291,7 +291,8 @@ StackPanel::StackPanel()
 
 VAML_CORE_EXPORT
 Grid::Grid()
-    : impl_(std::make_unique<Impl>())
+    : rows_{ RowDefinition{} } // one implicit Auto row
+    , cols_{ ColumnDefinition{} } // one implicit Auto column
 {
     ensure_grid_properties_registered();
 }
@@ -299,29 +300,20 @@ Grid::Grid()
 VAML_CORE_EXPORT
 Grid::~Grid() = default;
 
-// S131 Grid pimpl: the owned row/column definition vectors. A fresh Grid has
-// ONE implicit Auto row + ONE implicit Auto column (a Grid with no explicit
-// definitions still lays out a single Auto track on each axis — WPF-faithful).
-struct Grid::Impl
-{
-    std::vector<RowDefinition> rows;
-    std::vector<ColumnDefinition> cols;
-
-    Impl()
-    {
-        rows.emplace_back(); // one Auto row
-        cols.emplace_back(); // one Auto column
-    }
-};
+// S146 (refactor gate): the pimpl is COLLAPSED — the owned row/column
+// definition vectors are now plain by-value members (rows_, cols_) of Grid (see
+// Element.h). A fresh Grid has ONE implicit Auto row + ONE implicit Auto column
+// (a Grid with no explicit definitions still lays out a single Auto track on
+// each axis — WPF-faithful).
 
 VAML_CORE_EXPORT
 void Grid::set_row_definitions(std::vector<RowDefinition> rows_in)
 {
-    impl_->rows = std::move(rows_in);
+    rows_ = std::move(rows_in);
     // Empty definition list collapses to the single implicit Auto row.
-    if (impl_->rows.empty())
+    if (rows_.empty())
     {
-        impl_->rows.emplace_back();
+        rows_.emplace_back();
     }
     InvalidateMeasure();
     InvalidateArrange();
@@ -330,10 +322,10 @@ void Grid::set_row_definitions(std::vector<RowDefinition> rows_in)
 VAML_CORE_EXPORT
 void Grid::set_column_definitions(std::vector<ColumnDefinition> cols_in)
 {
-    impl_->cols = std::move(cols_in);
-    if (impl_->cols.empty())
+    cols_ = std::move(cols_in);
+    if (cols_.empty())
     {
-        impl_->cols.emplace_back();
+        cols_.emplace_back();
     }
     InvalidateMeasure();
     InvalidateArrange();
@@ -342,13 +334,13 @@ void Grid::set_column_definitions(std::vector<ColumnDefinition> cols_in)
 VAML_CORE_EXPORT
 const std::vector<RowDefinition>& Grid::row_definitions() const noexcept
 {
-    return impl_->rows;
+    return rows_;
 }
 
 VAML_CORE_EXPORT
 const std::vector<ColumnDefinition>& Grid::column_definitions() const noexcept
 {
-    return impl_->cols;
+    return cols_;
 }
 
 VAML_CORE_EXPORT
@@ -856,8 +848,8 @@ void StackPanel::ArrangeOverride(const Rect& finalSlot)
 VAML_CORE_EXPORT
 Size Grid::MeasureOverride(const Size& available) const
 {
-    const std::size_t nRows = impl_->rows.size();
-    const std::size_t nCols = impl_->cols.size();
+    const std::size_t nRows = rows_.size();
+    const std::size_t nCols = cols_.size();
 
     // First measure pass: content-based offer (unbounded width, finite height)
     // so desired extents reflect content (S123 infinity-aware).
@@ -915,7 +907,7 @@ Size Grid::MeasureOverride(const Size& available) const
     float desiredH = 0.0f;
     for (std::size_t c = 0; c < nCols; ++c)
     {
-        if (impl_->cols[c].width.unitType != GridUnitType::Star)
+        if (cols_[c].width.unitType != GridUnitType::Star)
         {
             desiredW += res.col[c];
         }
@@ -926,7 +918,7 @@ Size Grid::MeasureOverride(const Size& available) const
     }
     for (std::size_t r = 0; r < nRows; ++r)
     {
-        if (impl_->rows[r].height.unitType != GridUnitType::Star)
+        if (rows_[r].height.unitType != GridUnitType::Star)
         {
             desiredH += res.row[r];
         }
@@ -954,8 +946,8 @@ Size Grid::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 void Grid::ArrangeOverride(const Rect& finalSlot)
 {
-    const std::size_t nRows = impl_->rows.size();
-    const std::size_t nCols = impl_->cols.size();
+    const std::size_t nRows = rows_.size();
+    const std::size_t nCols = cols_.size();
 
     const GridTrackResolution res =
         resolve_grid_with_spans(*this, nRows, nCols, finalSlot.width, finalSlot.height);

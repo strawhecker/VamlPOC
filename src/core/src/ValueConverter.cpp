@@ -7,12 +7,16 @@
 // S030 MINIMAL REAL marker resolution). The converters here simply route the
 // literal into those parsers; their malformed-input throw (a
 // ValueConversionException with MalformedValue) propagates unchanged.
+//
+// S146 (refactor gate) — the pimpl (class Impl + impl_) is COLLAPSED: the
+// registry holds its vaml::detail::NameTable<ValueConverter> BY VALUE (see
+// ValueConverter.h). The delegating methods call table_ directly (no impl_->
+// trampoline, no per-object heap hop, no Impl heap node).
 
 #include "vaml/core/ValueConverter.h"
 
 #include "vaml/core/Color.h"     // parse_color
 #include "vaml/core/Thickness.h" // parse_thickness
-#include "NameTable.h"           // S144: content-keyed probe store (re-keys off unordered_map)
 
 #include <charconv>
 #include <string>
@@ -20,37 +24,8 @@
 
 namespace vaml {
 
-class ValueConverterRegistry::Impl
-{
-public:
-    // Returns true on a successful insert, false on a name collision (the
-    // existing entry is left unchanged). Content-keyed: the NameTable probes by
-    // CONTENT (string_view), no transient std::string materialized on find.
-    bool insert(std::string_view typeName, ValueConverter converter)
-    {
-        return table_.insert(std::string(typeName), std::move(converter)) != nullptr;
-    }
-
-    const ValueConverter* find(std::string_view typeName) const noexcept
-    {
-        return table_.find(typeName);
-    }
-
-    std::size_t size() const noexcept { return table_.size(); }
-
-    // Insertion order: the NameTable's rows_ is append-only, so iteration order
-    // mirrors registration order exactly and never duplicates a name. The
-    // string_views point into the NameTable's OWNED stable name storage.
-    std::vector<std::string_view> names() const { return table_.names(); }
-
-    vaml::detail::NameTable<ValueConverter> table_;
-};
-
 VAML_CORE_EXPORT
-ValueConverterRegistry::ValueConverterRegistry()
-    : impl_(std::make_unique<Impl>())
-{
-}
+ValueConverterRegistry::ValueConverterRegistry() = default;
 
 VAML_CORE_EXPORT
 ValueConverterRegistry::~ValueConverterRegistry() = default;
@@ -66,7 +41,7 @@ void ValueConverterRegistry::register_converter(std::string_view typeName, Value
 {
     // The NameTable's content insert returns nullptr on a duplicate and leaves
     // the existing entry unchanged (dedupe, S032 discipline).
-    if (!impl_->insert(typeName, std::move(converter)))
+    if (table_.insert(std::string(typeName), std::move(converter)) == nullptr)
     {
         std::string msg = "value converter already registered: '" + std::string(typeName) + "'";
         throw ValueAlreadyRegistered(msg.c_str());
@@ -76,7 +51,7 @@ void ValueConverterRegistry::register_converter(std::string_view typeName, Value
 VAML_CORE_EXPORT
 Value ValueConverterRegistry::convert(std::string_view typeName, std::string_view literal) const
 {
-    const ValueConverter* converter = impl_->find(typeName);
+    const ValueConverter* converter = table_.find(typeName);
     if (converter == nullptr)
     {
         // No converter registered for this type -> structured UnknownType error
@@ -96,15 +71,15 @@ Value ValueConverterRegistry::convert(std::string_view typeName, std::string_vie
 VAML_CORE_EXPORT
 bool ValueConverterRegistry::try_infer_type(std::string_view literal, std::string* outType) const
 {
-    // Probe registered converters in INSERTION ORDER (impl_->names() mirrors
+    // Probe registered converters in INSERTION ORDER (table_.names() mirrors
     // registration order exactly — the NameTable's append-only rows_). The
     // FIRST type whose converter accepts the literal wins. "Accepts" = runs
     // without throwing; any ValueConversionException (MalformedValue or
     // otherwise) means "this type does not recognize the literal" — keep
     // probing.
-    for (const std::string_view typeName : impl_->names())
+    for (const std::string_view typeName : table_.names())
     {
-        const ValueConverter* converter = impl_->find(typeName);
+        const ValueConverter* converter = table_.find(typeName);
         if (converter == nullptr)
         {
             continue; // defensive: the order-list never diverges from the map
@@ -129,19 +104,19 @@ bool ValueConverterRegistry::try_infer_type(std::string_view literal, std::strin
 VAML_CORE_EXPORT
 bool ValueConverterRegistry::is_registered(std::string_view typeName) const noexcept
 {
-    return impl_->find(typeName) != nullptr;
+    return table_.find(typeName) != nullptr;
 }
 
 VAML_CORE_EXPORT
 std::size_t ValueConverterRegistry::size() const noexcept
 {
-    return impl_->size();
+    return table_.size();
 }
 
 VAML_CORE_EXPORT
 std::vector<std::string_view> ValueConverterRegistry::registered_names() const
 {
-    return impl_->names();
+    return table_.names();
 }
 
 VAML_CORE_EXPORT

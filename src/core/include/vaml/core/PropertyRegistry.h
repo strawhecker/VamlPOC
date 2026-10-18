@@ -21,22 +21,29 @@
 // the compile-time PropertyId (S033) — the canonical key S036's local-value
 // store uses.
 //
-// Implementation is pimpl'd (class Impl + unique_ptr) for include-surface
-// isolation (std::unordered_map out of this public header).
+// S146 (refactor gate) — the pimpl is COLLAPSED. The registry now holds its
+// vaml::detail::NameTable<PropertyKey> content-keyed store BY VALUE (the S146
+// dead pre-retrofit surface purge: no Impl heap node, no impl_-> trampoline,
+// no per-object heap hop). NameTable.h was promoted to the public detail tree
+// (vaml/core/detail/NameTable.h) solely to make this collapse legal; it remains
+// an internal implementation detail the public API does not promise. Lookup
+// still takes std::string_view and materializes NO transient std::string. The
+// registry OWNS its key storage (the NameTable's stable key nodes, process
+// lifetime for the global registry) and keys by CONTENT — never pointer. This
+// is the S140 DECISION 1 resolution for the global dedupe master: a global /
+// cross-thread table cannot hold thread-local intern views, so it stays
+// content-keyed with self-owned stable storage. ADR-018: no lock added.
 //
-// NOTE — S143/S144 body (supersedes the ABI wording): the "keep the ABI surface
-// stable" rationale is RETRACTED (ADR-003 revised + ADR-019) — this MIT-public
-// lib is statically linked with no runtime ABI boundary to defend. The pimpl is
-// kept here ONLY for include-surface isolation until S143 (re-key onto the S140
-// token + S141 SIMD store) / S144 (relocate this registry onto the token-keyed
-// store) collapse it in place. This global register's relocation is explicitly
-// S143/S144 scope, NOT S142 (recorded on S142/S143/S144).
+// (Pre-S146 note for the record: the "keep the ABI surface stable" rationale
+// that once justified this pimpl was RETRACTED under ADR-003 generated + ADR-019
+// — this MIT-public lib is statically linked with no runtime ABI boundary to
+// defend. The pimpl is now gone entirely.)
 
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h"
+#include "vaml/core/detail/NameTable.h" // S146: promoted to public detail tree so the pimpl can collapse
 
 #include <cstddef>
-#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -103,8 +110,10 @@ public:
     [[nodiscard]] static PropertyRegistry& global() noexcept;
 
 private:
-    class Impl;                 // pimpl: include-surface isolation until S143/S144 collapse it (ADR-003)
-    std::unique_ptr<Impl> impl_;
+    // S146: pimpl collapsed — the content-keyed store is now a BY-VALUE member.
+    // NameTable is move-only (the registry is move-only; copy stays deleted).
+    // insert/find/size delegate directly (no impl_-> trampoline, no heap hop).
+    vaml::detail::NameTable<PropertyKey> table_;
 };
 
 } // namespace vaml

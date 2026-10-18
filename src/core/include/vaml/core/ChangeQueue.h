@@ -38,9 +38,11 @@
 // storage seeded it. FIFO enqueue order is preserved (a deque, not an
 // unordered_map iteration order).
 //
-// Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes no
-// std::deque / std::string / Value member — keeping the ABI surface stable and
-// move-only members out of the public declaration (mirrors S036/S037/S038).
+// S146 (refactor gate) — the pimpl is COLLAPSED: the owned item deques, the
+// single queue mutex, and the affinity marker are now plain by-value members
+// (below). The std::mutex stays IN PLACE across moves and the protected data is
+// moved under lock (standard mutex-owner practice) — so move semantics remain
+// correct with the mutex now a direct member.
 //
 // This is a REAL, complete public symbol. NOT MINIMAL REAL, NOT a STUB — it is
 // the delivered per-thread queue primitive of S041.
@@ -68,8 +70,10 @@
 #include "vaml/core/Value.h"
 
 #include <cstddef>
+#include <deque>
 #include <functional>
-#include <memory>
+#include <mutex>
+#include <string>
 #include <thread>
 
 namespace vaml {
@@ -137,8 +141,41 @@ public:
     std::size_t drain_values(const ValueDrainFn& fn);
 
 private:
-    struct Impl; // pimpl: hides std::deque + std::string + Value + std::mutex
-    std::unique_ptr<Impl> impl_;
+    // S146: pimpl collapsed — the owned item deques, the single queue mutex,
+    // and the affinity marker are now plain by-value members. This is the ONLY
+    // mutex in the project besides the S037/S041 queue mutex (which this is) —
+    // the sole kept, approved lock (ADR-018). The mutex is NOT moved (it stays
+    // in place); only the protected data is moved under lock in the move ctor.
+    //
+    // One pending NOTIFICATION (S041). `name` is an OWNED std::string copied
+    // from the PropertyId so the item outlives the registering key.
+    struct Item
+    {
+        std::string name;
+        Value       oldValue;
+        Value       newValue;
+
+        Item(std::string n, Value o, Value v)
+            : name(std::move(n)), oldValue(std::move(o)), newValue(std::move(v)) {}
+    };
+
+    // One pending VALUE WRITE (S037, relocated). `name` is OWNED (cross-thread
+    // marshal: a wrong-thread writer cannot hold a thread-local intern view).
+    struct ValueWrite
+    {
+        std::string name;
+        Value       coerced;
+
+        ValueWrite(std::string n, Value v) : name(std::move(n)), coerced(std::move(v)) {}
+    };
+
+    // TWO FIFO pending deques — one per item family — protected by the SAME
+    // queue_mutex (the ONE cross-thread datum). process()/clear() (notifications)
+    // and drain_values() (value writes) run only on the affinity thread.
+    std::deque<Item>       pending;
+    std::deque<ValueWrite> pendingWrites;
+    mutable std::mutex     queue_mutex; // const count() reads still lock the queue
+    std::thread::id        affinity = std::this_thread::get_id();
 };
 
 } // namespace vaml

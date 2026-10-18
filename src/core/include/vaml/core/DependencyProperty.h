@@ -27,22 +27,29 @@
 //     type; the local value comes from the object's per-object store. S039's
 //     resolution composes the two (see DependencyObject::GetEffectiveValue).
 //
-// Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes no
-// std::unordered_map and no move-only PropertyMetadata value (include-surface
-// isolation; matches the S034 PropertyMetadata / S036 DependencyObject pimpl
-// conventions). The "ABI surface" rationale that once accompanied these pimpls
-// is RETRACTED (ADR-003 revised + ADR-019) — this MIT-public lib is statically
-// linked with no runtime ABI boundary to defend. This pimpl is kept ONLY for
-// include-surface isolation until S143/S144 collapse it in place (relocation
-// onto the S140 token + S141 SIMD store is their body, not S142's).
+// S146 (refactor gate) — the pimpl is COLLAPSED: the definitional data
+// (owned name_, move-only PropertyMetadata metadata_, ownerTypeId_) is now
+// plain by-value members (no Impl heap node / impl_-> trampoline / per-object
+// heap hop). The companion GlobalTable (name -> unique_ptr<DependencyProperty>,
+// in DependencyProperty.cpp) keeps its S143 vaml::detail::NameTable content-
+// keyed probe (promoted to the public detail tree). The redundant `type_`
+// member was removed — metadata_.boundType() is the sole live bound-type source.
+//
+// S146 (refactor gate) — the pimpl is COLLAPSED. DependencyProperty now holds
+// its definitional data (owned name, ValueType, PropertyMetadata, ownerTypeId)
+// as plain by-value members (no Impl heap node, no impl_-> trampoline, no
+// per-object heap hop). The companion GlobalTable (static, GlobalTable.cpp / in
+// DependencyProperty.cpp) keeps dependency on vaml::detail::NameTable (promoted
+// to the public detail tree). ADR-018: no lock added.
 
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h" // PropertyKey — the (name,type,owner,flags) tuple
 #include "vaml/core/PropertyMetadata.h" // PropertyMetadata, ValueTypeMismatch
+#include "vaml/core/detail/NameTable.h" // S146: promoted to public detail tree so the pimpl can collapse
 
-#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace vaml {
 
@@ -84,11 +91,33 @@ public:
     // std::string, valid for the process lifetime).
     [[nodiscard]] const std::string& owner_type_id() const noexcept;
 
-private:
-    class Impl; // pimpl: hides std::unordered_map + PropertyMetadata
-    std::unique_ptr<Impl> impl_;
+    // Public destructor: the companion GlobalTable deletes its
+    // unique_ptr<DependencyProperty> members at process exit, so the dtor must
+    // be reachable from std::default_delete (S146 — the implicit private dtor
+    // was safe only while the pimpl kept deletion inside the type).
+    ~DependencyProperty();
 
-    explicit DependencyProperty(std::unique_ptr<Impl> impl);
+private:
+    // S146: pimpl collapsed — the definitional data is now plain by-value
+    // members (no Impl heap node, no impl_-> trampoline, no per-object heap
+    // hop). `name_` is the OWNED name (stable identity + id source);
+    // `metadata_` is the move-only PropertyMetadata definition (flags + default
+    // + callbacks + bound type — `metadata_.boundType()` is the sole live bound-
+    // type source, so no separate type_ member is kept); `ownerTypeId_` is the
+    // DECLARING class identity (attached owner A, S043).
+    std::string        name_;
+    PropertyMetadata   metadata_;
+    std::string        ownerTypeId_;
+
+    // Built ONLY through the COLLAPSED ctor below (internal; Register()'s
+    // GlobalTable stores DependencyProperty via unique_ptr). move-only (copy
+    // deleted) because metadata_ is move-only.
+    DependencyProperty(std::string name, PropertyMetadata metadata,
+                       std::string ownerTypeId);
+    DependencyProperty(DependencyProperty&&) noexcept;
+    DependencyProperty& operator=(DependencyProperty&&) noexcept;
+    DependencyProperty(const DependencyProperty&) = delete;
+    DependencyProperty& operator=(const DependencyProperty&) = delete;
 };
 
 } // namespace vaml

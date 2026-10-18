@@ -21,8 +21,6 @@
 
 #include "vaml/core/UIElement.h"
 
-#include <memory>
-
 namespace vaml {
 
 class VAML_CORE_EXPORT LayoutManager
@@ -64,8 +62,10 @@ public:
     void UpdateLayout();
 
 private:
-    struct Impl; // pimpl: hides the non-owning root pointer
-    std::unique_ptr<Impl> impl_;
+    // S146: pimpl collapsed — the non-owning root pointer is now a plain
+    // by-value member (no Impl heap node, no impl_-> trampoline). Move-only
+    // (a driver has nothing meaningful to copy).
+    UIElement* root_ = nullptr;
 };
 
 } // namespace vaml

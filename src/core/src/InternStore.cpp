@@ -1,6 +1,8 @@
 // S141 — SIMD probe store implementation (see InternStore.h for the contract).
 #include "InternStore.h"
 
+#include "HeapStats.h" // S146: steady-state heap-churn counter funnel
+
 #include <cstring>
 #include <limits>
 #include <utility>
@@ -100,6 +102,8 @@ std::string_view InternStore::intern(std::string_view sv) noexcept
         auto* blk = new Block{new char[nextCap], nextCap, 0, nullptr};
         blk->next = arena_;
         arena_ = blk;
+        // S146: arena block growth = a VAML-owned heap-churn event.
+        HeapStats::instance().record(sizeof(Block) + nextCap);
     }
     char* dst = arena_->data + arena_->used;
     if (len != 0)
@@ -127,6 +131,8 @@ std::string_view InternStore::intern(std::string_view sv) noexcept
         delete[] entries_;
         entries_ = newEntries;
         entry_capacity_ = nextCap;
+        // S146: entry-array growth = a VAML-owned heap-churn event.
+        HeapStats::instance().record(sizeof(Entry) * nextCap);
     }
 
     const std::uint32_t newIndex = static_cast<std::uint32_t>(count_);

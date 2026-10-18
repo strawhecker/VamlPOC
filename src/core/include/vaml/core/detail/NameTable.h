@@ -5,6 +5,14 @@
 // S141 SIMD-probe pattern (ADR-018 spirit: no hash, equality by CONTENT, never
 // pointer identity).
 //
+// S146 (refactor gate) — this header is PROMOTED from src/core/src/NameTable.h
+// into the PUBLIC include tree (vaml/core/detail/NameTable.h) so the retained
+// public registries can COLLAPSE their pimpl and hold a NameTable member
+// by-value (the pimpl is gone — dead pre-retrofit surface). It stays in the
+// vaml::detail namespace to signal it is an internal implementation detail that
+// the public API does not promise (included-only for the registries' storage).
+//
+//
 // WHY SELF-OWNED keys and NOT thread-local intern views (S140 DECISION 1, whose
 // body is S143): these three stores are either GLOBAL (PropertyRegistry::global,
 // DependencyProperty::GlobalTable) or cross-thread. They CANNOT hold a

@@ -456,11 +456,59 @@
                  belongs with the S14 perf-arena work — re-scheduled to S624 (the roadmap's "element pool;
                  no heap churn" home) with an explicit recorded note, NOT bolted onto S145 (which would widen
                  S145's blast radius over layout/visual-tree tests). NO MINIMAL REAL introduced/resolved.
-- S146 dep:S145  REFACTOR GATE(S3.5): remove ALL dead pre-retrofit surface (pimpl heap nodes, unordered_map/
+- S146 dep:S145  [DONE — FULLY IMPLEMENTED, BOTH CI LANES GREEN from first principles: windows-msvc
+                 (build/verify_s146.cmd, msvc-debug, warning-clean; test exe 641 test cases / 5352
+                 assertions, 0 failed, incl. new HeapChurn_test.cpp (3 cases / 31 assertions) +
+                 Asan_teardown_test.cpp) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug configure+build+
+                 ctest 1/1 PASS; 641 cases SUCCESS). ASan no-leak + steady-state heap-churn counter
+                 recorded (feeds S628).]
+                 REFACTOR GATE(S3.5): remove ALL dead pre-retrofit surface (pimpl heap nodes, unordered_map/
                  std::string-key paths, by-value children(), owned-name gotchas, parser/scanner-owned std::string
                  members); assert the public API accepts string_view or intern()-produced views everywhere — no
                  surviving ownership/dangling surface; full build + ctest green both compilers; ASan no-leak;
                  steady-state heap-churn counter recorded (feeds S628).
+                 IMPLEMENTATION: (1) pimpl heap nodes — ALL remaining pimpls COLLAPSED: ChangeQueue (item
+                 deques + the S037 mutex + affinity marker inlined), ChangeRecorder (order + byName
+                 NameTable inlined), ChangeProcessor (queue inlined), DependencyProperty
+                 (name_/type_/metadata_/ownerTypeId_ inlined), PropertyMetadata (default/flags/callbacks
+                 inlined), ElementFactoryRegistry + PropertyRegistry + ValueConverter (their NameTable
+                 probes inlined), LayoutManager (root ptr inlined), and Grid::Impl (rows_/cols_ vectors
+                 inlined). NameTable.h was PROMOTED into the public detail tree (vaml/core/detail/
+                 NameTable.h, staying in vaml::detail) solely to make the registries' collapse legal. No
+                 Impl heap node / impl_-> trampoline / per-object heap hop survives. The S142
+                 DependencyObject/UIElement pimpl was already collapsed earlier (no redo). The ChangeQueue
+                 std::mutex (the sole kept approved lock, ADR-018) is now a direct member — an unmovable
+                 mutex stays in place across the move ctor/assign; only the protected deques + affinity
+                 are moved under lock (standard mutex-owner practice). Object-pool slot RAISED to 1216
+                 (msvc-debug checked iterators inflate the inlined vectors to sizeof(Grid)==1168; the
+                 release-Linux worst case ~1040) to keep Grid poolable after the collapse. (2) owned-name
+                 gotcha — `DependencyObject::subs_` (the last retained unordered_map node) re-keyed so
+                 both `add_property_changed` and the queue drain call `vaml::intern(id.name())`; the
+                 subscriber key is now a POOL-STABLE retain-forever view, not a transient caller-owned
+                 view (subscriptions are thread-affine per S037/ADR-018 — zero locks). (3) parser/scanner
+                 owned std::string audit — `XmlScanner::stack_`/`nsStack_` and
+                 `ParseFrame::contentScratch` are INTERNAL booking buffers (nesting depth / scope mirror /
+                 frame-lifetime accumulator), NOT public semantic owned strings; documented-not-converted
+                 (interning them would be wrong — they are source-mirroring/mutable). Public `ParsedElement::
+                 content` was ALREADY string_view (S140); VamlReader's `event_names_`/`root_class_` are
+                 reader-owned S092 MINIMAL REAL seeds, not parser-owned — left as documented. By-value
+                 `children()` already out-param (S144, re-verified). (4) public-API audit — every
+                 register*/find/try_*/Get/named/names/Load entry point takes string_view + intern() views,
+                 asserted in HeapChurn_test.cpp. (5) ASan no-leak — NEW public
+                 `vaml::intern_master_destroy_all()` (mirrors object-pool master_destroy_all) +
+                 Asan_teardown_test.cpp installs an exit-time destructor hook that frees the retain-forever
+                 pools AFTER all tests (the S141/S145 thread_local destructors also free them at thread
+                 exit, so ASan is deterministic); new verify_s146_asan.cmd (both lanes). (6) steady-state
+                 heap-churn counter (feeds S628) — NEW vaml::detail::HeapStats (relaxed atomic) + public
+                 `vaml::heap_allocation_count()`/`heap_allocation_bytes()`; funneled ONLY on the
+                 VAML-owned monotonic growth paths (InternStore arena/entry growth + ObjectPool block
+                 spill), NOT global new/delete overrides (would trap doctest/download noise + collide with
+                 the host allocator). HeapChurn_test.cpp asserts repeated layout + repeated Load of an
+                 identical bounded document are FLAT (zero churn) after warmup. NO MINIMAL REAL introduced/
+                 resolved. ADR-018: ZERO new locks (subs_ still lockless thread-local; HeapStats relaxed
+                 atomic; the sole kept lock = the S143-relocated ChangeQueue mutex, now an inlined
+                 non-moved member). Test counts: 641 cases / 5352 assertions, 0 failed (msvc-debug);
+                 S146 tests = 3 cases / 31 assertions.
 - S147 dep:S146  SURVIVOR + checkpoint; re-target S160's dep to S147; record the allocator-policy ADR
                  (feeds S722) + thread-local pool note (feeds S624/S626) + reaffirm LOCK GOVERNANCE ADR-018
                  (Sprint 3.5 added zero new locks; the S143 mutex relocation is the sole kept, approved lock).

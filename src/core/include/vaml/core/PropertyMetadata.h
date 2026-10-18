@@ -38,7 +38,6 @@
 #include "vaml/core/Value.h" // Value, ValueType, ValueTypeMismatch
 
 #include <functional>
-#include <memory>
 
 namespace vaml {
 
@@ -81,7 +80,7 @@ public:
     // notifyChanged(old, new): invokes the changed cb if present, else no-op.
     void notifyChanged(const Value& oldValue, const Value& newValue) const;
 
-    // --- Move-only -----------------------------------------------------------------
+    // --- Move-only (private ctor used by the factories; copy deleted) --------
     PropertyMetadata(PropertyMetadata&&) noexcept;
     PropertyMetadata& operator=(PropertyMetadata&&) noexcept;
     PropertyMetadata(const PropertyMetadata&) = delete;
@@ -89,10 +88,20 @@ public:
     ~PropertyMetadata();
 
 private:
-    struct Impl;
+    // S146 (refactor gate): the pimpl is COLLAPSED — the callbacks + default +
+    // flags are now plain by-value members (no Impl heap node, no impl_->
+    // trampoline, no per-object heap hop). The ctor below is used by the
+    // factories (WithDefault + the &&-builder hooks); copy is deleted so the
+    // metadata stays move-only (the callbacks are std::function members).
+    PropertyMetadata(Value defaultValue, PropertyFlags flags);
 
-    explicit PropertyMetadata(std::unique_ptr<Impl> impl);
-    std::unique_ptr<Impl> impl_;
+    void ensureTag(ValueType actual) const; // callback keyed to defaultValue_.type()
+
+    Value            defaultValue_;
+    PropertyFlags    flags_        = PropertyFlags::None;
+    CoerceFunc       coerce_;
+    ValidateFunc     validate_;
+    ChangedFunc      changed_;
 };
 
 } // namespace vaml

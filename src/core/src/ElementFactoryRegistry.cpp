@@ -8,46 +8,20 @@
 // match, NO transient std::string on find). registered_names() now returns
 // string_views into the NameTable's OWNED stable name storage (no by-value
 // vector<std::string> copy — removes the owned-name gotcha). ADR-018: no lock.
+//
+// S146 (refactor gate): the pimpl (class Impl + impl_) is COLLAPSED — the
+// NameTable<ElementFactory> member is held BY VALUE in the registry (see
+// ElementFactoryRegistry.h). The delegating methods call table_ directly (no
+// impl_-> trampoline, no per-object heap hop, no Impl heap node).
 
 #include "vaml/core/ElementFactoryRegistry.h"
-
-#include "NameTable.h" // S143/S144: content-keyed probe store (re-keys off unordered_map)
 
 #include <utility>
 
 namespace vaml {
 
-class ElementFactoryRegistry::Impl
-{
-public:
-    // Returns true on a successful insert, false on a name collision (the
-    // existing entry is left unchanged). Content-keyed: the NameTable probes by
-    // CONTENT (string_view), no transient std::string materialized on find.
-    bool insert(std::string_view typeName, ElementFactory factory)
-    {
-        return table_.insert(std::string(typeName), std::move(factory)) != nullptr;
-    }
-
-    const ElementFactory* find(std::string_view typeName) const noexcept
-    {
-        return table_.find(typeName);
-    }
-
-    std::size_t size() const noexcept { return table_.size(); }
-
-    // Insertion order: the NameTable's rows_ is append-only, so iteration order
-    // mirrors registration order exactly and never duplicates a name. The
-    // string_views point into the NameTable's OWNED stable name storage.
-    std::vector<std::string_view> names() const { return table_.names(); }
-
-    vaml::detail::NameTable<ElementFactory> table_;
-};
-
 VAML_CORE_EXPORT
-ElementFactoryRegistry::ElementFactoryRegistry()
-    : impl_(std::make_unique<Impl>())
-{
-}
+ElementFactoryRegistry::ElementFactoryRegistry() = default;
 
 VAML_CORE_EXPORT
 ElementFactoryRegistry::~ElementFactoryRegistry() = default;
@@ -63,7 +37,7 @@ void ElementFactoryRegistry::register_element(std::string_view typeName, Element
 {
     // The NameTable's content insert returns nullptr on a duplicate and leaves
     // the existing entry unchanged (dedupe, S032 discipline).
-    if (!impl_->insert(typeName, std::move(factory)))
+    if (table_.insert(std::string(typeName), std::move(factory)) == nullptr)
     {
         std::string msg = "element already registered: '" + std::string(typeName) + "'";
         throw ElementAlreadyRegistered(msg.c_str());
@@ -73,7 +47,7 @@ void ElementFactoryRegistry::register_element(std::string_view typeName, Element
 VAML_CORE_EXPORT
 std::unique_ptr<DependencyObject> ElementFactoryRegistry::try_create(std::string_view typeName) const noexcept
 {
-    const ElementFactory* factory = impl_->find(typeName);
+    const ElementFactory* factory = table_.find(typeName);
     if (factory == nullptr)
     {
         return nullptr;
@@ -95,7 +69,7 @@ std::unique_ptr<DependencyObject> ElementFactoryRegistry::try_create(std::string
 VAML_CORE_EXPORT
 std::unique_ptr<DependencyObject> ElementFactoryRegistry::create(std::string_view typeName) const
 {
-    const ElementFactory* factory = impl_->find(typeName);
+    const ElementFactory* factory = table_.find(typeName);
     if (factory == nullptr)
     {
         std::string msg = "element not found: '" + std::string(typeName) + "'";
@@ -109,19 +83,19 @@ std::unique_ptr<DependencyObject> ElementFactoryRegistry::create(std::string_vie
 VAML_CORE_EXPORT
 bool ElementFactoryRegistry::is_registered(std::string_view typeName) const noexcept
 {
-    return impl_->find(typeName) != nullptr;
+    return table_.find(typeName) != nullptr;
 }
 
 VAML_CORE_EXPORT
 std::size_t ElementFactoryRegistry::size() const noexcept
 {
-    return impl_->size();
+    return table_.size();
 }
 
 VAML_CORE_EXPORT
 std::vector<std::string_view> ElementFactoryRegistry::registered_names() const
 {
-    return impl_->names();
+    return table_.names();
 }
 
 VAML_CORE_EXPORT

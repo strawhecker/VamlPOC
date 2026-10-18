@@ -50,10 +50,10 @@
 
 #include "vaml/core/Value.h"               // Value (converter result)
 #include "vaml/core/ValueConversionError.h" // ValueConversionError / ValueConversionException
+#include "vaml/core/detail/NameTable.h"     // S146: promoted to public detail tree so the pimpl can collapse
 
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -137,8 +137,11 @@ public:
     [[nodiscard]] static ValueConverterRegistry& global() noexcept;
 
 private:
-    class Impl;                 // pimpl: hides std::unordered_map + order list
-    std::unique_ptr<Impl> impl_;
+    // S146: pimpl collapsed — the content-keyed store is now a BY-VALUE member
+    // (vaml::detail::NameTable<ValueConverter>). NameTable is move-only (the
+    // registry is move-only; copy stays deleted). insert/find/size/names
+    // delegate directly (no impl_-> trampoline, no heap hop).
+    vaml::detail::NameTable<ValueConverter> table_;
 };
 
 // S089: idempotent startup registration of the four built-in converters

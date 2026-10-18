@@ -23,9 +23,10 @@
 // register_builtin_elements() (Element.h). Population is documented
 // single-threaded startup; the singleton is not a cross-thread mutation point.
 //
-// Implementation is pimpl'd (class Impl + unique_ptr) to keep std::unordered_map
-// out of this public header. ElementFactory (std::function) is the public API
-// alias the register signature requires.
+// S146 (refactor gate) — the pimpl is COLLAPSED: the registry holds its
+// vaml::detail::NameTable<ElementFactory> content-keyed store BY VALUE (no Impl
+// heap node / impl_-> trampoline). ElementFactory (std::function) is the
+// public API alias the register signature requires.
 
 // S144 (dep:S143) — the registry's internal index is re-keyed OFF
 // std::unordered_map + owned std::string keys and ONTO vaml::detail::NameTable
@@ -33,15 +34,20 @@
 // match, no transient std::string on find) — mirroring PropertyRegistry /
 // DependencyProperty::GlobalTable at S143. registered_names() returns
 // string_views into the registry's OWNED stable name storage (no by-value
-// vector<std::string>). The pimpl is KEPT for include-surface isolation only
-// (NameTable.h stays under src/core/src; same rationale as PropertyRegistry/
-// DependencyProperty at S143). ADR-018: no lock added.
+// vector<std::string>).
+//
+// S146 (refactor gate) — the pimpl is COLLAPSED. The registry now holds its
+// vaml::detail::NameTable<ElementFactory> content-keyed store BY VALUE (the
+// dead pre-retrofit surface purge: no Impl heap node, no impl_-> trampoline,
+// no per-object heap hop). NameTable.h was promoted to the public detail tree
+// (vaml/core/detail/NameTable.h) solely to make this collapse legal; it remains
+// an internal implementation detail the public API does not promise.
 
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject> factory target
+#include "vaml/core/detail/NameTable.h"  // S146: promoted to public detail tree so the pimpl can collapse
 
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -110,8 +116,11 @@ public:
     [[nodiscard]] static ElementFactoryRegistry& global() noexcept;
 
 private:
-    class Impl;                 // pimpl: hides std::unordered_map + order list
-    std::unique_ptr<Impl> impl_;
+    // S146: pimpl collapsed — the content-keyed store is now a BY-VALUE member.
+    // NameTable is move-only (the registry is move-only; copy stays deleted).
+    // insert/find/size/names delegate directly (no impl_-> trampoline, no heap
+    // hop). /* A fresh registry has an empty table (no implicit elements). */
+    vaml::detail::NameTable<ElementFactory> table_;
 };
 
 } // namespace vaml

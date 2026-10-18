@@ -1,39 +1,40 @@
 // S039 — DependencyProperty out-of-line definitions: the Register landing
 // site + global companion table + the read path. This is the authored,
 // resolved S036-re-scope global static registry surface (recorded NOT silent).
+//
+// S146 (refactor gate): the pimpl (class Impl) is COLLAPSED — DependencyProperty
+// now holds its definitional data (name_, type_, metadata_, ownerTypeId_) as
+// plain by-value members. The companion GlobalTable below (name -> unique_ptr<
+// DependencyProperty>) keeps the S143 content-keyed vaml::detail::NameTable
+// (promoted to the public detail tree, vaml/core/detail/NameTable.h).
 
 #include "vaml/core/DependencyProperty.h"
 
 #include "vaml/core/PropertyRegistry.h"
-#include "NameTable.h" // S143 (B4): content-keyed probe store for GlobalTable
+#include "vaml/core/detail/NameTable.h" // S143 (B4): content-keyed probe store for GlobalTable
 
 #include <string>
 #include <utility>
 
 namespace vaml {
 
-class DependencyProperty::Impl
-{
-public:
-    std::string        name;     // OWNED name (stable identity + id source)
-    ValueType          type;     // bound value type
-    PropertyMetadata   metadata; // flags + default + callbacks (the definition)
-    std::string        ownerTypeId; // S043: the DECLARING class's identity (attached owner A)
-
-    Impl(std::string n, ValueType t, PropertyMetadata m, std::string owner)
-        : name(std::move(n))
-        , type(t)
-        , metadata(std::move(m))
-        , ownerTypeId(std::move(owner))
-    {
-    }
-};
-
 VAML_CORE_EXPORT
-DependencyProperty::DependencyProperty(std::unique_ptr<Impl> impl)
-    : impl_(std::move(impl))
+DependencyProperty::DependencyProperty(std::string name,
+                                       PropertyMetadata metadata, std::string ownerTypeId)
+    : name_(std::move(name))
+    , metadata_(std::move(metadata))
+    , ownerTypeId_(std::move(ownerTypeId))
 {
 }
+
+VAML_CORE_EXPORT
+DependencyProperty::DependencyProperty(DependencyProperty&&) noexcept = default;
+
+VAML_CORE_EXPORT
+DependencyProperty& DependencyProperty::operator=(DependencyProperty&&) noexcept = default;
+
+VAML_CORE_EXPORT
+DependencyProperty::~DependencyProperty() = default;
 
 // The companion static table: name -> the full DependencyProperty definition.
 // Lives for the process lifetime alongside PropertyRegistry::global().
@@ -87,7 +88,7 @@ const DependencyProperty& DependencyProperty::Register(
     // dedupe above), keep the EXISTING registration (store unchanged).
     GlobalTable& table = GlobalTable::instance();
     auto owner = std::unique_ptr<DependencyProperty>(
-        new DependencyProperty(std::make_unique<Impl>(ownedName, type, std::move(metadata), std::string(ownerTypeId))));
+        new DependencyProperty(ownedName, std::move(metadata), std::string(ownerTypeId)));
     std::unique_ptr<DependencyProperty>* stored =
         table.byName.insert(ownedName, std::move(owner));
     if (stored == nullptr)
@@ -103,7 +104,7 @@ const DependencyProperty& DependencyProperty::Register(
 VAML_CORE_EXPORT
 const std::string& DependencyProperty::owner_type_id() const noexcept
 {
-    return impl_->ownerTypeId;
+    return ownerTypeId_;
 }
 
 VAML_CORE_EXPORT
@@ -133,21 +134,21 @@ const DependencyProperty& DependencyProperty::Get(std::string_view name)
 VAML_CORE_EXPORT
 PropertyId DependencyProperty::property_id() const noexcept
 {
-    // The id wraps the OWNED name as a string_view. The owner is this Impl's
-    // permanent std::string, so the view is valid for the process lifetime.
-    return PropertyId::of(impl_->name);
+    // The id wraps the OWNED name as a string_view. The owner is this object's
+    // name_ permanent std::string, so the view is valid for the process lifetime.
+    return PropertyId::of(name_);
 }
 
 VAML_CORE_EXPORT
 const PropertyMetadata& DependencyProperty::metadata() const noexcept
 {
-    return impl_->metadata;
+    return metadata_;
 }
 
 VAML_CORE_EXPORT
 PropertyFlags DependencyProperty::flags() const noexcept
 {
-    return impl_->metadata.flags();
+    return metadata_.flags();
 }
 
 } // namespace vaml

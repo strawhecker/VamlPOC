@@ -11,32 +11,26 @@
 // over the dirty subgraph leaves every visited node clean — including the
 // root, whose Measure/Arrange clear its own bits. A subsequent clean
 // UpdateLayout is a true no-op.
+//
+// S146 (refactor gate) — the pimpl is COLLAPSED: the non-owning root pointer is
+// now a plain by-value member (root_) of LayoutManager (see LayoutManager.h).
 
 #include "vaml/core/LayoutManager.h"
 
 #include "vaml/core/Geometry.h" // Size, Rect
 
-#include <memory>
-#include <utility>
-
 namespace vaml {
-
-struct LayoutManager::Impl
-{
-    UIElement* root = nullptr;
-};
 
 VAML_CORE_EXPORT
 LayoutManager::LayoutManager()
-    : impl_(std::make_unique<Impl>())
+    : root_(nullptr)
 {
 }
 
 VAML_CORE_EXPORT
 LayoutManager::LayoutManager(UIElement* root)
-    : impl_(std::make_unique<Impl>())
+    : root_(root)
 {
-    impl_->root = root;
 }
 
 VAML_CORE_EXPORT
@@ -51,19 +45,19 @@ LayoutManager& LayoutManager::operator=(LayoutManager&&) noexcept = default;
 VAML_CORE_EXPORT
 void LayoutManager::set_root(UIElement* root) noexcept
 {
-    impl_->root = root;
+    root_ = root;
 }
 
 VAML_CORE_EXPORT
 UIElement* LayoutManager::root() const noexcept
 {
-    return impl_->root;
+    return root_;
 }
 
 VAML_CORE_EXPORT
 void LayoutManager::UpdateLayout()
 {
-    UIElement* root = impl_->root;
+    UIElement* root = root_;
     if (root == nullptr)
     {
         return; // no tree bound -> nothing to drive

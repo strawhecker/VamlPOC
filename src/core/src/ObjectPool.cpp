@@ -6,6 +6,8 @@
 
 #include "ObjectPool.h"
 
+#include "HeapStats.h" // S146: steady-state heap-churn counter funnel
+
 #include <cstddef>
 #include <cstdint>
 #include <new>
@@ -68,6 +70,9 @@ void* ObjectPool::allocate()
     blocks_ = blk;
     current_ = blk;
     slotsTotal_ += blk->capacity;
+    // S146: block spill = a VAML-owned heap-churn event (steady state recycles
+    // blocks, so this only advances when the working set genuinely grows).
+    HeapStats::instance().record(sizeof(Block) + kBlockAllocBytes);
 
     std::uint8_t* slot = blk->base; // + 0
     blk->used = 1;

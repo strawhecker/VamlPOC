@@ -18,10 +18,11 @@
 //     Dole/recycle never free a block and never delete the object bytes.
 //
 // HOW THE OBJECT FITS A SLOT (the "SIMD store sized per block slot"): a slot is
-// sized to the LARGEST poolable element type (Grid, 856 B today → 896 after the
-// cache-line round-up). Because the S142 store (Store slots_[kInline]) is a
-// DependencyObject member living at a fixed offset IN the object's allocation,
-// a slot carries BOTH the object AND its inline SIMD store — no per-object heap
+// sized to the LARGEST poolable element type (Grid, 1056 B in msvc-debug → 1088
+// after the cache-line round-up; S146 pimpl-collapse grew it from 856). Because
+// the S142 store (Store slots_[kInline]) is a DependencyObject member living at
+// a fixed offset IN the object's allocation, a slot carries BOTH the object AND
+// its inline SIMD store — no per-object heap
 // hop. Only store overflow / vector growth spills (monotonic).
 //
 // RECYCLE == SLAB REUSE, NOT STATE CARRYOVER: the object's internal dynamic
@@ -39,19 +40,23 @@ class ObjectPool
 {
 public:
     // The fixed slot size: the LARGEST poolable element type across BOTH CI
-    // lanes, rounded up to a cache line. sizeof(Grid)==856 (release MSVC) /
-    // 848 (release Linux clang), but the msvc-debug lane (checked iterators,
-    // /MTd) inflates it to 952 — the slot MUST cover that worst case, so
-    // kSlotSize = align_up(952, 64) = 960. 960 % 64 == 0 (cache line) and
-    // 960 % 16 == 0 (Linux max_align_t). A slot holds the object AND its
+    // lanes, rounded up to a cache line. S146 (refactor gate) GREW the sizes:
+    // collapsing the element pimpls inlined the owned runtime state (Grid's two
+    // definition vectors, the ChangeQueue's two item deques + the S037 mutex,
+    // the ChangeRecorder's probe store + order list, the registries' NameTable
+    // probes) directly into the public types. sizeof(Grid) is now 1168 in the
+    // msvc-debug lane (/MTd checked iterators inflate the inline vectors — the
+    // WORST case; release Linux clang is ~1040) — the LARGEST poolable element —
+    // so kSlotSize = align_up(1168, 64) = 1216. 1216 % 64 == 0 (cache line) and
+    // 1216 % 16 == 0 (Linux max_align_t). A slot holds the object AND its
     // inline S142 store with no per-object heap hop.
-    static constexpr std::size_t kSlotSize = 960;
+    static constexpr std::size_t kSlotSize = 1216;
 
     // Guard: the pool doles elements of ANY type that fits; derived element
     // classes larger than this worst case would over-run a slot. The largest
-    // current element is Grid (952 in the msvc-debug lane). If a future control
-    // exceeds this, RAISE it (it is a compile-time constant, cheap to bump).
-    static constexpr std::size_t kLargestElement = 952;
+    // current element is Grid (1168 in the msvc-debug lane, the worst case). If
+    // a future control exceeds this, RAISE it (compile-time constant, cheap).
+    static constexpr std::size_t kLargestElement = 1168;
 
     ObjectPool() = default;
     ~ObjectPool();

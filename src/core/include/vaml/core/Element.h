@@ -161,9 +161,12 @@ protected:
     void ArrangeOverride(const vaml::Rect& finalSlot) override;
 
 private:
-    // Pimpl so the owned row/column definition vectors are complete here.
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    // S146 (refactor gate): the pimpl is COLLAPSED — the owned row/column
+    // definition vectors are now plain by-value members (no Impl heap node, no
+    // impl_-> trampoline). A default-constructed Grid has ONE implicit Auto row
+    // + ONE implicit Auto column (track definitions are created by the ctor).
+    std::vector<RowDefinition>     rows_;
+    std::vector<ColumnDefinition>  cols_;
 };
 
 // WrapPanel — REAL panel control (S134). Flows children along the wrap axis

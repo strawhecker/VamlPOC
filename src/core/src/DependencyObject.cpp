@@ -684,11 +684,21 @@ VAML_CORE_EXPORT
 DependencyObject::PropertyChangedToken DependencyObject::add_property_changed(
     PropertyId id, PropertyChangedHandler handler)
 {
-    // Use the canonical interned name view (thread-local, S140) and append in
-    // REGISTRATION ORDER. The token is a monotonically-increasing counter that
-    // is never reused, so an expired token can never alias a live one.
+    // S146 (refactor gate): the subscriber key is forced through vaml::intern()
+    // so the map's key is a POOL-STABLE (retain-forever, thread-affine) view,
+    // NOT a transient caller-owned view. add_property_changed accepts an
+    // arbitrary user-authored PropertyId whose backing storage the caller may
+    // own (or point into transient parser storage) — a raw id.name() view key
+    // could dangle after the caller's string dies. Interning removes the
+    // dangling-key class entirely (subscriptions are thread-affine, matching
+    // S037/ADR-018 — zero locks). Content-equal dedup is preserved (S140).
+    const std::string_view stableKey = vaml::intern(id.name());
+
+    // Append in REGISTRATION ORDER. The token is a monotonically-increasing
+    // counter that is never reused, so an expired token can never alias a live
+    // one.
     const DependencyObject::PropertyChangedToken token = next_sub_token_++;
-    subs_[id.name()].emplace_back(token, std::move(handler));
+    subs_[stableKey].emplace_back(token, std::move(handler));
     return token;
 }
 
@@ -739,10 +749,13 @@ void DependencyObject::ProcessNotificationQueue()
     }
     recorder.flush([this](PropertyId id, const Value& o, const Value& n) {
         // Fire THIS object's registration-ordered subscribers for the pushed
-        // property. The handle vector is copied before invoking so a handler
-        // that (un)subscribes mid-fire does not invalidate iteration (registration
-        // ORDER is preserved for the captured snapshot).
-        const auto it = subs_.find(id.name());
+        // property. The key is the canonical interned view (S146 — content-
+        // equal to the add_property_changed key, so the lookup hits even when
+        // the pushed id's backing storage is transient). The handle vector is
+        // copied before invoking so a handler that (un)subscribes mid-fire does
+        // not invalidate iteration (registration ORDER is preserved for the
+        // captured snapshot).
+        const auto it = subs_.find(vaml::intern(id.name()));
         if (it == subs_.end())
         {
             return; // nobody subscribed to this property

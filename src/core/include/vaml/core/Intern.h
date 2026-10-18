@@ -31,4 +31,14 @@ namespace vaml {
 // Accepts std::string via implicit string_view conversion.
 [[nodiscard]] VAML_CORE_EXPORT std::string_view intern(std::string_view sv) noexcept;
 
+// S146 (ASan-gate enabling hook): frees EVERY thread-local intern store's
+// retain-forever arena + entry array, resetting the interning state for this
+// thread (a subsequent intern() lazily rebuilds the store). Retained views
+// already handed to callers are INVALIDATED — this is an explicit TEARDOWN
+// hook, only for tests / ASan leak-checking at process exit, mirroring
+// object_pool_master_destroy_all(). It exists so the S141 thread-local pool
+// (which otherwise deliberately never frees) can be released cleanly and the
+// ASan lane reports ZERO leaks. Do NOT call it in normal application flow.
+VAML_CORE_EXPORT void intern_master_destroy_all() noexcept;
+
 } // namespace vaml

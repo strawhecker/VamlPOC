@@ -49,7 +49,7 @@
 
 #include <cstddef>
 #include <functional>
-#include <memory>
+#include <thread>
 
 namespace vaml {
 
@@ -89,8 +89,11 @@ public:
     [[nodiscard]] std::thread::id thread_affinity_id() const noexcept;
 
 private:
-    struct Impl; // pimpl: hides ChangeQueue (+ the recorder is local to process)
-    std::unique_ptr<Impl> impl_;
+    // S146: pimpl collapsed — the cross-thread postbox (ChangeQueue) is now a
+    // plain by-value member (no Impl heap node, no impl_-> trampoline). Its
+    // affinity == this processor's affinity: the constructor's creating thread
+    // becomes both the queue's and processor's affinity thread.
+    ChangeQueue queue_;
 };
 
 } // namespace vaml

@@ -39,17 +39,18 @@
 // tracked via an insertion-ordered index (vector + name-map), NOT unordered_map
 // iteration order.
 //
-// Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes no
-// std::vector / std::unordered_map and no std::function value — keeping the ABI
-// surface stable and move-only members out of the public declaration (mirrors the
-// S036/S037 DependencyObject pimpl).
+// S146 (refactor gate) — the pimpl is COLLAPSED: the insertion-ordered index
+// (`order` + the byName NameTable probe) is now public-facing plain members
+// (see the private section below), no Impl heap node / impl_-> trampoline.
 
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/Value.h"
+#include "vaml/core/detail/NameTable.h" // S146: promoted to public detail tree so the pimpl can collapse
 
 #include <cstddef>
 #include <functional>
-#include <memory>
+#include <string_view>
+#include <vector>
 
 namespace vaml {
 
@@ -92,9 +93,33 @@ public:
     // returns 0.
     void clear();
 
+public:
+    // S146 (refactor gate): the record type is now PUBLIC because the collapsed
+    // impl keeps `Pending` as a type needed by both the header member and the
+    // .cpp out-of-line definitions (it was private when a file-local Impl owned
+    // it). It is an implementation detail of the recorder, not a promised API.
+    struct Pending
+    {
+        std::string_view name;
+        Value            oldValue;
+        Value            newValue;
+    };
+
 private:
-    struct Impl; // pimpl: hides std::vector + std::unordered_map + std::function
-    std::unique_ptr<Impl> impl_;
+    // One pending notification per DISTINCT property. `name` is an INTERNED
+    // std::string_view (thread-local retain-forever pool, S140/ADR-018): the
+    // recorder is single-threaded and its per-thread interned views are stable
+    // for the thread's life, content-equal across re-interns.
+
+    // S146: pimpl collapsed. The insertion-ordered index becomes BY-VALUE
+    // members: `order` stores interned names in first-record order; `byName`
+    // (a vaml::detail::NameTable<Pending>, S141-pattern content-keyed probe
+    // store, no hash, equality by content) maps each interned view to its
+    // pending record. pending_count() == order.size() (== byName.size()).
+    // flush() swaps the table out for snapshot-then-emit. No Impl heap node, no
+    // impl_-> trampoline.
+    std::vector<std::string_view>    order;
+    vaml::detail::NameTable<Pending> byName;
 };
 
 } // namespace vaml
