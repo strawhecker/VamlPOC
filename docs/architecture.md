@@ -8,13 +8,14 @@
 
 ## 1. Goals & Non-goals
 Goals: XAML-faithful markup ("VAML"); GPU-native retained UI via Vulkan; pure C++ (latest); multi-threaded
-render; consumer-driven static-or-shared distribution for IP-hiding; no C#/managed/Python anywhere.
+render; consumer-driven static-or-shared distribution as a BUILD-MODEL OPTION (static preferred for
+determinism + LTO, not IP hiding — this lib is MIT-public); no C#/managed/Python anywhere.
 Non-goals (v1): accessibility, i18n, GPU-driven advanced batching, huge control set, XAML binary compat.
 
 ## 2. Repo layout (see also the app structure dictated by the user)
 - docs/        — ROADMAP.md (S000–S999), adr/, design/, architecture seed (this file),
                  guide/ (commercial user guide: authoring a VAML app in C++, Sprint 18, S940–S953).
-- src/         — the reusable C++ framework + tools (the IP); subfolders split libs/tools.
+- src/         — the reusable C++ framework + tools (MIT-public, no protected IP); subfolders split libs/tools.
   - core/      — vaml-core: property, markup, layout, scene, binding, style, controls, assert (no Vulkan).
   - vulkan/    — vaml-vulkan: window, swapchain, renderer backend (only layer touching Vulkan/GLFW).
   - tools/     — vamlcc (VBAML compiler), other build/dev tools.
@@ -61,10 +62,24 @@ App (VamlPOC) ─► vaml-core ─► vaml-vulkan ─► Vulkan/GLFW/VMA
 - Option B (dev tool): runtime VamlReader parses text at load.
 - Sprint 7 builds A and proves dual-path parity; release uses compiled form.
 
-## 7. Distribution / IP contract
+## 7. Distribution / build model
 - vaml-core + vaml-vulkan built per VAML_BUILD_SHARED (default static). Consumer links → single exe.
-- Implementation symbols live inside the libs; public headers expose an ABI facade. [ADR-003]
+- Static is a BUILD-MODEL PREFERENCE (no DLLs/leaks, determinism, whole-program optimization/LTO),
+  NOT IP hiding: this library is MIT-public with no IP to protect. A consumer APP may statically link
+  to compile ITS OWN IP into a single exe — an app-level concern, not this repo's. [ADR-003 — revised]
+- Public headers are the consumer's API surface; they are NOT an "ABI facade" — the static model has
+  no runtime ABI boundary to defend (consumer *is* the exe). Export machinery is build-model plumbing
+  only. [ADR-003 — revised]
 - vamlcc ships prebuilt (binary). VAML source OSS; production licensing options. [Sprint 17]
+
+## 7a. CPU/GPU line of responsibility (frame-critical)
+- CPU owns (permanent): scene graph + parent links; inheritance resolution; cascade/layout DECISIONS;
+  change coalescing; pipeline-BUILDING (flatten resolved effective state into POD arrays).
+- GPU owns (per-primitive, per-frame rendering of KNOWN structures): shaders, compute, buffers,
+  retained resources — driven only by the flat data the CPU produces.
+- The fence = the flattened pipeline buffers are the SOLE hand-off; the GPU never touches the live
+  scene graph. We do NOT use the GPU for what the CPU must do, and no future step reverses this.
+  [ADR-019]
 
 ## 8. Test/async policy
 - Tests: doctest + adapted Shouldly-style fluent asserts (ported, MSTest-decoupled). [ADR-009]

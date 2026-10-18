@@ -10,6 +10,12 @@
 // The transform-owner + layout slots are SENTINEL-ONLY (see UIElement.h) —
 // no member, no fabricated geometry type; each is resolved at its named
 // sprint (S208 / S122).
+//
+// S142 (dep:S141): the pimpl is COLLAPSED. UIElement's layout data (children,
+// desired size, final rect, dirty flags) now lives directly as inline members,
+// composing with the base DependencyObject's block-resident Store into ONE
+// block-resident unit (pimpl removed, not preserved; ADR-003 revised +
+// ADR-019). Behavior is unchanged.
 
 #include "vaml/core/UIElement.h"
 
@@ -81,30 +87,8 @@ void ensure_uielement_properties_registered()
 
 } // namespace
 
-// S121 pimpl: the owned, ordered visual children list. A parent OWNS its
-// children (unique_ptr — resolving the S091/S120 ownership-transfer note).
-// Index order is the visual/z-order (WPF-faithful ordered Children collection).
-struct UIElement::Impl
-{
-    std::vector<std::unique_ptr<UIElement>> children;
-
-    // S122 layout-slot membership (RESOLVED): DesiredSize (S123 writes) +
-    // final rect (S124 writes), read via desired_size()/final_rect().
-    vaml::Size desiredSize;
-    vaml::Rect finalRect;
-
-    // S126 layout-dirty flags. A fresh element is dirty on BOTH axes (never
-    // laid out). InvalidateMeasure/InvalidateArrange set + propagate them; the
-    // S126 LayoutManager gates its Measure/Arrange passes on the root's bits,
-    // and panels clear their dirty children's bits during the passes — so one
-    // UpdateLayout leaves a fully clean tree.
-    bool measureDirty  = true;
-    bool arrangeDirty = true;
-};
-
 VAML_CORE_EXPORT
 UIElement::UIElement()
-    : impl_(std::make_unique<Impl>())
 {
     ensure_uielement_properties_registered();
 }
@@ -141,13 +125,13 @@ double UIElement::opacity() const
 VAML_CORE_EXPORT
 const vaml::Size& UIElement::desired_size() const noexcept
 {
-    return impl_->desiredSize;
+    return desired_size_;
 }
 
 VAML_CORE_EXPORT
 const vaml::Rect& UIElement::final_rect() const noexcept
 {
-    return impl_->finalRect;
+    return final_rect_;
 }
 
 VAML_CORE_EXPORT
@@ -228,7 +212,7 @@ void UIElement::Measure(const Size& available)
 
     d.width += m.left + m.right;
     d.height += m.top + m.bottom;
-    impl_->desiredSize = {
+    desired_size_ = {
         std::max(0.0f, std::min(d.width, available.width)),
         std::max(0.0f, std::min(d.height, available.height)),
     };
@@ -237,7 +221,7 @@ void UIElement::Measure(const Size& available)
     // it no longer needs measuring. The LayoutManager gates its pass on the
     // root's bit; panels re-measure only dirty children, each of which clears
     // its own bit here, so one pass over a dirty subgraph leaves it clean.
-    impl_->measureDirty = false;
+    measure_dirty_ = false;
 }
 
 // --- S124 Arrange contract --------------------------------------------------
@@ -273,14 +257,14 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     // ArrangeOverride -> children arranged). This removes the S125/S126 manual
     // arrange-call pattern; the arrange-subgraph auto-drive completes here.
     const LayoutSlot slot{ arrangeSlot };
-    impl_->finalRect = vaml::compute_final_rect(
+    final_rect_ = vaml::compute_final_rect(
         slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
     // A completed Arrange pass clears this element's arrange-dirty flag (S126),
     // mirroring Measure's clear of the measure bit.
-    impl_->arrangeDirty = false;
+    arrange_dirty_ = false;
     // S127: hand the element its final render slot so a panel arranges its
     // children into it (the arrange-subgraph auto-drive).
-    ArrangeOverride(impl_->finalRect);
+    ArrangeOverride(final_rect_);
 }
 
 // --- S126 layout invalidation ------------------------------------------------
@@ -290,11 +274,11 @@ void UIElement::InvalidateMeasure()
 {
     // Short-circuit: an already-measure-dirty element needs no re-walk (the
     // whole chain above it is already dirty from when it was first dirtied).
-    if (impl_->measureDirty)
+    if (measure_dirty_)
     {
         return;
     }
-    impl_->measureDirty = true;
+    measure_dirty_ = true;
     // Propagate to the root: a parent's DesiredSize derives from its children,
     // so a child invalidation dirties every ancestor's measure pass. Walk the
     // S039/S041 parent link; stop at the root (parent() == nullptr). Each
@@ -310,13 +294,13 @@ void UIElement::InvalidateMeasure()
             // nothing to mark above it — stop.
             break;
         }
-        if (ue->impl_->measureDirty)
+        if (ue->measure_dirty_)
         {
             // Already dirty: the chain above this ancestor is already dirty
             // from an earlier invalidation — no need to keep walking.
             break;
         }
-        ue->impl_->measureDirty = true;
+        ue->measure_dirty_ = true;
     }
 }
 
@@ -324,11 +308,11 @@ VAML_CORE_EXPORT
 void UIElement::InvalidateArrange()
 {
     // Mirror of InvalidateMeasure on the arrange axis.
-    if (impl_->arrangeDirty)
+    if (arrange_dirty_)
     {
         return;
     }
-    impl_->arrangeDirty = true;
+    arrange_dirty_ = true;
     for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
     {
         auto* ue = dynamic_cast<UIElement*>(p);
@@ -336,30 +320,30 @@ void UIElement::InvalidateArrange()
         {
             break;
         }
-        if (ue->impl_->arrangeDirty)
+        if (ue->arrange_dirty_)
         {
             break;
         }
-        ue->impl_->arrangeDirty = true;
+        ue->arrange_dirty_ = true;
     }
 }
 
 VAML_CORE_EXPORT
 bool UIElement::is_measure_dirty() const noexcept
 {
-    return impl_->measureDirty;
+    return measure_dirty_;
 }
 
 VAML_CORE_EXPORT
 bool UIElement::is_arrange_dirty() const noexcept
 {
-    return impl_->arrangeDirty;
+    return arrange_dirty_;
 }
 
 VAML_CORE_EXPORT
 bool UIElement::is_layout_dirty() const noexcept
 {
-    return impl_->measureDirty || impl_->arrangeDirty;
+    return measure_dirty_ || arrange_dirty_;
 }
 
 // --- S121 visual children ---------------------------------------------------
@@ -386,7 +370,7 @@ void UIElement::attach_child(std::unique_ptr<UIElement> child)
     // the visual child. Order: install the parent link BEFORE owning, so the
     // inherited-Opacity read inside any observer sees a coherent tree.
     raw->set_parent(this);
-    impl_->children.push_back(std::move(child));
+    children_.push_back(std::move(child));
 }
 
 VAML_CORE_EXPORT
@@ -398,59 +382,59 @@ void UIElement::add_child(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 std::size_t UIElement::remove_child(std::size_t index)
 {
-    if (index >= impl_->children.size())
+    if (index >= children_.size())
     {
         throw std::out_of_range("UIElement::remove_child: index out of range");
     }
-    auto it = impl_->children.begin() + static_cast<std::ptrdiff_t>(index);
+    auto it = children_.begin() + static_cast<std::ptrdiff_t>(index);
     UIElement* child = it->get();
     // Unwind the S041 inheritance-scope edge + parent link BEFORE destroying so
     // no dangling scope edge survives the removal (NO-LAZY).
     child->set_parent(nullptr);
-    impl_->children.erase(it); // destroys the owned child
-    return impl_->children.size();
+    children_.erase(it); // destroys the owned child
+    return children_.size();
 }
 
 VAML_CORE_EXPORT
 std::unique_ptr<UIElement> UIElement::take_child(std::size_t index)
 {
-    if (index >= impl_->children.size())
+    if (index >= children_.size())
     {
         throw std::out_of_range("UIElement::take_child: index out of range");
     }
-    auto it = impl_->children.begin() + static_cast<std::ptrdiff_t>(index);
+    auto it = children_.begin() + static_cast<std::ptrdiff_t>(index);
     UIElement* child = it->get();
     // Unwind the parent link + inheritance-scope edge BEFORE transferring so the
     // detached child is fully cut from this parent (its OWN children keep their
     // sub-tree intact).
     child->set_parent(nullptr);
     std::unique_ptr<UIElement> detached = std::move(*it);
-    impl_->children.erase(it);
+    children_.erase(it);
     return detached;
 }
 
 VAML_CORE_EXPORT
 std::size_t UIElement::child_count() const noexcept
 {
-    return impl_->children.size();
+    return children_.size();
 }
 
 VAML_CORE_EXPORT
 UIElement* UIElement::child_at(std::size_t index) const noexcept
 {
-    if (index >= impl_->children.size())
+    if (index >= children_.size())
     {
         return nullptr;
     }
-    return impl_->children[index].get();
+    return children_[index].get();
 }
 
 VAML_CORE_EXPORT
 const std::vector<UIElement*> UIElement::children() const noexcept
 {
     std::vector<UIElement*> raw;
-    raw.reserve(impl_->children.size());
-    for (const auto& c : impl_->children)
+    raw.reserve(children_.size());
+    for (const auto& c : children_)
     {
         raw.push_back(c.get());
     }
@@ -467,7 +451,7 @@ void UIElement::walk(const std::function<void(UIElement&)>& visitor) const
     {
         visitor(const_cast<UIElement&>(*this));
     }
-    for (const auto& c : impl_->children)
+    for (const auto& c : children_)
     {
         c->walk(visitor);
     }

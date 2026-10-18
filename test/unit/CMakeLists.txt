@@ -9,6 +9,7 @@
 add_executable(vaml-core-tests
     smoke_test.cpp
     shouldly_test.cpp
+    BlockResidentStore_test.cpp
     Intern_test.cpp
     InternStore_test.cpp
     Value_test.cpp

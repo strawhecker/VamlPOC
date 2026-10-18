@@ -89,7 +89,17 @@
 // Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes
 // no std::unordered_map / no PropertyMetadata value — keeping the ABI surface
 // stable and move-only members out of the public declaration.
+//
+// NOTE — S142 (supersedes): this pimpl rationale is RETRACTED. This MIT-public
+// lib is statically linked (ADR-003 revised): there is NO runtime ABI boundary
+// to defend (the consumer *is* the exe). The pimpl now only costs a
+// ~100%-of-access `impl_->` trampoline + a per-object heap hop on the CPU
+// Get/Set/cascade path — the exact cost the CPU/GPU line (ADR-019) says to
+// remove. S142 collapses this pimpl + store into one block-resident,
+// inline-started unit (pimpl removed, not preserved). This comment is a RECORD
+// of the superseded rationale.
 
+#include "vaml/core/ChangeQueue.h"      // S041 per-object notification queue (inline member)
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h"
 #include "vaml/core/PropertyMetadata.h" // PropertyMetadata, ValueTypeMismatch
@@ -97,10 +107,14 @@
 #include "vaml/core/Value.h"            // Value (subscriber signature + pushed values)
 
 #include <cstddef>
+#include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
+#include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -158,8 +172,9 @@ public:
 
     // Installs `metadata` (and its defaultValue) for the property named by
     // `key`, keyed by PropertyId(key.name()). Returns a const reference to the
-    // STORED key (valid for this object's lifetime; unordered_map preserves
-    // element references across later insertions/rehashes).
+    // STORED key (valid for this object's lifetime; the owned stable key node
+    // is a separate heap allocation that S142 preserves deliberately so store
+    // growth/relocation never invalidates the returned reference).
     //
     //   - name dedupe: registering the same NAME twice throws
     //     PropertyAlreadyRegistered and leaves the store unchanged;
@@ -293,11 +308,122 @@ public:
     [[nodiscard]] std::size_t pending_notification_count() const noexcept;
 
 private:
+    // -- ONE block-resident property-record type (no common/root) -------
+    // A single flat PD holds BOTH metadata modes (S043):
+    //   - OWNED   (`owned` non-null): object-scoped register_property() — the
+    //     move-only PropertyMetadata is heap-owned (never copied) and addressed
+    //     by pointer, so PD relocation never invalidates it.
+    //   - BORROWED (`borrowed` non-null): an attached/global descriptor —
+    //     NON-OWNING pointer to the process-lifetime global DependencyProperty's
+    //     metadata. Safe (never dangles).
+    // md() returns whichever is active (exactly one set for a live entry).
+    struct PD
+    {
+        std::string_view         name;       // interned canonical key (S140, content-equal)
+        Value                    local = Value::Null(); // Value::Null == no local override
+        PropertyMetadata*        owned  = nullptr; // object-scoped owned metadata (heap-stable)
+        const PropertyMetadata*  borrowed = nullptr; // attached/global borrowed metadata
+        PropertyKey*             stableKey = nullptr; // stable heap key copy (register_property returned ref)
+
+        // Returns whichever provider is active (exactly one for a live entry).
+        const PropertyMetadata& md() const noexcept { return owned != nullptr ? *owned : *borrowed; }
+    };
+
+    // -- S037: a queued wrong-thread write (OWNED name + coerced/validated value).
+    struct PendingWrite
+    {
+        std::string name;
+        Value       coerced;
+        PendingWrite(std::string n, Value v) : name(std::move(n)), coerced(std::move(v)) {}
+    };
+
+    // -- S142 block-resident store: inline-started, heap-grown on demand. -----
+    // Lives at a fixed offset in the same allocation as the object (NO per-object
+    // heap hop). Typical objects (0..kInline-1 stored props) touch zero heap; only
+    // when count_ exceeds kInline is an append-only overflow array allocated (and
+    // never shrunk). Lookup is a small linear scan (per-object props are few) by
+    // the interned NAME — cache-friendly and insertion-ordered. See S142.
+    class Store
+    {
+    public:
+        static constexpr std::size_t kInline = 8;
+
+        Store() = default;
+        ~Store();
+        Store(const Store&) = delete;
+        Store& operator=(const Store&) = delete;
+        Store(Store&& other) noexcept;
+        Store& operator=(Store&& other) noexcept;
+
+        [[nodiscard]] std::size_t size() const noexcept { return count_; }
+        [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
+
+        // Linear scan over inline-then-overflow by interned name (content-equal).
+        [[nodiscard]] PD* find(std::string_view name) noexcept
+        {
+            const std::size_t inlineN = (count_ < kInline) ? count_ : kInline;
+            for (std::size_t i = 0; i < inlineN; ++i)
+            {
+                if (slots_[i].name == name)
+                {
+                    return &slots_[i];
+                }
+            }
+            if (count_ > kInline)
+            {
+                for (std::size_t i = 0; i < count_ - kInline; ++i)
+                {
+                    if (overflow_[i].name == name)
+                    {
+                        return &overflow_[i];
+                    }
+                }
+            }
+            return nullptr;
+        }
+        [[nodiscard]] const PD* find(std::string_view name) const noexcept
+        {
+            const std::size_t inlineN = (count_ < kInline) ? count_ : kInline;
+            for (std::size_t i = 0; i < inlineN; ++i)
+            {
+                if (slots_[i].name == name)
+                {
+                    return &slots_[i];
+                }
+            }
+            if (count_ > kInline)
+            {
+                for (std::size_t i = 0; i < count_ - kInline; ++i)
+                {
+                    if (overflow_[i].name == name)
+                    {
+                        return &overflow_[i];
+                    }
+                }
+            }
+            return nullptr;
+        }
+
+        // Appends `pd` (which must not already be present) and returns the stored
+        // PD. Grows onto the heap overflow array only when count_ >= kInline.
+        PD* emplace(PD pd);
+
+    private:
+        // Frees the two OWNED heap nodes of a live PD slot (owned + stableKey).
+        // Never touches `borrowed` (non-owning). Safe on a default (all-null) PD.
+        static void release_slot(PD& pd) noexcept;
+
+        PD          slots_[kInline];
+        std::size_t count_    = 0;
+        PD*         overflow_ = nullptr;
+        std::size_t overflowCap_ = 0;
+    };
+
     // S039 tolerant ancestor walk: returns the NEAREST ancestor of `self` with a
     // non-null LOCAL override for `name`, else Value::Null. Never throws (an
     // ancestor that does not register the property, or has no local, contributes
-    // nothing). A same-class member so it may read the pimpl of any instance on
-    // the parent chain.
+    // nothing). A same-class member so it may read the private store of any
+    // instance on the parent chain.
     static Value nearest_ancestor_local(const DependencyObject& self, std::string_view name);
 
     // S041 §2.4 descendant push, driven by S039's pull model so each descendant
@@ -340,8 +466,32 @@ private:
         std::vector<std::pair<DependencyObject*, Value>>& out,
         bool captureAttachedInherits) const;
 
-    struct Impl; // pimpl: hides std::unordered_map + PropertyMetadata
-    std::unique_ptr<Impl> impl_;
+    // ------------------------------------------------------------------
+    // ONE block-resident unit: the per-object store + all inline state live
+    // directly in the object's allocation (no per-object heap hop). S142
+    // collapsed the pimpl here (pimpl removed, not preserved; ADR-003/ADR-019).
+    // ------------------------------------------------------------------
+    Store                 store_;            // block-resident property store (inline + overflow)
+    std::thread::id       affinity_ = std::this_thread::get_id();
+    DependencyObject*     parent_ = nullptr; // S039 loose non-owning parent link
+
+    // S041 §2.3 registration-ordered subscribers (keyed by interned name).
+    std::unordered_map<std::string_view,
+        std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>>> subs_;
+    PropertyChangedToken  next_sub_token_ = 1;
+
+    // S041 descendant push: the object's OWN per-thread notification queue.
+    ChangeQueue           notification_queue_;
+
+    // S041 §2.4 non-owning inheritance-scope (the inverse edge of parent_).
+    std::vector<DependencyObject*> inheritance_scope_;
+
+    // S037: the ONE genuinely cross-thread datum (mutex-protected).
+    // queue_mutex_ is `mutable` so the const observer pending_change_count()
+    // can lock it (previously the mutex lived behind a pointer pimpl and was
+    // reachable through a const `impl_`; as a direct member it must be mutable).
+    std::deque<PendingWrite> pending_;
+    mutable std::mutex       queue_mutex_;
 };
 
 } // namespace vaml

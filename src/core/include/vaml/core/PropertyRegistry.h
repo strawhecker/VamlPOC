@@ -21,8 +21,16 @@
 // the compile-time PropertyId (S033) — the canonical key S036's local-value
 // store uses.
 //
-// Implementation is pimpl'd (class Impl + unique_ptr) to keep the ABI surface
-// stable and std::unordered_map out of this public header.
+// Implementation is pimpl'd (class Impl + unique_ptr) for include-surface
+// isolation (std::unordered_map out of this public header).
+//
+// NOTE — S143/S144 body (supersedes the ABI wording): the "keep the ABI surface
+// stable" rationale is RETRACTED (ADR-003 revised + ADR-019) — this MIT-public
+// lib is statically linked with no runtime ABI boundary to defend. The pimpl is
+// kept here ONLY for include-surface isolation until S143 (re-key onto the S140
+// token + S141 SIMD store) / S144 (relocate this registry onto the token-keyed
+// store) collapse it in place. This global register's relocation is explicitly
+// S143/S144 scope, NOT S142 (recorded on S142/S143/S144).
 
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h"
@@ -95,7 +103,7 @@ public:
     [[nodiscard]] static PropertyRegistry& global() noexcept;
 
 private:
-    class Impl;                 // pimpl: hides std::unordered_map
+    class Impl;                 // pimpl: include-surface isolation until S143/S144 collapse it (ADR-003)
     std::unique_ptr<Impl> impl_;
 };
 

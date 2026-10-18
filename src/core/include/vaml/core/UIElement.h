@@ -312,8 +312,17 @@ public:
 private:
     void attach_child(std::unique_ptr<UIElement> child);
 
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    // ------------------------------------------------------------------
+    // S142: the pimpl is COLLAPSED into one block-resident unit with the base's
+    // Store — UIElement's layout data composes with DependencyObject's inline
+    // store as subobjects of the SAME allocation (no per-object heap hop for
+    // the layout state either). pimpl removed, not preserved (ADR-003/ADR-019).
+    // ------------------------------------------------------------------
+    std::vector<std::unique_ptr<UIElement>> children_;      // S121 owned, ordered visual children
+    vaml::Size desired_size_   = {};                        // S122/S123 DesiredSize (Measure writes)
+    vaml::Rect final_rect_     = {};                        // S122/S124 final rect (Arrange writes)
+    bool       measure_dirty_  = true;                      // S126 layout-dirty flag (measure axis)
+    bool       arrange_dirty_  = true;                      // S126 layout-dirty flag (arrange axis)
 };
 
 } // namespace vaml

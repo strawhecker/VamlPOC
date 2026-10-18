@@ -261,6 +261,12 @@
 > pointer-identity / global-lock framing is REJECTED (ADR-018).
 > Retrofit rule agreed: past steps are REWRITTEN in place to the intended end-state (no deadwood, no
 > "historical record" preservation); SOLID/release discipline (freeze + annotate) begins only at first release.
+> RATIONALE CORRECTION (ADR-003 revised + ADR-019): the pimpl's original "ABI / IP-hiding / closed ABI
+> surface" justification is a LEFTOVER from a shared/DLL distribution model — this MIT-public lib is
+> statically linked with no runtime ABI boundary to defend (see architecture §7, artifact-model.cmake,
+> DependencyObject.h — all revised in place). The pimpl survives only as a speed liability; S142 collapses
+> it (pimpl removed, not preserved) for SPEED (trampoline + per-object heap hop on the CPU Get/Set/cascade
+> path), which the CPU/GPU line (ADR-019) requires.
 >
 > Store contract (agreed spec): non-owning `string_view` key, UTF-8 canonical, pure C++. Insertion-ordered
 > append-only array; SIMD-probe on 32-byte groups (AVX2, no AVX-512) of 8-bit search bytes; empty marker 0xFF;
@@ -311,8 +317,10 @@
                  the lookup path + the parser's owned-string churn; PropertyRegistry/DependencyProperty::GlobalTable
                  global registries stay owned std::string here — cross-thread, cannot hold thread-local intern
                  views — their relocation onto the SIMD store is S143/S144's body (DECISION 1, recorded not
-                 silent); pimpl rationale kept (ABI + unordered_map-out-of-header), per-object pimpl churn is
-                 S145's scope not S140.]
+                 silent); pimpl rationale kept at S140 but SUPERSEDED by S142 (the pimpl + per-object store
+                 are collapsed into a block-resident unit there; "pimpl removed, not preserved"); the "ABI"
+                 wording is a leftover from a shared/DLL distribution model, not a live constraint in this
+                 static MIT-public lib (ADR-003 revised); per-object pimpl churn is S145's scope not S140.]
 - S140_1 dep:S141  [DONE — implemented (vaml/core/Intern.h + src/Intern.cpp, thread_local store binding); BOTH CI
                  Author the PUBLIC retained-string primitive `vaml::intern(string_view) -> string_view` — the
                  intern pool's public face (accepts std::string via implicit view conversion too): SIMD-probe BY
@@ -339,10 +347,29 @@
                  mechanism in place; removes unordered_map.] The store's PUBLIC face is authored at S140_1:
                  intern() = probe→hit/miss→retain+insert. One mechanism, two consumers (internal identity + public
                  intern()).
-- S142 dep:S141  Collapse DependencyObject/UIElement pimpl + store into ONE block-resident unit (object
+- S142 dep:S141  [DONE — FULLY IMPLEMENTED, BOTH CI LANES GREEN from first principles: windows-msvc
+                 (build/verify_s142.cmd, msvc-debug, warning-clean; test exe 619 test cases / 4735
+                 assertions pass / 0 failed, incl. new BlockResidentStore_test.cpp) + ubuntu-clang
+                 (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS). ADR-018: ZERO new locks.]
+                 Collapse DependencyObject/UIElement pimpl + store into ONE block-resident unit (object
                  header → block-slot offset, no per-object heap hop); single PD type (no common/root), store
                  inline-started in the slot, heap-grown on demand. [Rewrites S036/S037/S039/S120 in place;
-                 pimpl removed, not preserved.]
+                 pimpl removed, not preserved. Rationale re-grounded on SPEED, not ABI (ADR-003 revised +
+                 ADR-019): eliminates the ~100%-of-access `impl_->` trampoline + per-object heap hop on the
+                 CPU change/cascade path — the pimpl's original header/ABI-isolation rationale is superseded
+                 (this static MIT-public lib has no runtime ABI boundary to defend); the block-resident store
+                 is the CPU-side optimization the CPU/GPU line (ADR-019) requires. IMPLEMENTATION: removed
+                 `struct Impl; unique_ptr<Impl> impl_;` from both DependencyObject + UIElement; Store{PD
+                 slots_[kInline=8], count_, append-only overflow_} block-resident (no heap hop; inline-started,
+                 heap-grown on demand); single PD type (owned + borrowed metadata coexist); stableKey heap
+                 node keeps register_property's returned `const PropertyKey&` valid across overflow growth;
+                 custom move (queue_mutex_ now a direct std::mutex — non-movable); ChangeQueue.h include-
+                 cycle broken (no longer includes DependencyObject.h, which now holds a ChangeQueue by value);
+                 UIElement layout data (children_/desired_size_/final_rect_/dirty flags) embedded inline;
+                 BlockResidentStore_test.cpp proves inline path/overflow growth/stable-key/move/single-PD/
+                 collapsed-unit on the real S035 pipeline. NO-GAP: pending-mutex relocation + registry re-key
+                 onto S140 token + S141 store = S143; registry accessor/signature migration = S144; block pool
+                 for object allocation + children slab = S145.]
 - S143 dep:S142  Relocate the per-object pending mutex out of DependencyObject into the thread-affine
                  ChangeQueue; re-key ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty
                  GlobalTable onto the S140 token + S141 store. [Rewrites S037/S041/S038 in place; change
@@ -600,7 +627,9 @@
 ---
 ## Sprint 17 — Release readiness + production roadmap  (goal: v1 control set + release)  [token S920+]
 - S920 dep:S828  Documented v1 control set + API stabilization pass.
-- S921 dep:S920  Public headers/export facade audit (IP behind libs) [ADR-003].
+- S921 dep:S920  Public headers/export-surface audit (API surface clean; export machinery is build-model
+                 plumbing only, NOT IP hiding — market: public OSS headers + consumer app's own IP compiled
+                 into a single exe via static link) [ADR-003 revised].
 - S922 dep:S921  Licensing + dual-license docs (OSS / prod options).
 - S923 dep:S922  Sample gallery + tutorial VAML docs.
 - S924 dep:S923  Full end-to-end release pipeline (tag → build both CI → package → notes).

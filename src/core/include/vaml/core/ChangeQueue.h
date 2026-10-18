@@ -42,7 +42,13 @@
 // This is a REAL, complete public symbol. NOT MINIMAL REAL, NOT a STUB — it is
 // the delivered per-thread queue primitive of S041.
 
-#include "vaml/core/DependencyObject.h" // WrongThreadException (affinity-thread contract)
+// NOTE (S142): this header intentionally does NOT include DependencyObject.h.
+// DependencyObject now holds a ChangeQueue BY VALUE, so including DependencyObject.h
+// here would create a mutual include cycle (DependencyObject.h -> ChangeQueue.h ->
+// DependencyObject.h) that leaves ChangeQueue incomplete where DependencyObject
+// needs it. WrongThreadException (from DependencyObject.h) is used only in
+// ChangeQueue.cpp, which includes DependencyObject.h itself — so the cycle is
+// safely broken at this include.
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/Value.h"
 

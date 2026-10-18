@@ -28,8 +28,13 @@
 //     resolution composes the two (see DependencyObject::GetEffectiveValue).
 //
 // Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes no
-// std::unordered_map and no move-only PropertyMetadata value (matches the
-// S034 PropertyMetadata / S036 DependencyObject pimpl conventions).
+// std::unordered_map and no move-only PropertyMetadata value (include-surface
+// isolation; matches the S034 PropertyMetadata / S036 DependencyObject pimpl
+// conventions). The "ABI surface" rationale that once accompanied these pimpls
+// is RETRACTED (ADR-003 revised + ADR-019) — this MIT-public lib is statically
+// linked with no runtime ABI boundary to defend. This pimpl is kept ONLY for
+// include-surface isolation until S143/S144 collapse it in place (relocation
+// onto the S140 token + S141 SIMD store is their body, not S142's).
 
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h" // PropertyKey — the (name,type,owner,flags) tuple

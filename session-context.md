@@ -1,11 +1,54 @@
 # VAML — SESSION-CONTEXT (per-run state)
 
-- last_command    : **S140 FULLY COMPLETE** (S140 + S140_1 + S141 done, both halves; the S140_2 split was
+- last_command    : **S142 FULLY COMPLETE — BOTH CI LANES GREEN** (collapse DependencyObject/UIElement
+                    pimpl + per-object unordered_map store into ONE block-resident unit; pimpl removed,
+                    not preserved; single PD type, no common/root; store inline-started in the slot,
+                    heap-grown on demand). DependencyObject/UIElement pimpl REMOVED — the store + all
+                    inline state live directly in the object's allocation (Store{PD slots_[kInline=8],
+                    count, append-only overflow} block-resident, no per-object heap hop, no ~100%-
+                    of-access `impl_->` trampoline); single PD type (owned + borrowed metadata coexist);
+                    custom move (queue_mutex_ is now a DIRECT std::mutex -> non-movable -> manual move
+                    ctor/assign); ChangeQueue include-cycle broken (ChangeQueue.h no longer includes
+                    DependencyObject.h, which now holds a ChangeQueue by value). UIElement layout data
+                    (children_/desired_size_/final_rect_/measure&arrange dirty) embedded inline. NEW
+                    test/unit/BlockResidentStore_test.cpp (inline path, overflow growth, stable-key-
+                    across-growth, move, single-PD coexist, UIElement collapsed-unit layout) proving the
+                    S142 properties on the real S035 pipeline. Proper ownership: release_slot frees owned
+                    PropertyMetadata* + stableKey PropertyKey* (borrowed never). ABOVE NOTE/RETRACTED
+                    rationale recorded (ADR-003 revised + ADR-019). Verify: build/verify_s142.cmd
+                    (windows-msvc msvc-debug: 619 test cases / 4735 assertions pass, 0 failed) +
+                    ubuntu-clang clang-debug from /mnt/hgfs/VamlPOC (ctest 1/1 PASS). No commits.
+                    (Prior — **ARCHITECTURAL CODIFICATION (pre-S142, docs-only)** — rewrote ADR-003 (removed
+                    IP/ABI-hiding framing; static = build-model preference + LTO, this MIT-public lib has
+                    no IP), added **ADR-019** (CPU/GPU line of responsibility: CPU owns scene graph/
+                    inheritance/cascade decisions/coalescing/pipeline-building; GPU owns per-frame render
+                    of known structures; fence = flattened pipeline buffers only; GPU never touches live
+                    scene graph; no future step reverses it), rewrote architecture §7 + added §7a, and
+                    revised EVERY ABI/IP-hiding comment site to "superseded/build-model plumbing only":
+                    artifact-model.cmake (header + option comment + export comment + STATUS message),
+                    roadmap (S140 tail, S142 rationale re-grounded on SPEED not ABI, Sprint 3.5 RATIONALE
+                    correction note, S921), DependencyObject.h (storage-pimpl comment + register_property
+                    unordered_map-reference doc), PropertyRegistry.h + DependencyProperty.h (the two
+                    GLOBAL-REGISTER pimpl comments — ABI wording retracted, kept ONLY for include-surface
+                    isolation until S143/S144 collapse them; removal is S143/S144 scope, NOT S142),
+                    progress.md (header Distribution + S032/S034 pimpl-ABI strings). NO S142 implementation.
+                    NO build ran. No commits.
+                    (Prior — **S140 FULLY COMPLETE** + GREEN both lanes; the S140_2 split was
                     merged back — tree-text finished within S140) + **GREEN ON BOTH CI LANES**
                     (windows-msvc 613 tests/4661 asserts via build/verify_s140.cmd; ubuntu-clang
                     clang-debug 1/1 suite pass + S140_1/S141/S086/S088/S095 suites all green;
                     no commits)
-- plan_repo_state : **S140 (FULL) + S140_1 + S141 COMPLETE + GREEN (BOTH LANES)** (S141 InternStore thread-local
+- plan_repo_state : **S142 COMPLETE + GREEN (BOTH LANES)** — DependencyObject/UIElement pimpl collapsed
+                    into ONE block-resident unit (Store{PD slots_[8], count, append-only overflow};
+                    no per-object heap hop; single PD type — owned+borrowed coexist; stableKey keeps
+                    register_property's returned const ref valid across overflow growth; custom move for
+                    the non-movable direct std::mutex; ChangeQueue.h include-cycle broken). The store is
+                    inline-started (0..kInline touches zero heap) + heap-grown on demand. UIElement layout
+                    data embedded inline. BlockResidentStore_test.cpp proves it on the S035 pipeline.
+                    windows-msvc 619 test cases / 4735 asserts pass (verify_s142.cmd); ubuntu-clang
+                    clang-debug 1/1 suite pass. Next = S143 (mutex relocation + registry re-keying onto
+                    S140 token + S141 store; global-register pimpl removal = S144). (Prior: **S140 (FULL)
+                    + S140_1 + S141 COMPLETE + GREEN (BOTH LANES)** (S141 InternStore thread-local
                     lockless SIMD store + S140_1 vaml::intern() public primitive + S140 identity keys:
                     DependencyObject per-object store/subs + ChangeRecorder re-keyed to interned
                     string_view, killing the transient std::string(id.name()) at Get/Set/effective/
@@ -104,19 +147,33 @@
     MODIFIED docs/roadmap.md                                (S138 [DONE] — REFACTOR GATE(S3) + S139 [DONE] — SURVIVOR)
     MODIFIED progress.md                                    (checkpoint regenerated last=S139/next=S140 + SPRINT 3 SURVIVOR block + guard rails MINIMAL REAL list)
     MODIFIED session-context.md (this — S138+S139 completion)
-- build_status    : GREEN — BOTH CI LANES (verified from first principles at the S138 REFACTOR GATE).
-                    windows-msvc: msvc-debug (VS 2026) via build/verify_s137.cmd — configure+build
-                    warning-as-error clean + ctest 1/1 PASS (all Sprint-3 cases green). ubuntu-clang:
-                    clang-debug (Ubuntu VM 192.168.198.129, clang 21, /mnt/hgfs/VamlPOC) configure+build +
-                    ctest 1/1 PASS. Only Clang warnings = pre-existing upstream <ciso646> doctest
-                    deprecation from third_party (non-error, already downgraded). (windows-clang-debug is
-                    NOT a lane — not built/tested/flagged per standing rule.)
-- next_step       : next roadmap token after S139 — **S140 (dep:S139) Sprint 3.5 — Intern property names /
-                    attribute strings to a canonical UTF-8 identity; the store key is a non-owning
-                    string_view into a process-lifetime intern pool** (Allocation & ownership discipline
-                    retrofit of S0–S3 hot paths). Sprint 3 is CLOSED (S138 refactor gate + S139 wrap done);
-                    the S140 retrofit is the next unimplemented task.
+- build_status    : **GREEN — BOTH CI LANES (S142, verified from first principles).** windows-msvc:
+                    build/verify_s142.cmd (msvc-debug, VS 2026) — warning-as-error clean; test exe
+                    619 test cases / 4735 assertions pass / 0 failed (BlockResidentStore_test.cpp added).
+                    ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug (Ubuntu VM) — configure+build clean +
+                    ctest 1/1 PASS (100%). Only Clang warnings = pre-existing upstream <ciso646> doctest
+                    deprecation (non-error). (windows-clang-debug is NOT a lane — not built/tested/flagged.)
+                    No commits.
+- next_step       : next roadmap token after S142 — **S143 (dep:S142)**: relocate the per-object pending
+                    mutex into the thread-affine ChangeQueue AND re-key ChangeQueue/ChangeRecorder/
+                    PropertyRegistry/DependencyProperty::GlobalTable onto the S140 token + S141 store
+                    (the two S142-recorded hand-offs; global-register pimpl removal = S144 body). S142 is
+                    COMPLETE + GREEN; S143 is the next unimplemented task.
 - notes           :
+    - **ARCHITECTURAL CODIFICATION PASS (pre-S142, docs-only, ~no build):** per the accepted decisions,
+      all ABI/IP-hiding language is now REVISED to "superseded / build-model plumbing only" so S142's
+      "[pimpl removed, not preserved]" reads as the deliberate end-state. ADR-003 rewrote as REVISED 2:
+      this MIT-public lib has no IP to hide; static = build-model preference (+ determinism + LTO), NOT
+      IP hiding; the app may statically link for ITS OWN IP (app-level). NEW ADR-019 codifies the CPU/GPU
+      line + the "do NOT use GPU for what CPU must do; no future step reverses it" clause + the
+      operational model (normal frame = CPU-nearly-idle + GPU-everything; change-driven cascade is the
+      only CPU wake-up). architecture.md §7 rewritten (Distribution/build model) + new §7a (CPU/GPU
+      line). Comment sites revised: artifact-model.cmake, DependencyObject.h, PropertyRegistry.h +
+      DependencyProperty.h (the two global-register pimpl comments — ABI wording retracted per ADR-003;
+      global-register pimpl REMOVAL is explicitly S143/S144 scope, recorded on S142/S143/S144, NOT
+      changed here), roadmap (S140 tail + S142 rationale + Sprint 3.5 RATIONALE correction + S921),
+      progress.md (header + S032 + S034). NO S142 implementation (that is a separate sprint step), no
+      source changes, no build, no commits. S142 itself is UNTOUCHED and remains the next implemented step.
     - S138 = REFACTOR GATE(S3), docs-only (no code change). Both CI lanes verified from first principles
       at this gate (windows-msvc via build/verify_s137.cmd msvc-debug + ubuntu-clang via
       /mnt/hgfs/VamlPOC clang-debug) — both ctest 1/1 PASS, warning-clean. Grep-audit clean: no

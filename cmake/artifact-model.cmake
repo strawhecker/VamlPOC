@@ -1,7 +1,8 @@
 # ============================================================================
 # VAML — artifact model module  (S003)
-# Single home for HOW VAML libraries are produced: static (default, IP-hiding
-# per ADR-003) or shared (consumer opt-in via VAML_BUILD_SHARED=ON), with a
+# Single home for HOW VAML libraries are produced: static (default, a build-model
+# preference for determinism + whole-program optimization/LTO, NOT IP hiding per
+# ADR-003) or shared (consumer opt-in via VAML_BUILD_SHARED=ON), with a
 # generated export header for each library and the ADR-011 layer rule enforced
 # by CMake (NOT by convention).
 #
@@ -13,8 +14,9 @@
 include(GenerateExportHeader)
 
 # --- Distribution model: consumer chooses shared/static; static is default. ---
-# [ADR-003] The default is STATIC so the IP lives behind a closed ABI surface.
-# Turning VAML_BUILD_SHARED=ON switches every library produced by
+# [ADR-003] Default STATIC = a build-model preference (no-DLL local determinism +
+# whole-program optimization/LTO), NOT IP hiding: this MIT-public lib has no IP to
+# protect. Consumers opt into shared via VAML_BUILD_SHARED=ON. Turning VAML_BUILD_SHARED=ON switches every library produced by
 # vaml_add_library() (core, vulkan, tools) to a shared library in one move.
 option(VAML_BUILD_SHARED "Build VAML libraries as SHARED (dll/so); default OFF = static libs" OFF)
 
@@ -25,7 +27,7 @@ if(VAML_BUILD_SHARED)
 else()
     set(VAML_ARTIFACT_MODEL "STATIC")
 endif()
-message(STATUS "VAML artifact model: ${VAML_ARTIFACT_MODEL} (default: static per ADR-003)")
+message(STATUS "VAML artifact model: ${VAML_ARTIFACT_MODEL} (default: static — build-model preference per ADR-003, not IP hiding)")
 
 # Include-surface convention (S008 gate): internal implementation headers live
 # under src/<lib>/src; ONLY the public API lives under src/<lib>/include/vaml/<lib>.
@@ -70,8 +72,9 @@ function(vaml_add_library lib_name)
     )
 
     # Generated export header: the single per-library facade for symbol
-    # visibility. In STATIC builds VAML_<LIB>_EXPORT expands to nothing (no DLL
-    # surface — ADR-003 IP-hiding); in SHARED builds it becomes dllexport/import.
+    # visibility (build-model plumbing only). In STATIC builds VAML_<LIB>_EXPORT
+    # expands to nothing (no DLL surface); in SHARED builds it becomes
+    # dllexport/import. NOT IP hiding — ADR-003.
     vaml_artifact_export_header("${lib_name}" "${_target}" "${_export_prefix}")
 
     # Layer tag so vaml_validate_layer_rules() can enforce ADR-011 at configure

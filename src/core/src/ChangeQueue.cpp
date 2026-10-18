@@ -13,6 +13,8 @@
 
 #include "vaml/core/ChangeQueue.h"
 
+#include "vaml/core/DependencyObject.h" // WrongThreadException (thrown by process/clear)
+
 #include <deque>
 #include <mutex>
 #include <string>

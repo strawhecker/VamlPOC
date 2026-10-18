@@ -14,7 +14,9 @@
 ## HEADER — VERSION 1
 - Framework: VAML (XAML-faithful, Vulkan-native, pure C++)
 - Language/stack: C++ latest only. No C#, no Python, no managed code (includes build tooling).
-- Distribution: consumer chooses shared (dll/so) or static (lib/.a); default = static for IP-hiding. [ADR-003]
+- Distribution: consumer chooses shared (dll/so) or static (lib/.a); default = static as a build-model
+  preference (determinism + LTO), NOT IP-hiding — this MIT-public lib has no IP to protect. A consumer app
+  may statically link to compile ITS OWN IP into a single exe (app-level, not this repo's). [ADR-003 revised]
 - Repos: this `VamlPOC` repo IS the product — v1 built at v2 quality (ADR-017). NOT a throwaway POC;
   there is no separate production repo to open later. The repo is production-framed from here on.
 - Build: MSVC (VS 2026) on Windows and Clang on Linux; CMake is the canonical driver. [ADR-007]
@@ -24,19 +26,27 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S140 (FULL — both halves) + S140_1 + S141 — interned UTF-8 identity, complete
-- Next step to do     : S142 (dep:S141) — Collapse DependencyObject/UIElement pimpl + store into one block-resident unit
-- PENDING work        : none (S140 + S140_1 + S141 fully complete; the S140_2 split token was merged back
-  into S140 — the tree-text half was finished within S140, so no redundant step remains)
-  **State**: S141 InternStore (SIMD probe store, thread-local lockless) + S140_1 vaml::intern() + S140
-  (identity keys: DependencyObject store/subs + ChangeRecorder interned string_view; PendingWrite +
-  ChangeQueue kept owned std::string per ADR-018 cross-thread rationale) AND S140 tree-text (scanner
-  token/attribute/clr-ns intern-at-emission; ParsedElement/ParsedAttribute + content intern at finalize;
-  VamlReader deferred structs intern at record; convertLiteral string_view; S2 test TUs converted incl. a
-  fixed dangling-view bug in ElementResolver_test.makeElement) are IMPLEMENTED + **GREEN ON BOTH CI LANES**:
-  windows-msvc (613 tests / 4661 assertions PASS via build/verify_s140.cmd msvc-debug, warning-clean) AND
-  ubuntu-clang (clang-debug on the VM: full suite 1/1 pass; S140_1 7/7 + S141 7/7 + S086/S088/S095 all
-  green, pre-existing <ciso646> third-party doctest warning only).
+- Last completed step : S142 — Collapse DependencyObject/UIElement pimpl + store into one block-resident unit
+- Next step to do     : S143 (dep:S142) — relocate the per-object pending mutex into the thread-affine
+  ChangeQueue AND re-key ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty::GlobalTable onto
+  the S140 token + S141 store; global-register pimpl removal = S144 body
+- PENDING work        : none (S142 fully complete + GREEN both lanes; the S140_2 split token was merged back
+  into S140 earlier — no redundant step remains)
+  **State**: S142 (dep:S141) removes the DependencyObject/UIElement `unique_ptr<Impl>` pimpl + per-object
+  `unordered_map` store, embedding the store + all inline state into ONE block-resident unit (Store{PD
+  slots_[kInline=8], count_, append-only overflow_} — no per-object heap hop, no ~100%-of-access `impl_->`
+  trampoline; single PD type, no common/root — owned + borrowed metadata coexist; stableKey heap node keeps
+  register_property's returned `const PropertyKey&` valid across overflow growth; custom move because the
+  pending mutex is now a DIRECT std::mutex (non-movable); ChangeQueue.h include-cycle broken — it no longer
+  includes DependencyObject.h, which now holds a ChangeQueue by value; UIElement layout data (children_/
+  desired_size_/final_rect_/dirty flags) embedded inline; release_slot frees owned PropertyMetadata* +
+  stableKey PropertyKey*). Rationale re-grounded on SPEED not ABI (ADR-003 revised + ADR-019 codified the
+  CPU/GPU line). New test/unit/BlockResidentStore_test.cpp (inline path, overflow growth, stable-key-
+  across-growth, move, single-PD coexist, UIElement collapsed-unit layout). **GREEN ON BOTH CI LANES**:
+  windows-msvc (619 test cases / 4735 assertions PASS via build/verify_s142.cmd msvc-debug, warning-clean;
+  0 failed — the single in-suite "failed" assertion is the intentional S036_1 should_fail demonstration)
+  AND ubuntu-clang (clang-debug on the VM: ctest 1/1 PASS, pre-existing <ciso646> third-party doctest
+  warning only). No commits.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -515,7 +525,8 @@
   type-name (no cheap portable runtime type_of in C++; supports S043 attached-prop owner≠class; S033's
   constexpr-safe static id layers on without changing fields); unique on NAME globally (WPF-style), ownerTypeId
   stays identity metadata inside the key, not a second registry dimension. PropertyRegistry = instance-based,
-  pimpl'd (class Impl behind unique_ptr hides std::unordered_map — ABI + include-surface stable); register_key
+  pimpl'd (class Impl behind unique_ptr hides std::unordered_map — include-surface isolation; the "ABI"
+wording is superseded by S142's collapsed block-resident store + ADR-003 revised); register_key
   (uniques by name; throws PropertyAlreadyRegistered:logic_error on collision, map unchanged, returns stored
   const ref), try_find (→ptr or nullptr, noexcept), find (→stored key or throws PropertyNotFound:out_of_range),
   size/empty. Exceptions declared in header, definitions in .cpp. A global static registry + constexpr-safe
@@ -567,7 +578,8 @@
 - [x] S034 PropertyMetadata { defaultValue; flags; changed cb; coerce; validate } — ✅
   SURVIVOR: `src/core/include/vaml/core/PropertyMetadata.h` (NEW) + `src/core/src/PropertyMetadata.cpp`
   (NEW) + `test/unit/PropertyMetadata_test.cpp` (NEW). Move-only (copy deleted, proven by static_assert)
-  metadata bundle under an Impl pimpl (hides std::function ABI + enforces move-only at the public
+  metadata bundle under an Impl pimpl (include-surface isolation; "hides std::function ABI" wording
+superseded by S142 — the pimpl is removed, not preserved; ADR-003 revised; enforces move-only at the public
   boundary). Field surface mirrors the roadmap exactly: defaultValue (Value) fixes BOTH S039's fallback
   AND the metadata's bound type = defaultValue.type(); flags (PropertyFlags recomposes S032's
   inherits|readonly|bindsTwoWayByDefault as a validating carrier, never a competing source of truth);
@@ -1502,3 +1514,46 @@
   windows-msvc (build/verify_s137.cmd, msvc-debug warning-clean + ctest 1/1 PASS) + ubuntu-clang
   (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS). Only Clang warnings = pre-existing
   upstream <ciso646> doctest deprecation (non-error, already downgraded). Next = S138.
+
+- [x] S142 Collapse DependencyObject/UIElement pimpl + store into ONE block-resident unit — ✅
+  SURVIVOR: (dep:S141; rewrites S036/S037/S039/S120 in place; pimpl REMOVED, not preserved; rationale
+  re-grounded on SPEED not ABI — ADR-003 revised + ADR-019 codified; Sprint 3.5 first retrofit
+  implemented step). PRODUCT (src/core/include/vaml/core/{DependencyObject.h,UIElement.h} +
+  src/core/src/{DependencyObject.cpp,UIElement.cpp}): removed `struct Impl; unique_ptr<Impl> impl_;`
+  from BOTH DependencyObject and UIElement. DependencyObject now embeds ONE block-resident unit
+  directly in its own allocation: `Store store_` = `class Store { PD slots_[kInline=8]; size_t count_;
+  PD* overflow_; size_t overflowCap_; }` — inline-starting, heap-grown on demand (append-only overflow
+  allocated ONLY when count_ exceeds kInline, never shrunk), lookup by interned string_view name via a
+  small linear scan (cache-friendly, insertion-ordered, NO per-object heap hop, NO ~100%-of-access
+  `impl_->` trampoline). SINGLE PD TYPE (no common/root): `struct PD { string_view name; Value local;
+  PropertyMetadata* owned; const PropertyMetadata* borrowed; PropertyKey* stableKey; }` — owned
+  (object-scoped register_property) + borrowed (attached/global descriptor) metadata COEXIST in one
+  PD; move-only PropertyMetadata never copied (addressed by pointer). `stableKey` = a separate stable
+  heap node so register_property's returned `const PropertyKey&` stays valid across overflow growth
+  (PD relocation never invalidates it). CUSTOM MOVE: the pending mutex is now a DIRECT `mutable
+  std::mutex queue_mutex_` (not inside a heap pimpl) and is NOT movable — ctor/assign move every
+  movable member (store_, affinity_, parent_, subs_, next_sub_token_, notification_queue_,
+  inheritance_scope_, pending_) + leave the destination mutex fresh; moved-from left empty. Ownership:
+  `Store::release_slot` frees the two OWNED heap nodes (owned + stableKey) in dtor/move-assign,
+  never `borrowed`. UIElement embeds `children_` (std::vector<unique_ptr<UIElement>>), `desired_size_`,
+  `final_rect_`, `measure_dirty_`, `arrange_dirty_` inline — composing with the base Store into one
+  block-resident unit. ChangeQueue.h include-cycle BROKEN: it no longer includes DependencyObject.h
+  (which now holds a ChangeQueue BY VALUE); ChangeQueue.cpp includes DependencyObject.h for
+  WrongThreadException. Queue_mutex marked mutable (const pending_change_count locks it, was reachable
+  through the pointer pimpl before). register_property doc updated (stable-key mechanism replaces the
+  unordered_map node-stability claim). All public API/method signatures UNCHANGED (behavior-exact
+  retrofit). TESTS (NEW test/unit/BlockResidentStore_test.cpp, 6 TEST_CASEs): inline path (5 props,
+  all-inline, register/Set/Get/NO_CHANGE); overflow growth (13 props > 8, all applied/rejected on the
+  real S035 pipeline); stable key survives growth (returned ref valid across overflow re-adds); move
+  preserves values + stable key; single PD owned+borrowed coexist (local prop + global Opacity);
+  UIElement collapsed unit (Measure/Arrange/dirty flags/DPs still work with inline layout data).
+  test/unit/CMakeLists.txt +BlockResidentStore_test.cpp. build/verify_s142.cmd (NEW, verify_s140 clone).
+  Scope hand-offs recorded (NO-GAP): pending-mutex relocation + registry re-key onto S140 token + S141
+  store = S143; registry accessor/signature migration (string_view returns, out-params) = S144; block
+  pool for object allocation + children slab = S145. ADR-018: ZERO new locks. NO MINIMAL REAL
+  introduced/resolved. VERIFIED BOTH CI LANES from first principles: windows-msvc (build/verify_s142.cmd,
+  msvc-debug warning-as-error clean; test exe 619 test cases / 4735 assertions PASS / 0 failed — the
+  single in-suite "failed" assertion is the intentional S036_1 should_fail demonstration) + ubuntu-clang
+  (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS; only pre-existing upstream <ciso646>
+  doctest deprecation from third_party). windows-clang-debug is NOT a lane (not built/tested/flagged).
+  No commits. Next = S143.

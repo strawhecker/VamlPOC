@@ -21,12 +21,20 @@
 - Consequences: Input marshalling (dispatcher), per-thread change queues, thread-affinity enforcement all
   follow from this model. POC proves single-thread first, multi-thread arrives S14.
 
-## ADR-003 — Distribution: consumer chooses shared (dll/so) or static (lib/.a); static default [REVISED]
-- Status: ACCEPTED (seed, REVISED per user)
-- Context: IP hiding via compiled static libs; but forcing static-only is wrong — consumers may want dll/so.
+## ADR-003 — Distribution: consumer chooses shared (dll/so) or static (lib/.a); static default [REVISED 2]
+- Status: ACCEPTED (seed; REVISED again per user — IP-hiding framing removed)
+- Context: VAML is **MIT-public** — the library code has **no IP to protect**. Static linking is chosen
+  here as a **build-model preference** (no DLLs/leaks, local determinism, whole-program optimization/LTO),
+  not as IP hiding. A consumer APP may statically link to compile **its own** IP into a single exe — that
+  is an app-level concern, not this library's.
 - Decision: `VAML_BUILD_SHARED` (default OFF) → shared outputs when ON, static when OFF. Consumer decides.
-  Static is *recommended* for IP-hiding, not mandated. This is a build option, not a policy.
-- Consequences: CMake artifact model must support both; packaging must offer both.
+  Static is a build option for determinism + LTO, NOT a mandate and NOT IP hiding. The earlier
+  "static is recommended for IP-hiding" wording is RETRACTED.
+- Consequences: CMake artifact model must support both; packaging must offer both. The "closed ABI
+  surface" / export-machinery-as-IP-hiding language (artifact-model.cmake, architecture §7, S921) is
+  corrected to "build-model plumbing only" at its recorded sites. This MIT-public lib has no runtime ABI
+  boundary to defend (static link → consumer *is* the exe); public headers are the API surface, not an
+  "ABI facade."
 
 ## ADR-004 — Language & error model: C++ latest, no exceptions in release hot paths, single allocator
 - Status: ACCEPTED (seed)
@@ -195,5 +203,37 @@
   this approval (it is the standing pre-approved lock, moved, not new). S145's object pool is thread-affine
   (S037) and therefore needs NO lock — distinct from the rejected process-global string-pool framing. Future locks
   (S620 async layout, etc.) require the same approval gate. Recorded in the roadmap GUARD RAILS + this log.
+
+## ADR-019 — CPU/GPU line of responsibility (frame-critical contract)
+- Status: ACCEPTED (user decision; architect codified)
+- Context: The project's stated goal is "as much in the GPU as possible" — all frames are the feat of the
+  GPU (Vulkan retained-data, GPU-driven), not the CPU; we push changes through pipelines to the GPU, with
+  retained resources, calm CPU, and explicit sync. But "everything in the GPU" is a category error unless
+  the line between what the CPU *must* do and what the GPU *does* is defined without assumption. Analysis
+  established the physics: serial-dependent, live-tree, decide-things work is CPU; flat independent
+  transforms of KNOWN arrays is GPU.
+- Decision (the line, stated explicitly and binding):
+  - **CPU OWNS (permanent, never moves to GPU):** the scene graph + parent pointers; inheritance
+    resolution (walk-up effective-value pulls); cascade/layout DECISIONS (measure→arrange dependency
+    chains); change coalescing (ChangeQueue/ChangeRecorder — the change→delta factory); and
+    pipeline-BUILDING — flattening resolved effective state into POD arrays (the sole hand-off).
+  - **GPU OWNS (all per-primitive, per-frame rendering of KNOWN structures):** shaders, compute,
+    vertex/instance buffers, retained resources, GPU-driven dispatch — driven exclusively by the flat
+    data the CPU produces.
+  - **THE FENCE (the only bridge):** the flattened pipeline buffers the CPU produces are the sole
+    hand-off to the GPU. The GPU NEVER touches the live scene graph and never re-derives inheritance or
+    cascade decisions.
+  - **This ADR explicitly DOES NOT use the GPU to do what the CPU must do** (inheritance walks, cascade/
+    dependency decisions, live-tree structure), **and there is NO future step to change that** — a
+    later step must not "move" inheritance/cascade decisions to the GPU; it may only push more of the
+    *flattened output* (e.g. compute) to the GPU.
+  - **Operational CPU-cost model:** the normal (unchanged) frame is CPU-nearly-idle + GPU-everything;
+    a change-driven cascade is the ONLY CPU wake-up and must be CPU-optimized (coalescing, S141/S142
+    block-resident store, S143/S145 pool).
+- Consequences: This framework's CPU-side property store + cascade stays exactly where it is and is
+  optimized as CPU (S142 onward). Inheritance/cascade *decisions* are never a GPU target (category
+  error: serial, tree, live state). The pipeline buffers the CPU flattens are the definition of "the
+  pipeline" in the project's governing render principle (ADR-012), cargo of GPU-DRIVEN-PRINCIPLE.md.
+  Recorded NO-GAP: no future step reverses this line without an ADR revision by the human architect.
 
 ## END OF ADR LOG (seed)
