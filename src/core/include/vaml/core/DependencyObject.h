@@ -163,6 +163,24 @@ public:
     // dynamic_cast concrete-type checks in tests).
     virtual ~DependencyObject();
 
+    // --- S145 class-scoped allocation (the object-pool funnel) -------------
+    // Every element (DependencyObject + all derived types) allocates/deallocates
+    // through the thread-local ObjectPool: dole from blocks, recycle to the
+    // free-list, NEVER delete during the thread's life (opt-in
+    // object_pool_master_destroy_all). This is the honest rewrite of the
+    // S120/S121 element/layout ownership: the unique_ptr owner/lifetime
+    // semantics are UNCHANGED, only the allocation/deallocation path beneath
+    // them routes through the pool (ADR-018: thread-local + LOCKLESS).
+    //
+    // The object's internal dynamic state (Store overflow, children_/subs_/
+    // inheritance_scope_ vectors, owned PropertyMetadata/PropertyKey nodes,
+    // Grid::Impl) is torn down NORMALLY by the destructor; only the object's
+    // slab bytes are retained on the free-list and reused — recycle == slab
+    // reuse, not state carryover.
+    static void* operator new(std::size_t size);
+    static void  operator delete(void* p) noexcept;
+    static void  operator delete(void* p, std::size_t) noexcept;
+
     DependencyObject(const DependencyObject&) = delete;
     DependencyObject& operator=(const DependencyObject&) = delete;
     DependencyObject(DependencyObject&&) noexcept;

@@ -7,6 +7,7 @@ vaml_add_library(core
     src/version.cpp
     src/Intern.cpp
     src/InternStore.cpp
+    src/ObjectPool.cpp
     src/Value.cpp
     src/PropertyFlags.cpp
     src/PropertyKey.cpp

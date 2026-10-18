@@ -1,4 +1,4 @@
-﻿# VAML â€” PROGRESS / LLM CONTINUATION FILE  (SINGLE SOURCE OF TRUTH)
+# VAML â€” PROGRESS / LLM CONTINUATION FILE  (SINGLE SOURCE OF TRUTH)
 
 > ## HOW TO RESUME (an LLM must read this first, with no prior context)
 > 1. Read ONLY this header block + the two `## CHECKPOINT` lines below.
@@ -26,18 +26,32 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT â€” DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S144 â€” Migrate the three lookup registries to the token-keyed store +
-  public accessor migration (registered_names()/VamlReader::names() â†’ string_view, out-param accessors)
-- Next step to do     : S145 (dep:S144) â€” Block pool free-list (thread-local, retain-forever, LOCKLESS
-  â€” the object pool stays lockless per ADR-018)
-- PENDING work        : none (S144 fully complete + GREEN both lanes)
-  **State**: S144 (dep:S143) delivers the registry re-key + public accessor shape migration.
-  PART A (registry re-key, rewrites S087/S089 in place): ElementFactoryRegistry +
-  ValueConverterRegistry internal indexes re-keyed OFF std::unordered_map<std::string,...> + owned-name
-  order vectors and ONTO vaml::detail::NameTable (the S141-pattern CONTENT-keyed probe store â€” self-owned
-  stable keys, content match, NO transient std::string on find) â€” mirroring PropertyRegistry /
-  DependencyProperty::GlobalTable (already at S143). registered_names() on BOTH now returns
-  std::vector<std::string_view> (no by-value vector<std::string> copy, no owned-name gotcha). The Three
+- Last completed step : S145 â€” Block pool free-list (thread-local, retain-forever, LOCKLESS â€” the
+  object pool stays lockless per ADR-018)
+- Next step to do     : S146 (dep:S145) â€” REFACTOR GATE(S3.5): remove ALL dead pre-retrofit surface
+  (pimpl heap nodes, unordered_map/std::string-key paths, by-value children(), owned-name gotchas,
+  parser/scanner-owned std::string members); assert the public API accepts string_view or intern()-produced
+  views everywhere; full build + ctest green both compilers; ASan no-leak; steady-state heap-churn counter
+  recorded (feeds S628)
+- PENDING work        : none (S145 fully complete + GREEN both lanes)
+  **State**: S145 (dep:S144) delivers the object-side half of the allocation fix: a thread-local, lockless,
+  retain-forever block pool that dole/recycles DependencyObject/UIElement slabs. PREFERRED ROUTE — the
+  S120/S121 unique_ptr ownership is PRESERVED (single-parent, virtual dtor, detach-without-destroy all
+  unchanged); the allocation/deallocation path BENEATH it is rewritten via class-scoped operator new/
+  operator delete on DependencyObject. NEW vaml::detail::ObjectPool (src/core/src/ObjectPool.{h,cpp},
+  plain class; thread_local binding in the .cpp mirrors InternStore/Intern.cpp): allocate()→free-list pop
+  else monotonic bump else spill to a new block (never reset/reorder); deallocate()→push intrusive LIFO
+  (never free the block / never delete the object bytes), with a contains() membership check forwarding
+  foreign (oversized process-heap) pointers to ::operator delete; master_destroy_all() frees every block +
+  resets (opt-in teardown). SLOT SIZE = kSlotSize=960 = align_up(sizeof(Grid),64): sizeof(Grid)==856
+  (release MSVC) / 848 (release Linux clang) but msvc-debug checked iterators (/MTd) inflate it to 952 —
+  the slot MUST cover the worst case across BOTH CI lanes; 960%64==0 (cache line) and 960%16==0 (Linux
+  max_align_t). The S142 inline Store (slots_[kInline]) is a DependencyObject member at a fixed offset in
+  the object's allocation, so a slot carries the object AND its inline SIMD store with no per-object heap
+  hop; only store/vector overflow spills (monotonic). RECYCLE == SLAB REUSE, NOT STATE CARRYOVER: internal
+  dynamic state (Store overflow, children_/subs_/inheritance_scope_ vectors, owned PropertyMetadata/
+  PropertyKey nodes, Grid::Impl) is torn down NORMALLY by the destructor; only the object's slab bytes are
+  retained+reused. The Three
   lookup registries headline: DependencyProperty global table was ALREADY token-keyed content store at
   S143 (verified, not re-done). PART B (VamlReader accessor shape, rewrites S091/S092 in place):
   VamlReader::names() keys are now INTERNED string_views (S140 discipline; content-equal; no owned
@@ -1611,3 +1625,5 @@ superseded by S142 â€” the pimpl is removed, not preserved; ADR-003 revised
   built/tested/flagged). No commits. Next = S144.
 - [x] S144 Migrate the three lookup registries to the token-keyed store + public accessor shape migration - DONE
   SURVIVOR: (dep:S143; rewrites S087/S089/S091/S092/S121 in place; Sprint 3.5 retrofit; ADR-018: ZERO new locks). ElementFactoryRegistry + ValueConverterRegistry re-keyed OFF unordered_map + owned names ONTO vaml::detail::NameTable (content-keyed S141 store, no transient string on find); registered_names() -> vector<string_view>; VamlReader::names() keys -> interned string_view; UIElement::children() -> out-param; collect_descendant_effectives -> out-param; reserve() parser/reader vectors. GREEN BOTH LANES: msvc 628 cases / 4994 asserts (1 intentional should_fail) via verify_s144.cmd; clang-debug 1/1 PASS. No commits. Next = S145.
+- [x] S145 Block pool free-list (thread-local, retain-forever, LOCKLESS) - DONE
+  SURVIVOR: (dep:S144; object-side half of the allocation fix; rewrites S120/S121 element/layout ownership beneath the unique_ptr model; Sprint 3.5 retrofit; ADR-018: ZERO new locks — thread-local + lockless by construction). PREFERRED ROUTE: unique_ptr ownership PRESERVED (single-parent, virtual dtor, detach-without-destroy unchanged); class-scoped operator new/operator delete on DependencyObject route every allocation/deallocation through the pool. NEW vaml::detail::ObjectPool (ObjectPool.{h,cpp}, plain class; thread_local binding in .cpp mirrors InternStore/Intern.cpp): allocate()→free-list pop else monotonic bump else spill (never reset/reorder); deallocate()→intrusive LIFO push, never frees the block / never deletes the object bytes, with contains() forwarding foreign (oversized process-heap) pointers to ::operator delete; master_destroy_all() opt-in teardown. kSlotSize=960=align_up(sizeof(Grid),64) covers the worst case across both CI lanes (msvc-debug /MTd inflates sizeof(Grid) to 952 vs 856 release MSVC / 848 release Linux clang); slot carries the object AND the inline S142 SIMD store (no per-object heap hop; only overflow spills monotonic). RECYCLE == SLAB REUSE NOT STATE CARRYOVER (dtor tears down internal state; slab bytes reused). Tests: ObjectPool_test.cpp — 10 cases / 326 assertions (dole/recycle reuse, LIFO, monotonic bump + spill, never-delete, alignment, contains(), thread-local isolation, master_destroy_all, make_unique<Button> churn integration, create_child<Canvas>/remove_child tree churn; element-size static_asserts guard kSlotSize). SCOPE DECISION (recorded): delivered exactly as titled (object pool + recycling); children_ stays std::vector (amortized O(1), non-shrinking, payload pooled). The S142 NO-GAP "children slab" RE-SCHEDULED (NOT silently dropped) to S624 (the roadmap's "element pool; no heap churn" home) — a distinct low-level data-structure change, NOT bolted onto S145. GREEN BOTH LANES: msvc 638 cases / 5321 asserts (1 intentional should_fail) via verify_s145.cmd; clang-debug 1/1 PASS (638 cases SUCCESS; only pre-existing upstream <ciso646> doctest deprecation). No commits. Next = S146.

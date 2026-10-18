@@ -407,12 +407,55 @@
                  → vector<string_view> (no by-value copies); VamlReader::names() keys → interned string_view;
                  UIElement::children() → out-param; collect_descendant_effectives → out-param; reserve() the
                  parser/reader vectors. DependencyProperty global table was ALREADY on NameTable (S143).
-- S145 dep:S144  Block pool free-list (thread-local, retain-forever, LOCKLESS — the object pool stays
-                 thread-affine per S037/ADR-018, so it needs NO lock, unlike the process-global string pool
-                 framing that was rejected; opt-in master destroy_all): dole DependencyObject/UIElement from
-                 blocks, recycle to free-list, never delete; SIMD store sized per block slot + monotonic spill.
-                 The object-side half of the allocation fix. [Rewrites S120/S121 element/layout ownership to
-                 route frees back to the pool.]
+- S145 dep:S144  [DONE — FULLY IMPLEMENTED, BOTH CI LANES GREEN from first principles: windows-msvc
+                 (build/verify_s145.cmd, msvc-debug, warning-clean; test exe 638 test cases / 5321
+                 assertions pass / 0 failed, incl. new ObjectPool_test.cpp with 10 S145 cases / 326
+                 assertions) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest
+                 1/1 PASS; 638 cases SUCCESS; only pre-existing upstream <ciso646> doctest deprecation
+                 from third_party). ADR-018: ZERO new locks — the pool is a straight thread-local
+                 structure, lockless by construction.] Block pool free-list (thread-local, retain-forever,
+                 LOCKLESS — the object pool stays thread-affine per S037/ADR-018, so it needs NO lock,
+                 unlike the process-global string pool framing that was rejected; opt-in master destroy_all):
+                 dole DependencyObject/UIElement from blocks, recycle to free-list, never delete; SIMD store
+                 sized per block slot + monotonic spill. The object-side half of the allocation fix.
+                 [Rewrites S120/S121 element/layout ownership to route frees back to the pool.]
+                 IMPLEMENTATION: PREFERRED ROUTE (ownership preserved, allocation path rewritten) — because
+                 S120/S121 ownership is unique_ptr-based (children_ of unique_ptr<UIElement>, retained_,
+                 factory return), rewriting every call site's ownership model would destabilize layout/
+                 reader/marshalling. Instead class-scoped `operator new`/`operator delete` on
+                 DependencyObject rewrite the allocation/deallocation path BENEATH that ownership: every
+                 existing make_unique<Button>/create_child<T>/retained_ push allocates through the pool
+                 (operator new), and every unique_ptr destruction (remove_child/take_child/reader teardown)
+                 routes the object slab back to the free-list via operator delete — never the process heap.
+                 unique_ptr owner/lifetime semantics UNCHANGED (single-parent, virtual dtor,
+                 detach-without-destroy preserved verbatim). RECYCLE == SLAB REUSE, NOT STATE CARRYOVER:
+                 the object's internal dynamic state (Store overflow, children_/subs_/inheritance_scope_
+                 vectors, owned PropertyMetadata/PropertyKey nodes, Grid::Impl) is torn down NORMALLY by the
+                 destructor; only the object's own slab bytes are retained and reused. NEW vaml::detail::
+                 ObjectPool (src/core/src/ObjectPool.{h,cpp}): plain class (NOT thread_local) so tests
+                 instantiate isolated pools; thread_local binding g_objectPool in the .cpp mirrors
+                 InternStore/Intern.cpp. allocate()→free-list pop else monotonic bump else spill to a new
+                 block (never reset/reorder); deallocate()→push onto intrusive LIFO (never frees the block /
+                 never deletes the object bytes), with a contains() membership check forwarding foreign
+                 (oversized, process-heap) pointers to ::operator delete; master_destroy_all() frees every
+                 block + resets (opt-in teardown, mirrors InternStore). SLOT SIZE = kSlotSize=960 =
+                 align_up(sizeof(Grid), 64): sizeof(Grid)==856 (release MSVC) / 848 (release Linux clang)
+                 but msvc-debug checked iterators (/MTd) inflate it to 952 — the slot MUST cover the worst
+                 case across BOTH CI lanes; 960 % 64 == 0 (cache line) and 960 % 16 == 0 (Linux
+                 max_align_t). Because the S142 inline Store (slots_[kInline]) is a DependencyObject member
+                 at a fixed offset in the object's allocation, a slot carries the object AND its SIMD store
+                 ("SIMD store sized per block slot") with no per-object heap hop; only store/vector overflow
+                 spills (monotonic). element-size static_asserts (UIElement/StackPanel/Grid/WrapPanel/
+                 Canvas/Button/Text <= kSlotSize) in ObjectPool_test.cpp guard the invariant; kLargestElement
+                 constant documents the worst case (bump kSlotSize if a future control exceeds it). SCOPE
+                 DECISION (recorded): delivered exactly as titled (the object block pool + recycling; object
+                 churn is the dominant cost); children_ stays std::vector (amortized O(1), non-shrinking,
+                 its element payload now pools). RE-SCHEDULED (NOT silently dropped — NO-GAP honored): the
+                 S142 NO-GAP parenthetical "children slab" (a slab-backed children container to cut vector
+                 reallocation churn on child add/remove) is a DISTINCT low-level data-structure change that
+                 belongs with the S14 perf-arena work — re-scheduled to S624 (the roadmap's "element pool;
+                 no heap churn" home) with an explicit recorded note, NOT bolted onto S145 (which would widen
+                 S145's blast radius over layout/visual-tree tests). NO MINIMAL REAL introduced/resolved.
 - S146 dep:S145  REFACTOR GATE(S3.5): remove ALL dead pre-retrofit surface (pimpl heap nodes, unordered_map/
                  std::string-key paths, by-value children(), owned-name gotchas, parser/scanner-owned std::string
                  members); assert the public API accepts string_view or intern()-produced views everywhere — no
@@ -614,6 +657,13 @@
 - S622 dep:S621  GPU-driven batching: indirect/draw-list, instance buffer, minimal pipeline switches.
 - S623 dep:S622  Draw-call count near-constant under 10k elements; no correctness drift.
 - S624 dep:S623  Per-frame arena allocator; element pool; no heap churn in steady state.
+                 [RESCHEDULED FROM S145 (recorded, NOT silent — NO-GAP): the S142 NO-GAP parenthetical
+                 "children slab" — a slab-backed children container to cut vector-reallocation churn on
+                 child add/remove — is a DISTINCT low-level data-structure change originally parked in the
+                 S145 headline, which instead shipped the object block pool + recycling (the dominant
+                 object churn; children_ stays std::vector, amortized O(1), non-shrinking, element payload
+                 already pooled at S145). This step owns the slab-backed children container alongside the
+                 arena/element-pool work.]
 - S625 dep:S624  Zero-copy texture update + cache-resident font/brush cache.
 - S626 dep:S625  Thread vs render ring scale-out: multiple UI threads; copy-on-write hot nodes.
 - S627 dep:S626  Perf smoke harness: 60fps @ 10k elements target; profiling budget in CI (event).

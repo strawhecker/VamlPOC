@@ -17,6 +17,8 @@
 
 #include "vaml/core/DependencyObject.h"
 
+#include "ObjectPool.h"                  // S145: the thread-local object block pool
+
 #include "vaml/core/ChangeRecorder.h"    // S041: per-property coalescing at drain
 #include "vaml/core/DependencyProperty.h" // global descriptor for S039 inheritance
 #include "vaml/core/Intern.h"            // S140: affinity-thread interned name keys (string_view)
@@ -24,12 +26,42 @@
 #include <algorithm>
 #include <cstdlib>
 #include <mutex>
+#include <new>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 namespace vaml {
+
+// ---------------------------------------------------------------------------
+// S145 — class-scoped allocation: the object-pool funnel.
+//
+// Every DependencyObject / derived element is doled from (and recycled back to)
+// the thread-local ObjectPool. A size that fits a slot carries the object + its
+// inline S142 store with no per-object heap hop; an oversized request falls back
+// to the process heap and operator delete forwards it back there via the pool's
+// contains() check. Never delete during the thread's life (opt-in
+// object_pool_master_destroy_all). ADR-018: zero locks — thread-local, lockless
+// by construction.
+// ---------------------------------------------------------------------------
+VAML_CORE_EXPORT
+void* DependencyObject::operator new(std::size_t size)
+{
+    return vaml::detail::object_pool_allocate(size);
+}
+
+VAML_CORE_EXPORT
+void DependencyObject::operator delete(void* p) noexcept
+{
+    vaml::detail::object_pool_deallocate(p);
+}
+
+VAML_CORE_EXPORT
+void DependencyObject::operator delete(void* p, std::size_t) noexcept
+{
+    vaml::detail::object_pool_deallocate(p);
+}
 
 // -- S142 Store: block-resident, inline-started, heap-grown on demand. --------
 // The PD array is the single block-resident unit; only the overflow array is a
