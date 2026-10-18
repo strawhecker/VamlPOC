@@ -12,10 +12,10 @@
 
 #include "vaml/core/Color.h"     // parse_color
 #include "vaml/core/Thickness.h" // parse_thickness
+#include "NameTable.h"           // S144: content-keyed probe store (re-keys off unordered_map)
 
 #include <charconv>
 #include <string>
-#include <unordered_map>
 #include <utility>
 
 namespace vaml {
@@ -24,35 +24,26 @@ class ValueConverterRegistry::Impl
 {
 public:
     // Returns true on a successful insert, false on a name collision (the
-    // existing entry is left unchanged — the moving converter is consumed by
-    // emplace only on success, per unordered_map guarantees).
+    // existing entry is left unchanged). Content-keyed: the NameTable probes by
+    // CONTENT (string_view), no transient std::string materialized on find.
     bool insert(std::string_view typeName, ValueConverter converter)
     {
-        auto [prev, inserted] =
-            map_.try_emplace(std::string(typeName), std::move(converter));
-        (void)prev;
-        return inserted;
+        return table_.insert(std::string(typeName), std::move(converter)) != nullptr;
     }
 
     const ValueConverter* find(std::string_view typeName) const noexcept
     {
-        // MSVC lacks transparent heterogeneous lookup for string_view on an
-        // unordered_map<std::string,...>; build a key string for the lookup.
-        auto it = map_.find(std::string(typeName));
-        return it == map_.end() ? nullptr : &it->second;
+        return table_.find(typeName);
     }
 
-    std::size_t size() const noexcept { return map_.size(); }
+    std::size_t size() const noexcept { return table_.size(); }
 
-    // Insertion order: the order-list is appended only on a successful insert,
-    // so it exactly mirrors registration order and never duplicates a name.
-    std::vector<std::string> names() const { return order_; }
+    // Insertion order: the NameTable's rows_ is append-only, so iteration order
+    // mirrors registration order exactly and never duplicates a name. The
+    // string_views point into the NameTable's OWNED stable name storage.
+    std::vector<std::string_view> names() const { return table_.names(); }
 
-    void record_order(std::string_view typeName) { order_.emplace_back(typeName); }
-
-private:
-    std::unordered_map<std::string, ValueConverter> map_;
-    std::vector<std::string> order_;
+    vaml::detail::NameTable<ValueConverter> table_;
 };
 
 VAML_CORE_EXPORT
@@ -73,14 +64,13 @@ ValueConverterRegistry& ValueConverterRegistry::operator=(ValueConverterRegistry
 VAML_CORE_EXPORT
 void ValueConverterRegistry::register_converter(std::string_view typeName, ValueConverter converter)
 {
-    // Dedupe first; only record insertion order on a successful insert (so the
-    // order-list never diverges from the map's names).
+    // The NameTable's content insert returns nullptr on a duplicate and leaves
+    // the existing entry unchanged (dedupe, S032 discipline).
     if (!impl_->insert(typeName, std::move(converter)))
     {
         std::string msg = "value converter already registered: '" + std::string(typeName) + "'";
         throw ValueAlreadyRegistered(msg.c_str());
     }
-    impl_->record_order(typeName);
 }
 
 VAML_CORE_EXPORT
@@ -107,11 +97,12 @@ VAML_CORE_EXPORT
 bool ValueConverterRegistry::try_infer_type(std::string_view literal, std::string* outType) const
 {
     // Probe registered converters in INSERTION ORDER (impl_->names() mirrors
-    // registration order exactly — see Impl::record_order). The FIRST type
-    // whose converter accepts the literal wins. "Accepts" = runs without
-    // throwing; any ValueConversionException (MalformedValue or otherwise)
-    // means "this type does not recognize the literal" — keep probing.
-    for (const std::string& typeName : impl_->names())
+    // registration order exactly — the NameTable's append-only rows_). The
+    // FIRST type whose converter accepts the literal wins. "Accepts" = runs
+    // without throwing; any ValueConversionException (MalformedValue or
+    // otherwise) means "this type does not recognize the literal" — keep
+    // probing.
+    for (const std::string_view typeName : impl_->names())
     {
         const ValueConverter* converter = impl_->find(typeName);
         if (converter == nullptr)
@@ -128,7 +119,7 @@ bool ValueConverterRegistry::try_infer_type(std::string_view literal, std::strin
         }
         if (outType != nullptr)
         {
-            *outType = typeName;
+            *outType = std::string(typeName);
         }
         return true;
     }
@@ -148,7 +139,7 @@ std::size_t ValueConverterRegistry::size() const noexcept
 }
 
 VAML_CORE_EXPORT
-std::vector<std::string> ValueConverterRegistry::registered_names() const
+std::vector<std::string_view> ValueConverterRegistry::registered_names() const
 {
     return impl_->names();
 }

@@ -512,7 +512,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
         const bool captureAttachedInherits =
             dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits)
             && entry->owned == nullptr;
-        descendantBefore = collect_descendant_effectives(*this, name, captureAttachedInherits);
+        collect_descendant_effectives(*this, name, captureAttachedInherits, descendantBefore);
     }
 
     md.notifyChanged(currentEffective, coerced);
@@ -619,7 +619,7 @@ void DependencyObject::ProcessPendingChanges()
             const bool captureAttachedInherits =
                 dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits)
                 && entry->owned == nullptr;
-            descendantBefore = collect_descendant_effectives(*this, name, captureAttachedInherits);
+            collect_descendant_effectives(*this, name, captureAttachedInherits, descendantBefore);
         }
 
         md.notifyChanged(currentEffective, coerced);
@@ -745,12 +745,13 @@ std::size_t DependencyObject::pending_notification_count() const noexcept
 // descendant inherits the value through the global-resolved read (S043) and must
 // be notified on the parent's change, not just materialized/registering ones.
 VAML_CORE_EXPORT
-std::vector<std::pair<DependencyObject*, Value>> DependencyObject::collect_descendant_effectives(
-    const DependencyObject& root, std::string_view name, bool captureAttachedInherits)
+void DependencyObject::collect_descendant_effectives(
+    const DependencyObject& root, std::string_view name, bool captureAttachedInherits,
+    std::vector<std::pair<DependencyObject*, Value>>& out)
 {
-    std::vector<std::pair<DependencyObject*, Value>> result;
-    root.visit_scope(name, result, captureAttachedInherits);
-    return result;
+    // S144: out-param accessor (no return-by-value). `out` is the caller's sink.
+    out.clear();
+    root.visit_scope(name, out, captureAttachedInherits);
 }
 
 // Recursive scope walker used by collect_descendant_effectives. `self` is the

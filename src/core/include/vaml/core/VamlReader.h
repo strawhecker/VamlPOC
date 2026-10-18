@@ -168,9 +168,10 @@ public:
     [[nodiscard]] std::size_t name_count() const noexcept;
 
     // Registered x:Name entries in REGISTRATION (document) order: (name, obj).
-    // Keys are owned std::string copies (the documented store discipline —
-    // never the PropertyId view).
-    [[nodiscard]] const std::vector<std::pair<std::string, DependencyObject*>>&
+    // Keys are interned string_views (S144 — the S140 discipline: pool-backed,
+    // stable for the interning thread, content-equal; NO owned std::string per
+    // entry, no owned-name gotcha).
+    [[nodiscard]] const std::vector<std::pair<std::string_view, DependencyObject*>>&
     names() const noexcept;
 
     // The authored x:Class name on the root, empty when absent. S092 records
@@ -217,8 +218,10 @@ private:
 
     std::vector<std::unique_ptr<DependencyObject>> retained_;
 
-    // S092 Strand A — x:Name registry (insertion-ordered; owned keys).
-    std::vector<std::pair<std::string, DependencyObject*>> names_;
+    // S092 Strand A — x:Name registry (insertion-ordered; interned string_view
+    // keys per S144/S140 — pool-backed, content-equal, stable for this reader's
+    // thread).
+    std::vector<std::pair<std::string_view, DependencyObject*>> names_;
     std::string root_class_;
 
     // S092 Strand B — deferred markup extensions (document order).

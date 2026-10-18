@@ -125,8 +125,10 @@ public:
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }
 
     // All registered type names in INSERTION ORDER (deterministic — not
-    // unordered_map iteration). Returns a fresh copy (owned strings).
-    [[nodiscard]] std::vector<std::string> registered_names() const;
+    // unordered_map iteration). Returns string_views into the registry's OWNED
+    // stable name storage (S144) — NO by-value vector<std::string> copy, no
+    // owned-name gotcha. The views are valid for the registry's lifetime.
+    [[nodiscard]] std::vector<std::string_view> registered_names() const;
 
     // The process-wide startup singleton populated once by
     // register_builtin_converters(). Thread-safe construction (Meyers

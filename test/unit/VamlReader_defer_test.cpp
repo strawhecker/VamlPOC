@@ -118,7 +118,7 @@ TEST_CASE("S092: a root x:Name is registered; named() returns the root")
     assertConcrete<StackPanel>(root);
     SHOULD(ShouldlyString(reader.name_count()).ShouldBe(1u));
     SHOULD(ShouldlyIntegral(reader.named("root") == root.get()).ShouldBe(true));
-    SHOULD(ShouldlyString(reader.names()[0].first).ShouldBe(std::string("root")));
+    SHOULD(ShouldlyString(std::string(reader.names()[0].first)).ShouldBe(std::string("root")));
 }
 
 TEST_CASE("S092: child x:Names are registered in document order")
@@ -138,8 +138,8 @@ TEST_CASE("S092: child x:Names are registered in document order")
     SHOULD(ShouldlyIntegral(reader.named("lbl") == retained[1].get()).ShouldBe(true));
 
     // names() preserves document (registration) order, not construction order.
-    SHOULD(ShouldlyString(reader.names()[0].first).ShouldBe(std::string("btn")));
-    SHOULD(ShouldlyString(reader.names()[1].first).ShouldBe(std::string("lbl")));
+    SHOULD(ShouldlyString(std::string(reader.names()[0].first)).ShouldBe(std::string("btn")));
+    SHOULD(ShouldlyString(std::string(reader.names()[1].first)).ShouldBe(std::string("lbl")));
 }
 
 TEST_CASE("S092: named() returns nullptr for an unknown name")

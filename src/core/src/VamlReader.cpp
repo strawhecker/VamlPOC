@@ -9,6 +9,7 @@
 #include "vaml/core/DependencyProperty.h"      // DependencyProperty
 #include "vaml/core/Element.h"                 // register_builtin_elements
 #include "vaml/core/ElementResolver.h"         // resolve_element + exception
+#include "vaml/core/Intern.h"                  // S140/S144: interned string_view keys for the x:Name registry
 #include "vaml/core/ParsedElement.h"           // ParsedElement/ParsedAttribute + parse_vaml
 #include "vaml/core/PropertyId.h"              // PropertyId
 #include "vaml/core/ValueConverter.h"          // ValueConverterRegistry + register_builtin_converters
@@ -23,16 +24,14 @@ namespace vaml {
 namespace {
 
 // S092: true iff `name` is already registered in the reader's x:Name registry.
-// Linear scan (the name registry is small per Load); keeps the header free of
-// a hash-set member and preserves registration order in `names_` (a set would
-// not — NO-LAZY-LLM: the ordered vector is the documented store discipline).
+// Linear scan over interned string_view keys (S144 — the small per-Load registry).
 [[nodiscard]] bool name_registered(
-    const std::vector<std::pair<std::string, DependencyObject*>>& names,
+    const std::vector<std::pair<std::string_view, DependencyObject*>>& names,
     std::string_view name)
 {
     const auto it = std::find_if(
         names.begin(), names.end(),
-        [&](const std::pair<std::string, DependencyObject*>& entry) {
+        [&](const std::pair<std::string_view, DependencyObject*>& entry) {
             return entry.first == name;
         });
     return it != names.end();
@@ -90,6 +89,17 @@ void ensure_startup_registrations()
     }
 }
 
+// S144: counts the NON-ROOT nodes in a parsed tree (used to reserve retained_).
+[[nodiscard]] std::size_t count_non_root_descendants(const ParsedElement& el)
+{
+    std::size_t n = el.children.size();
+    for (const ParsedElement& c : el.children)
+    {
+        n += count_non_root_descendants(c);
+    }
+    return n;
+}
+
 } // namespace
 
 VAML_CORE_EXPORT
@@ -134,17 +144,19 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         // x:Key -> S361 and x:Null -> S084 paths remain deferred unchanged.
         if (attr.directive == XmlDirectiveType::Name)
         {
-            // x:Name registry keys are OWNED std::string (per-Load, small,
-            // exposed via names()); materialize from the interned view.
-            const std::string name(attr.value);
+            // x:Name registry keys are INTERNED string_views (S144 — S140
+            // discipline: pool-backed, stable for this thread, content-equal),
+            // NOT owned std::string per entry (no owned-name gotcha). The
+            // duplicate scan + named() both compare BY CONTENT.
+            const std::string_view name = vaml::intern(attr.value);
             if (name_registered(names_, name))
             {
                 // WPF-faithful: a name scope with a repeated name is an error;
                 // fail loud, never silently last-wins. (DuplicateName — the one
                 // genuinely-new reader error S092 introduces.)
                 throw VamlReaderException(
-                    VamlReaderError::DuplicateName, name,
-                    "duplicate x:Name '" + name + "'");
+                    VamlReaderError::DuplicateName, std::string(name),
+                    "duplicate x:Name '" + std::string(name) + "'");
             }
             names_.emplace_back(name, obj.get());
             continue;
@@ -242,6 +254,13 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     root_class_.clear();
     deferred_extensions_.clear();
     deferred_event_handlers_.clear();
+
+    // S144: reserve the per-Load vectors from the parsed tree's known size
+    // (no reallocation churn while building).
+    retained_.reserve(count_non_root_descendants(root));
+    deferred_extensions_.reserve(root.attributes.size() + count_non_root_descendants(root));
+    deferred_event_handlers_.reserve(root.attributes.size() + count_non_root_descendants(root));
+
     return build(root, 0);
 }
 
@@ -251,7 +270,7 @@ DependencyObject* VamlReader::named(std::string_view name) const noexcept
 {
     const auto it = std::find_if(
         names_.begin(), names_.end(),
-        [&](const std::pair<std::string, DependencyObject*>& entry) {
+        [&](const std::pair<std::string_view, DependencyObject*>& entry) {
             return entry.first == name;
         });
     return it == names_.end() ? nullptr : it->second;
@@ -264,7 +283,7 @@ std::size_t VamlReader::name_count() const noexcept
 }
 
 VAML_CORE_EXPORT
-const std::vector<std::pair<std::string, DependencyObject*>>&
+const std::vector<std::pair<std::string_view, DependencyObject*>>&
 VamlReader::names() const noexcept
 {
     return names_;

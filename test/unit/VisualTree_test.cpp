@@ -105,8 +105,9 @@ TEST_CASE("S121: create_child appends an owned child; parent traversal reflects 
     SHOULD(ShouldlyString(root.child_at(2) == nullptr).ShouldBe(true));
     SHOULD(ShouldlyString(root.child_at(999) == nullptr).ShouldBe(true));
 
-    // children() view: non-owning, in order.
-    const std::vector<UIElement*> view = root.children();
+    // children() out-param view (S144): non-owning, in order.
+    std::vector<UIElement*> view;
+    root.children(view);
     SHOULD(ShouldlyString(view.size()).ShouldBe(2u));
     SHOULD(ShouldlyString(view[0] == c0).ShouldBe(true));
     SHOULD(ShouldlyString(view[1] == c1).ShouldBe(true));

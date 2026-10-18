@@ -123,6 +123,9 @@ ParsedElement parse_vaml(std::string_view source)
             {
                 ParseFrame fr;
                 applyElementIdentity(fr.el, tok);
+                // S144: reserve the per-element attribute vector from the
+                // scanner's already-scanned count (no reallocation churn).
+                fr.el.attributes.reserve(tok.attributes.size());
                 for (const XmlAttribute& a : tok.attributes)
                 {
                     fr.el.attributes.push_back(toParsedAttribute(a));

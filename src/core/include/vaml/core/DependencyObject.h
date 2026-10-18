@@ -428,9 +428,10 @@ private:
     // collect_descendant_effectives() walks this object's inheritance-scope (and
     // recursively each child's scope) and captures each descendant with its
     // CURRENT effective value (computed pre-change by the caller, BEFORE the
-    // origin stores its new value). A descendant is captured when it either
-    // REGISTERS `name` (has a local store entry) OR — S044 broadening — the
-    // property is a GLOBALLY registered Inherits/InheritOnly attached property
+    // origin stores its new value) into `out` (S144 — out-param, no return-by-
+    // value). A descendant is captured when it either REGISTERS `name` (has a
+    // local store entry) OR — S044 broadening — the property is a GLOBALLY
+    // registered Inherits/InheritOnly attached property
     // (`captureAttachedInherits`): a purely-passive attached-Inherits descendant
     // never materializes a store entry, yet it reads (and must be notified of)
     // the inherited value. notify_descendants still filters to real change, so
@@ -441,8 +442,9 @@ private:
     // enqueues a pushed notification {name, oldEffective, newEffective} into that
     // descendant's OWN notification queue ONLY when old != new (local-wins /
     // inherited-unchanged descendants produce no notification).
-    static std::vector<std::pair<DependencyObject*, Value>> collect_descendant_effectives(
-        const DependencyObject& root, std::string_view name, bool captureAttachedInherits);
+    static void collect_descendant_effectives(
+        const DependencyObject& root, std::string_view name, bool captureAttachedInherits,
+        std::vector<std::pair<DependencyObject*, Value>>& out);
     void notify_descendants(
         std::string_view name,
         const std::vector<std::pair<DependencyObject*, Value>>& before);

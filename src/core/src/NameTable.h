@@ -126,6 +126,21 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return rows_.size(); }
     [[nodiscard]] bool empty() const noexcept { return rows_.empty(); }
 
+    // S144: insertion-order name listing. rows_ is append-only, so its order
+    // exactly mirrors insert() order and never duplicates a name. Returns
+    // string_views into the OWNED stable key storage (valid for the table's
+    // lifetime) — NO owned-name copy (S144 accessor migration).
+    [[nodiscard]] std::vector<std::string_view> names() const
+    {
+        std::vector<std::string_view> out;
+        out.reserve(rows_.size());
+        for (const auto& node : rows_)
+        {
+            out.push_back(node->name);
+        }
+        return out;
+    }
+
 private:
     struct Node
     {

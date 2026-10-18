@@ -393,7 +393,7 @@
                  hold thread-local intern views). ChangeQueue::drain_values re-interns each drained name to
                  the affinity thread's canonical interned view. NO-GAP forwarded: S144 owns the three
                  lookup-registry + public-accessor migration; no MINIMAL REAL introduced/resolved.]
-- S144 dep:S143  Migrate the three lookup registries to the token-keyed store (ElementFactoryRegistry,
+- S144 dep:S143  [DONE] Migrate the three lookup registries to the token-keyed store (ElementFactoryRegistry,
                  ValueConverterRegistry, DependencyProperty global table), keyed by CONTENT (SIMD by-value),
                  NOT pointer-identity — registries stay content-keyed so try_create/convert/TryGet stop
                  touching owning strings via the by-value SIMD probe (the pointer-equal-views premise is
@@ -401,6 +401,12 @@
                  NOT by-value vector<std::string> (removes the owned-name gotchas); out-param accessors for
                  UIElement::children()/collect_descendant_effectives (no return-by-value); reserve() the
                  parser/reader vectors. [Rewrites S087/S089/S091/S121 in place; keeps MINIMAL REAL contracts.]
+                 IMPLEMENTED: ElementFactoryRegistry + ValueConverterRegistry internal indexes re-keyed off
+                 std::unordered_map<std::string,...> + owned-name order vectors onto vaml::detail::NameTable
+                 (content-keyed S141 store, mirroring PropertyRegistry/GlobalTable at S143); registered_names()
+                 → vector<string_view> (no by-value copies); VamlReader::names() keys → interned string_view;
+                 UIElement::children() → out-param; collect_descendant_effectives → out-param; reserve() the
+                 parser/reader vectors. DependencyProperty global table was ALREADY on NameTable (S143).
 - S145 dep:S144  Block pool free-list (thread-local, retain-forever, LOCKLESS — the object pool stays
                  thread-affine per S037/ADR-018, so it needs NO lock, unlike the process-global string pool
                  framing that was rejected; opt-in master destroy_all): dole DependencyObject/UIElement from

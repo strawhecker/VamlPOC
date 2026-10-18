@@ -188,9 +188,9 @@ TEST_CASE("S093: the x:Name registry resolves the full document")
     SHOULD(ShouldlyString(names.size()).ShouldBe(3u));
     if (names.size() == 3)
     {
-        SHOULD(ShouldlyString(names[0].first).ShouldBe(std::string("root")));
-        SHOULD(ShouldlyString(names[1].first).ShouldBe(std::string("btn")));
-        SHOULD(ShouldlyString(names[2].first).ShouldBe(std::string("lbl")));
+        SHOULD(ShouldlyString(std::string(names[0].first)).ShouldBe(std::string("root")));
+        SHOULD(ShouldlyString(std::string(names[1].first)).ShouldBe(std::string("btn")));
+        SHOULD(ShouldlyString(std::string(names[2].first)).ShouldBe(std::string("lbl")));
     }
 }
 

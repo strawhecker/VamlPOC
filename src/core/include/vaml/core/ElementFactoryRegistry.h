@@ -27,6 +27,16 @@
 // out of this public header. ElementFactory (std::function) is the public API
 // alias the register signature requires.
 
+// S144 (dep:S143) — the registry's internal index is re-keyed OFF
+// std::unordered_map + owned std::string keys and ONTO vaml::detail::NameTable
+// (content-keyed S141-pattern probe store, self-owned stable keys, content
+// match, no transient std::string on find) — mirroring PropertyRegistry /
+// DependencyProperty::GlobalTable at S143. registered_names() returns
+// string_views into the registry's OWNED stable name storage (no by-value
+// vector<std::string>). The pimpl is KEPT for include-surface isolation only
+// (NameTable.h stays under src/core/src; same rationale as PropertyRegistry/
+// DependencyProperty at S143). ADR-018: no lock added.
+
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject> factory target
 
 #include <cstddef>
@@ -88,8 +98,10 @@ public:
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }
 
     // All registered type names in INSERTION ORDER (deterministic — not
-    // unordered_map iteration). Returns a fresh copy (owned strings).
-    [[nodiscard]] std::vector<std::string> registered_names() const;
+    // unordered_map iteration). Returns string_views into the registry's OWNED
+    // stable name storage (S144) — NO by-value vector<std::string> copy, no
+    // owned-name gotcha. The views are valid for the registry's lifetime.
+    [[nodiscard]] std::vector<std::string_view> registered_names() const;
 
     // The process-wide startup singleton populated once by
     // register_builtin_elements(). Thread-safe construction (Meyers function-

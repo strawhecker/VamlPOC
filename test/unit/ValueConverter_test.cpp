@@ -45,6 +45,7 @@
 #include "vaml/core/ValueConverter.h"
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 using vaml::Color;
@@ -151,12 +152,12 @@ TEST_CASE("S089: register + convert returns the right Value; order is insertion"
     SHOULD(ShouldlyString(r.convert("First", "ignored")).ShouldBe(Value::Int32(1)));
     SHOULD(ShouldlyString(r.convert("Second", "ignored")).ShouldBe(Value::Int32(2)));
 
-    const std::vector<std::string> names = r.registered_names();
+    const std::vector<std::string_view> names = r.registered_names();
     SHOULD(ShouldlyString(names.size()).ShouldBe(2u));
     if (names.size() == 2)
     {
-        SHOULD(ShouldlyString(names[0]).ShouldBe(std::string("First")));
-        SHOULD(ShouldlyString(names[1]).ShouldBe(std::string("Second")));
+        SHOULD(ShouldlyString(std::string(names[0])).ShouldBe(std::string("First")));
+        SHOULD(ShouldlyString(std::string(names[1])).ShouldBe(std::string("Second")));
     }
 }
 

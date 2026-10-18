@@ -371,9 +371,9 @@ TEST_CASE("S095: golden A reader axis — x:Name registry + root_class resolve t
     SHOULD(ShouldlyString(names.size()).ShouldBe(3u));
     if (names.size() == 3)
     {
-        SHOULD(ShouldlyString(names[0].first).ShouldBe(std::string("root")));
-        SHOULD(ShouldlyString(names[1].first).ShouldBe(std::string("search")));
-        SHOULD(ShouldlyString(names[2].first).ShouldBe(std::string("label")));
+        SHOULD(ShouldlyString(std::string(names[0].first)).ShouldBe(std::string("root")));
+        SHOULD(ShouldlyString(std::string(names[1].first)).ShouldBe(std::string("search")));
+        SHOULD(ShouldlyString(std::string(names[2].first)).ShouldBe(std::string("label")));
     }
 }
 

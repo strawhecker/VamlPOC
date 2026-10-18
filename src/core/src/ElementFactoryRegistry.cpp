@@ -1,10 +1,18 @@
 // S087 — ElementFactoryRegistry out-of-line definitions (pimpl). Maps element
 // type NAME -> ElementFactory (production of unique_ptr<DependencyObject>),
 // enforcing name uniqueness (dedupe) + deterministic insertion-order listing.
+//
+// S144 (dep:S143): the internal index is re-keyed OFF std::unordered_map<std::string,...>
+// + an owned-name order vector and ONTO vaml::detail::NameTable<ElementFactory>
+// (the S141-pattern content-keyed probe store, self-owned stable keys, content
+// match, NO transient std::string on find). registered_names() now returns
+// string_views into the NameTable's OWNED stable name storage (no by-value
+// vector<std::string> copy — removes the owned-name gotcha). ADR-018: no lock.
 
 #include "vaml/core/ElementFactoryRegistry.h"
 
-#include <unordered_map>
+#include "NameTable.h" // S143/S144: content-keyed probe store (re-keys off unordered_map)
+
 #include <utility>
 
 namespace vaml {
@@ -13,38 +21,26 @@ class ElementFactoryRegistry::Impl
 {
 public:
     // Returns true on a successful insert, false on a name collision (the
-    // existing entry is left unchanged — the moving factory is consumed by
-    // emplace only on success, per unordered_map guarantees).
+    // existing entry is left unchanged). Content-keyed: the NameTable probes by
+    // CONTENT (string_view), no transient std::string materialized on find.
     bool insert(std::string_view typeName, ElementFactory factory)
     {
-        auto [prev, inserted] =
-            map_.try_emplace(std::string(typeName), std::move(factory));
-        (void)prev;
-        return inserted;
+        return table_.insert(std::string(typeName), std::move(factory)) != nullptr;
     }
 
     const ElementFactory* find(std::string_view typeName) const noexcept
     {
-        // MSVC lacks transparent heterogeneous lookup for string_view on an
-        // unordered_map<std::string,...>; build a key string for the lookup.
-        // The reader path is not registration hot-path, so one short-string
-        // construction per resolve is acceptable (SSO).
-        auto it = map_.find(std::string(typeName));
-        return it == map_.end() ? nullptr : &it->second;
+        return table_.find(typeName);
     }
 
-    std::size_t size() const noexcept { return map_.size(); }
+    std::size_t size() const noexcept { return table_.size(); }
 
-    // Insertion order: the order-list is appended only on a successful insert,
-    // so it exactly mirrors registration order and never duplicates a name.
-    std::vector<std::string> names() const { return order_; }
+    // Insertion order: the NameTable's rows_ is append-only, so iteration order
+    // mirrors registration order exactly and never duplicates a name. The
+    // string_views point into the NameTable's OWNED stable name storage.
+    std::vector<std::string_view> names() const { return table_.names(); }
 
-    // Public-api shape helpers.
-    void record_order(std::string_view typeName) { order_.emplace_back(typeName); }
-
-private:
-    std::unordered_map<std::string, ElementFactory> map_;
-    std::vector<std::string> order_;
+    vaml::detail::NameTable<ElementFactory> table_;
 };
 
 VAML_CORE_EXPORT
@@ -65,14 +61,13 @@ ElementFactoryRegistry& ElementFactoryRegistry::operator=(ElementFactoryRegistry
 VAML_CORE_EXPORT
 void ElementFactoryRegistry::register_element(std::string_view typeName, ElementFactory factory)
 {
-    // Dedupe first; only record insertion order on a successful insert (so the
-    // order-list never diverges from the map's names).
+    // The NameTable's content insert returns nullptr on a duplicate and leaves
+    // the existing entry unchanged (dedupe, S032 discipline).
     if (!impl_->insert(typeName, std::move(factory)))
     {
         std::string msg = "element already registered: '" + std::string(typeName) + "'";
         throw ElementAlreadyRegistered(msg.c_str());
     }
-    impl_->record_order(typeName);
 }
 
 VAML_CORE_EXPORT
@@ -124,7 +119,7 @@ std::size_t ElementFactoryRegistry::size() const noexcept
 }
 
 VAML_CORE_EXPORT
-std::vector<std::string> ElementFactoryRegistry::registered_names() const
+std::vector<std::string_view> ElementFactoryRegistry::registered_names() const
 {
     return impl_->names();
 }

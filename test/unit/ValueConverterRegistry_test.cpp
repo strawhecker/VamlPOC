@@ -59,6 +59,7 @@
 #include <charconv>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -305,12 +306,12 @@ TEST_CASE("S090 mechanics: move-construct / move-assign preserve registrations +
 
     // Move-construct preserves both converters + insertion order.
     ValueConverterRegistry dst{std::move(src)};
-    const std::vector<std::string> moved = dst.registered_names();
+    const std::vector<std::string_view> moved = dst.registered_names();
     SHOULD(ShouldlyString(moved.size()).ShouldBe(2u));
     if (moved.size() == 2)
     {
-        SHOULD(ShouldlyString(moved[0]).ShouldBe(std::string("Int32")));
-        SHOULD(ShouldlyString(moved[1]).ShouldBe(std::string("Thickness")));
+        SHOULD(ShouldlyString(std::string(moved[0])).ShouldBe(std::string("Int32")));
+        SHOULD(ShouldlyString(std::string(moved[1])).ShouldBe(std::string("Thickness")));
     }
     expect_ok(dst, "Int32", "5", Value::Int32(5));
     expect_ok(dst, "Thickness", "1,2", Value::Thickness(Thickness{1, 2, 1, 2}));
@@ -322,12 +323,12 @@ TEST_CASE("S090 mechanics: move-construct / move-assign preserve registrations +
     register_bool(other);
     SHOULD(ShouldlyString(other.size()).ShouldBe(1u));
     other = std::move(dst);
-    const std::vector<std::string> assigned = other.registered_names();
+    const std::vector<std::string_view> assigned = other.registered_names();
     SHOULD(ShouldlyString(assigned.size()).ShouldBe(2u));
     if (assigned.size() == 2)
     {
-        SHOULD(ShouldlyString(assigned[0]).ShouldBe(std::string("Int32")));
-        SHOULD(ShouldlyString(assigned[1]).ShouldBe(std::string("Thickness")));
+        SHOULD(ShouldlyString(std::string(assigned[0])).ShouldBe(std::string("Int32")));
+        SHOULD(ShouldlyString(std::string(assigned[1])).ShouldBe(std::string("Thickness")));
     }
     // Old content (Bool) gone.
     SHOULD(ShouldlyString(other.is_registered("Bool")).ShouldBe(false));

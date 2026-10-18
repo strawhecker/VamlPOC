@@ -296,7 +296,10 @@ public:
     // index, so a walker can bound-check without throwing).
     [[nodiscard]] UIElement* child_at(std::size_t index) const noexcept;
     // NON-OWNING read-only view of the children, in index (z/visual) order.
-    [[nodiscard]] const std::vector<UIElement*> children() const noexcept;
+    // Writes the child pointers into `out` (S144 — no return-by-value copy; the
+    // caller supplies the sink). For a no-alloc read, use child_count() +
+    // child_at().
+    void children(std::vector<UIElement*>& out) const noexcept;
     // Depth-first pre-order walk over THIS element and all descendants in the
     // visual tree, invoking `visitor(UIElement&)` on each visited element
     // (this first, then children in order). Non-recursive internals are guarded

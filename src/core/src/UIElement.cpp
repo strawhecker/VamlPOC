@@ -430,15 +430,16 @@ UIElement* UIElement::child_at(std::size_t index) const noexcept
 }
 
 VAML_CORE_EXPORT
-const std::vector<UIElement*> UIElement::children() const noexcept
+void UIElement::children(std::vector<UIElement*>& out) const noexcept
 {
-    std::vector<UIElement*> raw;
-    raw.reserve(children_.size());
+    // S144: out-param accessor (no return-by-value copy). The caller supplies
+    // the sink; this writes the non-owning child pointers in index order.
+    out.clear();
+    out.reserve(children_.size());
     for (const auto& c : children_)
     {
-        raw.push_back(c.get());
+        out.push_back(c.get());
     }
-    return raw;
 }
 
 VAML_CORE_EXPORT

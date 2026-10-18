@@ -30,6 +30,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -200,12 +201,13 @@ TEST_CASE("S087: registered_names preserves insertion order deterministically")
     r.register_element("SecondS087", [] { return std::make_unique<Text>(); });
     r.register_element("ThirdS087", [] { return std::make_unique<Grid>(); });
 
-    // Insertion order, not hash order — deterministic across runs.
-    const std::vector<std::string> names = r.registered_names();
+    // Insertion order, not hash order — deterministic across runs. S144:
+    // registered_names() returns string_views (no by-value owned copies).
+    const std::vector<std::string_view> names = r.registered_names();
     SHOULD(ShouldlyIntegral(names.size()).ShouldBe(3u));
-    SHOULD(ShouldlyString(names[0]).ShouldBe(std::string("FirstS087")));
-    SHOULD(ShouldlyString(names[1]).ShouldBe(std::string("SecondS087")));
-    SHOULD(ShouldlyString(names[2]).ShouldBe(std::string("ThirdS087")));
+    SHOULD(ShouldlyString(std::string(names[0])).ShouldBe(std::string("FirstS087")));
+    SHOULD(ShouldlyString(std::string(names[1])).ShouldBe(std::string("SecondS087")));
+    SHOULD(ShouldlyString(std::string(names[2])).ShouldBe(std::string("ThirdS087")));
 }
 
 // ---------------------------------------------------------------------------
