@@ -5,9 +5,9 @@
 #include "vaml/core/DependencyProperty.h"
 
 #include "vaml/core/PropertyRegistry.h"
+#include "NameTable.h" // S143 (B4): content-keyed probe store for GlobalTable
 
 #include <string>
-#include <unordered_map>
 #include <utility>
 
 namespace vaml {
@@ -35,15 +35,23 @@ DependencyProperty::DependencyProperty(std::unique_ptr<Impl> impl)
 {
 }
 
-// The companion static table: name (owned std::string, stable) -> the full
-// DependencyProperty definition. Lives for the process lifetime alongside
-// PropertyRegistry::global(). Function-local static => no static-init-order
-// fiasco; constructed on first Register/TryGet/Get.
+// The companion static table: name -> the full DependencyProperty definition.
+// Lives for the process lifetime alongside PropertyRegistry::global().
+// Function-local static => no static-init-order fiasco; constructed on first
+// Register/TryGet/Get.
+//
+// S143 (B4) re-keys GlobalTable OFF std::unordered_map<std::string,...> and ONTO
+// the S141-pattern content-keyed probe store (NameTable), which OWNS its stable
+// key nodes (process lifetime) and matches BY CONTENT with NO transient
+// std::string materialized on lookup. This is the S140 DECISION 1 resolution for
+// a GLOBAL table — it cannot hold thread-local intern views, so it stays
+// content-keyed with self-owned stable storage. ADR-018: no lock added (the
+// single-threaded-registration-then-read contract is unchanged).
 namespace {
 
 struct GlobalTable
 {
-    std::unordered_map<std::string, std::unique_ptr<DependencyProperty>> byName;
+    vaml::detail::NameTable<std::unique_ptr<DependencyProperty>> byName;
 
     static GlobalTable& instance()
     {
@@ -78,12 +86,18 @@ const DependencyProperty& DependencyProperty::Register(
     // `name` is somehow already present here (cannot happen given registry
     // dedupe above), keep the EXISTING registration (store unchanged).
     GlobalTable& table = GlobalTable::instance();
-    auto [it, inserted] = table.byName.emplace(
-        ownedName,
-        std::unique_ptr<DependencyProperty>(
-            new DependencyProperty(std::make_unique<Impl>(ownedName, type, std::move(metadata), std::string(ownerTypeId)))));
-    (void)inserted;
-    return *it->second;
+    auto owner = std::unique_ptr<DependencyProperty>(
+        new DependencyProperty(std::make_unique<Impl>(ownedName, type, std::move(metadata), std::string(ownerTypeId))));
+    std::unique_ptr<DependencyProperty>* stored =
+        table.byName.insert(ownedName, std::move(owner));
+    if (stored == nullptr)
+    {
+        // Already present (defensive, cannot happen given the registry dedupe
+        // above): keep the EXISTING registration (store unchanged).
+        const std::unique_ptr<DependencyProperty>* existing = table.byName.find(ownedName);
+        return *existing->get();
+    }
+    return **stored;
 }
 
 VAML_CORE_EXPORT
@@ -95,13 +109,14 @@ const std::string& DependencyProperty::owner_type_id() const noexcept
 VAML_CORE_EXPORT
 const DependencyProperty* DependencyProperty::TryGet(std::string_view name) noexcept
 {
+    // S143 B4: content lookup with NO transient std::string materialized.
     GlobalTable& table = GlobalTable::instance();
-    auto it = table.byName.find(std::string(name));
-    if (it == table.byName.end() || it->second == nullptr)
+    const std::unique_ptr<DependencyProperty>* found = table.byName.find(name);
+    if (found == nullptr || *found == nullptr)
     {
         return nullptr;
     }
-    return it->second.get();
+    return found->get();
 }
 
 VAML_CORE_EXPORT

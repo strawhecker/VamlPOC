@@ -370,12 +370,29 @@
                  collapsed-unit on the real S035 pipeline. NO-GAP: pending-mutex relocation + registry re-key
                  onto S140 token + S141 store = S143; registry accessor/signature migration = S144; block pool
                  for object allocation + children slab = S145.]
-- S143 dep:S142  Relocate the per-object pending mutex out of DependencyObject into the thread-affine
+- S143 dep:S142  [DONE — FULLY IMPLEMENTED, BOTH CI LANES GREEN from first principles: windows-msvc
+                 (build/verify_s143.cmd, msvc-debug, warning-clean; test exe 628 test cases / 4994
+                 passing assertions / 0 failed, incl. new MutexRelocation_rekey_test.cpp with 9 S143
+                 cases / 259 assertions) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug configure+build+
+                 ctest 1/1 PASS; 628 cases / SUCCESS). ADR-018: ZERO new locks — the relocated S037/S041
+                 ChangeQueue mutex is the standing pre-approved lock, moved not created.]
+                 Relocate the per-object pending mutex out of DependencyObject into the thread-affine
                  ChangeQueue; re-key ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty
                  GlobalTable onto the S140 token + S141 store. [Rewrites S037/S041/S038 in place; change
                  notification contract (QUEUED/coalescing/registration order) behavior-unchanged. The kept
                  mutex relocation is EXECUTED UNDER ADR-018 (approval already recorded — it is the standing
-                 pre-approved S037/S041 lock); no new lock is introduced.]
+                 pre-approved S037/S041 lock); no new lock is introduced. IMPLEMENTATION — PART A: the S037
+                 value-write family (enqueue_value/drain_values/value_pending_count) moved INTO the S041
+                 ChangeQueue as a second deque under the SAME mutex + SAME affinity marker → DependencyObject
+                 now holds ONE ChangeQueue `queue_`; its raw pending_/queue_mutex_ members REMOVED; custom
+                 move simplified (queue_ is movable). PART B: ChangeRecorder/PropertyRegistry/
+                 DependencyProperty::GlobalTable internal indexes re-keyed OFF std::unordered_map +
+                 owned-std::string ONTO a new vaml::detail::NameTable<T> — the S141-pattern content-keyed
+                 probe store (no hash, equality by CONTENT, self-owned stable key nodes, no transient
+                 std::string on lookup) — the S140 DECISION 1 resolution (global/cross-thread stores cannot
+                 hold thread-local intern views). ChangeQueue::drain_values re-interns each drained name to
+                 the affinity thread's canonical interned view. NO-GAP forwarded: S144 owns the three
+                 lookup-registry + public-accessor migration; no MINIMAL REAL introduced/resolved.]
 - S144 dep:S143  Migrate the three lookup registries to the token-keyed store (ElementFactoryRegistry,
                  ValueConverterRegistry, DependencyProperty global table), keyed by CONTENT (SIMD by-value),
                  NOT pointer-identity — registries stay content-keyed so try_create/convert/TryGet stop

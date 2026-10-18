@@ -99,7 +99,7 @@
 // inline-started unit (pimpl removed, not preserved). This comment is a RECORD
 // of the superseded rationale.
 
-#include "vaml/core/ChangeQueue.h"      // S041 per-object notification queue (inline member)
+#include "vaml/core/ChangeQueue.h"      // S041/S143 per-object postbox (inline member)
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h"
 #include "vaml/core/PropertyMetadata.h" // PropertyMetadata, ValueTypeMismatch
@@ -107,10 +107,8 @@
 #include "vaml/core/Value.h"            // Value (subscriber signature + pushed values)
 
 #include <cstddef>
-#include <deque>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -227,15 +225,17 @@ public:
     // No local override is materialized for a refused read-only write.
     [[nodiscard]] SetResult Set(PropertyId id, const Value& input);
 
-    // S037: drains the pending queue (FIFO) on the affinity thread, replaying
-    // each queued write through the S036 store half (fire cb(old=new-effective?)
-    // -> store). Must be called from the object's affinity thread — otherwise
-    // throws WrongThreadException (NO-LAZY guard).
+    // S037 (S143 relocation): drains the pending VALUE queue (FIFO) on the
+    // affinity thread via the object's single ChangeQueue (queue_.drain_values),
+    // replaying each queued write through the S036 store half (fire
+    // cb(old=new-effective?) -> store). Must be called from the object's affinity
+    // thread — otherwise throws WrongThreadException (NO-LAZY guard).
     void ProcessPendingChanges();
 
-    // S037: number of writes currently sitting in the pending queue (i.e.
-    // queued-not-applied). Mutex-protected; observable from any thread. A test
-    // uses this to confirm a wrong-thread Set() did NOT apply (depth 1) and
+    // S037 (S143 relocation): number of writes currently sitting in the pending
+    // VALUE queue (i.e. queued-not-applied), via queue_.value_pending_count().
+    // Mutex-protected (the queue's single mutex); observable from any thread. A
+    // test uses this to confirm a wrong-thread Set() did NOT apply (depth 1) and
     // that a drain returns it to 0.
     [[nodiscard]] std::size_t pending_change_count() const noexcept;
 
@@ -293,11 +293,12 @@ public:
     void remove_property_changed(PropertyChangedToken token);
 
     // --- S041 descendant-push drain (the object's own notification queue) --
-    // Each DependencyObject owns a per-thread ChangeQueue (affinity == this
-    // object's affinity) into which descendant-push on an Inherits/InheritOnly
-    // change enqueues pushed notifications (oldEffective -> newEffective) for
-    // inheriting descendants. ProcessNotificationQueue() drains THAT queue on
-    // the object's affinity thread (throws WrongThreadException from a
+    // Each DependencyObject owns ONE per-thread ChangeQueue `queue_` (affinity
+    // == this object's affinity) whose S041 notification family receives
+    // descendant-push notifications (oldEffective -> newEffective) for inheriting
+    // descendants, and whose S037 value-write family receives wrong-thread
+    // writes (S143 unified postbox). ProcessNotificationQueue() drains the NOTIFICATION
+    // half on the object's affinity thread (throws WrongThreadException from a
     // non-affine thread, mirroring S037's ProcessPendingChanges contract),
     // firing this object's registration-ordered subscribers for each pushed
     // property.
@@ -327,14 +328,6 @@ private:
 
         // Returns whichever provider is active (exactly one for a live entry).
         const PropertyMetadata& md() const noexcept { return owned != nullptr ? *owned : *borrowed; }
-    };
-
-    // -- S037: a queued wrong-thread write (OWNED name + coerced/validated value).
-    struct PendingWrite
-    {
-        std::string name;
-        Value       coerced;
-        PendingWrite(std::string n, Value v) : name(std::move(n)), coerced(std::move(v)) {}
     };
 
     // -- S142 block-resident store: inline-started, heap-grown on demand. -----
@@ -480,18 +473,16 @@ private:
         std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>>> subs_;
     PropertyChangedToken  next_sub_token_ = 1;
 
-    // S041 descendant push: the object's OWN per-thread notification queue.
-    ChangeQueue           notification_queue_;
-
     // S041 §2.4 non-owning inheritance-scope (the inverse edge of parent_).
     std::vector<DependencyObject*> inheritance_scope_;
 
-    // S037: the ONE genuinely cross-thread datum (mutex-protected).
-    // queue_mutex_ is `mutable` so the const observer pending_change_count()
-    // can lock it (previously the mutex lived behind a pointer pimpl and was
-    // reachable through a const `impl_`; as a direct member it must be mutable).
-    std::deque<PendingWrite> pending_;
-    mutable std::mutex       queue_mutex_;
+    // S143 (rewrites S037/S041): the SINGLE per-thread cross-thread postbox —
+    // one ChangeQueue owning BOTH the S041 notification family and the S037
+    // value-write family under ONE mutex + ONE affinity marker. The per-object
+    // pending mutex physically relocated OUT of DependencyObject INTO the queue
+    // (pending_/queue_mutex_ removed). Executed under ADR-018 — the kept
+    // S037/S041 lock, moved not created; ZERO new locks.
+    ChangeQueue           queue_;
 };
 
 } // namespace vaml

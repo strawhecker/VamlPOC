@@ -23,11 +23,14 @@
 //                                  a registration-order dispatch.
 //
 // Cross-thread contract (mirrors S037, recorded not silent): the ONLY genuinely
-// cross-thread datum is the mutex-protected pending notification deque. The
-// queue records its creating (affinity) thread; enqueue()/pending_count() are
-// safe from any thread, process()/clear() run on the affinity thread. It is a
-// lightweight notification postbox — notifications carry no type semantics; a
-// ValueTypeMismatch is a Set/Get concern (S030/S036/S037), never this type's.
+// cross-thread datums are the mutex-protected pending deques — ONE for the S041
+// notification family and ONE for the S037 value-write family (S143 relocation),
+// guarded by the SAME mutex + SAME affinity marker. The queue records its
+// creating (affinity) thread; enqueue()/pending_count()/enqueue_value()/
+// value_pending_count() are safe from any thread, process()/clear()/drain_values()
+// run on the affinity thread. It is a lightweight postbox — notifications carry
+// no type semantics; a ValueTypeMismatch is a Set/Get concern (S030/S036/S037),
+// never this type's.
 //
 // OWNED-NAME GOTCHA (honored from S036/S037/S038): each enqueued item keys on an
 // OWNED std::string copied from PropertyId::name(), never the non-owning
@@ -41,6 +44,18 @@
 //
 // This is a REAL, complete public symbol. NOT MINIMAL REAL, NOT a STUB — it is
 // the delivered per-thread queue primitive of S041.
+//
+// S143 (dep:S142) REWRITES S037/S041 IN PLACE: ChangeQueue becomes the SINGLE
+// per-thread cross-thread postbox. It now owns BOTH item families under ONE
+// mutex + ONE affinity marker:
+//   - NOTIFICATIONS (S041, pre-existing): enqueue()/process()/clear().
+//   - VALUE WRITES (S037, relocated): enqueue_value()/drain_values()/value_pending_count().
+// The per-object pending mutex physically relocates OUT of DependencyObject
+// INTO this queue (its raw pending_/queue_mutex_ are removed; DependencyObject
+// now holds ONE ChangeQueue). This is the kept mutex relocation executed under
+// ADR-018 (the standing pre-approved S037/S041 lock — moved, not created;
+// ZERO new locks). The change-notification contract (QUEUED / coalescing /
+// registration order) is BEHAVIOR-UNCHANGED.
 
 // NOTE (S142): this header intentionally does NOT include DependencyObject.h.
 // DependencyObject now holds a ChangeQueue BY VALUE, so including DependencyObject.h
@@ -95,9 +110,31 @@ public:
     // only (mutates the owned deque).
     void clear();
 
-    // The thread that owns this queue (its affinity thread; process()/clear()
+    // The thread that owns this queue (its affinity thread; process()/clear()/drain_values()
     // run here). The creating thread by default.
     [[nodiscard]] std::thread::id thread_affinity_id() const noexcept;
+
+    // === S143: S037 value-write family (relocated into the queue) ==========
+    // The callback shape for a drained value-write: (ownedName, coerced value).
+    using ValueDrainFn = std::function<void(std::string_view, const Value&)>;
+
+    // Posts a pending S037 value-write from a NON-affine thread. The NAME is
+    // copied (owned) — a wrong-thread writer can never hold/intern into the
+    // owner's pool (S140 DECISION 1). Cross-thread safe (same single mutex as
+    // the notification family). The coerced value was already coerce+validated
+    // at queue time by the caller.
+    void enqueue_value(std::string_view name, const Value& coerced);
+
+    // Number of value-writes currently queued (queued-not-applied). Cross-thread safe.
+    [[nodiscard]] std::size_t value_pending_count() const noexcept;
+
+    // Owner-thread drain: swaps out the value-write deque (S037 snapshot-then-run)
+    // and replays each {name, coerced} FIFO, returning the count. Must be called
+    // from the queue's affinity thread — otherwise throws WrongThreadException. Each
+    // drained `name` is RE-INTERNED on the owner thread to its canonical view before
+    // the callback (S143 B2), so the callback always receives a content-equal
+    // canonical interned view, never a transient/foreign one.
+    std::size_t drain_values(const ValueDrainFn& fn);
 
 private:
     struct Impl; // pimpl: hides std::deque + std::string + Value + std::mutex

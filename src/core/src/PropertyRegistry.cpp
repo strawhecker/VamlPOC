@@ -1,9 +1,20 @@
-// S032 — PropertyRegistry out-of-line definitions (pimpl). Maps property
-// NAME -> PropertyKey and enforces name uniqueness (dedupe detection).
+// S032 + S143 (B3, dep:S140/S141) — PropertyRegistry out-of-line definitions.
+// Maps property NAME -> PropertyKey and enforces name uniqueness (dedupe).
+//
+// S143 re-keys the internal index OFF std::unordered_map<std::string,...> and
+// ONTO the S141-pattern content-keyed probe store (vaml::detail::NameTable).
+// Lookup takes std::string_view and materializes NO transient std::string.
+// The registry OWNS its key storage (the NameTable's stable key nodes, process
+// lifetime for the global registry) and keys by CONTENT — never pointer. This
+// is the S140 DECISION 1 resolution for the global dedupe master: a global /
+// cross-thread table cannot hold thread-local intern views, so it stays
+// content-keyed with self-owned stable storage. ADR-018: no lock added.
 
 #include "vaml/core/PropertyRegistry.h"
 
-#include <unordered_map>
+#include "NameTable.h" // S143: content-keyed probe store (re-keys off unordered_map)
+
+#include <string>
 #include <utility>
 
 namespace vaml {
@@ -12,23 +23,24 @@ class PropertyRegistry::Impl
 {
 public:
     // Returns the pointer to the stored key, or nullptr on a name collision
-    // (in which case the existing entry is left unchanged).
+    // (in which case the existing entry is left unchanged). S143: content
+    // keyed — the PropertyKey owns its name, and the NameTable owns a second
+    // stable key node used for probing; equality is by content.
     const PropertyKey* insert(PropertyKey key)
     {
-        auto [it, inserted] = map_.emplace(key.name(), std::move(key));
-        return inserted ? &it->second : nullptr;
+        const std::string name = key.name();
+        return table_.insert(name, std::move(key));
     }
 
-    const PropertyKey* find(const std::string& name) const noexcept
+    const PropertyKey* find(std::string_view name) const noexcept
     {
-        auto it = map_.find(name);
-        return it == map_.end() ? nullptr : &it->second;
+        return table_.find(name);
     }
 
-    std::size_t size() const noexcept { return map_.size(); }
+    std::size_t size() const noexcept { return table_.size(); }
 
 private:
-    std::unordered_map<std::string, PropertyKey> map_;
+    vaml::detail::NameTable<PropertyKey> table_;
 };
 
 VAML_CORE_EXPORT
@@ -49,9 +61,9 @@ PropertyRegistry& PropertyRegistry::operator=(PropertyRegistry&&) noexcept = def
 VAML_CORE_EXPORT
 const PropertyKey& PropertyRegistry::register_key(PropertyKey key)
 {
-    // Capture the name up front: on a successful emplace it is moved-from; on
-    // a collision match it is untouched (unordered_map::emplace does not
-    // consume arguments when the key already exists).
+    // Capture the name up front for a clear error message (the NameTable's
+    // content-keyed insert returns nullptr on a duplicate and leaves the
+    // existing entry unchanged).
     std::string name = key.name();
 
     const PropertyKey* stored = impl_->insert(std::move(key));
@@ -64,37 +76,37 @@ const PropertyKey& PropertyRegistry::register_key(PropertyKey key)
 }
 
 VAML_CORE_EXPORT
-const PropertyKey* PropertyRegistry::try_find(const std::string& name) const noexcept
+const PropertyKey* PropertyRegistry::try_find(std::string_view name) const noexcept
 {
     return impl_->find(name);
 }
 
 VAML_CORE_EXPORT
-const PropertyKey& PropertyRegistry::find(const std::string& name) const
+const PropertyKey& PropertyRegistry::find(std::string_view name) const
 {
     const PropertyKey* stored = impl_->find(name);
     if (stored == nullptr)
     {
-        std::string msg = "property not found: '" + name + "'";
+        std::string msg = "property not found: '" + std::string(name) + "'";
         throw PropertyNotFound(msg.c_str());
     }
     return *stored;
 }
 
 VAML_CORE_EXPORT
-PropertyId PropertyRegistry::id_of(const std::string& name) const
+PropertyId PropertyRegistry::id_of(std::string_view name) const
 {
     const PropertyKey* stored = impl_->find(name);
     if (stored == nullptr)
     {
-        std::string msg = "property not found: '" + name + "'";
+        std::string msg = "property not found: '" + std::string(name) + "'";
         throw PropertyNotFound(msg.c_str());
     }
     return PropertyId::of(stored->name());
 }
 
 VAML_CORE_EXPORT
-PropertyId PropertyRegistry::try_id(const std::string& name) const noexcept
+PropertyId PropertyRegistry::try_id(std::string_view name) const noexcept
 {
     const PropertyKey* stored = impl_->find(name);
     // Unregistered name -> invalid (empty) id; caller distinguishes via

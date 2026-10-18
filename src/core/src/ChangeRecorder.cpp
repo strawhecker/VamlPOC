@@ -13,6 +13,7 @@
 #include "vaml/core/ChangeRecorder.h"
 
 #include "vaml/core/Intern.h" // S140: affinity-thread interned name keys
+#include "NameTable.h"        // S143: content-keyed probe index (re-keys off unordered_map)
 
 #include <string_view>
 #include <unordered_map>
@@ -38,8 +39,14 @@ struct ChangeRecorder::Impl
     // Insertion-ordered index: `order` stores interned names in first-record
     // order; `byName` maps each interned view to its pending record.
     // `pending_count()` is order.size() (== byName.size()).
+    //
+    // S143 B1 (rewrites S038 index in place): `byName` is no longer an
+    // std::unordered_map — it is a vaml::detail::NameTable<Pending> (the
+    // S141-pattern content-keyed probe store, no hash, equality by content).
+    // The recorder is single-threaded, so the S140 interned views remain a safe
+    // key here (content-equal). flush() swaps the table out for snapshot-then-emit.
     std::vector<std::string_view>          order;
-    std::unordered_map<std::string_view, Pending> byName;
+    vaml::detail::NameTable<Pending>       byName;
 };
 
 VAML_CORE_EXPORT
@@ -64,21 +71,25 @@ void ChangeRecorder::record(PropertyId id, const Value& oldValue, const Value& n
     // for the thread's life, content-equal across re-interns.
     const std::string_view name = vaml::intern(id.name());
 
-    auto [it, inserted] = impl_->byName.try_emplace(name, Impl::Pending{name, oldValue, newValue});
-    if (inserted)
+    // S143 B1: content-keyed probe index. NameTable::insert returns a pointer
+    // to the stored Pending (nullptr => the name is already present = coalesce).
+    Impl::Pending pending{name, oldValue, newValue};
+    Impl::Pending* stored = impl_->byName.insert(std::string(name), std::move(pending));
+    if (stored != nullptr)
     {
-        // First record for this property: also track first-record order.
+        // First record for this property: track first-record order too.
         impl_->order.push_back(name);
         return;
     }
     // Coalesce (S042 realized-early): keep the FIRST old, adopt the LATEST new.
-    it->second.newValue = newValue;
+    Impl::Pending* existing = impl_->byName.find(name);
+    existing->newValue = newValue;
 }
 
 VAML_CORE_EXPORT
 bool ChangeRecorder::has_pending(PropertyId id) const
 {
-    return impl_->byName.count(vaml::intern(id.name())) != 0;
+    return impl_->byName.find(vaml::intern(id.name())) != nullptr;
 }
 
 VAML_CORE_EXPORT
@@ -100,13 +111,16 @@ std::size_t ChangeRecorder::flush(const NotifyFn& notify)
     std::size_t emitted = 0;
     for (const std::string_view& name : snapshot.order)
     {
-        auto it = snapshot.byName.find(name);
-        if (it == snapshot.byName.end())
+        // The NameTable owns the key bytes (a stable std::string), and its
+        // Pending carries the interned view; look the stored Pending up by the
+        // owned key (content find) and read the value + owned key for PropertyId.
+        const Impl::Pending* p = snapshot.byName.find(name);
+        if (p == nullptr)
         {
             continue; // defensive: order/byName kept in lockstep, should not happen
         }
-        const Impl::Pending& p = it->second;
-        notify(PropertyId::of(p.name), p.oldValue, p.newValue);
+        const std::string* key = snapshot.byName.find_key(name);
+        notify(PropertyId::of(*key), p->oldValue, p->newValue);
         ++emitted;
     }
     return emitted;
@@ -116,7 +130,7 @@ VAML_CORE_EXPORT
 void ChangeRecorder::clear()
 {
     impl_->order.clear();
-    impl_->byName.clear();
+    impl_->byName = vaml::detail::NameTable<Impl::Pending>();
 }
 
 } // namespace vaml

@@ -74,21 +74,21 @@ public:
     [[nodiscard]] const PropertyKey& register_key(PropertyKey key);
 
     // Lookup: returns a pointer to the stored key, or nullptr if none. Never
-    // throws.
-    [[nodiscard]] const PropertyKey* try_find(const std::string& name) const noexcept;
+    // throws. Accepts std::string (implicit conversion) or std::string_view.
+    [[nodiscard]] const PropertyKey* try_find(std::string_view name) const noexcept;
 
     // Lookup: returns the stored key, or throws PropertyNotFound.
-    [[nodiscard]] const PropertyKey& find(const std::string& name) const;
+    [[nodiscard]] const PropertyKey& find(std::string_view name) const;
 
     // Static id bridge (S033): returns the constexpr-safe PropertyId for a
     // registered name. Throws PropertyNotFound if the name is not registered
     // (never returns an id for an unregistered name).
-    [[nodiscard]] PropertyId id_of(const std::string& name) const;
+    [[nodiscard]] PropertyId id_of(std::string_view name) const;
 
     // Static id bridge (S033), noexcept: returns the registered name's
     // PropertyId, or an invalid (empty) id if the name is not registered.
     // Never throws — the noexcept counterpart to id_of.
-    [[nodiscard]] PropertyId try_id(const std::string& name) const noexcept;
+    [[nodiscard]] PropertyId try_id(std::string_view name) const noexcept;
 
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] bool empty() const noexcept { return size() == 0; }

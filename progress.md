@@ -26,27 +26,33 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT — DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S142 — Collapse DependencyObject/UIElement pimpl + store into one block-resident unit
-- Next step to do     : S143 (dep:S142) — relocate the per-object pending mutex into the thread-affine
-  ChangeQueue AND re-key ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty::GlobalTable onto
-  the S140 token + S141 store; global-register pimpl removal = S144 body
-- PENDING work        : none (S142 fully complete + GREEN both lanes; the S140_2 split token was merged back
-  into S140 earlier — no redundant step remains)
-  **State**: S142 (dep:S141) removes the DependencyObject/UIElement `unique_ptr<Impl>` pimpl + per-object
-  `unordered_map` store, embedding the store + all inline state into ONE block-resident unit (Store{PD
-  slots_[kInline=8], count_, append-only overflow_} — no per-object heap hop, no ~100%-of-access `impl_->`
-  trampoline; single PD type, no common/root — owned + borrowed metadata coexist; stableKey heap node keeps
-  register_property's returned `const PropertyKey&` valid across overflow growth; custom move because the
-  pending mutex is now a DIRECT std::mutex (non-movable); ChangeQueue.h include-cycle broken — it no longer
-  includes DependencyObject.h, which now holds a ChangeQueue by value; UIElement layout data (children_/
-  desired_size_/final_rect_/dirty flags) embedded inline; release_slot frees owned PropertyMetadata* +
-  stableKey PropertyKey*). Rationale re-grounded on SPEED not ABI (ADR-003 revised + ADR-019 codified the
-  CPU/GPU line). New test/unit/BlockResidentStore_test.cpp (inline path, overflow growth, stable-key-
-  across-growth, move, single-PD coexist, UIElement collapsed-unit layout). **GREEN ON BOTH CI LANES**:
-  windows-msvc (619 test cases / 4735 assertions PASS via build/verify_s142.cmd msvc-debug, warning-clean;
-  0 failed — the single in-suite "failed" assertion is the intentional S036_1 should_fail demonstration)
-  AND ubuntu-clang (clang-debug on the VM: ctest 1/1 PASS, pre-existing <ciso646> third-party doctest
-  warning only). No commits.
+- Last completed step : S143 — Relocate the per-object pending mutex into the ChangeQueue; re-key
+  ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty::GlobalTable onto the S140 token +
+  S141 store
+- Next step to do     : S144 (dep:S143) — migrate the three lookup registries (ElementFactoryRegistry,
+  ValueConverterRegistry, DependencyProperty global table) onto the token-keyed store + public accessor
+  migration (registered_names()/VamlReader::names() → string_view, children() out-params, reserve())
+- PENDING work        : none (S143 fully complete + GREEN both lanes)
+  **State**: S143 (dep:S142) delivers the mutex relocation + token re-key. PART A (rewrites S037/S041
+  in place): the per-object pending VALUE mutex relocated OUT of DependencyObject INTO its single
+  thread-affine ChangeQueue. ChangeQueue now owns BOTH item families under ONE mutex + ONE affinity
+  marker — the S037 value-write family (new enqueue_value/drain_values/value_pending_count) alongside
+  the pre-existing S041 notification family (enqueue/process/pending_count/clear). DependencyObject's
+  raw pending_/queue_mutex_ members REMOVED; it holds ONE ChangeQueue `queue_`; the custom move
+  simplified (queue_ is movable). PART B (re-key onto S140 token + S141 store): new
+  vaml::detail::NameTable<T> — a S141-pattern CONTENT-keyed probe store (no hash, equality by content,
+  self-owned STABLE key nodes, no transient std::string on lookup) — re-keys ChangeRecorder (B1),
+  ChangeQueue internal index (B2), PropertyRegistry global+instance (B3), and
+  DependencyProperty::GlobalTable (B4) off std::unordered_map + owned-std::string keys. This is the
+  S140 DECISION 1 resolution: global/cross-thread stores cannot hold thread-local intern views, so they
+  stay content-keyed with self-owned stable storage. ChangeQueue::drain_values re-interns each drained
+  name to the affinity thread's canonical interned view. **GREEN ON BOTH CI LANES**: windows-msvc
+  (628 test cases / 4994 passing assertions / 0 failed via build/verify_s143.cmd msvc-debug,
+  warning-clean; new test/unit/MutexRelocation_rekey_test.cpp = 9 S143 cases / 259 assertions; the
+  single in-suite "failed" assertion is the intentional S036_1 should_fail demonstration) AND
+  ubuntu-clang (clang-debug on the VM: ctest 1/1 PASS, 628 cases SUCCESS; pre-existing <ciso646>
+  third-party doctest warning only). ADR-018: ZERO new locks — the kept S037/S041 ChangeQueue mutex is
+  the standing pre-approved lock, moved not created. No commits.
 - Surviving-state digest: (computed when first build artifact exists; place SHA-256 of
   `build/state/surviving-nodes.ser` here once that pipeline is live)
 - Key invariants intact: [ADR-001..012] [layer-rule: core has NO Vulkan/GLFW deps; only vulkan backend touches GPU]
@@ -1557,3 +1563,51 @@ superseded by S142 — the pimpl is removed, not preserved; ADR-003 revised; enf
   (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS; only pre-existing upstream <ciso646>
   doctest deprecation from third_party). windows-clang-debug is NOT a lane (not built/tested/flagged).
   No commits. Next = S143.
+
+- [x] S143 Relocate the per-object pending mutex into the ChangeQueue; re-key
+  ChangeQueue/ChangeRecorder/PropertyRegistry/DependencyProperty::GlobalTable onto the S140 token +
+  S141 store — ✅
+  SURVIVOR: (dep:S142; dep:S141; rewrites S037/S041/S038 in place; Sprint 3.5 second retrofit
+  implemented step; executed under ADR-018 — the kept S037/S041 lock, moved not created, ZERO new
+  locks). PART A (mutex relocation): the per-object pending VALUE mutex physically relocated OUT of
+  DependencyObject INTO its single thread-affine ChangeQueue. ChangeQueue is now the ONE cross-thread
+  postbox owning BOTH item families under ONE mutex + ONE affinity marker: the S041 notification
+  family (unchanged enqueue/process/clear/pending_count) AND the relocated S037 value-write family
+  (NEW enqueue_value/drain_values/value_pending_count). DependencyObject's raw pending_/queue_mutex_
+  members REMOVED; it now holds ONE ChangeQueue `queue_`; Set()'s non-affine branch →
+  queue_.enqueue_value(...) returning QUEUED; pending_change_count() → queue_.value_pending_count();
+  ProcessPendingChanges() → affinity guard + queue_.drain_values(lambda) (the S037 guard moved with
+  the queue — WrongThreadException unchanged); descendant-push + ProcessNotificationQueue() → the SAME
+  queue_'s notification half. Custom move simplified to moving every member (queue_ is movable;
+  inheritance_scope_ declared before queue_ to satisfy -Wreorder-ctor). Swap-out preserved: drain
+  swaps the value-write deque under the mutex so writers during a drain land in a fresh deque.
+  PART B (re-key = S140 DECISION 1 resolution): new vaml::detail::NameTable<T> (src/core/src/NameTable.h)
+  — a S141-pattern CONTENT-keyed probe store (no hash, no unordered_map; rotating-XOR-fold %255 probe
+  (0xFF unreachable), chain walk disambiguated by full string_view content compare, append-only nodes,
+  self-owned STABLE key storage, no transient std::string on find; insert() returns the stored value
+  ptr or nullptr on duplicate). Re-keys: (B1) ChangeRecorder byName unordered_map<string_view,Pending>
+  → NameTable<Pending> (flush uses find_key + owned Pending); (B2) ChangeQueue internal index +
+  drain_values re-interns each drained name to the affinity thread's canonical interned view;
+  (B3) PropertyRegistry global+instance map_ unordered_map<std::string,PropertyKey> →
+  NameTable<PropertyKey>, public try_find/find/id_of/try_id now take std::string_view (existing
+  std::string callers bind implicitly); (B4) DependencyProperty::GlobalTable byName
+  unordered_map<std::string,unique_ptr<DependencyProperty>> → NameTable<unique_ptr<...>>, TryGet looks
+  up by string_view content. Global/cross-thread stores stay CONTENT-keyed with self-owned storage
+  (they cannot hold thread-local intern views — DECISION 1). All public signatures behavior-unchanged.
+  TESTS (NEW test/unit/MutexRelocation_rekey_test.cpp, 9 TEST_CASEs / 259 assertions): S037 value-write
+  family in the queue; drain_values non-affine throws (guard moved); wrong-thread Set QUEUED + affinity
+  FIFO cbs; ProcessPendingChanges non-affine throws; swap-out preserved; value-write+notification
+  coexist without cross-drain interference; drain re-interns to canonical view; PropertyRegistry
+  content lookup (no transient string, dedupe throws, 200-key ref stability); DependencyProperty
+  content lookup (register/TryGet/Get, dedupe throws + stores nothing, property_id/owner_type_id views
+  stay valid). test/unit/CMakeLists.txt +MutexRelocation_rekey_test.cpp. build/verify_s143.cmd (NEW,
+  verify_s142 clone). Scope hand-offs recorded (NO-GAP): three lookup-registry migration +
+  public-accessor/signature migration (string_view returns, out-params) = S144; block pool + children
+  slab = S145. ADR-018: ZERO new locks (global tables retain single-threaded-registration-then-read;
+  only relocated lock = the standing S037/S041 ChangeQueue mutex). NO MINIMAL REAL introduced/resolved.
+  VERIFIED BOTH CI LANES from first principles: windows-msvc (build/verify_s143.cmd, msvc-debug
+  warning-as-error clean; test exe 628 test cases / 4994 passing assertions / 0 failed — the single
+  in-suite "failed" assertion is the intentional S036_1 should_fail demonstration) + ubuntu-clang
+  (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 1/1 PASS; 628 cases SUCCESS; only pre-existing
+  upstream <ciso646> doctest deprecation from third_party). windows-clang-debug is NOT a lane (not
+  built/tested/flagged). No commits. Next = S144.

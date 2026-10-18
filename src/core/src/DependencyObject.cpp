@@ -155,12 +155,12 @@ DependencyObject::DependencyObject() = default;
 VAML_CORE_EXPORT
 DependencyObject::~DependencyObject() = default;
 
-// S142 custom move: the pimpl collapsed so `queue_mutex_` is now a DIRECT
-// std::mutex member (not inside a heap pimpl), and std::mutex is NOT movable.
-// We move every MOVABLE member and leave queue_mutex_ default-constructed
-// (fresh, unlocked). The moved-from object is left in a valid-but-unspecified
-// state (empty store, no parent, empty scopes/queues), matching the pre-S142
-// moved-from semantics.
+// S142 + S143 move: the pimpl collapsed so the S037 pending mutex was a DIRECT
+// std::mutex member (non-movable) — S143 relocates that mutex INTO the ChangeQueue
+// (the queue is move-only and movable), so the custom move simplifies to moving
+// every member; the single ChangeQueue carries both families. The moved-from
+// object is left in a valid-but-unspecified state (empty store, no parent, empty
+// scopes/queues), matching the pre-S142 moved-from semantics.
 VAML_CORE_EXPORT
 DependencyObject::DependencyObject(DependencyObject&& other) noexcept
     : store_(std::move(other.store_)),
@@ -168,10 +168,8 @@ DependencyObject::DependencyObject(DependencyObject&& other) noexcept
       parent_(other.parent_),
       subs_(std::move(other.subs_)),
       next_sub_token_(other.next_sub_token_),
-      notification_queue_(std::move(other.notification_queue_)),
       inheritance_scope_(std::move(other.inheritance_scope_)),
-      pending_(std::move(other.pending_))
-    // queue_mutex_: fresh (not moved — std::mutex is non-movable)
+      queue_(std::move(other.queue_))
 {
     other.parent_ = nullptr;
 }
@@ -188,10 +186,8 @@ DependencyObject& DependencyObject::operator=(DependencyObject&& other) noexcept
     parent_ = other.parent_;
     subs_ = std::move(other.subs_);
     next_sub_token_ = other.next_sub_token_;
-    notification_queue_ = std::move(other.notification_queue_);
     inheritance_scope_ = std::move(other.inheritance_scope_);
-    pending_ = std::move(other.pending_);
-    // queue_mutex_: leave THIS object's existing mutex in place (non-movable).
+    queue_ = std::move(other.queue_);
     other.parent_ = nullptr;
     return *this;
 }
@@ -451,11 +447,11 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // mutates the affinity-owned store.
     if (affinity_ != std::this_thread::get_id())
     {
-        // PendingWrite keeps an OWNED std::string (S037 cross-thread marshal:
-        // the queue traverses threads, so it cannot hold a thread-local intern
-        // view). The affinity-thread drain interns it back to a canonical view.
-        std::lock_guard<std::mutex> lock(queue_mutex_);
-        pending_.emplace_back(std::string(name), coerced);
+        // S143 relocation: post the S037 value-write into the object's SINGLE
+        // ChangeQueue (queue_.enqueue_value keeps an OWNED std::string — the
+        // queue traverses threads, so it cannot hold a thread-local intern view;
+        // the affinity-thread drain re-interns it to a canonical view).
+        queue_.enqueue_value(name, coerced);
         return SetResult::QUEUED;
     }
 
@@ -544,27 +540,14 @@ void DependencyObject::ProcessPendingChanges()
         throw WrongThreadException("DependencyObject::ProcessPendingChanges: must be called from the object's affinity thread");
     }
 
-    // Swap the whole queue out under the lock so wrong-thread writers hitting
-    // during the drain enqueue into a FRESH queue (their writes drain next
-    // call), never into the one we are about to consume. The store half below
-    // then runs lock-free on the affinity thread.
-    std::deque<PendingWrite> snapshot;
-    {
-        std::lock_guard<std::mutex> lock(queue_mutex_);
-        snapshot.swap(pending_);
-    }
-
-    // FIFO replay through the S036 store half — exactly the on-affine pipeline's
-    // steps 3-4 (compare/notify/store) for each queued write. A queued write
-    // whose coerced value equals the current effective at APPLY time is a
-    // no-change (no cb). Two queued writes [5,7] on a default-0 prop sequentially
-    // fire cb(0->5) then cb(5->7), preserving real-change semantics.
-    for (auto& write : snapshot)
-    {
-        // Intern the drained name to the affinity thread's canonical view
-        // (S140): the store is keyed on string_view, and the drained write's
-        // owned name re-interns to an equal-content view (or a matching canon).
-        const std::string_view name = intern(write.name);
+    // S143 relocation: drain the S037 value-write family from the object's
+    // SINGLE ChangeQueue (guard moved with the queue). The queue swaps the deque
+    // out under its mutex (snapshot-then-run) so wrong-thread writers hitting
+    // during the drain land in a FRESH deque (their writes drain next call),
+    // never into the one we consume — then the store half runs lock-free on
+    // the affinity thread. drain_values also re-interns each name to the
+    // canonical view (S143 B2).
+    queue_.drain_values([this](std::string_view name, const Value& coerced) {
         PD* entry = store_.find(name);
 
         // S045 DEFENSIVE guard at apply time: resolve the metadata provider
@@ -585,13 +568,13 @@ void DependencyObject::ProcessPendingChanges()
             globalDpDrain = DependencyProperty::TryGet(name);
             if (globalDpDrain == nullptr)
             {
-                continue; // unregistered after the write was queued; skip
+                return; // unregistered after the write was queued; skip
             }
             drainMd = &globalDpDrain->metadata();
         }
         if (has_flag(drainMd->flags(), PropertyFlags::ReadOnly))
         {
-            continue; // property is read-only at apply time; skip the queued write
+            return; // property is read-only at apply time; skip the queued write
         }
 
         if (entry == nullptr)
@@ -615,9 +598,9 @@ void DependencyObject::ProcessPendingChanges()
         const PropertyMetadata& md = entry->md();
 
         const Value currentEffective = entry->local.isNull() ? md.defaultValue() : entry->local;
-        if (write.coerced == currentEffective)
+        if (coerced == currentEffective)
         {
-            continue; // no real change at apply time -> no cb
+            return; // no real change at apply time -> no cb
         }
 
         // S041 §2.4: capture descendants' current effective values (BEFORE the
@@ -639,8 +622,8 @@ void DependencyObject::ProcessPendingChanges()
             descendantBefore = collect_descendant_effectives(*this, name, captureAttachedInherits);
         }
 
-        md.notifyChanged(currentEffective, write.coerced);
-        entry->local = write.coerced;
+        md.notifyChanged(currentEffective, coerced);
+        entry->local = coerced;
 
         // S041 §2.4: propagate the applied queued change to inheriting descendants
         // exactly like an on-affine one.
@@ -648,14 +631,15 @@ void DependencyObject::ProcessPendingChanges()
         {
             notify_descendants(name, descendantBefore);
         }
-    }
+    });
 }
 
 VAML_CORE_EXPORT
 std::size_t DependencyObject::pending_change_count() const noexcept
 {
-    std::lock_guard<std::mutex> lock(queue_mutex_);
-    return pending_.size();
+    // S143 relocation: the S037 value-write depth is now the queue's own
+    // value-write family (drain reads the single mutex-protected deque).
+    return queue_.value_pending_count();
 }
 
 VAML_CORE_EXPORT
@@ -713,7 +697,7 @@ void DependencyObject::ProcessNotificationQueue()
     // change. Two pushed changes of the same property before this drain collapse
     // to one notification (S038 coalescing, consumed end-to-end — S042 outcome).
     vaml::ChangeRecorder recorder;
-    const std::size_t drained = notification_queue_.process(
+    const std::size_t drained = queue_.process(
         [&recorder](PropertyId id, const Value& o, const Value& n) {
             recorder.record(id, o, n);
         });
@@ -746,7 +730,7 @@ void DependencyObject::ProcessNotificationQueue()
 VAML_CORE_EXPORT
 std::size_t DependencyObject::pending_notification_count() const noexcept
 {
-    return notification_queue_.pending_count();
+    return queue_.pending_count();
 }
 
 // S041 descendant push, walk 1 (BEFORE the origin stores its new value):
@@ -827,7 +811,7 @@ void DependencyObject::notify_descendants(
         // (NO-LAZY: never over-notify).
         if (!(oldEffective == newEffective))
         {
-            desc->notification_queue_.enqueue(PropertyId::of(name), oldEffective, newEffective);
+            desc->queue_.enqueue(PropertyId::of(name), oldEffective, newEffective);
         }
     }
 }
