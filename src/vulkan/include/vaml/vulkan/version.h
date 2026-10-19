@@ -1,10 +1,11 @@
 #pragma once
 // VAML vulkan layer version identity.
-// [MINIMAL REAL] vulkan — RESOLVED BY S161 (Sprint 4: real Vulkan surface).
-// This is a strategic seed (NOT lazy LLM): it gives vaml-vulkan a real, linkable,
-// permanent public symbol so the artifact model (static+shared, export header,
-// ADR-011 layer) is observable NOW, and is extended — not deleted — when the real
-// Vulkan implementation lands at S161. Do NOT extend silently; do NOT backfill.
+// RESOLVED at S161 (Sprint 4): the S003 vulkan MINIMAL REAL marker was replaced
+// by the real Vulkan/GLFW surface (PlatformWindow, and from S162 the Vulkan
+// instance/device/swapchain). The version symbol below is KEPT and extended —
+// it is a real, permanent, linkable public symbol alongside PlatformWindow, not
+// a stub. The sentinel tag (`// [MINIMAL REAL] vulkan — RESOLVED BY S161`) was
+// removed at S161 per the marker contract.
 
 #include <string_view>
 

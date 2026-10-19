@@ -4,7 +4,7 @@
 #
 # This is an EXECUTABLE, not a library, so the artifact model
 # (vaml_add_library / layer tags) does not apply here. doctest is a pure
-# 0-feature vendored dependency (third_party/doctest, v2.4.11) — permanent test
+# 0-feature vendored dependency (VAML_DEPS_DIR/doctest, v2.4.11) — permanent test
 # infrastructure, not a STUB / MINIMAL REAL marker.
 add_executable(vaml-core-tests
     smoke_test.cpp
@@ -74,7 +74,7 @@ add_executable(vaml-core-tests
 vaml_apply_compiler_policy(vaml-core-tests)
 
 # vaml-core public include (for <vaml/version.h>) — strict /WX applies here.
-# + third_party marked SYSTEM so vendored doctest is treated as an *external*
+# + deps root marked SYSTEM so vendored doctest is treated as an *external*
 # header on MSVC (excluded from /W4 /WX): upstream doctest triggers benign
 # C5285 (std::tuple specialization false-positive on new MSVC), which must not
 # fail our own strict bar.
@@ -83,7 +83,7 @@ target_include_directories(vaml-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/src  # test-only seam: S141 InternStore internal header
 )
 target_include_directories(vaml-core-tests SYSTEM PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party
+    ${VAML_DEPS_DIR}
 )
 
 # On MSVC, keep external (vendored) headers fully quiet so /WX only governs our
@@ -92,7 +92,7 @@ target_include_directories(vaml-core-tests SYSTEM PRIVATE
 if(MSVC)
     target_compile_options(vaml-core-tests PRIVATE /external:W0)
 else()
-    # Clang/Linux: third_party is already on a -isystem path (silences normal
+    # Clang/Linux: the deps root is already on a -isystem path (silences normal
     # warnings from system headers), but `#warning` directives are ALWAYS
     # reported even from system headers — upstream doctest includes the
     # compiler-provided <ciso646> (which carries a benign C++20 `#warning`) for
@@ -109,3 +109,34 @@ target_link_libraries(vaml-core-tests PRIVATE vaml-core)
 # to a follow-up (scoped decision for S005: harness proven first; documented,
 # not a silent omission).
 add_test(NAME vaml-core-tests COMMAND vaml-core-tests)
+
+# ============================================================================
+# vaml-vulkan-tests — S160+ headless tests of the vaml-vulkan surface.
+# Links the real vaml-vulkan library (which transitively exposes the vendored
+# GLFW include dir via vaml::glfw PUBLIC) so the S160 callback-surface tests can
+# reference GLFW constants without their own include setup. Like vaml-core-tests,
+# this is an EXECUTABLE (not a library), so the artifact model + ADR-011 layer
+# tags do not apply — it links vaml-vulkan as an external consumer would.
+# ============================================================================
+add_executable(vaml-vulkan-tests
+    PlatformWindow_test.cpp
+)
+
+vaml_apply_compiler_policy(vaml-vulkan-tests)
+
+target_include_directories(vaml-vulkan-tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/vulkan/include
+)
+target_include_directories(vaml-vulkan-tests SYSTEM PRIVATE
+    ${VAML_DEPS_DIR}
+)
+
+if(MSVC)
+    target_compile_options(vaml-vulkan-tests PRIVATE /external:W0)
+else()
+    target_compile_options(vaml-vulkan-tests PRIVATE "-Wno-error=#warnings")
+endif()
+
+target_link_libraries(vaml-vulkan-tests PRIVATE vaml-vulkan)
+
+add_test(NAME vaml-vulkan-tests COMMAND vaml-vulkan-tests)

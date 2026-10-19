@@ -7,6 +7,13 @@
 # Build output
 build/
 out/
+# Standalone app build dirs (VamlPOC-linux / any consumer-style dir)
+**/build-*/
+build*/
+
+# Vendored dependencies — fetched into this gitignored folder on each host
+# (bootstrap/CI), NOT tracked → no repo bloat. CMake reads VAML_DEPS_DIR here.
+third_party/deps/
 
 # IDE / VS cruft
 .vs/

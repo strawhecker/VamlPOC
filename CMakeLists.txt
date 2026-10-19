@@ -42,6 +42,35 @@ include(cmake/compiler-policy.cmake)
 # ADR-011 layer validation). All VAML libraries are created through this module.
 include(cmake/artifact-model.cmake)
 
+# S160/S161: external GPU dependencies, resolved BEFORE any subdirectory so the
+# interface targets (vaml::glfw, vaml::vulkan, vaml::vma) exist for vaml-vulkan
+# to link. All-vendor/no-drift strategy: GLFW + VMA + Vulkan headers are
+# vendored and built from a SINGLE deps source (identical on every host);
+# Vulkan is the per-OS runtime loader. ADR-011: only vaml-vulkan may consume
+# these.
+#
+# VAML_DEPS_DIR — single source of truth for the vendored dependencies,
+# UNIFORM across every host (GH windows/ubuntu runners, the VM's shared-folder
+# mirror of this tree, the laptop). It is the gitignored fetch folder
+# third_party/deps (insulated from VS staging by .gitignore → no repo bloat),
+# populated per-host by the bootstrap/CI fetch. Local dev override: point it at
+# the sibling staging vaml-deps (../vaml-deps) via -DVAML_DEPS_DIR until the
+# fetch/bootstrap is wired in the commit plan. Overridable via -D.
+if(NOT DEFINED VAML_DEPS_DIR)
+    set(VAML_DEPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/deps")
+endif()
+if(NOT IS_DIRECTORY "${VAML_DEPS_DIR}")
+    message(FATAL_ERROR
+        "VAML_DEPS_DIR '${VAML_DEPS_DIR}' does not exist. Populate the "
+        "gitignored fetch folder third_party/deps (bootstrap/CI fetch on each "
+        "host) or point -DVAML_DEPS_DIR at a local deps root.")
+endif()
+message(STATUS "VAML deps root: ${VAML_DEPS_DIR}")
+
+include(cmake/FindGLFW.cmake)
+include(cmake/FindVulkan.cmake)
+include(cmake/FindVMA.cmake)
+
 # ============================================================================
 # Directory aggregation — library/tool sources live under src/ (see ROADMAP).
 # vaml_add_library() (S003) is the only way targets are produced; the layer

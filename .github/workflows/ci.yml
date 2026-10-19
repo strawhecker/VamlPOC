@@ -44,6 +44,15 @@ jobs:
         shell: pwsh
         run: choco install ninja -y
 
+      # Bootstrap the vendored deps (S160/S161 dep-migration): the deps live
+      # OUTSIDE this repo (public vaml-deps) in the gitignored third_party/deps
+      # folder, so CI must clone them here before configure. This is the uniform
+      # one-liner every host (runner / VM / laptop / dev box) uses — no repo bloat,
+      # no drift. `--depth 1` = source only, builds identically on all hosts.
+      - name: Fetch vendored deps into third_party/deps
+        shell: pwsh
+        run: git clone --depth 1 https://github.com/strawhecker/vaml-deps.git third_party/deps
+
       - name: Configure (msvc-debug preset)
         shell: pwsh
         run: cmake --preset msvc-debug
@@ -66,10 +75,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Clang and Ninja
+      - name: Install Clang, Ninja and GPU stack deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang ninja-build
+          # libglfw3-dev = the X11 platform libs GLFW's vendored build links on
+          #   Linux (GLFW source itself is vendored and built in-tree — no
+          #   version-drift; this install supplies the X11 runtime/platform libs).
+          # xorg-dev = the full X11 dev header set GLFW's X11 backend requires
+          #   (xinerama/xrandr/xkb/xcursor/xi/xext) with the correct inter-package
+          #   dependency resolution.
+          # libvulkan-dev = the Vulkan LOADER (.so) only; the API headers come
+          #   from the vendored vulkan-headers set, so no header drift.
+          sudo apt-get install -y clang ninja-build libglfw3-dev libvulkan-dev xorg-dev
+
+      # Bootstrap the vendored deps (S160/S161 dep-migration): same uniform
+      # one-liner as the Windows lane — clone public vaml-deps into the gitignored
+      # third_party/deps folder before configure. `--depth 1` = source only.
+      - name: Fetch vendored deps into third_party/deps
+        run: git clone --depth 1 https://github.com/strawhecker/vaml-deps.git third_party/deps
 
       - name: Configure (clang-debug preset)
         run: cmake --preset clang-debug

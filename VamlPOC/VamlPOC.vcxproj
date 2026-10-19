@@ -44,14 +44,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <!--
-    VamlPOC (Windows) — consumer of vaml-core + Vulkan.
-    Includes:
-      * vendored Vulkan headers          : $(ProjectDir)third_party\vulkan-headers\include
+    VamlPOC (Windows) — consumer of vaml-core + vaml-vulkan (GLFW window) + Vulkan.
+    Includes (from the gitignored deps folder third_party/deps, uniform on every
+    host — no repo bloat):
+      * vendored Vulkan headers          : $(ProjectDir)..\third_party\deps\vulkan-headers\include
+      * vendored GLFW headers            : $(ProjectDir)..\third_party\deps\glfw\include
       * vaml-core public include root    : $(ProjectDir)..\src\core\include
+      * vaml-vulkan public include root  : $(ProjectDir)..\src\vulkan\include
     Links (x64 only, matching the repo's msvc-debug build):
+      * vaml-vulkan.lib                  : $(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib
       * vaml-core.lib                    : $(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib
+      * glfw3.lib                        : $(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib (vendored build)
     Vulkan entry points are resolved at runtime via vulkan-1.dll (VK_NO_PROTOTYPES),
     so there is no Vulkan import library (vendor headers, no SDK).
+    The window is created through vaml::vulkan::PlatformWindow (S160).
   -->
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -61,12 +67,16 @@
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\vulkan-headers\include;$(ProjectDir)..\src\core\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- /MTd to match the CMake-built static libs (vaml-vulkan/core/glfw are
+           built with the static CRT by the msvc-debug preset) — avoids
+           LNK2038 runtime-library mismatches at link. -->
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
@@ -82,12 +92,13 @@
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)third_party\vulkan-headers\include;$(ProjectDir)..\src\core\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>

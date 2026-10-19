@@ -21,7 +21,10 @@
   `// [MINIMAL REAL] <component> — RESOLVED BY <sprint-token>. Do NOT extend silently; do NOT backfill.`
 - A MINIMAL REAL symbol may ONLY be removed or replaced by the step that **explicitly declares**
   its resolution.
-- Active MINIMAL REAL marks (searchable): `vaml-vulkan` version marker → **RESOLVED BY S161**;
+- Active MINIMAL REAL marks (searchable): ~~`vaml-vulkan` version marker → **RESOLVED BY S161**~~ —
+  **RESOLVED at S161** (the marker was replaced by the real Vulkan/GLFW surface: PlatformWindow at
+  S160 + the Vulkan/VMA linkage at S161; the real `version()` symbol is kept and extended, sentinel
+  tag removed there).
   `vaml-tools` version marker → **RESOLVED BY S287**; built-in element seeds (S087, in `vaml/core/Element.h`)
   → each resolved by its OWN control/layout sprint: `StackPanel` → **S129 (RESOLVED — re-based onto
   UIElement as a real panel)**, `Grid` → **S131 (RESOLVED — re-based onto UIElement as a real
@@ -44,8 +47,9 @@
 - Any future step that uses MINIMAL REAL carries an obligation: it must be **searchable and
   resolvable** by its named sprint. Resolution is part of the real feature's own step, never a
   separate cleanup/backfill step.
-- Forward-declared resolutions (contracts): **S161 must resolve the vulkan MINIMAL REAL marker;
-  S287 must resolve the tools MINIMAL REAL marker. S089 HAS resolved the Color + Thickness
+- Forward-declared resolutions (contracts): ~~**S161 must resolve the vulkan MINIMAL REAL marker**~~
+  (**RESOLVED at S161** — Sprint 4 delivered PlatformWindow + CMake Vulkan/VMA linkage + removed the
+  vulkan sentinel); **S287 must resolve the tools MINIMAL REAL marker. S089 HAS resolved the Color + Thickness
   MINIMAL REAL markers (introduced by S030) — parse_color + parse_thickness authored at S089,
   sentinel tags removed there; no backfill.**
 
@@ -86,7 +90,7 @@
 - S000 dep:-  Repo skeleton + tracking files (progress.md, ROADMAP.md, ADR seeds, architecture.md). [DONE]
 - S001 dep:S000  Top-level CMake (project(VAML), C++ latest, /EHsc /permissive- MSVC, -Wall -Wextra -Wpedantic Clang, Werror on). [DONE — verified MSVC 19.51 via preset-driven verify scripts (S008 removed the superseded build/verify_msvc.cmd)]
 - S002 dep:S001  cmake/ compiler presets + toolchain files (MSVC VS 2026, Linux Clang).
-- S003 dep:S002  Static-library artifact model: VAML_BUILD_SHARED (default OFF); vaml-core, vaml-vulkan, vaml-tools targets. [MINIMAL REAL: vulkan→S161, tools→S287]
+- S003 dep:S002  Static-library artifact model: VAML_BUILD_SHARED (default OFF); vaml-core, vaml-vulkan, vaml-tools targets. [vulkan MINIMAL REAL RESOLVED at Sprint 4 (S161); tools marker → S287]
 - S004 dep:S003  CI matrices (.github/workflows): windows-msvc + ubuntu-clang, configure+build+ctest green. [DONE — .github/workflows/ci.yml: rolling windows-latest (VS 2026)/ubuntu-latest, reuses msvc-debug + clang-debug presets]
 - S005 dep:S003  Vendor doctest single-header into third_party; test target + smoke test (0-feature) passes. [DONE — third_party/doctest v2.4.11 single header; vaml-core-tests exec links vaml-core; smoke_test.cpp; CTest PASS on MSVC (VS 2026) + Clang (Ubuntu VM)]
 - S006 dep:S005  Port user Shouldly.h -> src/core/include/vaml/assert/Shouldly.h (namespace vaml::test): strip MSTest refs, __forceinline, Windows bits; pluggable failure sink (throw TestFailureException). All predicate names preserved. [DONE — S006 is a no-build-by-contract step; compile gate belongs to S007]
@@ -527,8 +531,51 @@
 
 ---
 ## Sprint 4 — Vulkan window + swapchain + first pixels (single-thread proof)  [token S160+]
-- S160 dep:S147  Platform window via GLFW (Win32 + X11); resize + input callback stub surface.
-- S161 dep:S160  CMake finds glfw3 + vulkan + VMA; link vaml-vulkan. [RESOLVES S003 vulkan MINIMAL REAL marker → replace version marker with real surface + remove its sentinel tag]
+- S160 dep:S147  [DONE — MOD CMakeLists.txt (FindGLFW/Vulkan/VMA includes) + ADDED cmake/FindGLFW.cmake + ADDED src/vulkan/include/vaml/vulkan/PlatformWindow.h + ADDED src/vulkan/src/PlatformWindow.cpp + MOD src/vulkan/CMakeLists.txt + ADDED test/unit/PlatformWindow_test.cpp + MOD test/unit/CMakeLists.txt (+vaml-vulkan-tests exec) + ADDED build/verify_s160.cmd + MOD docs/roadmap.md. Platform window via GLFW:
+  REAL public surface (not STUB / not MINIMAL REAL): `vaml::vulkan::WindowCallbacks` (on_resize/
+  on_key/on_mouse_move/on_mouse_button/on_scroll — the "resize + input callback stub surface" of
+  S160, kept + extended) + `vaml::vulkan::PlatformWindow` (Config{title,width,height}; static
+  create() -> unique_ptr (nullptr on GLFW init/window failure, no throw — never a half-constructed
+  window); poll_events; should_close; request_close; native_handle; get_framebuffer_size; movable,
+  non-copyable) + free PUBLIC dispatch seams dispatch_resize/dispatch_key/dispatch_mouse_move/
+  dispatch_mouse_button/dispatch_scroll (the testable, S323/S324-consumable callback forwarders —
+  each a silent no-op on an empty hook). GLFW-backed, GLFW_NO_API (Vulkan surface host — the surface
+  wiring is S162), Win32 on Windows + X11 on Linux from ONE vendored source. GLFW vendored in-tree:
+  `third_party/glfw` (pinned 3.4 tag, commit-free plain tree; .git detached, trivially promoted to a
+  Git submodule at the next commit) built via `add_subdirectory` behind cmake/FindGLFW.cmake ->
+  interface `vaml::glfw`; VAML_USE_SYSTEM_GLFW escape hatch. Tests (headless): 8 TEST_CASEs prove the
+  window NEVER needs a display/an active window: WindowCallbacks defaults all-empty; all five dispatch
+  seams no-op on empty hooks; each forwards exact args; hooks fire only their own. NO-GAP: routed-event
+  translation (WindowCallbacks -> routed events + hit-testing) is S323/S324's explicit resolution
+  (recorded, not backfilled); resize-safe swapchain recreation (consumes on_resize framebuffer px) is
+  S167's scope; GLFW+X11 runtime/platform libs on the Linux lane need libglfw3-dev (installed on the
+  VM/CI). BOTH CI lanes green from first principles: windows-msvc (build/verify_s160.cmd) +
+  ubuntu-clang (/mnt/hgfs/VamlPOC, clang-debug). No MINIMAL REAL introduced/resolved (GLFW link lands
+  here so S160's window code is buildable).]  Platform window via GLFW (Win32 + X11); resize + input callback stub surface.
+- S161 dep:S160  [DONE — MOD CMakeLists.txt + ADDED cmake/FindVulkan.cmake + ADDED cmake/FindVMA.cmake + ADDED src/vulkan/src/VmaImpl.cpp + MOD src/vulkan/CMakeLists.txt (link vaml::glfw/vaml::vulkan/vaml::vma) + MOD src/vulkan/include/vaml/vulkan/version.h + DEL src/vulkan/src/version.cpp + ADDED build/verify_s161.cmd + MOD docs/roadmap.md. CMake finds glfw3 + vulkan + VMA; link vaml-vulkan; RESOLVES the S003 vulkan MINIMAL REAL marker:
+  (1) FindVulkan.cmake -> interface `vaml::vulkan` on the ALREADY-VENDORED header set
+  (VamlPOC/third_party/vulkan-headers; the repo-level third_party/vulkan-headers is empty/dead,
+  candidates probed) + per-OS runtime LOADER (runtime vulkan-1.dll on Windows — SDK-less, the repo's
+  standing VK_NO_PROTOTYPES design; pkg-config libvulkan.so on Linux via libvulkan-dev, used for the
+  LOADER ONLY, never the API-header authority). A machine-local SDK (D:\SoftwareLibraries\vulkan) is
+  an opportunistic header fallback only — explicitly NOT the dependency (host-local drift).
+  (2) FindVMA.cmake -> interface `vaml::vma` on the vendored single header
+  third_party/vma/vk_mem_alloc.h (pinned v3.1.0). Added src/vulkan/src/VmaImpl.cpp: the single
+  VMA_IMPLEMENTATION TU (VMA_STATIC/DYNAMIC_VULKAN_FUNCTIONS 0 — the runtime loader is injected by
+  the caller at S162 via VmaVulkanFunctions), with the vk_video std pre-includes this vendored
+  vulkan-headers version requires before vulkan.h (the documented VulkanLoader.h ordering).
+  (3) vaml-vulkan links vaml::glfw + vaml::vulkan + vaml::vma PUBLIC (ADR-011: only vulkan touches
+  these) — the S161 headline "link vaml-vulkan". (4) S003 vulkan MINIMAL REAL marker RESOLVED per
+  the marker contract: version.h sentinel tag REMOVED, the real `vaml::vulkan::version()/Version/
+  layer_name()` symbol KEPT (extended — now a secondary real symbol alongside PlatformWindow, real,
+  permanent, not a stub); src/vulkan/src/version.cpp empty-TU anchor DELETED (the library now has real
+  compiled symbols: PlatformWindow.cpp + VmaImpl.cpp). Grep-audit: no `[MINIMAL REAL] vulkan` /
+  `RESOLVED BY S161` sentinel remains. Roadmap guard-rail active-mark + S003 + NO-GAP updated
+  (vulkan -> RESOLVED). NO new MINIMAL REAL introduced. BOTH CI lanes green from first principles:
+  windows-msvc (build/verify_s161.cmd; vaml-core-tests + vaml-vulkan-tests both PASS) + ubuntu-clang
+  (/mnt/hgfs/VamlPOC, clang-debug). NO-GAP: VMA consumed by S163+ (device memory) / S202 (image
+  upload); the Vulkan instance/surface/device/queue surface is S162; the real version symbol stays
+  header-only. [RESOLVES S003 vulkan MINIMAL REAL marker → replace version marker with real surface + remove its sentinel tag]
 - S162 dep:S161  Vulkan instance + surface + physical device + queue family selection; validation layers debug-only.
 - S163 dep:S162  Best-GPU auto-selection: score ALL physical devices (DISCRETE>INTEGRATED>OTHER; device-local memory; apiVersion tiebreak); filter to present-capable families; VAML_PREFERRED_GPU name override; log full ranked list at init. Identical code in VamlPOC.cpp + VamlPOC-linux/main.cpp; two-GPU Windows proves multi-adapter selection; single-GPU Linux proves ranking+override path. [both apps, not CI]
 - S164 dep:S163  Swapchain (VK_KHR_swapchain) + image views + depth; format/BPP negotiation.

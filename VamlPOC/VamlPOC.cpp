@@ -15,9 +15,13 @@
 // file's capabilities — keep the two in sync when extending the GPU path.
 
 #include <vaml/version.h>
+#include <vaml/vulkan/PlatformWindow.h>
 
+#include "framework.h"   // pulls <windows.h>; must come BEFORE glfw3.h to avoid the
+                         // APIENTRY macro redefinition conflict between minwindef.h
+                         // and GLFW (standard GLFW+Win32 include-order requirement).
+#include <GLFW/glfw3.h>  // GLFW_* constants referenced by the S160 callback lambdas
 #include "VulkanLoader.h"
-#include "framework.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -138,54 +142,16 @@ VulkanCtx createVulkanCtx(const VulkanLoader& vk)
 }
 
 // ---------------------------------------------------------------------------
-// Win32 window plumbing (the native window lane; Linux uses GLFW).
+// Window lane: the window is created through vaml::vulkan::PlatformWindow (S160)
+// — a real GLFW-backed window (Win32 on Windows / X11 on Linux) — instead of
+// hand-rolled CreateWindowEx. Its resize + input callback surface is echoed
+// here. (The Vulkan handle is still created from the GLFW window's native
+// Win32 HWND via get_native_win32_handle at S162; this baseline already routes
+// window creation + the loop through the library surface.)
 // ---------------------------------------------------------------------------
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-{
-    switch (msg)
-    {
-    case WM_DESTROY:
-        ::PostQuitMessage(0);
-        return 0;
-    default:
-        return ::DefWindowProcW(hwnd, msg, wparam, lparam);
-    }
-}
-
-bool createHostWindow(HWND& outWindow, HINSTANCE instance, int nCmdShow)
-{
-    const wchar_t* className = L"VamlPOCWindowClass";
-
-    WNDCLASSEXW wc{};
-    wc.cbSize        = sizeof(wc);
-    wc.lpfnWndProc   = WindowProc;
-    wc.hInstance     = instance;
-    wc.hCursor       = ::LoadCursorW(nullptr, IDC_ARROW);
-    wc.lpszClassName = className;
-
-    if (!::RegisterClassExW(&wc))
-        return false;
-
-    RECT rect{0, 0, kWindowW, kWindowH};
-    ::AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-
-    outWindow = ::CreateWindowExW(
-        0, className, kWindowTitle, WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        rect.right - rect.left, rect.bottom - rect.top,
-        nullptr, nullptr, instance, nullptr);
-
-    if (!outWindow)
-        return false;
-
-    ::ShowWindow(outWindow, nCmdShow);
-    ::UpdateWindow(outWindow);
-    return true;
-}
-
 } // namespace
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
 {
     // --- vaml-core consumer check (parity with Linux) -----------------------
     const auto ver = vaml::version();
@@ -193,12 +159,37 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
                 ver.major, ver.minor, ver.patch,
                 std::string(vaml::engine_name()).c_str());
 
-    HWND hwnd = nullptr;
-    if (!vamlpoc::createHostWindow(hwnd, hInstance, nCmdShow))
+    // --- Platform window (S160) ----------------------------------------------
+    vaml::vulkan::WindowCallbacks callbacks;
+    callbacks.on_resize = [](int w, int h) {
+        std::printf("[resize] framebuffer %dx%d\n", w, h);
+    };
+    callbacks.on_key = [](int key, int /*scancode*/, int action, int /*mods*/) {
+        if (action == GLFW_PRESS)
+            std::printf("[key] 0x%x\n", key);
+    };
+    callbacks.on_mouse_move = [](double x, double y) {
+        std::printf("[mouse] %.0f,%.0f\n", x, y);
+    };
+    callbacks.on_mouse_button = [](int button, int action, int /*mods*/) {
+        if (action == GLFW_PRESS)
+            std::printf("[button] %d\n", button);
+    };
+    callbacks.on_scroll = [](double xo, double yo) {
+        std::printf("[scroll] %.0f,%.0f\n", xo, yo);
+    };
+
+    auto window = vaml::vulkan::PlatformWindow::create(
+        { "VamlPOC (Windows)", vamlpoc::kWindowW, vamlpoc::kWindowH }, std::move(callbacks));
+    if (!window)
     {
-        std::fprintf(stderr, "Failed to create the host window.\n");
+        std::fprintf(stderr, "PlatformWindow::create failed.\n");
         return 1;
     }
+    // GLFW UI-thread init on Windows requires the message-only window thread;
+    // poll_events() pumps it. The GLFWwindow* is retrievable for the native
+    // HWND at S162.
+    (void)hInstance;
 
     // --- Vulkan loader + GPU init (parity with Linux) -----------------------
     // The loader (vulkan-1.dll) must outlive every Vulkan handle, so it is
@@ -214,19 +205,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow)
     catch (const std::exception& e)
     {
         std::fprintf(stderr, "Vulkan init error: %s\n", e.what());
-        ::DestroyWindow(hwnd);
         return 1;
     }
 
-    // --- Message loop -------------------------------------------------------
-    MSG msg{};
-    while (::GetMessageW(&msg, nullptr, 0, 0) > 0)
-    {
-        ::TranslateMessage(&msg);
-        ::DispatchMessageW(&msg);
-    }
+    // --- Message loop (mirrors glfwPollEvents; drives PlatformWindow) ---------
+    while (!window->should_close())
+        window->poll_events();
 
     // Teardown (reverse order), matching Linux.
     ctx.destroy(*vk);
-    return static_cast<int>(msg.wParam);
+    return 0;
 }

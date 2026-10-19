@@ -13,6 +13,7 @@
 // (S160+, GLFW/Vulkan RAII in S168) extend into the full VAML renderer.
 
 #include <vaml/version.h>
+#include <vaml/vulkan/PlatformWindow.h>
 
 #include <vulkan/vulkan.h>
 
@@ -157,20 +158,39 @@ int main()
                 ver.major, ver.minor, ver.patch,
                 std::string(vaml::engine_name()).c_str());
 
-    if (!glfwInit())
-    {
-        std::fprintf(stderr, "glfwInit failed (need a display; set DISPLAY=:0)\n");
-        return 1;
-    }
+    // --- Platform window via vaml::vulkan::PlatformWindow (S160) -------------
+    // The window is created through the library's real GLFW-backed surface
+    // (Win32 on Windows / X11 on Linux) and its resize + input callback
+    // surface is echoed here — S160's manual live-window proof (not CI; CI
+    // covers the callback surface headless in vaml-vulkan-tests).
+    vaml::vulkan::WindowCallbacks callbacks;
+    callbacks.on_resize = [](int w, int h) {
+        std::printf("[resize] framebuffer %dx%d\n", w, h);
+    };
+    callbacks.on_key = [](int key, int /*scancode*/, int action, int /*mods*/) {
+        if (action == GLFW_PRESS)
+            std::printf("[key] 0x%x\n", key);
+    };
+    callbacks.on_mouse_move = [](double x, double y) {
+        std::printf("[mouse] %.0f,%.0f\n", x, y);
+    };
+    callbacks.on_mouse_button = [](int button, int action, int /*mods*/) {
+        if (action == GLFW_PRESS)
+            std::printf("[button] %d\n", button);
+    };
+    callbacks.on_scroll = [](double xo, double yo) {
+        std::printf("[scroll] %.0f,%.0f\n", xo, yo);
+    };
 
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(kWindowW, kWindowH, "VamlPOC-linux", nullptr, nullptr);
+    auto window = vaml::vulkan::PlatformWindow::create(
+        { "VamlPOC-linux", kWindowW, kWindowH }, std::move(callbacks));
     if (!window)
     {
-        std::fprintf(stderr, "glfwCreateWindow failed (no DISPLAY?)\n");
-        glfwTerminate();
+        std::fprintf(stderr, "PlatformWindow::create failed (need a display; set DISPLAY=:0)\n");
         return 1;
     }
+    // GLFW window handle for the Vulkan-side pass-through calls below.
+    auto* glfwWindow = static_cast<GLFWwindow*>(window->native_handle());
 
     VulkanCtx ctx;
     try
@@ -180,23 +200,21 @@ int main()
     catch (const std::exception& e)
     {
         std::fprintf(stderr, "Vulkan init error: %s\n", e.what());
-        glfwDestroyWindow(window);
-        glfwTerminate();
         return 1;
     }
 
-    std::printf("Running on GPU; press ESC or close the window to quit.\n");
+    int fbw = 0, fbh = 0;
+    window->get_framebuffer_size(&fbw, &fbh);
+    std::printf("Running on GPU; window framebuffer %dx%d. Press ESC or close to quit.\n", fbw, fbh);
 
-    while (!glfwWindowShouldClose(window))
+    while (!window->should_close())
     {
-        glfwPollEvents();
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-            glfwSetWindowShouldClose(window, GLFW_TRUE);
+        window->poll_events();  // pumps GLFW + forwards into the callbacks
+        if (glfwGetKey(glfwWindow, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            window->request_close();
     }
 
     vkDestroyDevice(ctx.device, nullptr);
     vkDestroyInstance(ctx.instance, nullptr);
-    glfwDestroyWindow(window);
-    glfwTerminate();
     return 0;
 }
