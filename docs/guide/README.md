@@ -122,6 +122,38 @@ And remember the single rule that unlocks everything else:
 > **Set to notify. Own what you create. Continuations, not `await`. Errors at compile time.**
 > More on all four in Chapter 3, 5, 7, and 8 — and one more time, terser, in Appendix B.
 
+## Choosing Your Integration Level (the App Author's Options Menu)
+
+VAML is layered so a team can pick how much of the framework it wants to own. You are never forced to
+"take it all" — and you're never forbidden from building your own on the primitives. Choose the level
+that matches your team's appetite for control vs. your tolerance for hand-rolling the hard parts.
+
+| Option | What the app gets | The app owns | The framework/library owns | Best for |
+|---|---|---|---|---|
+| **A — Raw primitives (DIY)** | The Cat-1 library objects (`Swapchain`, `RenderTarget`, viewport/scissor, `RenderPass`, `Pipeline`, …). | **Everything**: its own render loop, its own resize/recovery policy, its own composition. | The library tools only (no policy). | A team that wants total control and is willing to write its own framework. |
+| **B — Library tools, own composition** | The safe primitives: the **atomic swapchain** (two-generation + `SwapchainState`) + stable `RenderTarget` + viewport/scissor. | Its own loop + composition. | Only the presentation primitive + tools (no policy). | A team that wants the safe swapchain/quiesce behavior but its own scene layout. |
+| **C — The Framework umbrella (recommended)** | Ownership of **the loop, sync, resource lifetimes, recovery state machine, AND composition**. | Only *declares* pipelines/scenes + skin + accessibility. | Loop • sync • two-generation recovery • `SwapchainState` • stale-ghost • **Composition engine** (virtual-surface → panes, grow-only/crisp-max) • `OnPresentationLost`. | A team that wants WPF-style authoring. Our POCs dogfood this. |
+
+### The Composition engine (a named capability you may use or ignore)
+The framework can own a **fixed-resolution offscreen "virtual surface"** for your scene and scale/crop it
+into any rectangle. Point it at a pane's rectangle and it maintains the surface; resizing the pane updates
+the **viewport/scissor** — a constant-time change with **zero Vulkan objects created or destroyed**. This
+is how a full-screen app with a draggable splitter between two 3D views never has to recreate its swapchain.
+The reserve size is a framework *option* (grow-only default, or `crisp-max`), and composition layout stays a
+*your* decision. Nothing is forced on you.
+
+### Guidance we bake in (the "if you adopt us" contract)
+- **Accessibility: we support it, we do not impose it.** The library makes the full baseline possible
+  (keyboard focus, high-contrast tokens, minimum hit-target, non-flashing). Exemptions (e.g. an EP-in-
+  theater specialist mode) are **app-side policies the library merely allows** — never a library excuse.
+- **No software-rendering fallback.** This library uses Vulkan deliberately; when no GPU presentation path
+  is available the engine surfaces `Suspended`/`Fatal` with a stale indicator for the app to handle.
+  SW rasterization is out of scope by design.
+- **Skin the stale states (and own localization).** The engine ships two visually-distinct stale indicators —
+  `Retryable` (slow-breathing frost over the last-good frame) and `Fatal` (flat white) — and they MUST stay
+  distinguishable. An app that adopts the framework **skins both** and thereby takes responsibility for
+  localization; they are words-free by default so nothing ships half-translated.
+
 # About the Author
 
 A long-suffering C#/WPF developer who one day agreed to port their hard-won MVVM instincts to a C++ GUI
