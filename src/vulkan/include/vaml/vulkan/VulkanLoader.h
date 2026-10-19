@@ -65,11 +65,23 @@ public:
     PFN_vkGetPhysicalDeviceProperties        vkGetPhysicalDeviceProperties        = nullptr;
     PFN_vkGetPhysicalDeviceQueueFamilyProperties vkGetPhysicalDeviceQueueFamilyProperties = nullptr;
     PFN_vkGetPhysicalDeviceSurfaceSupportKHR vkGetPhysicalDeviceSurfaceSupportKHR = nullptr;
+    PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties   = nullptr;
     PFN_vkDestroySurfaceKHR                  vkDestroySurfaceKHR                  = nullptr;
 
+    // ---- S163 device entry points (bound at load) ----
+    // S163 deletes the POC-local loader (the pre-S162 VamlPOC/VulkanLoader.h)
+    // and migrates both POCs onto this library loader, so the device/queue
+    // creation entries that loader used to own move HERE (the recorded
+    // S162/roadmap "expanded by later sprints" resolution — the first sprint
+    // to create a device on the chosen GPU). vkGetDeviceProcAddr remains the
+    // general seam S164/S165 extend for swapchain/render entries.
+    PFN_vkCreateDevice                       vkCreateDevice                       = nullptr;
+    PFN_vkGetDeviceQueue                     vkGetDeviceQueue                     = nullptr;
+    PFN_vkDestroyDevice                      vkDestroyDevice                      = nullptr;
+
     // True iff a device-context entry point was resolved (see header comment;
-    // false until the S163/S164 surface expands the loader).
-    [[nodiscard]] bool has_device_loader() const noexcept { return vkGetDeviceProcAddr != nullptr; }
+    // true once S163's device entries are bound at load).
+    [[nodiscard]] bool has_device_loader() const noexcept { return vkCreateDevice != nullptr && vkGetDeviceQueue != nullptr; }
 
 private:
     struct Impl;

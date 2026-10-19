@@ -71,6 +71,21 @@ enumerate_physical_devices(const VulkanLoader& loader, const VulkanInstance& ins
         if (info.properties.deviceName[0] != '\0')
             info.name.assign(info.properties.deviceName);
         info.type = info.properties.deviceType;
+
+        // Device-local memory (S163 ranking): sum the DEVICE_LOCAL heaps.
+        if (loader.vkGetPhysicalDeviceMemoryProperties)
+        {
+            VkPhysicalDeviceMemoryProperties mem{};
+            loader.vkGetPhysicalDeviceMemoryProperties(dev, &mem);
+            for (VkDeviceSize i = 0; i < mem.memoryHeapCount; ++i)
+            {
+                const bool deviceLocal =
+                    (mem.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0;
+                if (deviceLocal)
+                    info.deviceLocalBytes += mem.memoryHeaps[i].size;
+            }
+        }
+
         out.push_back(std::move(info));
     }
     return out;

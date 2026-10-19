@@ -76,6 +76,12 @@ struct PhysicalDeviceInfo
     VkPhysicalDeviceProperties properties{};
     std::string               name;       // properties.deviceName
     VkPhysicalDeviceType      type = VK_PHYSICAL_DEVICE_TYPE_OTHER;
+    // Device-local memory in BYTES (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT heap
+    // sum from vkGetPhysicalDeviceMemoryProperties). S163's best-GPU ranking
+    // orders equal-type devices by device-local memory (descending). Populated
+    // by enumerate_physical_devices; 0 if the loader's memory-properties entry
+    // is unavailable (e.g. a pre-S163 loader).
+    VkDeviceSize deviceLocalBytes = 0;
 };
 
 // Enumerates every physical device of `instance`, returning their static

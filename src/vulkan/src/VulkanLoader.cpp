@@ -79,7 +79,13 @@ VulkanLoader::VulkanLoader()
     vkGetPhysicalDeviceProperties      = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(resolve("vkGetPhysicalDeviceProperties"));
     vkGetPhysicalDeviceQueueFamilyProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(resolve("vkGetPhysicalDeviceQueueFamilyProperties"));
     vkGetPhysicalDeviceSurfaceSupportKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceSupportKHR>(resolve("vkGetPhysicalDeviceSurfaceSupportKHR"));
+    vkGetPhysicalDeviceMemoryProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(resolve("vkGetPhysicalDeviceMemoryProperties"));
     vkDestroySurfaceKHR                = reinterpret_cast<PFN_vkDestroySurfaceKHR>(resolve("vkDestroySurfaceKHR"));
+
+    // ---- S163 device entry points ----
+    vkCreateDevice   = reinterpret_cast<PFN_vkCreateDevice>(resolve("vkCreateDevice"));
+    vkGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(resolve("vkGetDeviceQueue"));
+    vkDestroyDevice  = reinterpret_cast<PFN_vkDestroyDevice>(resolve("vkDestroyDevice"));
 }
 
 VulkanLoader::VulkanLoader(VulkanLoader&&) noexcept = default;

@@ -1,13 +1,19 @@
 // VamlPOC (Windows): the Win32 counterpart to VamlPOC-linux.
 //
 // Proves the same GPU lane as the Linux app on the Windows side:
-//   creates a native Win32 window, builds a Vulkan instance + picks the GPU
-//   (integrated/discrete), creates a logical device + graphics queue, and runs
-//   the window message loop.
+//   creates a native Win32 window, builds a Vulkan instance, selects the BEST
+//   GPU via the S163 auto-selection surface, creates a logical device +
+//   graphics queue, and runs the window message loop.
+//
+// S163 migration: the pre-S162 hand-rolled instance/GPU loop and the local
+// VamlPOC/VulkanLoader.h are GONE (NO-deadwood). Both POCs now call the
+// IDENTICAL vaml::vulkan::gpu::select_best_gpu() library function — "identical
+// code in both apps" is one library call, not two copies (Cat 1 library
+// surface; the app keeps only its own window + loop + device consumption).
 //
 // It also links the vaml-core static library (consumer path) and prints the
-// library version, keeping the two POOCs capability-synced:
-//   * Vulkan instance + physical-device (GPU) selection + logical device
+// library version, keeping the two POCs capability-synced:
+//   * Vulkan instance + best-GPU auto-selection + logical device
 //   * a real native window on the GPU
 //   * links vaml-core and prints its version
 //
@@ -16,16 +22,18 @@
 
 #include <vaml/version.h>
 #include <vaml/vulkan/PlatformWindow.h>
+#include <vaml/vulkan/VulkanLoader.h>
+#include <vaml/vulkan/VulkanInstance.h>
+#include <vaml/vulkan/VulkanSurface.h>
+#include <vaml/vulkan/gpu/BestGpuSelection.h>
 
 #include "framework.h"   // pulls <windows.h>; must come BEFORE glfw3.h to avoid the
                          // APIENTRY macro redefinition conflict between minwindef.h
                          // and GLFW (standard GLFW+Win32 include-order requirement).
 #include <GLFW/glfw3.h>  // GLFW_* constants referenced by the S160 callback lambdas
-#include "VulkanLoader.h"
 
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -37,91 +45,62 @@ constexpr const wchar_t* kWindowTitle = L"VamlPOC (Windows)";
 constexpr int            kWindowW     = 800;
 constexpr int            kWindowH     = 600;
 
-// Vulkan handles chosen at init; destroyed in reverse order on exit.
+// Vulkan handles chosen at init; destroyed in reverse order on exit. The
+// loader, instance, and window must OUTLIVE everything created from them.
 struct VulkanCtx
 {
-    VkInstance       instance       = VK_NULL_HANDLE;
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkDevice         device         = VK_NULL_HANDLE;
-    VkQueue          graphicsQueue  = VK_NULL_HANDLE;
-    uint32_t         queueFamily    = 0;
+    VkDevice         device        = VK_NULL_HANDLE;
+    VkQueue          graphicsQueue = VK_NULL_HANDLE;
+    uint32_t         queueFamily   = 0;
 
-    void destroy(const VulkanLoader& vk)
+    void destroy(const vaml::vulkan::VulkanLoader& vk)
     {
         if (device)
             vk.vkDestroyDevice(device, nullptr);
-        if (instance)
-            vk.vkDestroyInstance(instance, nullptr);
         device   = VK_NULL_HANDLE;
-        instance = VK_NULL_HANDLE;
+        graphicsQueue = VK_NULL_HANDLE;
     }
 };
 
-// Rough mirror of VamlPOC-linux main.cpp's createVulkanCtx(), but window
-// creation is Win32 and the loader is runtime-resolved (VK_NO_PROTOTYPES).
-// Note: GPU selection mirrors Linux (prefer integrated/discrete GPU). Surface
-// creation/swapchain arrives with S160+ on both platforms.
-VulkanCtx createVulkanCtx(const VulkanLoader& vk)
+// Builds the instance + surface + best-GPU selection + logical device through
+// the vaml-vulkan library surface (S162 + S163). Returns the chosen GPU's
+// PhysicalDeviceInfo so the caller can report it.
+vaml::vulkan::PhysicalDeviceInfo createVulkanCtx(
+    const vaml::vulkan::VulkanLoader& vk,
+    const vaml::vulkan::VulkanInstance& instance,
+    const vaml::vulkan::VulkanSurface* surface,
+    VulkanCtx& ctx)
 {
-    VulkanCtx ctx;
+    using namespace vaml::vulkan;
 
-    // --- Instance -----------------------------------------------------------
-    VkApplicationInfo appInfo{};
-    appInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName   = "VamlPOC";
-    appInfo.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
-    appInfo.apiVersion         = VK_API_VERSION_1_0;
-
-    VkInstanceCreateInfo instInfo{};
-    instInfo.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instInfo.pApplicationInfo = &appInfo;
-
-    if (vk.vkCreateInstance(&instInfo, nullptr, &ctx.instance) != VK_SUCCESS)
-        throw std::runtime_error("vkCreateInstance failed (is a Vulkan driver installed?)");
-
-    // --- Physical device: prefer an integrated/discrete GPU -----------------
-    uint32_t devCount = 0;
-    vk.vkEnumeratePhysicalDevices(ctx.instance, &devCount, nullptr);
-    if (devCount == 0)
+    // --- Best-GPU auto-selection (S163): identical library call on both POCs.
+    const std::string preferred = vaml::vulkan::gpu::preferred_gpu_env_name();
+    auto best = vaml::vulkan::gpu::select_best_gpu(vk, instance, surface, preferred);
+    if (!best)
         throw std::runtime_error("No Vulkan physical devices found");
-    std::vector<VkPhysicalDevice> devices(devCount);
-    vk.vkEnumeratePhysicalDevices(ctx.instance, &devCount, devices.data());
+    const PhysicalDeviceInfo& gpu = best->best;
+    if (gpu.device == VK_NULL_HANDLE)
+        throw std::runtime_error("Best-GPU selection returned no device");
 
-    for (auto dev : devices)
-    {
-        VkPhysicalDeviceProperties props{};
-        vk.vkGetPhysicalDeviceProperties(dev, &props);
-        if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ||
-            props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-        {
-            ctx.physicalDevice = dev;
-            std::printf("GPU: %s\n", props.deviceName);
-            break;
-        }
-    }
-    if (ctx.physicalDevice == VK_NULL_HANDLE)
-        ctx.physicalDevice = devices[0];
-
-    // --- Queue family (graphics, no presentation check yet — no surface) ----
-    uint32_t famCount = 0;
-    vk.vkGetPhysicalDeviceQueueFamilyProperties(ctx.physicalDevice, &famCount, nullptr);
+    // --- Queue family: graphics (unified preferred, graphics-only fallback).
+    std::uint32_t famCount = 0;
+    vk.vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &famCount, nullptr);
     std::vector<VkQueueFamilyProperties> fams(famCount);
-    vk.vkGetPhysicalDeviceQueueFamilyProperties(ctx.physicalDevice, &famCount, fams.data());
+    vk.vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &famCount, fams.data());
 
-    bool found = false;
-    for (uint32_t i = 0; i < famCount; ++i)
-    {
-        if (fams[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-        {
-            ctx.queueFamily = i;
-            found           = true;
-            break;
-        }
-    }
-    if (!found)
+    PresentSupportFn present = [&](std::uint32_t i) {
+        if (!surface || !vk.vkGetPhysicalDeviceSurfaceSupportKHR)
+            return false;
+        VkBool32 s = VK_FALSE;
+        return vk.vkGetPhysicalDeviceSurfaceSupportKHR(gpu.device, i, surface->surface(), &s) == VK_SUCCESS &&
+               s == VK_TRUE;
+    };
+    auto queueFamily = select_queue_family(fams.data(), famCount, present);
+    if (!queueFamily)
         throw std::runtime_error("No graphics-capable queue family found");
+    ctx.queueFamily = *queueFamily;
 
-    // --- Logical device -----------------------------------------------------
+    // --- Logical device + graphics queue (S163 loader device entries).
     const float queuePriority = 1.0f;
     VkDeviceQueueCreateInfo queueInfo{};
     queueInfo.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -134,21 +113,13 @@ VulkanCtx createVulkanCtx(const VulkanLoader& vk)
     devInfo.queueCreateInfoCount = 1;
     devInfo.pQueueCreateInfos    = &queueInfo;
 
-    if (vk.vkCreateDevice(ctx.physicalDevice, &devInfo, nullptr, &ctx.device) != VK_SUCCESS)
+    if (vk.vkCreateDevice(gpu.device, &devInfo, nullptr, &ctx.device) != VK_SUCCESS)
         throw std::runtime_error("vkCreateDevice failed");
 
     vk.vkGetDeviceQueue(ctx.device, ctx.queueFamily, 0, &ctx.graphicsQueue);
-    return ctx;
+    return gpu;
 }
 
-// ---------------------------------------------------------------------------
-// Window lane: the window is created through vaml::vulkan::PlatformWindow (S160)
-// — a real GLFW-backed window (Win32 on Windows / X11 on Linux) — instead of
-// hand-rolled CreateWindowEx. Its resize + input callback surface is echoed
-// here. (The Vulkan handle is still created from the GLFW window's native
-// Win32 HWND via get_native_win32_handle at S162; this baseline already routes
-// window creation + the loop through the library surface.)
-// ---------------------------------------------------------------------------
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
@@ -186,21 +157,26 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
         std::fprintf(stderr, "PlatformWindow::create failed.\n");
         return 1;
     }
-    // GLFW UI-thread init on Windows requires the message-only window thread;
-    // poll_events() pumps it. The GLFWwindow* is retrievable for the native
-    // HWND at S162.
     (void)hInstance;
 
-    // --- Vulkan loader + GPU init (parity with Linux) -----------------------
-    // The loader (vulkan-1.dll) must outlive every Vulkan handle, so it is
-    // held for the app's lifetime and destroyed last.
+    // --- Vulkan loader + instance + surface + best-GPU init (parity with Linux)
+    // The loader (vulkan-1.dll) must outlive every Vulkan handle; the instance
+    // and window must outlive the surface (S162/S163/surface header lifetimes).
+    auto vk  = std::make_unique<vaml::vulkan::VulkanLoader>();
+    auto instance = vaml::vulkan::VulkanInstance::create(*vk, {});
+    if (!instance)
+    {
+        std::fprintf(stderr, "VulkanInstance::create failed (is a Vulkan driver installed?)\n");
+        return 1;
+    }
+    auto surface = vaml::vulkan::VulkanSurface::create(*vk, *instance, *window);
+
     vamlpoc::VulkanCtx ctx;
-    std::unique_ptr<vamlpoc::VulkanLoader> vk;
     try
     {
-        vk  = std::make_unique<vamlpoc::VulkanLoader>(); // LoadLibrary("vulkan-1.dll")
-        ctx = vamlpoc::createVulkanCtx(*vk);             // instance -> GPU -> device
-        std::printf("Running on GPU; close the window to quit.\n");
+        auto gpu = vamlpoc::createVulkanCtx(*vk, *instance, surface.get(), ctx);
+        std::printf("Running on GPU: %s; close the window to quit.\n",
+                    gpu.name.empty() ? "<unnamed>" : gpu.name.c_str());
     }
     catch (const std::exception& e)
     {
@@ -212,7 +188,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
     while (!window->should_close())
         window->poll_events();
 
-    // Teardown (reverse order), matching Linux.
+    // Teardown (reverse order), matching Linux: device -> surface -> instance -> loader.
     ctx.destroy(*vk);
     return 0;
 }

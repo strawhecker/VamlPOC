@@ -122,6 +122,7 @@ add_executable(vaml-vulkan-tests
     PlatformWindow_test.cpp
     VulkanInit_test.cpp
     VulkanQueueFamily_test.cpp
+    BestGpu_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)
