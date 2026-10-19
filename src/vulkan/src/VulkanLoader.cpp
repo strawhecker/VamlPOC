@@ -115,6 +115,33 @@ VulkanLoader::VulkanLoader()
     vkDestroyPipeline                         = reinterpret_cast<PFN_vkDestroyPipeline>(resolve("vkDestroyPipeline"));
     vkCreateFramebuffer                       = reinterpret_cast<PFN_vkCreateFramebuffer>(resolve("vkCreateFramebuffer"));
     vkDestroyFramebuffer                      = reinterpret_cast<PFN_vkDestroyFramebuffer>(resolve("vkDestroyFramebuffer"));
+
+    // ---- S166 command-buffer/sync/present entry points ----
+    vkCreateCommandPool                       = reinterpret_cast<PFN_vkCreateCommandPool>(resolve("vkCreateCommandPool"));
+    vkDestroyCommandPool                      = reinterpret_cast<PFN_vkDestroyCommandPool>(resolve("vkDestroyCommandPool"));
+    vkAllocateCommandBuffers                  = reinterpret_cast<PFN_vkAllocateCommandBuffers>(resolve("vkAllocateCommandBuffers"));
+    vkFreeCommandBuffers                      = reinterpret_cast<PFN_vkFreeCommandBuffers>(resolve("vkFreeCommandBuffers"));
+    vkResetCommandBuffer                      = reinterpret_cast<PFN_vkResetCommandBuffer>(resolve("vkResetCommandBuffer"));
+    vkBeginCommandBuffer                      = reinterpret_cast<PFN_vkBeginCommandBuffer>(resolve("vkBeginCommandBuffer"));
+    vkEndCommandBuffer                        = reinterpret_cast<PFN_vkEndCommandBuffer>(resolve("vkEndCommandBuffer"));
+    vkCmdBeginRenderPass                      = reinterpret_cast<PFN_vkCmdBeginRenderPass>(resolve("vkCmdBeginRenderPass"));
+    vkCmdEndRenderPass                        = reinterpret_cast<PFN_vkCmdEndRenderPass>(resolve("vkCmdEndRenderPass"));
+    vkCmdSetViewport                          = reinterpret_cast<PFN_vkCmdSetViewport>(resolve("vkCmdSetViewport"));
+    vkCmdSetScissor                           = reinterpret_cast<PFN_vkCmdSetScissor>(resolve("vkCmdSetScissor"));
+    vkCmdBindPipeline                         = reinterpret_cast<PFN_vkCmdBindPipeline>(resolve("vkCmdBindPipeline"));
+    vkCmdPushConstants                        = reinterpret_cast<PFN_vkCmdPushConstants>(resolve("vkCmdPushConstants"));
+    vkCmdDraw                                 = reinterpret_cast<PFN_vkCmdDraw>(resolve("vkCmdDraw"));
+    vkCreateSemaphore                         = reinterpret_cast<PFN_vkCreateSemaphore>(resolve("vkCreateSemaphore"));
+    vkDestroySemaphore                        = reinterpret_cast<PFN_vkDestroySemaphore>(resolve("vkDestroySemaphore"));
+    vkCreateFence                             = reinterpret_cast<PFN_vkCreateFence>(resolve("vkCreateFence"));
+    vkDestroyFence                            = reinterpret_cast<PFN_vkDestroyFence>(resolve("vkDestroyFence"));
+    vkWaitForFences                           = reinterpret_cast<PFN_vkWaitForFences>(resolve("vkWaitForFences"));
+    vkResetFences                             = reinterpret_cast<PFN_vkResetFences>(resolve("vkResetFences"));
+    vkAcquireNextImageKHR                     = reinterpret_cast<PFN_vkAcquireNextImageKHR>(resolve("vkAcquireNextImageKHR"));
+    vkQueueSubmit                             = reinterpret_cast<PFN_vkQueueSubmit>(resolve("vkQueueSubmit"));
+    vkQueuePresentKHR                         = reinterpret_cast<PFN_vkQueuePresentKHR>(resolve("vkQueuePresentKHR"));
+    vkQueueWaitIdle                           = reinterpret_cast<PFN_vkQueueWaitIdle>(resolve("vkQueueWaitIdle"));
+    vkDeviceWaitIdle                          = reinterpret_cast<PFN_vkDeviceWaitIdle>(resolve("vkDeviceWaitIdle"));
 }
 
 VulkanLoader::VulkanLoader(VulkanLoader&&) noexcept = default;

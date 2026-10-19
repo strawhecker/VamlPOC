@@ -30,6 +30,8 @@
 #include <vaml/vulkan/ShaderModule.h>
 #include <vaml/vulkan/Pipeline.h>
 #include <vaml/vulkan/Framebuffer.h>
+#include <vaml/vulkan/CommandBuffer.h>
+#include <vaml/vulkan/FrameSync.h>
 #include <vaml/vulkan/gpu/BestGpuSelection.h>
 
 #include "framework.h"   // pulls <windows.h>; must come BEFORE glfw3.h to avoid the
@@ -50,6 +52,9 @@ constexpr const wchar_t* kWindowTitle = L"VamlPOC (Windows)";
 constexpr int            kWindowW     = 800;
 constexpr int            kWindowH     = 600;
 
+// The S166 clear color (light/gray) so the blue S165 triangle is visible against it.
+inline constexpr float kClearColor[4] = { 0.2f, 0.2f, 0.25f, 1.0f };
+
 // Vulkan handles chosen at init; destroyed in reverse order on exit. The
 // loader, instance, window, and surface must OUTLIVE everything created from
 // them. The S164 Swapchain (unique_ptr) is member #1 so it is destroyed FIRST
@@ -66,11 +71,18 @@ struct VulkanCtx
     std::unique_ptr<vaml::vulkan::ShaderModule>  fragmentModule;
     std::unique_ptr<vaml::vulkan::Pipeline>      pipeline;
     std::vector<std::unique_ptr<vaml::vulkan::Framebuffer>> framebuffers;
+    // S166 draw-loop resources (constructed after the framebuffers, destroyed before
+    // the device — after the last submit + a device wait so nothing is in flight).
+    std::unique_ptr<vaml::vulkan::CommandPool>   commandPool;
+    std::unique_ptr<vaml::vulkan::FrameSync>     frameSync;
 
     void destroy(const vaml::vulkan::VulkanLoader& vk)
     {
-        // Destroy order: framebuffers -> pipeline -> shader modules -> render pass
-        // -> swapchain -> device (the S165 LIFETIMES contract).
+        // Destroy order: FrameSync -> CommandPool -> framebuffers -> pipeline ->
+        // shader modules -> render pass -> swapchain -> device. The draw loop must be
+        // idle before these — destroy() is called after the loop's device-wait.
+        frameSync.reset();
+        commandPool.reset();
         framebuffers.clear();
         pipeline.reset();
         vertexModule.reset();
@@ -83,6 +95,45 @@ struct VulkanCtx
         graphicsQueue = VK_NULL_HANDLE;
     }
 };
+
+// The S166 per-frame record body — IDENTICAL in both apps. Consumes the S166
+// draw_record_plan() (the fixed ordered step sequence) + the S165 seams (tri_mvp,
+// viewport_scissor, push_constant_range) + build_render_pass_begin. Returns false on
+// a record failure.
+bool record_draw_frame(const vaml::vulkan::VulkanLoader& vk,
+                       VkCommandBuffer cmd,
+                       VkPipeline pipeline,
+                       VkPipelineLayout layout,
+                       VkRenderPass renderPass,
+                       VkFramebuffer framebuffer,
+                       VkExtent2D extent,
+                       bool hasDepth)
+{
+    using namespace vaml::vulkan;
+    if (!cmd || !pipeline || !layout || !renderPass || !framebuffer)
+        return false;
+    if (vk.vkResetCommandBuffer(cmd, /*flags=*/0) != VK_SUCCESS)
+        return false;
+
+    const auto begin = describe_command_buffer_begin();
+    if (vk.vkBeginCommandBuffer(cmd, &begin) != VK_SUCCESS)
+        return false;
+
+    // The S166 fixed ordered record (see draw_record_plan()).
+    const auto vs = viewport_scissor(extent);
+    VkClearValue clear = describe_clear_value(kClearColor);  // light/gray; blue triangle over it
+    const auto rpBegin = build_render_pass_begin(renderPass, framebuffer, extent, clear, hasDepth);
+    vk.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vk.vkCmdSetViewport(cmd, 0, 1, &vs.viewport);
+    vk.vkCmdSetScissor(cmd, 0, 1, &vs.scissor);
+    const auto mvp = tri_mvp(extent.width, extent.height);
+    vk.vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), mvp.data());
+    vk.vkCmdBeginRenderPass(cmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
+    vk.vkCmdDraw(cmd, 3, 1, 0, 0);  // the S165 triangle
+    vk.vkCmdEndRenderPass(cmd);
+
+    return vk.vkEndCommandBuffer(cmd) == VK_SUCCESS;
+}
 
 // Builds the instance + surface + best-GPU selection + logical device through
 // the vaml-vulkan library surface (S162 + S163). Returns the chosen GPU's
@@ -215,6 +266,23 @@ vaml::vulkan::PhysicalDeviceInfo createVulkanCtx(
                                 colorFormat == VK_FORMAT_B8G8R8A8_SRGB ? "B8G8R8A8_SRGB" : "other",
                                 depthFormat.has_value() ? "yes" : "no",
                                 ctx.swapchain->extent().width, ctx.swapchain->extent().height);
+
+                    // --- Command pool (one buffer per swapchain image) + FrameSync
+                    // (in-flight semaphores + fences) — S166. Consumes the S166 loader
+                    // entries + the graphics queue family.
+                    if (vk.has_command_loader())
+                    {
+                        ctx.commandPool = vaml::vulkan::CommandPool::create(
+                            vk, ctx.device, ctx.queueFamily, ctx.swapchain->image_count());
+                        ctx.frameSync = vaml::vulkan::FrameSync::create(
+                            vk, ctx.device,
+                            vaml::vulkan::choose_concurrency(ctx.swapchain->image_count()));
+                        if (ctx.commandPool && ctx.frameSync)
+                            std::printf("[s166] command pool (%u buffers) + frame sync (%u in-flight frames)\n",
+                                        ctx.commandPool->count(), ctx.frameSync->frame_count());
+                        else
+                            std::fprintf(stderr, "[s166] CommandPool/FrameSync::create failed\n");
+                    }
                 }
                 else
                 {
@@ -294,9 +362,88 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
         return 1;
     }
 
-    // --- Message loop (mirrors glfwPollEvents; drives PlatformWindow) ---------
+    // --- S166 main-thread draw loop (single-thread proof) -----------------------
+    // When the surface + command loader + all render resources are live, each loop
+    // iteration records + submits + presents ONE frame: acquire -> wait in-flight
+    // fence -> reset -> record (the S166 draw_record_plan body) -> submit (waits the
+    // image-available semaphore, signals render-finished + the fence) -> present
+    // (waits render-finished). On the headless VM the swapchain is null, so this is
+    // skipped ([both apps, not CI] manual proof).
+    std::uint32_t frameIndex = 0;
     while (!window->should_close())
-        window->poll_events();
+    {
+        window->poll_events();  // pumps GLFW + forwards into the callbacks
+
+        if (ctx.swapchain && ctx.commandPool && ctx.frameSync && ctx.pipeline &&
+            !ctx.framebuffers.empty() && vk->has_command_loader())
+        {
+            const auto& vkLoad = *vk;
+            const std::uint32_t frames = ctx.frameSync->frame_count();
+            const std::uint32_t f      = frameIndex % frames;
+
+            // Acquire the next swapchain image (waiting imageAvailable[f]).
+            std::uint32_t imageIndex = 0;
+            VkResult acq = vkLoad.vkAcquireNextImageKHR(
+                ctx.device, ctx.swapchain->swapchain(), UINT64_MAX,
+                ctx.frameSync->image_available(f),
+                VK_NULL_HANDLE, &imageIndex);
+            if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR)
+                continue;  // skip this iteration (e.g. out-of-date during resize)
+
+            // Wait the in-flight fence for this frame's slot, then reset it.
+            const VkFence inFlight = ctx.frameSync->in_flight_fence(f);
+            vkLoad.vkWaitForFences(ctx.device, 1, &inFlight, VK_TRUE, UINT64_MAX);
+            vkLoad.vkResetFences(ctx.device, 1, &inFlight);
+
+            VkCommandBuffer cmd = ctx.commandPool->command_buffer(f);
+            VkFramebuffer fb = ctx.framebuffers[imageIndex]->framebuffer();
+
+            if (!vamlpoc::record_draw_frame(vkLoad, cmd, ctx.pipeline->pipeline(),
+                                            ctx.pipeline->pipeline_layout(),
+                                            ctx.renderPass->render_pass(), fb,
+                                            ctx.swapchain->extent(),
+                                            ctx.swapchain->depth_format().has_value()))
+            {
+                continue;
+            }
+
+            // Submit: waits imageAvailable (color-attachment stage), signals
+            // renderFinished + the in-flight fence.
+            const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+            VkSemaphore waitSem = ctx.frameSync->image_available(f);
+            VkSemaphore signalSem = ctx.frameSync->render_finished(f);
+            VkSubmitInfo submit{};
+            submit.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit.waitSemaphoreCount   = 1;
+            submit.pWaitSemaphores      = &waitSem;
+            submit.pWaitDstStageMask    = &waitStage;
+            submit.commandBufferCount   = 1;
+            submit.pCommandBuffers      = &cmd;
+            submit.signalSemaphoreCount = 1;
+            submit.pSignalSemaphores    = &signalSem;
+            if (vkLoad.vkQueueSubmit(ctx.graphicsQueue, 1, &submit, inFlight) != VK_SUCCESS)
+                continue;
+
+            // Present: waits renderFinished on the swapchain's acquired image.
+            VkSwapchainKHR swapchain = ctx.swapchain->swapchain();
+            VkSemaphore renderDone = ctx.frameSync->render_finished(f);
+            VkPresentInfoKHR present{};
+            present.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            present.waitSemaphoreCount = 1;
+            present.pWaitSemaphores    = &renderDone;
+            present.swapchainCount     = 1;
+            present.pSwapchains        = &swapchain;
+            present.pImageIndices      = &imageIndex;
+            vkLoad.vkQueuePresentKHR(ctx.graphicsQueue, &present);  // result benign: skip on OOD
+
+            ++frameIndex;
+        }
+    }
+
+    // Wait for any in-flight submit before destroying the CommandPool/FrameSync so
+    // nothing references them during teardown.
+    if (ctx.device && vk->vkDeviceWaitIdle)
+        vk->vkDeviceWaitIdle(ctx.device);
 
     // Teardown (reverse order), matching Linux: device -> surface -> instance -> loader.
     ctx.destroy(*vk);

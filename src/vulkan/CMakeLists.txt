@@ -19,6 +19,8 @@ vaml_add_library(vulkan
     src/ShaderModule.cpp
     src/Pipeline.cpp
     src/Framebuffer.cpp
+    src/CommandBuffer.cpp
+    src/FrameSync.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

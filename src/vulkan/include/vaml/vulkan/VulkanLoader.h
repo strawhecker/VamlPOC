@@ -117,9 +117,10 @@ public:
     // The recorded S162/S163/S164 "expanded by later sprints" continuation: S165 is
     // the first sprint to BUILD A GRAPHICS PIPELINE on the S164 swapchain's image
     // views, so the render-pass, shader-module, pipeline-layout, graphics-pipeline
-    // and framebuffer entry points all bind HERE. vkGetDeviceProcAddr remains the
-    // general seam S166 extends for the command-buffer/draw entries.
-    // has_render_loader() gates the S165 surface.
+    // and framebuffer entry points all bind HERE. has_render_loader() gates the
+    // S165 surface. (The vkGetDeviceProcAddr seam's S166 expansion for the
+    // command-buffer/draw/sync/present entries is RESOLVED below — the recorded
+    // NO-GAP hand-off is closed at S166, not silent.)
     PFN_vkCreateRenderPass                          vkCreateRenderPass                          = nullptr;
     PFN_vkDestroyRenderPass                         vkDestroyRenderPass                         = nullptr;
     PFN_vkCreateShaderModule                        vkCreateShaderModule                        = nullptr;
@@ -136,6 +137,53 @@ public:
     {
         return vkCreateRenderPass != nullptr && vkCreatePipelineLayout != nullptr &&
                vkCreateGraphicsPipelines != nullptr && vkCreateFramebuffer != nullptr;
+    }
+
+    // ---- S166 command-buffer/sync/present entry points (bound at load) ----
+    // The recorded S162/S163/S164/S165 "expanded by later sprints" continuation: S166 is
+    // the first sprint to RECORD + SUBMIT + PRESENT a frame (the main-thread draw loop
+    // that clears the framebuffer + draws the S165 triangle), so the command-pool /
+    // command-buffer / command-recording entries, the semaphore/fence sync entries, and
+    // the acquire/submit/present entries all bind HERE. vkGetDeviceProcAddr remains the
+    // general seam S167+ extends for resize/recreation entries. has_command_loader()
+    // gates the S166 surface.
+    // --- command pool + command buffers ---
+    PFN_vkCreateCommandPool        vkCreateCommandPool        = nullptr;
+    PFN_vkDestroyCommandPool       vkDestroyCommandPool       = nullptr;
+    PFN_vkAllocateCommandBuffers   vkAllocateCommandBuffers   = nullptr;
+    PFN_vkFreeCommandBuffers       vkFreeCommandBuffers       = nullptr;
+    PFN_vkResetCommandBuffer       vkResetCommandBuffer       = nullptr;
+    PFN_vkBeginCommandBuffer       vkBeginCommandBuffer       = nullptr;
+    PFN_vkEndCommandBuffer         vkEndCommandBuffer         = nullptr;
+    // --- command recording (draw loop body) ---
+    PFN_vkCmdBeginRenderPass       vkCmdBeginRenderPass       = nullptr;
+    PFN_vkCmdEndRenderPass         vkCmdEndRenderPass         = nullptr;
+    PFN_vkCmdSetViewport           vkCmdSetViewport           = nullptr;
+    PFN_vkCmdSetScissor            vkCmdSetScissor            = nullptr;
+    PFN_vkCmdBindPipeline          vkCmdBindPipeline          = nullptr;
+    PFN_vkCmdPushConstants         vkCmdPushConstants         = nullptr;
+    PFN_vkCmdDraw                  vkCmdDraw                  = nullptr;
+    // --- semaphores + fences (sync) ---
+    PFN_vkCreateSemaphore          vkCreateSemaphore          = nullptr;
+    PFN_vkDestroySemaphore         vkDestroySemaphore         = nullptr;
+    PFN_vkCreateFence              vkCreateFence              = nullptr;
+    PFN_vkDestroyFence             vkDestroyFence             = nullptr;
+    PFN_vkWaitForFences            vkWaitForFences            = nullptr;
+    PFN_vkResetFences              vkResetFences              = nullptr;
+    // --- acquire / submit / present / wait ---
+    PFN_vkAcquireNextImageKHR      vkAcquireNextImageKHR      = nullptr;
+    PFN_vkQueueSubmit              vkQueueSubmit              = nullptr;
+    PFN_vkQueuePresentKHR          vkQueuePresentKHR          = nullptr;
+    PFN_vkQueueWaitIdle            vkQueueWaitIdle            = nullptr;
+    PFN_vkDeviceWaitIdle           vkDeviceWaitIdle           = nullptr;
+
+    // True iff the S166 command/sync/present entry points are bound (the draw loop
+    // requires the command-pool + acquire + submit + present seam to be live).
+    [[nodiscard]] bool has_command_loader() const noexcept
+    {
+        return vkCreateCommandPool != nullptr && vkAllocateCommandBuffers != nullptr &&
+               vkAcquireNextImageKHR != nullptr && vkQueueSubmit != nullptr &&
+               vkQueuePresentKHR != nullptr;
     }
 
 private:
