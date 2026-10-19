@@ -120,6 +120,8 @@ add_test(NAME vaml-core-tests COMMAND vaml-core-tests)
 # ============================================================================
 add_executable(vaml-vulkan-tests
     PlatformWindow_test.cpp
+    VulkanInit_test.cpp
+    VulkanQueueFamily_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)
