@@ -145,6 +145,15 @@ const std::vector<VkFormat>& depth_format_candidates()
     return kCandidates;
 }
 
+bool should_recreate_swapchain(VkResult result) noexcept
+{
+    // An out-of-date or suboptimal result from acquire/present means the
+    // swapchain no longer matches the surface (e.g. the window resized) and the
+    // image(s) can no longer be presented — the S167 trigger to recreate at the
+    // new size. Every other result (including VK_SUCCESS) means "keep drawing".
+    return result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR;
+}
+
 namespace {
 
 // Probes the physical device's support for a depth format via
@@ -260,12 +269,80 @@ Swapchain::create(const VulkanLoader& loader,
         return nullptr;
 
     std::unique_ptr<Swapchain> sw(new Swapchain(loader, device));
-    sw->config_ = cfg;
+    sw->physicalDevice_ = physicalDevice;
+    sw->surface_        = &surface;
+
+    if (!sw->rebuild(cfg))
+        return nullptr;
+    return sw;
+}
+
+bool Swapchain::recreate(std::uint32_t newWidth,
+                         std::uint32_t newHeight,
+                         std::optional<SwapchainConfig> configOpt)
+{
+    // S167 recreate. The caller MUST have vkDeviceWaitIdle'd the device first
+    // (documented in the header) so no in-flight frame references the old
+    // swapchain/image views. Re-negotiate at the new size unless an explicit
+    // config was supplied.
+    SwapchainConfig cfg;
+    if (configOpt)
+    {
+        cfg = *configOpt;
+        cfg.extent.width  = newWidth;
+        cfg.extent.height = newHeight;
+    }
+    else
+    {
+        if (physicalDevice_ == VK_NULL_HANDLE || surface_ == nullptr)
+            return false;
+        auto negotiated = negotiate(*loader_, physicalDevice_, *surface_, newWidth, newHeight);
+        if (!negotiated)
+            return false;
+        cfg = std::move(*negotiated);
+    }
+
+    if (cfg.surfaceFormat.format == VK_FORMAT_UNDEFINED || cfg.imageCount == 0)
+        return false;
+
+    return rebuild(cfg);
+}
+
+// Private shared (re)builder: destroys any existing members in reverse order
+// (depth -> image views -> swapchain), then builds a fresh swapchain + image
+// views + depth from `cfg`. Used by create() and recreate().
+bool Swapchain::rebuild(const SwapchainConfig& cfg)
+{
+    // Tear down the previous generation first (reverse order): depth ->
+    // image views -> swapchain. On create() these are all null.
+    for (VkImageView v : imageViews_)
+    {
+        if (v && loader_->vkDestroyImageView)
+            loader_->vkDestroyImageView(device_, v, nullptr);
+    }
+    imageViews_.clear();
+    images_.clear();
+
+    if (depthImageView_ && loader_->vkDestroyImageView)
+        loader_->vkDestroyImageView(device_, depthImageView_, nullptr);
+    if (depthMemory_ && loader_->vkFreeMemory)
+        loader_->vkFreeMemory(device_, depthMemory_, nullptr);
+    if (depthImage_ && loader_->vkDestroyImage)
+        loader_->vkDestroyImage(device_, depthImage_, nullptr);
+    depthImageView_ = VK_NULL_HANDLE;
+    depthMemory_    = VK_NULL_HANDLE;
+    depthImage_     = VK_NULL_HANDLE;
+
+    if (swapchain_ && loader_->vkDestroySwapchainKHR)
+        loader_->vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+    swapchain_ = VK_NULL_HANDLE;
+
+    config_ = cfg;
 
     // --- Create the swapchain ---
     VkSwapchainCreateInfoKHR sci{};
     sci.sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    sci.surface          = surface.surface();
+    sci.surface          = surface_ ? surface_->surface() : VK_NULL_HANDLE;
     sci.minImageCount    = cfg.imageCount;
     sci.imageFormat      = cfg.surfaceFormat.format;
     sci.imageColorSpace  = cfg.surfaceFormat.colorSpace;
@@ -277,23 +354,23 @@ Swapchain::create(const VulkanLoader& loader,
     sci.presentMode      = cfg.presentMode;
     sci.clipped          = VK_TRUE;
 
-    if (loader.vkCreateSwapchainKHR(device, &sci, nullptr, &sw->swapchain_) != VK_SUCCESS)
-        return nullptr;
+    if (loader_->vkCreateSwapchainKHR(device_, &sci, nullptr, &swapchain_) != VK_SUCCESS)
+        return false;
 
     // --- Fetch the swapchain images ---
     std::uint32_t imageCount = 0;
-    if (loader.vkGetSwapchainImagesKHR(device, sw->swapchain_, &imageCount, nullptr) != VK_SUCCESS ||
+    if (loader_->vkGetSwapchainImagesKHR(device_, swapchain_, &imageCount, nullptr) != VK_SUCCESS ||
         imageCount == 0)
     {
-        return nullptr;
+        return false;
     }
-    sw->images_.resize(imageCount);
-    if (loader.vkGetSwapchainImagesKHR(device, sw->swapchain_, &imageCount, sw->images_.data()) != VK_SUCCESS)
-        return nullptr;
+    images_.resize(imageCount);
+    if (loader_->vkGetSwapchainImagesKHR(device_, swapchain_, &imageCount, images_.data()) != VK_SUCCESS)
+        return false;
 
     // --- Create an image view per swapchain image ---
-    sw->imageViews_.reserve(sw->images_.size());
-    for (VkImage image : sw->images_)
+    imageViews_.reserve(images_.size());
+    for (VkImage image : images_)
     {
         VkImageViewCreateInfo ivci{};
         ivci.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -311,15 +388,15 @@ Swapchain::create(const VulkanLoader& loader,
         ivci.subresourceRange.layerCount     = 1;
 
         VkImageView view = VK_NULL_HANDLE;
-        if (loader.vkCreateImageView(device, &ivci, nullptr, &view) != VK_SUCCESS)
-            return nullptr;
-        sw->imageViews_.push_back(view);
+        if (loader_->vkCreateImageView(device_, &ivci, nullptr, &view) != VK_SUCCESS)
+            return false;
+        imageViews_.push_back(view);
     }
 
     // --- Create the depth image + image view + device memory (raw, no VMA:
     // a single depth image needs 4 allocator entry points; VMA = S202) ---
-    if (cfg.depthFormat && loader.vkCreateImage && loader.vkAllocateMemory &&
-        loader.vkGetImageMemoryRequirements && loader.vkBindImageMemory)
+    if (cfg.depthFormat && loader_->vkCreateImage && loader_->vkAllocateMemory &&
+        loader_->vkGetImageMemoryRequirements && loader_->vkBindImageMemory)
     {
         VkFormat depthFormat = *cfg.depthFormat;
 
@@ -336,14 +413,14 @@ Swapchain::create(const VulkanLoader& loader,
         ici.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
         ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-        if (loader.vkCreateImage(device, &ici, nullptr, &sw->depthImage_) == VK_SUCCESS)
+        if (loader_->vkCreateImage(device_, &ici, nullptr, &depthImage_) == VK_SUCCESS)
         {
             VkMemoryRequirements req{};
-            loader.vkGetImageMemoryRequirements(device, sw->depthImage_, &req);
+            loader_->vkGetImageMemoryRequirements(device_, depthImage_, &req);
 
             // Pick the first memory type the image accepts with DEVICE_LOCAL.
             VkPhysicalDeviceMemoryProperties memProps{};
-            loader.vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+            loader_->vkGetPhysicalDeviceMemoryProperties(physicalDevice_, &memProps);
             std::uint32_t memType = UINT32_MAX;
             for (std::uint32_t i = 0; i < memProps.memoryTypeCount; ++i)
             {
@@ -361,12 +438,12 @@ Swapchain::create(const VulkanLoader& loader,
                 mai.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
                 mai.allocationSize  = req.size;
                 mai.memoryTypeIndex = memType;
-                if (loader.vkAllocateMemory(device, &mai, nullptr, &sw->depthMemory_) == VK_SUCCESS &&
-                    loader.vkBindImageMemory(device, sw->depthImage_, sw->depthMemory_, 0) == VK_SUCCESS)
+                if (loader_->vkAllocateMemory(device_, &mai, nullptr, &depthMemory_) == VK_SUCCESS &&
+                    loader_->vkBindImageMemory(device_, depthImage_, depthMemory_, 0) == VK_SUCCESS)
                 {
                     VkImageViewCreateInfo divci{};
                     divci.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                    divci.image    = sw->depthImage_;
+                    divci.image    = depthImage_;
                     divci.viewType = VK_IMAGE_VIEW_TYPE_2D;
                     divci.format   = depthFormat;
                     divci.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -374,34 +451,34 @@ Swapchain::create(const VulkanLoader& loader,
                     divci.subresourceRange.levelCount     = 1;
                     divci.subresourceRange.baseArrayLayer = 0;
                     divci.subresourceRange.layerCount     = 1;
-                    if (loader.vkCreateImageView(device, &divci, nullptr, &sw->depthImageView_) != VK_SUCCESS)
+                    if (loader_->vkCreateImageView(device_, &divci, nullptr, &depthImageView_) != VK_SUCCESS)
                     {
                         // Depth image view failed — tear the depth image down.
-                        loader.vkFreeMemory(device, sw->depthMemory_, nullptr);
-                        loader.vkDestroyImage(device, sw->depthImage_, nullptr);
-                        sw->depthMemory_ = VK_NULL_HANDLE;
-                        sw->depthImage_  = VK_NULL_HANDLE;
+                        loader_->vkFreeMemory(device_, depthMemory_, nullptr);
+                        loader_->vkDestroyImage(device_, depthImage_, nullptr);
+                        depthMemory_ = VK_NULL_HANDLE;
+                        depthImage_  = VK_NULL_HANDLE;
                     }
                 }
                 else
                 {
                     // Allocation/bind failed — release the image.
-                    if (sw->depthMemory_)
-                        loader.vkFreeMemory(device, sw->depthMemory_, nullptr);
-                    loader.vkDestroyImage(device, sw->depthImage_, nullptr);
-                    sw->depthMemory_ = VK_NULL_HANDLE;
-                    sw->depthImage_  = VK_NULL_HANDLE;
+                    if (depthMemory_)
+                        loader_->vkFreeMemory(device_, depthMemory_, nullptr);
+                    loader_->vkDestroyImage(device_, depthImage_, nullptr);
+                    depthMemory_ = VK_NULL_HANDLE;
+                    depthImage_  = VK_NULL_HANDLE;
                 }
             }
             else
             {
-                loader.vkDestroyImage(device, sw->depthImage_, nullptr);
-                sw->depthImage_ = VK_NULL_HANDLE;
+                loader_->vkDestroyImage(device_, depthImage_, nullptr);
+                depthImage_ = VK_NULL_HANDLE;
             }
         }
     }
 
-    return sw;
+    return true;
 }
 
 Swapchain::Swapchain(const VulkanLoader& loader, VkDevice device)

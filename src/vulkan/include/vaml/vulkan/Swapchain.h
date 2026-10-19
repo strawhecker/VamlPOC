@@ -115,6 +115,12 @@ negotiate_image_count(const VkSurfaceCapabilitiesKHR& caps, std::uint32_t desire
 // choose_depth_format. Exposed so a caller can probe support once.
 VAML_VULKAN_EXPORT const std::vector<VkFormat>& depth_format_candidates();
 
+// Returns true precisely when `result` (from vkAcquireNextImageKHR or
+// vkQueuePresentKHR) means the swapchain is out-of-date or suboptimal and must
+// be recreated — the S167 "resize-safe recreation" trigger. VK_SUCCESS and
+// every other result return false. Pure + headless-testable (no runtime).
+VAML_VULKAN_EXPORT bool should_recreate_swapchain(VkResult result) noexcept;
+
 // ---------------------------------------------------------------------------
 // Real swapchain owner (RAII)
 // ---------------------------------------------------------------------------
@@ -198,12 +204,39 @@ public:
 
     [[nodiscard]] const SwapchainConfig& config() const noexcept { return config_; }
 
+    // Resize-safe recreation (S167): renegotiates a NEW config at `newWidth` x
+    // `newHeight` (or reuses the previous config's format/present-mode when
+    // `configOpt` is supplied), destroys the OLD swapchain image views -> depth
+    // image/view/memory -> swapchain in reverse order, then builds a fresh
+    // swapchain + image views + depth at the new size. Returns true on success.
+    //
+    // CONTRACT: the caller MUST have quiesced the device (vkDeviceWaitIdle) and
+    // drained all in-flight frames BEFORE calling — no submitted work may
+    // reference the old swapchain/image views (that is exactly the "no
+    // validation errors on resize" guarantee). Callers own that wait (the POCs
+    // do it in the draw loop). On failure the swapchain is left with no valid
+    // swapchain/image-views and returns false (retry/fatal is the caller's call).
+    //
+    // After a successful recreate the caller must REBUILD any objects bound to
+    // the old image views/extent (the app-owned Framebuffers) — the library
+    // exposes the primitive; the app owns its dependent render targets.
+    bool recreate(std::uint32_t newWidth,
+                  std::uint32_t newHeight,
+                  std::optional<SwapchainConfig> configOpt = std::nullopt);
+
 private:
     Swapchain(const VulkanLoader& loader, VkDevice device);
 
-    const VulkanLoader* loader_  = nullptr;
-    VkDevice           device_   = VK_NULL_HANDLE;
-    VkSwapchainKHR     swapchain_ = VK_NULL_HANDLE;
+    // Internal: (re)builds the swapchain + image views + depth from `cfg` into
+    // fresh members, destroying any existing members FIRST (reverse order:
+    // depth -> image views -> swapchain). Used by create() and recreate().
+    bool rebuild(const SwapchainConfig& cfg);
+
+    const VulkanLoader*    loader_         = nullptr;
+    VkDevice               device_         = VK_NULL_HANDLE;
+    VkPhysicalDevice       physicalDevice_ = VK_NULL_HANDLE;
+    const VulkanSurface*   surface_        = nullptr;  // must outlive this swapchain (LIFETIMES)
+    VkSwapchainKHR         swapchain_      = VK_NULL_HANDLE;
 
     std::vector<VkImage>     images_;
     std::vector<VkImageView> imageViews_;

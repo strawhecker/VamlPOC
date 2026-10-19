@@ -60,6 +60,11 @@ struct VulkanCtx
     VkDevice                                     device        = VK_NULL_HANDLE;
     VkQueue                                      graphicsQueue = VK_NULL_HANDLE;
     uint32_t                                     queueFamily   = 0;
+    // S167 resize state: the latest framebuffer (physical) px reported by the
+    // S160 on_resize hook, + a pending flag the draw loop checks each iteration.
+    int                                          framebufferW  = 0;
+    int                                          framebufferH  = 0;
+    bool                                         resizePending = false;
     std::unique_ptr<vaml::vulkan::Swapchain>     swapchain;   // destroyed before device
     // S165 render resources (constructed after the swapchain, destroyed before it).
     std::unique_ptr<vaml::vulkan::RenderPass>    renderPass;
@@ -293,6 +298,47 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
     return gpu;
 }
 
+// S167 — rebuild the swapchain + dependent framebuffers at a new framebuffer
+// size (called from the draw loop on a resize/out-of-date signal). Assumes the
+// caller has already vkDeviceWaitIdle'd the device (the draw loop does). The
+// command pool + frame sync are FRAME-SLOT-indexed (independent of image count)
+// so they survive the recreation unchanged; only the swapchain (image views)
+// and the per-image framebuffers are rebuilt. IDENTICAL in both apps.
+//
+// Returns false on failure (the draw loop treats a failed recreate as a skip,
+// not a crash). The pipeline + render pass are size-independent (the render area
+// comes from the current extent at record time) so they are UNAFFECTED by a
+// resize (recorded NO-GAP).
+bool recreateSwapchain(const vaml::vulkan::VulkanLoader& vk, VulkanCtx& ctx)
+{
+    using namespace vaml::vulkan;
+    if (!ctx.swapchain)
+        return false;
+    const std::uint32_t w = ctx.framebufferW > 0 ? static_cast<std::uint32_t>(ctx.framebufferW) : 1u;
+    const std::uint32_t h = ctx.framebufferH > 0 ? static_cast<std::uint32_t>(ctx.framebufferH) : 1u;
+
+    if (!ctx.swapchain->recreate(w, h))
+    {
+        std::fprintf(stderr, "[s167] swapchain recreate failed at %ux%u\n", w, h);
+        return false;
+    }
+
+    // Rebuild the per-image framebuffers against the NEW image views/extent.
+    ctx.framebuffers.clear();
+    for (VkImageView view : ctx.swapchain->image_views())
+    {
+        ctx.framebuffers.push_back(Framebuffer::create(
+            vk, ctx.device, ctx.renderPass->render_pass(),
+            ctx.swapchain->extent(),
+            std::vector<VkImageView>{ view },
+            ctx.swapchain->depth_image_view() ? std::optional<VkImageView>(ctx.swapchain->depth_image_view())
+                                              : std::nullopt));
+    }
+    std::printf("[s167] swapchain + %zu framebuffer(s) recreated at %ux%u\n",
+                ctx.framebuffers.size(), ctx.swapchain->extent().width, ctx.swapchain->extent().height);
+    return !ctx.framebuffers.empty();
+}
+
 } // namespace
 
 int main()
@@ -304,9 +350,19 @@ int main()
                 std::string(vaml::engine_name()).c_str());
 
     // --- Platform window via vaml::vulkan::PlatformWindow (S160) -------------
+    // The VulkanCtx is declared before the callbacks so the S167 on_resize hook
+    // (which records the new framebuffer size + flags a pending swapchain
+    // recreate) can capture it by reference.
+    VulkanCtx ctx;
+
     vaml::vulkan::WindowCallbacks callbacks;
-    callbacks.on_resize = [](int w, int h) {
+    callbacks.on_resize = [&ctx](int w, int h) {
         std::printf("[resize] framebuffer %dx%d\n", w, h);
+        // S167: record the new framebuffer px (the swapchain extent source) and
+        // flag the draw loop to recreate the swapchain at the new size.
+        ctx.framebufferW = w;
+        ctx.framebufferH = h;
+        ctx.resizePending = true;
     };
     callbacks.on_key = [](int key, int /*scancode*/, int action, int /*mods*/) {
         if (action == GLFW_PRESS)
@@ -343,7 +399,6 @@ int main()
     }
     auto surface = vaml::vulkan::VulkanSurface::create(*vk, *instance, *window);
 
-    VulkanCtx ctx;
     std::string gpuName;
     try
     {
@@ -417,6 +472,19 @@ int main()
             !ctx.framebuffers.empty() && vk->has_command_loader())
         {
             const auto& vkLoad = *vk;
+
+            // S167 — quiesce + recreate the swapchain before acquiring when a
+            // resize is pending (the S160 on_resize hook flagged one), so the
+            // new frame targets a fresh swapchain, never stale image views.
+            if (ctx.resizePending)
+            {
+                ctx.resizePending = false;
+                if (vkLoad.vkDeviceWaitIdle)
+                    vkLoad.vkDeviceWaitIdle(ctx.device);
+                if (!recreateSwapchain(vkLoad, ctx))
+                    continue;
+            }
+
             const std::uint32_t frames = ctx.frameSync->frame_count();
             const std::uint32_t f      = frameIndex % frames;
 
@@ -426,8 +494,18 @@ int main()
                 ctx.device, ctx.swapchain->swapchain(), UINT64_MAX,
                 ctx.frameSync->image_available(f),
                 VK_NULL_HANDLE, &imageIndex);
-            if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR)
-                continue;  // skip this iteration (e.g. out-of-date during resize)
+
+            // S167: an out-of-date/suboptimal acquire means the swapchain no
+            // longer matches the surface — quiesce + recreate, then retry next
+            // iteration. Any other non-success is a transient skip, not a recreate.
+            if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(acq))
+            {
+                vkLoad.vkDeviceWaitIdle(ctx.device);
+                recreateSwapchain(vkLoad, ctx);
+                continue;
+            }
+            if (acq != VK_SUCCESS)
+                continue;
 
             // Wait the in-flight fence for this frame's slot, then reset it.
             const VkFence inFlight = ctx.frameSync->in_flight_fence(f);
@@ -473,7 +551,16 @@ int main()
             present.swapchainCount     = 1;
             present.pSwapchains        = &swapchain;
             present.pImageIndices      = &imageIndex;
-            vkLoad.vkQueuePresentKHR(ctx.graphicsQueue, &present);  // result benign: skip on OOD
+            VkResult pres = vkLoad.vkQueuePresentKHR(ctx.graphicsQueue, &present);
+
+            // S167: an out-of-date/suboptimal present also means recreate at the
+            // new size (the S160 on_resize path may have raced the present).
+            if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(pres))
+            {
+                vkLoad.vkDeviceWaitIdle(ctx.device);
+                recreateSwapchain(vkLoad, ctx);
+                continue;
+            }
 
             ++frameIndex;
         }
