@@ -83,6 +83,36 @@ public:
     // true once S163's device entries are bound at load).
     [[nodiscard]] bool has_device_loader() const noexcept { return vkCreateDevice != nullptr && vkGetDeviceQueue != nullptr; }
 
+    // ---- S164 swapchain/image-view/depth entry points (bound at load) ----
+    // The recorded S162/S163 "expanded by later sprints" continuation: S164 is
+    // the first sprint to BUILD A SWAPCHAIN on the S163 device, so the surface-
+    // capability queries, the swapchain KHR functions, the image-view functions
+    // and the raw device-memory functions (the single depth image's memory)
+    // all bind HERE. vkGetDeviceProcAddr remains the general seam S165 extends
+    // for render-pass/pipeline entries. has_swapchain_loader() is the S164 gate.
+    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR vkGetPhysicalDeviceSurfaceCapabilitiesKHR = nullptr;
+    PFN_vkGetPhysicalDeviceSurfaceFormatsKHR      vkGetPhysicalDeviceSurfaceFormatsKHR      = nullptr;
+    PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfacePresentModesKHR = nullptr;
+    PFN_vkGetPhysicalDeviceFormatProperties       vkGetPhysicalDeviceFormatProperties       = nullptr;  // depth-format support probe
+    PFN_vkCreateSwapchainKHR                      vkCreateSwapchainKHR                      = nullptr;
+    PFN_vkDestroySwapchainKHR                     vkDestroySwapchainKHR                     = nullptr;
+    PFN_vkGetSwapchainImagesKHR                   vkGetSwapchainImagesKHR                   = nullptr;
+    PFN_vkCreateImageView                         vkCreateImageView                         = nullptr;
+    PFN_vkDestroyImageView                        vkDestroyImageView                        = nullptr;
+    PFN_vkCreateImage                             vkCreateImage                             = nullptr;
+    PFN_vkDestroyImage                            vkDestroyImage                            = nullptr;
+    PFN_vkGetImageMemoryRequirements              vkGetImageMemoryRequirements              = nullptr;
+    PFN_vkAllocateMemory                          vkAllocateMemory                          = nullptr;
+    PFN_vkFreeMemory                              vkFreeMemory                              = nullptr;
+    PFN_vkBindImageMemory                         vkBindImageMemory                         = nullptr;
+
+    // True iff the S164 swapchain/image-view/depth entry points are bound.
+    [[nodiscard]] bool has_swapchain_loader() const noexcept
+    {
+        return vkCreateSwapchainKHR != nullptr && vkGetSwapchainImagesKHR != nullptr &&
+               vkCreateImageView != nullptr;
+    }
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

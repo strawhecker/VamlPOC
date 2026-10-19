@@ -25,6 +25,7 @@
 #include <vaml/vulkan/VulkanLoader.h>
 #include <vaml/vulkan/VulkanInstance.h>
 #include <vaml/vulkan/VulkanSurface.h>
+#include <vaml/vulkan/Swapchain.h>
 #include <vaml/vulkan/gpu/BestGpuSelection.h>
 
 #include "framework.h"   // pulls <windows.h>; must come BEFORE glfw3.h to avoid the
@@ -46,15 +47,19 @@ constexpr int            kWindowW     = 800;
 constexpr int            kWindowH     = 600;
 
 // Vulkan handles chosen at init; destroyed in reverse order on exit. The
-// loader, instance, and window must OUTLIVE everything created from them.
+// loader, instance, window, and surface must OUTLIVE everything created from
+// them. The S164 Swapchain (unique_ptr) is member #1 so it is destroyed FIRST
+// (before the device — the documented swapchain-before-device ordering).
 struct VulkanCtx
 {
-    VkDevice         device        = VK_NULL_HANDLE;
-    VkQueue          graphicsQueue = VK_NULL_HANDLE;
-    uint32_t         queueFamily   = 0;
+    VkDevice                                     device        = VK_NULL_HANDLE;
+    VkQueue                                      graphicsQueue = VK_NULL_HANDLE;
+    uint32_t                                     queueFamily   = 0;
+    std::unique_ptr<vaml::vulkan::Swapchain>     swapchain;   // destroyed before device
 
     void destroy(const vaml::vulkan::VulkanLoader& vk)
     {
+        swapchain.reset();  // swapchain -> its image views -> its depth -> swapchain
         if (device)
             vk.vkDestroyDevice(device, nullptr);
         device   = VK_NULL_HANDLE;
@@ -108,15 +113,50 @@ vaml::vulkan::PhysicalDeviceInfo createVulkanCtx(
     queueInfo.queueCount       = 1;
     queueInfo.pQueuePriorities = &queuePriority;
 
+    // S164: enable VK_KHR_swapchain at device creation (else vkCreateSwapchainKHR
+    // fails). The swapchain extension is the ONE device extension S164 requires.
+    const char* kSwapchainExtension = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
     VkDeviceCreateInfo devInfo{};
-    devInfo.sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    devInfo.queueCreateInfoCount = 1;
-    devInfo.pQueueCreateInfos    = &queueInfo;
+    devInfo.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    devInfo.queueCreateInfoCount    = 1;
+    devInfo.pQueueCreateInfos       = &queueInfo;
+    devInfo.enabledExtensionCount   = 1;
+    devInfo.ppEnabledExtensionNames = &kSwapchainExtension;
 
     if (vk.vkCreateDevice(gpu.device, &devInfo, nullptr, &ctx.device) != VK_SUCCESS)
         throw std::runtime_error("vkCreateDevice failed");
 
     vk.vkGetDeviceQueue(ctx.device, ctx.queueFamily, 0, &ctx.graphicsQueue);
+
+    // --- Swapchain + image views + depth (S164) -----------------------------
+    // Consumes the surface + the S163 device + the S164 loader entries. The
+    // framebuffer size comes from the window; the S164 decision seams negotiate
+    // the format/BPP/present-mode/extent/depth.
+    if (surface && vk.has_swapchain_loader())
+    {
+        const auto cfg = vaml::vulkan::Swapchain::negotiate(
+            vk, gpu.device, *surface, vamlpoc::kWindowW, vamlpoc::kWindowH);
+        std::printf("[swapchain] negotiated BPP=%u present=%d extent=%ux%u count=%u depth=%s\n",
+                    cfg ? cfg->surface_bytes_per_pixel() : 0u,
+                    cfg ? static_cast<int>(cfg->presentMode) : -1,
+                    cfg ? cfg->extent.width : 0u,
+                    cfg ? cfg->extent.height : 0u,
+                    cfg ? cfg->imageCount : 0u,
+                    (cfg && cfg->depthFormat) ? "yes" : "no");
+
+        ctx.swapchain = vaml::vulkan::Swapchain::create(
+            vk, ctx.device, gpu.device, *surface, vamlpoc::kWindowW, vamlpoc::kWindowH);
+        if (!ctx.swapchain)
+            std::fprintf(stderr, "[swapchain] Swapchain::create failed\n");
+        else
+            std::printf("[swapchain] created: %u images, format %s, %u BPP, present %d, extent %ux%u\n",
+                        ctx.swapchain->image_count(),
+                        ctx.swapchain->color_format() == VK_FORMAT_B8G8R8A8_SRGB ? "B8G8R8A8_SRGB" : "other",
+                        ctx.swapchain->bytes_per_pixel(),
+                        static_cast<int>(ctx.swapchain->present_mode()),
+                        ctx.swapchain->extent().width,
+                        ctx.swapchain->extent().height);
+    }
     return gpu;
 }
 

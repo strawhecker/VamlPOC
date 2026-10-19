@@ -86,6 +86,23 @@ VulkanLoader::VulkanLoader()
     vkCreateDevice   = reinterpret_cast<PFN_vkCreateDevice>(resolve("vkCreateDevice"));
     vkGetDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(resolve("vkGetDeviceQueue"));
     vkDestroyDevice  = reinterpret_cast<PFN_vkDestroyDevice>(resolve("vkDestroyDevice"));
+
+    // ---- S164 swapchain/image-view/depth entry points ----
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(resolve("vkGetPhysicalDeviceSurfaceCapabilitiesKHR"));
+    vkGetPhysicalDeviceSurfaceFormatsKHR      = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceFormatsKHR>(resolve("vkGetPhysicalDeviceSurfaceFormatsKHR"));
+    vkGetPhysicalDeviceSurfacePresentModesKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfacePresentModesKHR>(resolve("vkGetPhysicalDeviceSurfacePresentModesKHR"));
+    vkGetPhysicalDeviceFormatProperties       = reinterpret_cast<PFN_vkGetPhysicalDeviceFormatProperties>(resolve("vkGetPhysicalDeviceFormatProperties"));
+    vkCreateSwapchainKHR                      = reinterpret_cast<PFN_vkCreateSwapchainKHR>(resolve("vkCreateSwapchainKHR"));
+    vkDestroySwapchainKHR                     = reinterpret_cast<PFN_vkDestroySwapchainKHR>(resolve("vkDestroySwapchainKHR"));
+    vkGetSwapchainImagesKHR                   = reinterpret_cast<PFN_vkGetSwapchainImagesKHR>(resolve("vkGetSwapchainImagesKHR"));
+    vkCreateImageView                         = reinterpret_cast<PFN_vkCreateImageView>(resolve("vkCreateImageView"));
+    vkDestroyImageView                        = reinterpret_cast<PFN_vkDestroyImageView>(resolve("vkDestroyImageView"));
+    vkCreateImage                             = reinterpret_cast<PFN_vkCreateImage>(resolve("vkCreateImage"));
+    vkDestroyImage                            = reinterpret_cast<PFN_vkDestroyImage>(resolve("vkDestroyImage"));
+    vkGetImageMemoryRequirements              = reinterpret_cast<PFN_vkGetImageMemoryRequirements>(resolve("vkGetImageMemoryRequirements"));
+    vkAllocateMemory                          = reinterpret_cast<PFN_vkAllocateMemory>(resolve("vkAllocateMemory"));
+    vkFreeMemory                              = reinterpret_cast<PFN_vkFreeMemory>(resolve("vkFreeMemory"));
+    vkBindImageMemory                         = reinterpret_cast<PFN_vkBindImageMemory>(resolve("vkBindImageMemory"));
 }
 
 VulkanLoader::VulkanLoader(VulkanLoader&&) noexcept = default;

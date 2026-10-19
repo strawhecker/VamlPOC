@@ -14,6 +14,7 @@ vaml_add_library(vulkan
     src/VulkanSurface.cpp
     src/QueueFamilySelection.cpp
     src/BestGpuSelection.cpp
+    src/Swapchain.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

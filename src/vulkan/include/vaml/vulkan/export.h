@@ -22,7 +22,7 @@
 #endif
 
 #ifndef VAML_VULKAN_DEPRECATED
-#  define VAML_VULKAN_DEPRECATED __attribute__ ((__deprecated__))
+#  define VAML_VULKAN_DEPRECATED __declspec(deprecated)
 #endif
 
 #ifndef VAML_VULKAN_DEPRECATED_EXPORT
