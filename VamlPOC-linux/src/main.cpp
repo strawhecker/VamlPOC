@@ -25,6 +25,10 @@
 #include <vaml/vulkan/VulkanInstance.h>
 #include <vaml/vulkan/VulkanSurface.h>
 #include <vaml/vulkan/Swapchain.h>
+#include <vaml/vulkan/RenderPass.h>
+#include <vaml/vulkan/ShaderModule.h>
+#include <vaml/vulkan/Pipeline.h>
+#include <vaml/vulkan/Framebuffer.h>
 #include <vaml/vulkan/gpu/BestGpuSelection.h>
 
 #include <vulkan/vulkan.h>
@@ -52,9 +56,22 @@ struct VulkanCtx
     VkQueue                                      graphicsQueue = VK_NULL_HANDLE;
     uint32_t                                     queueFamily   = 0;
     std::unique_ptr<vaml::vulkan::Swapchain>     swapchain;   // destroyed before device
+    // S165 render resources (constructed after the swapchain, destroyed before it).
+    std::unique_ptr<vaml::vulkan::RenderPass>    renderPass;
+    std::unique_ptr<vaml::vulkan::ShaderModule>  vertexModule;
+    std::unique_ptr<vaml::vulkan::ShaderModule>  fragmentModule;
+    std::unique_ptr<vaml::vulkan::Pipeline>      pipeline;
+    std::vector<std::unique_ptr<vaml::vulkan::Framebuffer>> framebuffers;
 
     void destroy(const vaml::vulkan::VulkanLoader& vk)
     {
+        // Destroy order: framebuffers -> pipeline -> shader modules -> render pass
+        // -> swapchain -> device (the S165 LIFETIMES contract).
+        framebuffers.clear();
+        pipeline.reset();
+        vertexModule.reset();
+        fragmentModule.reset();
+        renderPass.reset();
         swapchain.reset();  // swapchain -> its image views -> its depth -> swapchain
         if (device)
             vk.vkDestroyDevice(device, nullptr);
@@ -153,6 +170,58 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
                         static_cast<int>(ctx.swapchain->present_mode()),
                         ctx.swapchain->extent().width,
                         ctx.swapchain->extent().height);
+
+        // --- Render pass + shader modules + graphics pipeline + framebuffers (S165)
+        // Consumes the swapchain's color/depth formats + extent + image views.
+        // No command buffer / no present yet — that is S166.
+        if (vk.has_render_loader())
+        {
+            const auto colorFormat = ctx.swapchain->color_format();
+            const auto depthFormat = ctx.swapchain->depth_format();
+
+            ctx.renderPass = RenderPass::create(vk, ctx.device, colorFormat, depthFormat, VK_SAMPLE_COUNT_1_BIT);
+            ctx.vertexModule   = ShaderModule::create(vk, ctx.device, tri_vertex_spirv());
+            ctx.fragmentModule = ShaderModule::create(vk, ctx.device, tri_fragment_spirv());
+
+            if (ctx.renderPass && ctx.vertexModule && ctx.fragmentModule)
+            {
+                PipelineSpec spec{};
+                spec.renderPass     = ctx.renderPass->render_pass();
+                spec.colorFormat    = colorFormat;
+                spec.hasDepth       = depthFormat.has_value();
+                spec.sampleCount    = VK_SAMPLE_COUNT_1_BIT;
+                spec.extent         = ctx.swapchain->extent();
+                spec.vertexModule   = ctx.vertexModule->shader_module();
+                spec.fragmentModule = ctx.fragmentModule->shader_module();
+                ctx.pipeline = Pipeline::create(vk, ctx.device, spec);
+
+                if (ctx.pipeline)
+                {
+                    for (VkImageView view : ctx.swapchain->image_views())
+                    {
+                        ctx.framebuffers.push_back(Framebuffer::create(
+                            vk, ctx.device, ctx.renderPass->render_pass(),
+                            ctx.swapchain->extent(),
+                            std::vector<VkImageView>{ view },
+                            ctx.swapchain->depth_image_view() ? std::optional<VkImageView>(ctx.swapchain->depth_image_view())
+                                                              : std::nullopt));
+                    }
+                    std::printf("[s165] render pass + pipeline + %zu framebuffer(s): color %s, depth %s, %ux%u\n",
+                                ctx.framebuffers.size(),
+                                colorFormat == VK_FORMAT_B8G8R8A8_SRGB ? "B8G8R8A8_SRGB" : "other",
+                                depthFormat.has_value() ? "yes" : "no",
+                                ctx.swapchain->extent().width, ctx.swapchain->extent().height);
+                }
+                else
+                {
+                    std::fprintf(stderr, "[s165] Pipeline::create failed (invalid SPIR-V or state?)\n");
+                }
+            }
+            else
+            {
+                std::fprintf(stderr, "[s165] RenderPass/ShaderModule::create failed\n");
+            }
+        }
     }
     return gpu;
 }
@@ -208,9 +277,11 @@ int main()
     auto surface = vaml::vulkan::VulkanSurface::create(*vk, *instance, *window);
 
     VulkanCtx ctx;
+    std::string gpuName;
     try
     {
         auto gpu = createVulkanCtx(*vk, *instance, surface.get(), ctx);
+        gpuName = gpu.name;
         std::printf("Running on GPU: %s\n", gpu.name.c_str());
     }
     catch (const std::exception& e)
@@ -222,6 +293,44 @@ int main()
     int fbw = 0, fbh = 0;
     window->get_framebuffer_size(&fbw, &fbh);
     std::printf("Running on GPU; window framebuffer %dx%d. Press ESC or close to quit.\n", fbw, fbh);
+
+    // --- S165 LIVE proof (device-only; no surface required) ------------------
+    // On the headless llvmpipe Xwayland VM the VulkanSurface is null, so the app
+    // skips swapchain creation ([both apps, not CI]). The S165 device-bound
+    // create() paths (RenderPass / ShaderModule / Pipeline) only need a DEVICE,
+    // so they prove live here even without a surface: the critical S165 risk is
+    // that the EMBEDDED SPIR-V is accepted by a real driver (vkCreateShaderModule)
+    // + a real render pass + pipeline create succeed. (Surface-dependent
+    // framebuffers + the draw loop are S166.)
+    if (vk->has_render_loader() && ctx.device)
+    {
+        auto rp = vaml::vulkan::RenderPass::create(
+            *vk, ctx.device, VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT);
+        auto vm = vaml::vulkan::ShaderModule::create(*vk, ctx.device, vaml::vulkan::tri_vertex_spirv());
+        auto fm = vaml::vulkan::ShaderModule::create(*vk, ctx.device, vaml::vulkan::tri_fragment_spirv());
+        if (rp && vm && fm)
+        {
+            vaml::vulkan::PipelineSpec spec{};
+            spec.renderPass     = rp->render_pass();
+            spec.colorFormat    = VK_FORMAT_B8G8R8A8_SRGB;
+            spec.hasDepth       = true;
+            spec.sampleCount    = VK_SAMPLE_COUNT_1_BIT;
+            spec.extent         = VkExtent2D{ 800, 600 };
+            spec.vertexModule   = vm->shader_module();
+            spec.fragmentModule = fm->shader_module();
+            auto pl = vaml::vulkan::Pipeline::create(*vk, ctx.device, spec);
+            if (pl)
+                std::printf("[s165-live] render pass + shader modules + pipeline created on %s (embedded SPIR-V accepted)\n",
+                            gpuName.c_str());
+            else
+                std::fprintf(stderr, "[s165-live] Pipeline::create failed on %s\n", gpuName.c_str());
+        }
+        else
+        {
+            std::fprintf(stderr, "[s165-live] RenderPass/ShaderModule::create failed on %s (embedded SPIR-V rejected?)\n",
+                         gpuName.c_str());
+        }
+    }
 
     while (!window->should_close())
     {

@@ -113,6 +113,31 @@ public:
                vkCreateImageView != nullptr;
     }
 
+    // ---- S165 render-pass/pipeline/framebuffer entry points (bound at load) ----
+    // The recorded S162/S163/S164 "expanded by later sprints" continuation: S165 is
+    // the first sprint to BUILD A GRAPHICS PIPELINE on the S164 swapchain's image
+    // views, so the render-pass, shader-module, pipeline-layout, graphics-pipeline
+    // and framebuffer entry points all bind HERE. vkGetDeviceProcAddr remains the
+    // general seam S166 extends for the command-buffer/draw entries.
+    // has_render_loader() gates the S165 surface.
+    PFN_vkCreateRenderPass                          vkCreateRenderPass                          = nullptr;
+    PFN_vkDestroyRenderPass                         vkDestroyRenderPass                         = nullptr;
+    PFN_vkCreateShaderModule                        vkCreateShaderModule                        = nullptr;
+    PFN_vkDestroyShaderModule                       vkDestroyShaderModule                       = nullptr;
+    PFN_vkCreatePipelineLayout                      vkCreatePipelineLayout                      = nullptr;
+    PFN_vkDestroyPipelineLayout                     vkDestroyPipelineLayout                     = nullptr;
+    PFN_vkCreateGraphicsPipelines                   vkCreateGraphicsPipelines                   = nullptr;
+    PFN_vkDestroyPipeline                           vkDestroyPipeline                           = nullptr;
+    PFN_vkCreateFramebuffer                         vkCreateFramebuffer                         = nullptr;
+    PFN_vkDestroyFramebuffer                        vkDestroyFramebuffer                        = nullptr;
+
+    // True iff the S165 render-pass/pipeline/framebuffer entry points are bound.
+    [[nodiscard]] bool has_render_loader() const noexcept
+    {
+        return vkCreateRenderPass != nullptr && vkCreatePipelineLayout != nullptr &&
+               vkCreateGraphicsPipelines != nullptr && vkCreateFramebuffer != nullptr;
+    }
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

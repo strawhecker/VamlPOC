@@ -124,6 +124,7 @@ add_executable(vaml-vulkan-tests
     VulkanQueueFamily_test.cpp
     BestGpu_test.cpp
     Swapchain_test.cpp
+    Pipeline_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

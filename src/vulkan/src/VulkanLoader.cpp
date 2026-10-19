@@ -103,6 +103,18 @@ VulkanLoader::VulkanLoader()
     vkAllocateMemory                          = reinterpret_cast<PFN_vkAllocateMemory>(resolve("vkAllocateMemory"));
     vkFreeMemory                              = reinterpret_cast<PFN_vkFreeMemory>(resolve("vkFreeMemory"));
     vkBindImageMemory                         = reinterpret_cast<PFN_vkBindImageMemory>(resolve("vkBindImageMemory"));
+
+    // ---- S165 render-pass/pipeline/framebuffer entry points ----
+    vkCreateRenderPass                        = reinterpret_cast<PFN_vkCreateRenderPass>(resolve("vkCreateRenderPass"));
+    vkDestroyRenderPass                       = reinterpret_cast<PFN_vkDestroyRenderPass>(resolve("vkDestroyRenderPass"));
+    vkCreateShaderModule                      = reinterpret_cast<PFN_vkCreateShaderModule>(resolve("vkCreateShaderModule"));
+    vkDestroyShaderModule                     = reinterpret_cast<PFN_vkDestroyShaderModule>(resolve("vkDestroyShaderModule"));
+    vkCreatePipelineLayout                    = reinterpret_cast<PFN_vkCreatePipelineLayout>(resolve("vkCreatePipelineLayout"));
+    vkDestroyPipelineLayout                   = reinterpret_cast<PFN_vkDestroyPipelineLayout>(resolve("vkDestroyPipelineLayout"));
+    vkCreateGraphicsPipelines                 = reinterpret_cast<PFN_vkCreateGraphicsPipelines>(resolve("vkCreateGraphicsPipelines"));
+    vkDestroyPipeline                         = reinterpret_cast<PFN_vkDestroyPipeline>(resolve("vkDestroyPipeline"));
+    vkCreateFramebuffer                       = reinterpret_cast<PFN_vkCreateFramebuffer>(resolve("vkCreateFramebuffer"));
+    vkDestroyFramebuffer                      = reinterpret_cast<PFN_vkDestroyFramebuffer>(resolve("vkDestroyFramebuffer"));
 }
 
 VulkanLoader::VulkanLoader(VulkanLoader&&) noexcept = default;

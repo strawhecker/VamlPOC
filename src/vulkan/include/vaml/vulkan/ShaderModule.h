@@ -1,0 +1,99 @@
+#pragma once
+// S165 — Vulkan shader module + the embedded single-triangle SPIR-V.
+//
+// The S165 title's shader half, delivered as a Cat 1 (library-surface) RAII
+// owner + the pre-baked single-triangle shader pair. Following the "hardcoded
+// MVP" minimalism of S165, the vertex + fragment shaders are EMBEDDED as
+// pre-baked SPIR-V byte arrays (no glslc/glslang build step — the repo has no
+// SPIR-V toolchain, and a real shader-authoring pipeline is S205's job, recorded
+// NO-GAP, not silent). The SPIR-V is deliberately authored by hand (SPIR-V 1.0,
+// Vulkan 1.0-capable) and validated LIVE via vkCreateShaderModule on the POCs
+// (the [both-apps, not CI] live path — no validator binary on either machine).
+//
+// Shader contract (what the S165 pipeline + S166 draw loop consume):
+//   * VERTEX (tri_vertex_spirv): reads a single 4x4 MVP matrix from the VERTEX
+//     stage push-constant range (offset 0), and three hardcoded clip-space
+//     positions forming a single counter-clockwise triangle. The push constant
+//     is written by S166's draw loop from the S165 `tri_mvp(width,height)`
+//     hardcoded matrix. The rasterization order + the fixed clip-space positions
+//     are asserted headlessly by Pipeline_test.cpp via `tri_vertex_positions()`.
+//   * FRAGMENT (tri_fragment_spirv): outputs a hardcoded opaque color
+//     (light blue) to the color attachment.
+//
+// The SPIR-V is produced from the canonical GLSL in the source comments and is
+// structural-intent-tested (span lengths, magic, correct module) headlessly; the
+// true "is it a valid device shader" check is vkCreateShaderModule on the POCs.
+// If this pre-baked SPIR-V ever proves invalid on a real driver, the own-step
+// fix is to substitute the tool-compiled binary here (S205 owns the in-repo
+// glslc pipeline) — recorded, not silent.
+//
+// NO-GAP recorded (not silent): S205 owns the real shader authoring pipeline
+// (glslc in CMake) + the SDF text / solid-color / border UI shaders + descriptor
+// sets; S165 embeds only this hand-authored triangle pair to keep the step
+// faithful to "hardcoded MVP". Multi-triangle / real geometry = S200+.
+
+#include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/VulkanLoader.h>
+
+#include <cstdint>
+#include <memory>
+#include <span>
+
+#ifndef VAML_VULKAN_EXPORT
+#  define VAML_VULKAN_EXPORT
+#endif
+
+namespace vaml::vulkan {
+
+// The embedded single-triangle vertex shader as pre-baked SPIR-V words.
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> tri_vertex_spirv() noexcept;
+
+// The embedded single-triangle fragment shader as pre-baked SPIR-V words
+// (outputs a hardcoded light-blue color).
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> tri_fragment_spirv() noexcept;
+
+// The three hardcoded clip-space positions of the single triangle, as (x, y, z, w)
+// columns of VkClearValue-friendly floats. Exposed for the S165 headless contract:
+// Pipeline_test asserts `tri_mvp(width,height)` maps each vertex into the
+// viewport's xy range. The positions are a fixed counter-clockwise triangle
+// spanning most of the clip space:
+//   v0 = (-0.8, 0.8, 0.0, 1.0)   (top-left)
+//   v1 = ( 0.8, 0.8, 0.0, 1.0)   (top-right)
+//   v2 = ( 0.0,-0.8, 0.0, 1.0)   (bottom-center)
+VAML_VULKAN_EXPORT std::span<const float> tri_vertex_positions() noexcept;
+
+// The hardcoded per-vertex color the fragment shader outputs (r, g, b, a).
+VAML_VULKAN_EXPORT std::span<const float> tri_fragment_color() noexcept;
+
+// The REAL S165 shader-module owner: RAII + move-only wrapping a single
+// vkCreateShaderModule result. Constructed only via create(); destroys the
+// shader module on destruction. `loader` and `device` must outlive it.
+class VAML_VULKAN_EXPORT ShaderModule
+{
+public:
+    // Creates a shader module from a pre-baked SPIR-V word span (e.g. the
+    // tri_vertex_spirv()/tri_fragment_spirv() pair). Returns nullptr (no throw)
+    // on failure — including when the SPIR-V is rejected by the driver (the S165
+    // live validation path). Mirrors PlatformWindow/VulkanInstance/Swapchain/
+    // RenderPass::create.
+    [[nodiscard]] static std::unique_ptr<ShaderModule>
+    create(const VulkanLoader& loader, VkDevice device, std::span<const std::uint32_t> spirv);
+
+    ~ShaderModule();
+    ShaderModule(ShaderModule&&) noexcept;
+    ShaderModule& operator=(ShaderModule&&) noexcept;
+    ShaderModule(const ShaderModule&)            = delete;
+    ShaderModule& operator=(const ShaderModule&) = delete;
+
+    [[nodiscard]] VkShaderModule native_handle() const noexcept { return module_; }
+    [[nodiscard]] VkShaderModule shader_module() const noexcept { return module_; }
+
+private:
+    ShaderModule(const VulkanLoader& loader, VkDevice device);
+
+    const VulkanLoader* loader_ = nullptr;
+    VkDevice           device_  = VK_NULL_HANDLE;
+    VkShaderModule     module_  = VK_NULL_HANDLE;
+};
+
+} // namespace vaml::vulkan
