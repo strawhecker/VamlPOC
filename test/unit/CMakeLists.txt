@@ -126,6 +126,7 @@ add_executable(vaml-vulkan-tests
     Swapchain_test.cpp
     ResizeRecreate_test.cpp
     SwapchainGeneration_test.cpp
+    MockIcd_test.cpp
     Pipeline_test.cpp
     CommandSync_test.cpp
     Msaa_test.cpp

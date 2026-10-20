@@ -119,36 +119,60 @@ enum class FeedbackKind
 VAML_VULKAN_EXPORT FeedbackKind feedback_for_state(SwapchainState state) noexcept;
 
 // ---------------------------------------------------------------------------
-// Generation build seam (the Rail-1 mock-ICD injection point)
+// Generation abstraction (DECISION A  — the S176 mock-ICD injection point)
 // ---------------------------------------------------------------------------
 
-// Builds one complete generation. `buildSwapchain` builds the swapchain + image
-// views + depth at `w` x `h` (returns nullptr on failure = the stillborn case);
-// `buildFramebuffers` builds the per-image framebuffers against a swapchain's
-// views/extent/depth (returns empty on failure). The default (real) builders use
-// Swapchain::create / Framebuffer::create; tests REPLACE them with scripted fakes
-// that mimic a Vulkan ICD (failed vkCreateSwapchainKHR / image-view / depth /
-// framebuffer build / DEVICE_LOST) — the S176 Rail-1 seam.
+// One complete, atomic swapchain GENERATION: the live swapchain + image views +
+// depth + (S168) multisampled target + per-image framebuffers, owned as a single
+// unit. This is the S176 ENGINEERING-OUT (DECISION A): collapsing the machine's
+// three concrete members (genN_/msaaN_/framebuffersN_) into ONE interface makes a
+// generation a single injectable object — so the Rail-1 mock-ICD lane can script
+// a `MockGeneration` that fails at ANY internal ICD stage (failed
+// vkCreateSwapchainKHR / image-view / depth / framebuffer build / DEVICE_LOST)
+// HEADLESS, and assert Gen N stays live + teardown-order-reverse against objects.
+//
+// A generation destroys its internals in REVERSE build order (framebuffers ->
+// msaa target -> swapchain) in its own destructor. The real implementation
+// (`RealGeneration`) wraps Swapchain + MsaaTarget + Framebuffer; a mock wraps a
+// scripted fake. Machine public accessors delegate to the one `genN_`, so the
+// Presenter + both POCs keep compiling unchanged.
+struct VAML_VULKAN_EXPORT ISwapchainGeneration
+{
+    virtual ~ISwapchainGeneration() = default;
+
+    [[nodiscard]] virtual const Swapchain*        swapchain()      const noexcept = 0;
+    [[nodiscard]] virtual VkSwapchainKHR          handle()         const noexcept = 0;
+    [[nodiscard]] virtual VkExtent2D              extent()         const noexcept = 0;
+    [[nodiscard]] virtual std::uint32_t           image_count()    const noexcept = 0;
+    [[nodiscard]] virtual std::optional<VkFormat> depth_format()   const noexcept = 0;
+    [[nodiscard]] virtual VkSampleCountFlagBits   sample_count()   const noexcept = 0;
+    [[nodiscard]] virtual const std::vector<std::unique_ptr<Framebuffer>>& framebuffers() const noexcept = 0;
+    [[nodiscard]] virtual const Framebuffer*      framebuffer(std::uint32_t i) const noexcept = 0;
+    [[nodiscard]] virtual const MsaaTarget*       msaa_target()    const noexcept = 0;
+};
+
+// Builds one complete generation. `build` builds the whole generation
+// (swapchain + image views + depth + S168 msaa target + per-image framebuffers)
+// at `w` x `h`; returns nullptr on ANY failure (the stillborn case). The default
+// (real) builder produces a `RealGeneration` via Swapchain::create /
+// MsaaTarget::create / Framebuffer::create; tests REPLACE it with a scripted
+// `MockGeneration` that mimics a Vulkan ICD (failed vkCreateSwapchainKHR /
+// image-view / depth / framebuffer build / DEVICE_LOST) — the S176 Rail-1 seam.
+//
+// NOTE (supersedes the pre-S176 buildSwapchain/buildMsaa/buildFramebuffers
+// granular hooks): the single `build` generation hook is the S176 seam. The mock
+// coaxes a failure at the exact internal stage it wants via its scripted
+// generation; the machine observes only "stillborn (nullptr) vs live generation",
+// which is precisely the S176 contract (Gen N stays live, never submit N+1).
 struct VAML_VULKAN_EXPORT SwapchainStateBuilders
 {
-    std::function<std::unique_ptr<Swapchain>(std::uint32_t w, std::uint32_t h)> buildSwapchain;
-    // S168: builds the multisampled render target (msaa color + optional msaa
-    // depth at the given size/sampleCount). Returns nullptr on failure (the
-    // stillborn generation teardown path) — a failed build is a stillborn
-    // generation. This is the S176 mock-ICD seam for the physically-failing
-    // MSAA-image/depth build + DEVICE_LOST scenarios (recorded, not silent) —
-    // tests REPLACE it with scripted fakes.
-    std::function<std::unique_ptr<MsaaTarget>(const Swapchain&, VkSampleCountFlagBits)> buildMsaa;
-    // Builds the per-image framebuffers for a swapchain. `msaaTarget` is the
-    // S168 multisampled target of the same generation (null for the non-MSAA
-    // path). Returns empty on any build failure (the stillborn teardown path).
-    std::function<std::vector<std::unique_ptr<Framebuffer>>(const Swapchain&, const MsaaTarget*)> buildFramebuffers;
+    std::function<std::unique_ptr<ISwapchainGeneration>(std::uint32_t w, std::uint32_t h)> build;
 
-    // The real builders: Swapchain::create + one Framebuffer per image view
-    // (vs the swapchain's depth view) + MsaaTarget::create, all threaded through
-    // the S169 `Device` owner (device + physical device borrowed from it).
-    // Returns empty/null on any build failure. `renderPass` must outlive the
-    // machine.
+    // The real builder: builds a `RealGeneration` (Swapchain::create + one
+    // Framebuffer per image view vs the swapchain's depth view + S168
+    // MsaaTarget::create), all threaded through the S169 `Device` owner (device +
+    // physical device borrowed from it). Returns nullptr on any build failure.
+    // `renderPass` must outlive the machine.
     static SwapchainStateBuilders
     real(const VulkanLoader& loader,
          const Device& device,
@@ -220,42 +244,48 @@ public:
     void mark_fatal() noexcept { state_ = SwapchainState::Fatal; }
 
     // --- The live generation (owned by the machine; callers only read) ---
-    [[nodiscard]] const Swapchain*        swapchain()  const noexcept { return genN_.get(); }
-    [[nodiscard]] VkSwapchainKHR          handle()     const noexcept { return genN_ ? genN_->swapchain() : VK_NULL_HANDLE; }
+    // The S176 generation abstraction: every accessor delegates to the one owned
+    // `ISwapchainGeneration` (injectable — the Rail-1 mock-ICD seam), so the
+    // Presenter + both POCs keep compiling unchanged.
+    [[nodiscard]] const Swapchain*        swapchain()  const noexcept { return genN_ ? genN_->swapchain() : nullptr; }
+    [[nodiscard]] VkSwapchainKHR          handle()     const noexcept { return genN_ ? genN_->handle() : VK_NULL_HANDLE; }
     [[nodiscard]] VkExtent2D              extent()     const noexcept { return genN_ ? genN_->extent() : VkExtent2D{ 0, 0 }; }
     [[nodiscard]] std::uint32_t           image_count() const noexcept { return genN_ ? genN_->image_count() : 0u; }
     [[nodiscard]] std::optional<VkFormat> depth_format() const noexcept { return genN_ ? genN_->depth_format() : std::nullopt; }
-    [[nodiscard]] const std::vector<std::unique_ptr<Framebuffer>>& framebuffers() const noexcept { return framebuffersN_; }
+    [[nodiscard]] const std::vector<std::unique_ptr<Framebuffer>>& framebuffers() const noexcept
+    {
+        return genN_ ? genN_->framebuffers() : emptyFramebuffers_;
+    }
     // The `i`-th per-image framebuffer of the live generation (null when indices are
     // out of range).
     [[nodiscard]] const Framebuffer*      framebuffer(std::uint32_t i) const noexcept
     {
-        return (i < framebuffersN_.size()) ? framebuffersN_[i].get() : nullptr;
+        return genN_ ? genN_->framebuffer(i) : nullptr;
     }
     // The S168 multisampled render target of the live generation (null for the
     // non-MSAA S165 path / 1_BIT). Owned alongside the framebuffers; generation-scoped.
-    [[nodiscard]] const MsaaTarget*       msaa_target() const noexcept { return msaaN_.get(); }
+    [[nodiscard]] const MsaaTarget*       msaa_target() const noexcept { return genN_ ? genN_->msaa_target() : nullptr; }
     [[nodiscard]] VkSampleCountFlagBits   sample_count() const noexcept { return sampleCount_; }
 
 private:
     SwapchainStateMachine(SwapchainStateBuilders builders, VkSampleCountFlagBits sampleCount);
 
-    // S168: the sample count + the multisampled target of the live generation.
+    // The S168 sample count of the live generation.
     VkSampleCountFlagBits sampleCount_ = VK_SAMPLE_COUNT_1_BIT;
 
-    // Members are declared SO THAT destruction runs in REVERSE build order
-    // (teardown-order-reverse). C++ destroys in REVERSE declaration order, so the
-    // ORDER below is: [trivial state] -> genN_ -> msaaN_ -> framebuffersN_, giving
-    // a DESTRUCTION order of framebuffersN_ (first) -> msaaN_ -> genN_ -> state.
-    // A per-image framebuffer references BOTH the swapchain's image views and (on
-    // the S168 MSAA path) the msaa target's views, so the framebuffers must be
-    // destroyed before both; msaaN_ before genN_ so the target's images are freed
-    // before the swapchain. See the LIFETIMES comment in the header.
+    // The machine's ONLY generation member: the single injectable
+    // `ISwapchainGeneration` (the S176 DECISION-A collapse). The generation is
+    // atomic — its OWN destructor destroys its internals in reverse build order
+    // (framebuffers -> msaa target -> swapchain), so the machine no longer needs
+    // three separate members + a teardown-order mirror to hold that invariant.
+    // C++ destroys this member last in the machine's own teardown (declared last).
     SwapchainStateBuilders builders_;
     SwapchainState         state_ = SwapchainState::Fatal;  // set by create()
-    std::unique_ptr<Swapchain>                                  genN_;
-    std::unique_ptr<MsaaTarget>                                 msaaN_;
-    std::vector<std::unique_ptr<Framebuffer>>                   framebuffersN_;
+    std::unique_ptr<ISwapchainGeneration> genN_;
+    // A stable empty-vector fallback for `framebuffers()` when no generation is
+    // live. NOT const (a const data member would make the move ctor/assign
+    // deleted); it is never mutated.
+    std::vector<std::unique_ptr<Framebuffer>> emptyFramebuffers_{};
 };
 
 } // namespace vaml::vulkan

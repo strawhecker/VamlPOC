@@ -140,18 +140,18 @@ TEST_CASE("S168 build_render_pass_begin resolve adds NO clear value")
     CHECK(rp166.clearValueCount == 1u);
 }
 
-TEST_CASE("S168 SwapchainStateBuilders buildMsaa seam is replaceable")
+TEST_CASE("S168 SwapchainStateBuilders build seam is replaceable")
 {
-    // The S168 buildMsaa seam (the S176 mock-ICD injection point) is a
-    // constructible, replaceable std::function — default empty, populate to carry
-    // work. Proved at the decision level without a live Vulkan device.
+    // The S176 generation-build seam (which consumes the S168 MSAA build inside
+    // the single atomic generation) is a constructible, replaceable std::function —
+    // default empty, populate to carry work. Proved at the decision level without
+    // a live Vulkan device.
     SwapchainStateBuilders b;
-    CHECK(b.buildMsaa == nullptr);
-    CHECK(b.buildFramebuffers == nullptr);
+    CHECK(b.build == nullptr);
 
     SwapchainStateBuilders b2;
-    b2.buildMsaa = [](const Swapchain&, VkSampleCountFlagBits) -> std::unique_ptr<MsaaTarget> {
+    b2.build = [](std::uint32_t, std::uint32_t) -> std::unique_ptr<ISwapchainGeneration> {
         return nullptr;
     };
-    CHECK(b2.buildMsaa != nullptr);
+    CHECK(b2.build != nullptr);
 }

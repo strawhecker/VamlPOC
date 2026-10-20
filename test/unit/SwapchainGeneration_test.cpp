@@ -118,18 +118,17 @@ TEST_CASE("S167_1 feedback_for_state: Ready/Suspended show no feedback")
 // ---------------------------------------------------------------------------
 TEST_CASE("S167_1 SwapchainStateBuilders default real-builder wiring is present")
 {
-    // The real builders close over the loader/device/surface/render-pass
-    // (declared by the seam; the S176 mock-ICD lane replaces them with scripted
-    // fakes). Here we prove the seam is a constructible, replaceable value type.
+    // The real builder closes over the loader/device/surface/render-pass (declared
+    // by the seam; the S176 mock-ICD lane replaces it with a scripted generation).
+    // Here we prove the seam is a constructible, replaceable value type.
     SwapchainStateBuilders b;
     // Default-constructed builders are empty (no-op) — a caller may not use them;
     // they must be populated by real() or injected fakes. This documents the
     // seam's shape without a live Vulkan device.
-    CHECK(b.buildSwapchain == nullptr);
-    CHECK(b.buildFramebuffers == nullptr);
+    CHECK(b.build == nullptr);
 
     // Populated builders are NOT empty (the seam carries work).
     SwapchainStateBuilders b2;
-    b2.buildSwapchain = [](std::uint32_t, std::uint32_t) -> std::unique_ptr<Swapchain> { return nullptr; };
-    CHECK(b2.buildSwapchain != nullptr);
+    b2.build = [](std::uint32_t, std::uint32_t) -> std::unique_ptr<ISwapchainGeneration> { return nullptr; };
+    CHECK(b2.build != nullptr);
 }

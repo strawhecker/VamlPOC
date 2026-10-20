@@ -54,6 +54,79 @@ FeedbackKind feedback_for_state(SwapchainState state) noexcept
     return FeedbackKind::None;
 }
 
+namespace {
+
+// The S176 real generation: a complete, atomic swapchain generation owned as ONE
+// unit (swapchain + S168 msaa target + per-image framebuffers). Its own
+// destructor destroys its internals in REVERSE build order (framebuffers ->
+// msaa target -> swapchain), which is what makes the S176 "Gen N stays live +
+// teardown-order-reverse against a real generation unit" provable on CI.
+class RealGeneration : public ISwapchainGeneration
+{
+public:
+    RealGeneration(std::unique_ptr<Swapchain> sw,
+                   std::unique_ptr<MsaaTarget> msaa,
+                   std::vector<std::unique_ptr<Framebuffer>> fbs)
+        : swapchain_(std::move(sw))
+        , msaa_(std::move(msaa))
+        , framebuffers_(std::move(fbs))
+    {
+    }
+
+    ~RealGeneration() override
+    {
+        // Teardown-order-reverse (the S170 mirror proven on the real unit now):
+        // framebuffers first (they reference BOTH the swapchain's image views and
+        // the msaa target's views), then the msaa target (its images/memory), then
+        // the swapchain. Declarations are swapchain_ (destroyed LAST via reverse
+        // order) -> msaa_ -> framebuffers_ (destroyed FIRST). The explicit clears
+        // are belt-and-suspenders to make the order self-documenting.
+        framebuffers_.clear();
+        msaa_.reset();
+        swapchain_.reset();
+    }
+
+    const Swapchain* swapchain() const noexcept override { return swapchain_.get(); }
+    VkSwapchainKHR handle() const noexcept override
+    {
+        return swapchain_ ? swapchain_->swapchain() : VK_NULL_HANDLE;
+    }
+    VkExtent2D extent() const noexcept override
+    {
+        return swapchain_ ? swapchain_->extent() : VkExtent2D{ 0, 0 };
+    }
+    std::uint32_t image_count() const noexcept override
+    {
+        return swapchain_ ? swapchain_->image_count() : 0u;
+    }
+    std::optional<VkFormat> depth_format() const noexcept override
+    {
+        return swapchain_ ? swapchain_->depth_format() : std::nullopt;
+    }
+    VkSampleCountFlagBits sample_count() const noexcept override
+    {
+        return msaa_ ? msaa_->sample_count() : VK_SAMPLE_COUNT_1_BIT;
+    }
+    const std::vector<std::unique_ptr<Framebuffer>>& framebuffers() const noexcept override
+    {
+        return framebuffers_;
+    }
+    const Framebuffer* framebuffer(std::uint32_t i) const noexcept override
+    {
+        return (i < framebuffers_.size()) ? framebuffers_[i].get() : nullptr;
+    }
+    const MsaaTarget* msaa_target() const noexcept override { return msaa_.get(); }
+
+private:
+    // Declared so CURRENT destruction order is framebuffers -> msaa -> swapchain
+    // (reverse of declaration: swapchain_ declared first = destroyed last).
+    std::unique_ptr<Swapchain>              swapchain_;
+    std::unique_ptr<MsaaTarget>             msaa_;
+    std::vector<std::unique_ptr<Framebuffer>> framebuffers_;
+};
+
+} // namespace
+
 SwapchainStateBuilders SwapchainStateBuilders::real(
     const VulkanLoader& loader,
     const Device& device,
@@ -63,62 +136,65 @@ SwapchainStateBuilders SwapchainStateBuilders::real(
 {
     SwapchainStateBuilders b;
     const bool msaa = sampleCount != VK_SAMPLE_COUNT_1_BIT;
-    b.buildSwapchain = [&loader, &device, &surface](
-        std::uint32_t w, std::uint32_t h) -> std::unique_ptr<Swapchain> {
-        // NULLABLE: pass surface by reference (owned by the caller, must outlive the
-        // machine). Return nullptr on any failure — the "stillborn generation" case.
-        return Swapchain::create(loader, device, surface, w, h);
-    };
-    b.buildMsaa = [&loader, &device, msaa](
-        const Swapchain& sw, VkSampleCountFlagBits sc) -> std::unique_ptr<MsaaTarget> {
-        // S168: when the pass is multisampled (sc != 1_BIT), build the multisampled
-        // target from the swapchain's color/depth formats + extent. When non-MSAA
-        // (sample count 1), there is no target to build -> nullptr (the non-MSAA
-        // framebuffer path below then uses no msaa target).
-        if (!msaa)
+    b.build = [&loader, &device, &surface, renderPass, msaa, sampleCount](
+        std::uint32_t w, std::uint32_t h) -> std::unique_ptr<ISwapchainGeneration> {
+        // Build the whole generation transactionally: swapchain (+ image views +
+        // depth) -> S168 msaa target -> per-image framebuffers. ANY failure returns
+        // nullptr (the stillborn generation); the partial temporaries are released
+        // by RAII on this scope unwind. The caller (the machine) treats nullptr as
+        // "stillborn — Gen N stays live".
+        auto sw = Swapchain::create(loader, device, surface, w, h);
+        if (!sw)
             return nullptr;
-        return MsaaTarget::create(loader, device, sw.color_format(), sw.depth_format(),
-                                  sw.extent(), sc);
-    };
-    // S168: the framebuffer builder is MSAA-AWARE — it receives the built msaa
-    // target (null for the non-MSAA path) so it can choose the msaa framebuffer
-    // layout ([msaa color, resolve, msaa depth?]) vs the classic S165 layout
-    // ([colorView, depth?]).
-    b.buildFramebuffers = [&loader, &device, renderPass](
-        const Swapchain& sw, const MsaaTarget* msaaTarget) -> std::vector<std::unique_ptr<Framebuffer>> {
+
+        // S168: when the pass is multisampled (msaa), build the multisampled target
+        // from the swapchain's color/depth formats + extent. Non-MSAA -> no target.
+        std::unique_ptr<MsaaTarget> nextMsaa;
+        if (msaa)
+        {
+            nextMsaa = MsaaTarget::create(loader, device, sw->color_format(),
+                                          sw->depth_format(), sw->extent(), sampleCount);
+            if (!nextMsaa)
+                return nullptr;  // a failed msaa build is a stillborn generation
+        }
+
+        // Per-image framebuffers. MSAA-aware: uses the msaa layout ([msaa color,
+        // resolve, msaa depth?]) vs the classic non-MSAA layout ([colorView, depth?]).
         std::vector<std::unique_ptr<Framebuffer>> fbs;
-        if (sw.image_count() == 0)
-            return fbs;
-        fbs.reserve(sw.image_views().size());
-
-        if (msaaTarget && msaaTarget->valid())
+        if (sw->image_count() != 0)
         {
-            // S168 multisampled generation: one Framebuffer per swapchain image,
-            // each = [msaa color view, resolve(swapchain) view, msaa depth view?].
-            for (VkImageView view : sw.image_views())
+            fbs.reserve(sw->image_views().size());
+            if (nextMsaa && nextMsaa->valid())
             {
-                auto fb = Framebuffer::create_msaa(
-                    loader, device, renderPass, sw.extent(), *msaaTarget, view);
-                if (!fb)
-                    return {};  // empty => the stillborn-generation teardown path
-                fbs.push_back(std::move(fb));
+                for (VkImageView view : sw->image_views())
+                {
+                    auto fb = Framebuffer::create_msaa(
+                        loader, device, renderPass, sw->extent(), *nextMsaa, view);
+                    if (!fb)
+                        return nullptr;  // stillborn generation teardown path
+                    fbs.push_back(std::move(fb));
+                }
             }
-            return fbs;
+            else
+            {
+                const VkImageView depthView = sw->depth_image_view();
+                for (VkImageView view : sw->image_views())
+                {
+                    auto fb = Framebuffer::create(
+                        loader, device, renderPass, sw->extent(),
+                        std::vector<VkImageView>{ view },
+                        depthView ? std::optional<VkImageView>(depthView) : std::nullopt);
+                    if (!fb)
+                        return nullptr;  // stillborn generation teardown path
+                    fbs.push_back(std::move(fb));
+                }
+            }
         }
 
-        // S165 non-MSAA generation: [colorView, depth?] — the original path.
-        const VkImageView depthView = sw.depth_image_view();
-        for (VkImageView view : sw.image_views())
-        {
-            auto fb = Framebuffer::create(
-                loader, device, renderPass, sw.extent(),
-                std::vector<VkImageView>{ view },
-                depthView ? std::optional<VkImageView>(depthView) : std::nullopt);
-            if (!fb)
-                return {};  // empty => the stillborn-generation teardown path
-            fbs.push_back(std::move(fb));
-        }
-        return fbs;
+        if (fbs.size() != sw->image_views().size())
+            return nullptr;  // incomplete per-image framebuffer set => stillborn
+
+        return std::make_unique<RealGeneration>(std::move(sw), std::move(nextMsaa), std::move(fbs));
     };
     return b;
 }
@@ -132,24 +208,15 @@ SwapchainStateMachine::create(SwapchainStateBuilders builders,
     std::unique_ptr<SwapchainStateMachine> m(new SwapchainStateMachine(std::move(builders), sampleCount));
     m->state_ = SwapchainState::Fatal;  // no valid generation yet
 
-    auto genN = m->builders_.buildSwapchain(framebufferWidth, framebufferHeight);
+    // Build the WHOLE initial generation through the single S176 `build` seam. A
+    // failed generation (any internal ICD failure) returns nullptr — the one
+    // legitimate "no presentable generation": there is no Gen N to fall back to.
+    auto genN = m->builders_.build(framebufferWidth, framebufferHeight);
     if (!genN)
-        return nullptr;  // the one legitimate "no presentable generation": no Gen N to fall back to
-
-    // S168: build the multisampled target (when the sample count > 1, i.e. the
-    // MSAA path is enabled) for Gen N. A failed build is a stillborn generation.
-    auto msaa = (m->builders_.buildMsaa) ? m->builders_.buildMsaa(*genN, m->sampleCount_) : nullptr;
-    if (m->sampleCount_ != VK_SAMPLE_COUNT_1_BIT && !msaa)
-        return nullptr;  // the MSAA path REQUIRES a valid target — no Gen N to fall back to
-
-    auto fbs = m->builders_.buildFramebuffers(*genN, msaa.get());
-    if (fbs.empty())
         return nullptr;
 
-    m->genN_           = std::move(genN);
-    m->msaaN_          = std::move(msaa);
-    m->framebuffersN_  = std::move(fbs);
-    m->state_          = SwapchainState::Ready;
+    m->genN_  = std::move(genN);
+    m->state_ = SwapchainState::Ready;
     return m;
 }
 
@@ -163,42 +230,27 @@ bool SwapchainStateMachine::prepare_recreate(std::uint32_t w, std::uint32_t h)
         return false;
     }
 
-    // --- Build Gen N+1 into fresh temporaries (the transactional model) ---
-    // Local temporaries are RAII: on ANY failure below they are destroyed exactly
-    // here, leaving Gen N fully live. The COMMIT only happens after every step.
-    auto nextSwapchain = builders_.buildSwapchain(w, h);
-    if (!nextSwapchain)
+    // --- Build Gen N+1 into a fresh temporary (the transactional model) ---
+    // The temporary is RAII: on ANY failure it is destroyed exactly here, leaving
+    // Gen N fully live. The COMMIT only happens after the whole generation built.
+    // (Any internal ICD failure — vkCreateSwapchainKHR / image-view / depth /
+    // framebuffer / DEVICE_LOST — surfaces as nullptr from the S176 `build` seam.)
+    auto nextGen = builders_.build(w, h);
+    if (!nextGen)
     {
-        state_ = SwapchainState::Retryable;  // Gen N still live + presentable
-        return false;
-    }
-
-    // S168: build the multisampled target for Gen N+1 (when the sample count > 1).
-    // A failed msaa build is a stillborn-generation failure like any other.
-    auto nextMsaa = (builders_.buildMsaa) ? builders_.buildMsaa(*nextSwapchain, sampleCount_) : nullptr;
-    if (sampleCount_ != VK_SAMPLE_COUNT_1_BIT && !nextMsaa)
-    {
-        state_ = SwapchainState::Retryable;  // Gen N still live + presentable
-        return false;
-    }
-
-    auto nextFramebuffers = builders_.buildFramebuffers(*nextSwapchain, nextMsaa.get());
-    if (nextFramebuffers.empty())
-    {
-        // Stillborn N+1: nextSwapchain (+ nextMsaa + any partial framebuffers) are
-        // destroyed by RAII on unwinding this scope. Gen N stays live + presentable.
+        // Stillborn N+1: Gen N stays live + presentable. Land Retryable (keep
+        // drawing N, retry).
         state_ = SwapchainState::Retryable;
         return false;
     }
 
     // --- COMMIT: atomically swap active = N+1, then destroy Gen N ---
     // Move the new generation into place, and only then release the old one. The
-    // old swapchain is destroyed AFTER the commit (never before), so there is no
-    // instant where the engine holds a null/invalid presentable swapchain.
-    genN_          = std::move(nextSwapchain);
-    msaaN_         = std::move(nextMsaa);
-    framebuffersN_ = std::move(nextFramebuffers);
-    state_         = SwapchainState::Ready;
+    // old generation (via its own reverse-order destructor) is destroyed AFTER the
+    // commit (never before), so there is no instant where the engine holds a
+    // null/invalid presentable swapchain.
+    genN_  = std::move(nextGen);
+    state_ = SwapchainState::Ready;
     return true;
 }
 
@@ -216,18 +268,11 @@ SwapchainStateMachine& SwapchainStateMachine::operator=(SwapchainStateMachine&&)
 
 SwapchainStateMachine::~SwapchainStateMachine()
 {
-    // The dtor body runs BEFORE member destruction. C++ then destroys members in
-    // REVERSE declaration order: framebuffersN_ (--> clears its framebuffers,
-    // which reference the swapchain's image views AND the msaa target's views)
-    // -> msaaN_ (the multisampled images/memory) -> genN_ (the swapchain) ->
-    // state_/builders_. This is teardown-order-reverse with no dangling view
-    // reference: the framebuffers are gone before both the msaa target and the
-    // swapchain, and the msaa target's images are freed before the swapchain.
-    // The explicit clears below are belt-and-suspenders to make the order explicit
-    // and self-documenting (the members would release them anyway right after).
-    framebuffersN_.clear();  // the per-image framebuffers first (they reference the views)
-    msaaN_.reset();          // then the S168 multisampled target
-    genN_.reset();           // then the swapchain generation
+    // The machine owns a SINGLE generation (`genN_`, an ISwapchainGeneration).
+    // The generation's OWN destructor performs the reverse-build-order teardown
+    // (framebuffers -> msaa target -> swapchain), so the machine simply releases
+    // the one atomic unit. (The `emptyFramebuffers_` + other members are trivial.)
+    genN_.reset();
 }
 
 } // namespace vaml::vulkan
