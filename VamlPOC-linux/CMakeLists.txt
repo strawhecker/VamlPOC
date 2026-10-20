@@ -44,14 +44,19 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLFW3 REQUIRED IMPORTED_TARGET glfw3)
 pkg_check_modules(VULKAN REQUIRED IMPORTED_TARGET vulkan)
 
-# --- vaml-core + vaml-vulkan: consume the STATIC libraries from the clang-debug build ----
+# --- vaml-core + vaml-vulkan + vaml-presentation: consume the STATIC libraries from the clang-debug build ----
 # vaml-vulkan (S160/S161) is the library that owns the GLFW window and the
-# Vulkan/VMA linkage; the POC consumes BOTH the real library surfaces.
-# Public include roots (the IP-hiding facade per ADR-003) + the built archives.
+# Vulkan/VMA linkage. Sprint 4B (S175): the OPTIONAL vaml-presentation framework
+# (S173 Presenter + S174 CompositionEngine) is dogfooded here — the POC consumes
+# the the real framework surfaces (the app DECLARES its scene; the framework owns
+# loop/composition/recovery). Public include roots (the IP-hiding facade per
+# ADR-003) + the built archives.
 set(VAML_CORE_INCLUDE      "${CMAKE_CURRENT_SOURCE_DIR}/../src/core/include")
 set(VAML_CORE_LIB          "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug/src/core/libvaml-core.a")
 set(VAML_VULKAN_INCLUDE    "${CMAKE_CURRENT_SOURCE_DIR}/../src/vulkan/include")
 set(VAML_VULKAN_LIB        "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug/src/vulkan/libvaml-vulkan.a")
+set(VAML_PRESENTATION_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/../src/presentation/include")
+set(VAML_PRESENTATION_LIB  "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug/src/presentation/libvaml-presentation.a")
 # GLFW include (vendored source's public headers) — needed by main.cpp for the
 # GLFW_* constants + the pass-through GLFWwindow* calls, kept minimal. Resides in
 # the gitignored deps folder third_party/deps (uniform on every host — no repo
@@ -67,11 +72,21 @@ add_executable(vamlpoc-linux
 target_include_directories(vamlpoc-linux PRIVATE
     ${VAML_CORE_INCLUDE}
     ${VAML_VULKAN_INCLUDE}
+    ${VAML_PRESENTATION_INCLUDE}
     ${VAML_GLFW_INCLUDE}
 )
 
-# Link vaml-vulkan (which PUBLIC-links GLFW + Vulkan) + vaml-core + the GPU stack.
+# Link vaml-vulkan (which PUBLIC-links GLFW + Vulkan) + vaml-presentation (the
+# OPTIONAL framework, dogfooded S175) + vaml-core + the GPU stack. vaml-presentation
+# links vaml-vulkan privately (it is NOT a CORE library), so the POC links it
+# explicitly after vaml-vulkan.
+# Link order matters for the single-pass GNU ld: vaml-presentation (S173/S174)
+# references vaml::vulkan symbols, so it must come BEFORE vaml-vulkan; vaml-vulkan
+# comes before the raw GPU stack; vaml-core is independent. (vaml-vulkan PUBLIC-links
+# GLFW + Vulkan; vaml-presentation is NOT a CORE library — the POC links it
+# explicitly.)
 target_link_libraries(vamlpoc-linux PRIVATE
+    ${VAML_PRESENTATION_LIB}
     ${VAML_VULKAN_LIB}
     ${VAML_CORE_LIB}
     PkgConfig::GLFW3

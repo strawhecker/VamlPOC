@@ -36,6 +36,17 @@
 #include <vaml/vulkan/FrameSync.h>
 #include <vaml/vulkan/gpu/BestGpuSelection.h>
 
+// Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
+// dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
+// Presenter DrawBody) + its resize/recovery callbacks; the PRESENTER OWNS the
+// loop (acquire/submit/present), the S166 command pool + frame sync, the S167_1
+// SwapchainStateMachine + two-generation recovery, and the resize transaction.
+// The app no longer touches the swapchain, the command pool, the frame sync, or
+// the acquire/present handles — that is the S173 "app DECLARES; the framework
+// owns loop/composition/recovery" contract.
+#include <vaml/presentation/Presenter.h>
+#include <vaml/composition/CompositionEngine.h>
+
 #include "framework.h"   // pulls <windows.h>; must come BEFORE glfw3.h to avoid the
                          // APIENTRY macro redefinition conflict between minwindef.h
                          // and GLFW (standard GLFW+Win32 include-order requirement).
@@ -60,52 +71,48 @@ inline constexpr float kClearColor[4] = { 0.2f, 0.2f, 0.25f, 1.0f };
 // Vulkan handles chosen at init; destroyed in reverse order on exit. The
 // loader, instance, window, and surface must OUTLIVE everything created from
 // them. The S169 Device (unique_ptr) owns the raw VkDevice + VkQueue — the APP
-// never owns a raw Vulkan handle. The S164 SwapchainStateMachine (unique_ptr)
-// is destroyed FIRST (before the device — the documented swapchain-before-device
-// ordering); the Device is destroyed LAST of the Vulkan objects (before the
-// loader/instance).
+// never owns a raw Vulkan handle.
+//
+// S175 (Sprint 4B): the OPTIONAL framework (vaml-presentation) is dogfooded — the
+// PRESENTER owns the swapchain machine (S167_1), the command pool + frame sync
+// (S166), and the loop; the APP owns only the S165/S168 render objects (render
+// pass, shader modules, pipeline) + the Device. The presenter is destroyed before
+// the render pass/device (it wraps the machine + S166 resources which must be
+// destroyed before them).
 struct VulkanCtx
 {
     // S169: the logical-device + graphics-queue RAII owner (owns the raw
     // VkDevice/VkQueue; the app borrows device()/graphics_queue()/queue_family()).
     std::unique_ptr<vaml::vulkan::Device>    device;
+    // S175: the S173 framework Presenter — the ONE owner of the loop, the S166
+    // command pool + frame sync, and the S167_1 SwapchainStateMachine (behind
+    // OnPresentationLost + the stale-ghost). The app NEVER owns a raw swapchain /
+    // command pool / frame sync / framebuffer here anymore. Destroyed before the
+    // render pass + device.
+    std::unique_ptr<vaml::presentation::Presenter> presenter;
     // S167 resize state: the latest framebuffer (physical) px reported by the
-    // S160 on_resize hook, + a pending flag the draw loop checks each iteration.
+    // S160 on_resize hook, + a pending flag the app forwards to the presenter as a
+    // resize REQUEST (the framework applies the two-generation transaction).
     int                                          framebufferW  = 0;
     int                                          framebufferH  = 0;
     bool                                         resizePending = false;
-    // S167_1: the presentation-facing owner (two-generation atomic swapchain +
-    // image views + depth + per-image framebuffers + SwapchainState). Destroyed
-    // before the device. The app NEVER owns a raw swapchain / framebuffer here.
-    std::unique_ptr<vaml::vulkan::SwapchainStateMachine> swapchain;
-    // S165 render resources (constructed after the swapchain, destroyed before it).
+    // S165 render resources (size-independent; survive every swapchain recreation).
     std::unique_ptr<vaml::vulkan::RenderPass>    renderPass;
     std::unique_ptr<vaml::vulkan::ShaderModule>  vertexModule;
     std::unique_ptr<vaml::vulkan::ShaderModule>  fragmentModule;
     std::unique_ptr<vaml::vulkan::Pipeline>      pipeline;
-    // S166 draw-loop resources (constructed after the framebuffers, destroyed before
-    // the device — after the last submit + a device wait so nothing is in flight).
-    // The per-image framebuffers are OWNED BY the SwapchainStateMachine (S167_1),
-    // so they are no longer a VulkanCtx member here.
-    std::unique_ptr<vaml::vulkan::CommandPool>   commandPool;
-    std::unique_ptr<vaml::vulkan::FrameSync>     frameSync;
 
     void destroy()
     {
-        // Destroy order: FrameSync -> CommandPool -> pipeline -> shader modules ->
-        // swapchain(s) -> render pass -> device. The draw loop must be idle before
-        // these — destroy() is called after the loop's device-wait. The
-        // SwapchainStateMachine's dtor destroys its per-image framebuffers FIRST
-        // (they reference the render pass + the swapchain's image views), then its
-        // swapchain — so the machine must be destroyed BEFORE the render pass, and
-        // before the device (teardown-order-reverse). The S169 Device's dtor
-        // (vkDestroyDevice) runs LAST of the Vulkan objects.
-        frameSync.reset();
-        commandPool.reset();
+        // Destroy order: presenter (its owned machine + S166 resources + the loop) ->
+        // pipeline -> shader modules -> render pass -> device. The App must have
+        // device-waited before destroy() so the presenter's loop is idle (nothing in
+        // flight references its machine/command pool/frame sync). The S169 Device's
+        // dtor (vkDestroyDevice) runs LAST of the Vulkan objects.
+        presenter.reset();  // machine -> command pool -> frame sync (reverse build)
         pipeline.reset();
         vertexModule.reset();
         fragmentModule.reset();
-        swapchain.reset();  // framebuffers -> swapchain (reverse build order)
         renderPass.reset();
         device.reset();     // S169: vkDestroyDevice, the device must outlive all borrowed handles
     }
@@ -257,88 +264,82 @@ vaml::vulkan::PhysicalDeviceInfo createVulkanCtx(
             }
         }
 
-        // --- SwapchainStateMachine: the S167_1 two-generation atomic owner ----
-        // Builds Gen 0 (swapchain + image views + depth + per-image framebuffers) and
-        // OWNS every presentation-facing handle + the SwapchainState machine. Callers
-        // never touch a raw swapchain. The REAL builders use Swapchain::create +
-        // Framebuffer::create (+ the render pass) and, at the S168 negotiated sample
-        // count, build the multisampled target. If the initial generation cannot be
-        // built there is no Gen N to fall back to — treat as startup failure, never
-        // present a null handle.
+        // --- S175: the framework PRESENTER (the ONE owner of the loop) -------
+        // The S173 framework wraps the S167_1 SwapchainStateMachine (built at the S168
+        // sample count through the REAL builders) + the S166 CommandPool + FrameSync
+        // behind ONE owner. The app DECLARES only its render objects (render pass +
+        // shader modules + pipeline, above) and its DrawBody (below); it NEVER touches
+        // the swapchain, command pool, frame sync, or acquire/present handles. The
+        // render pass must outlive the presenter — both are destroyed before the device.
         if (ctx.renderPass && ctx.pipeline)
         {
-            ctx.swapchain = vaml::vulkan::SwapchainStateMachine::create(
-                vaml::vulkan::SwapchainStateBuilders::real(
-                    vk, *ctx.device, *surface, ctx.renderPass->render_pass(), sampleCount),
-                vamlpoc::kWindowW, vamlpoc::kWindowH, sampleCount);
-            if (ctx.swapchain)
-                std::printf("[s167_1] SwapchainStateMachine gen0 built: %u images, extent %ux%u, state=%d, msaa=%u\n",
-                            ctx.swapchain->image_count(), ctx.swapchain->extent().width,
-                            ctx.swapchain->extent().height, static_cast<int>(ctx.swapchain->state()),
-                            static_cast<unsigned>(ctx.swapchain->sample_count()));
-            else
-                std::fprintf(stderr, "[s167_1] SwapchainStateMachine::create failed\n");
+            vaml::presentation::PresenterOptions presenterOpts;
+            presenterOpts.width       = vamlpoc::kWindowW;
+            presenterOpts.height      = vamlpoc::kWindowH;
+            presenterOpts.sampleCount = sampleCount;
+            presenterOpts.userData    = &ctx;
+            presenterOpts.onPresentationLost = [](void* userData, vaml::vulkan::SwapchainState /*state*/) {
+                auto* c = static_cast<VulkanCtx*>(userData);
+                std::fprintf(stderr,
+                             "[s175] OnPresentationLost: the framework does NOT auto-rebirth the device; "
+                             "the app owns recovery (deferred-not-silent). Requesting teardown.\n");
+                c->presenter.reset();  // no auto-rebirth — the app decides; for this POC, teardown.
+            };
+            presenterOpts.onFeedback = [](void* /*userData*/, vaml::vulkan::FeedbackKind fb) {
+                std::printf("[s175] stale-ghost feedback: %s\n",
+                            fb == vaml::vulkan::FeedbackKind::RetryableFrost ? "retryable-frost (Gen N live)" :
+                            fb == vaml::vulkan::FeedbackKind::FatalWhite     ? "fatal-white" : "none");
+            };
+            // The app DECLARES its per-frame scene as a DrawBody: it RECORDS the S165
+            // triangle onto the presenter-owned `cmd` for the acquired `imageIndex`. The
+            // presenter owns acquire -> submit -> present.
+            presenterOpts.draw = [](void* userData, vaml::presentation::Presenter& self,
+                                    VkCommandBuffer cmd, std::uint32_t imageIndex) -> bool {
+                auto* c = static_cast<VulkanCtx*>(userData);
+                const auto& vkLoad = self.loader();
+                if (!c->pipeline || !c->renderPass)
+                    return false;
+                const vaml::vulkan::Framebuffer* fb = self.machine().framebuffer(imageIndex);
+                if (!fb)
+                    return false;
+                return vamlpoc::record_draw_frame(
+                    vkLoad, cmd,
+                    c->pipeline->pipeline(), c->pipeline->pipeline_layout(),
+                    c->renderPass->render_pass(), fb->framebuffer(),
+                    self.extent(),
+                    self.machine().depth_format().has_value(),
+                    c->renderPass->config().uses_msaa_resolve());
+            };
 
-            // --- Command pool (one buffer per swapchain image) + FrameSync ----
-            // These are FRAME-SLOT-indexed (independent of image count) so they survive
-            // every swapchain recreation unchanged (S167_1 — the machine does NOT touch
-            // them). S166.
-            if (vk.has_command_loader() && ctx.swapchain)
-            {
-                ctx.commandPool = vaml::vulkan::CommandPool::create(
-                    vk, *ctx.device, ctx.device->queue_family(), ctx.swapchain->image_count());
-                ctx.frameSync = vaml::vulkan::FrameSync::create(
-                    vk, *ctx.device,
-                    vaml::vulkan::choose_concurrency(ctx.swapchain->image_count()));
-                if (ctx.commandPool && ctx.frameSync)
-                    std::printf("[s166] command pool (%u buffers) + frame sync (%u in-flight frames)\n",
-                                ctx.commandPool->count(), ctx.frameSync->frame_count());
-                else
-                    std::fprintf(stderr, "[s166] CommandPool/FrameSync::create failed\n");
-            }
+            ctx.presenter = vaml::presentation::Presenter::create(
+                vk, *ctx.device, *surface, ctx.renderPass->render_pass(), presenterOpts);
+            if (ctx.presenter)
+                std::printf("[s175] Presenter created; machine gen0 built: %u images, extent %ux%u, state=%d, msaa=%u\n",
+                            ctx.presenter->machine().image_count(), ctx.presenter->extent().width,
+                            ctx.presenter->extent().height,
+                            static_cast<int>(ctx.presenter->state()),
+                            static_cast<unsigned>(ctx.presenter->machine().sample_count()));
+            else
+                std::fprintf(stderr, "[s175] Presenter::create failed (no Gen N to fall back to — startup)\n");
         }
     }
     return gpu;
 }
 
-// S167 — rebuild the swapchain + dependent framebuffers at a new framebuffer
-// size (called from the draw loop on a resize/out-of-date signal). Assumes the
-// caller has already vkDeviceWaitIdle'd the device (the draw loop does). The
-// command pool + frame sync are FRAME-SLOT-indexed (independent of image count)
-// so they survive the recreation unchanged; the pipeline + render pass are size-
-// independent so they survive too. IDENTICAL in both apps.
-//
-// S167_1 (the corrective to S167): this is now a TRANSACTIONAL change. The
-// SwapchainStateMachine builds Gen N+1 (swapchain + image views + depth + per-image
-// framebuffers) into FRESH temporaries and COMMITS only on full success; on ANY
-// failure only the stillborn N+1 is destroyed and Gen N stays live + presentable
-// (machine lands Retryable). The old destroy-then-create Swapchain::recreate is
-// GONE. Returns true if the machine is Ready to draw (a fresh Gen N+1 or Gen N
-// still live); false if the rebuild failed (Retryable) — the loop keeps drawing
-// Gen N under the stale-ghost frost and retries next time.
-bool recreateSwapchain(const vaml::vulkan::VulkanLoader& vk, VulkanCtx& ctx)
+// S175 fixture: a two-frame-per-tick composition dest-rect (the full window). The
+// composition engine (vaml::composition) is dogfooded: pane/splitter resize = the
+// dest-rect CHANGEs -> the viewport/scissor recompute -> ZERO object churn. This
+// POC renders a SINGLE full-window pane; the splitter-app composition (multiple
+// panes over a fixed virtual surface) is demonstrated in Composition_test.cpp +
+// the Linux POC. The pure clip/reserve/viewport math is exercised headlessly.
+inline vaml::composition::DestRect full_window_dest(int w, int h)
 {
-    using namespace vaml::vulkan;
-    (void)vk;  // S167_1: the machine owns the swapchain+framebuffer build (framebuffers
-               // moved inside it); the loader is no longer needed here for a manual rebuild.
-    if (!ctx.swapchain)
-        return false;
-    const std::uint32_t w = ctx.framebufferW > 0 ? static_cast<std::uint32_t>(ctx.framebufferW) : 1u;
-    const std::uint32_t h = ctx.framebufferH > 0 ? static_cast<std::uint32_t>(ctx.framebufferH) : 1u;
-
-    // Zero/minimized extent -> park into Suspended (nothing to present until a
-    // resize re-drives). The machine's prepare_recreate handles this internally.
-    if (!ctx.swapchain->prepare_recreate(w, h))
-    {
-        if (ctx.swapchain->state() == SwapchainState::Retryable)
-            std::fprintf(stderr, "[s167_1] Gen N+1 rebuild failed at %ux%u -> Retryable (Gen N still live)\n", w, h);
-        // Suspended -> quiet park; Fatal -> the feedback already surfaces it.
-        return ctx.swapchain->state() == SwapchainState::Ready;
-    }
-    std::printf("[s167_1] transactional recreate COMMITTED: %u images, extent %ux%u, state=%d\n",
-                ctx.swapchain->image_count(), ctx.swapchain->extent().width,
-                ctx.swapchain->extent().height, static_cast<int>(ctx.swapchain->state()));
-    return true;
+    vaml::composition::DestRect r;
+    r.x      = 0;
+    r.y      = 0;
+    r.width  = w > 0 ? static_cast<std::uint32_t>(w) : 0u;
+    r.height = h > 0 ? static_cast<std::uint32_t>(h) : 0u;
+    return r;
 }
 
 } // namespace
@@ -414,141 +415,46 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
         return 1;
     }
 
-    // --- S166 main-thread draw loop (single-thread proof) -----------------------
-    // When the surface + command loader + all render resources are live, each loop
-    // iteration records + submits + presents ONE frame: acquire -> wait in-flight
-    // fence -> reset -> record (the S166 draw_record_plan body) -> submit (waits the
-    // image-available semaphore, signals render-finished + the fence) -> present
-    // (waits render-finished). On the headless VM the swapchain is null, so this is
-    // skipped ([both apps, not CI] manual proof).
-    std::uint32_t frameIndex = 0;
+    // --- S175 change-driven loop (the framework owns it) ------------------------
+    // The app NEVER touches the swapchain/command pool/frame sync/acquire/present.
+    // It just DECLARES: an invalidation flag (a resize is a dest-rect change -> the
+    // composition engine recomputes the viewport/scissor -> ZERO object churn; the
+    // S174 engineering-out) + a tick, and calls presenter->tick(invalidated, tickDue).
+    // The PRESENTER owns acquire -> record (via the app's DrawBody) -> submit ->
+    // present + the resize/out-of-date recreation + OnPresentationLost recovery.
+    // On the headless VM the presenter is null (no surface), so this is skipped
+    // ([both apps, not CI] manual proof).
+    bool tickDue = true;  // v1: the POC ticks every iteration (a would-be WPF app may
+                          // tick only on a timer); the presenter is CHANGE-driven —
+                          // idle-only iterations still skip the render when appropriate.
     while (!window->should_close())
     {
         window->poll_events();  // pumps GLFW + forwards into the callbacks
 
-        // S167_1: the loop is CHANGE-DRIVEN + asks state() every iteration. Draw
-        // ONLY when the machine is Ready (Gen N valid + presentable). Suspended parks
-        // (zero/minimized extent — nothing to present); Retryable keeps drawing Gen N
-        // (under the stale-ghost frost) until a rebuild commits; Fatal stops (the
-        // app owns recovery). The per-image framebuffers live INSIDE the machine.
-        if (ctx.swapchain && ctx.commandPool && ctx.frameSync && ctx.pipeline &&
-            vk->has_command_loader() &&
-            ctx.swapchain->state() == vaml::vulkan::SwapchainState::Ready)
+        bool invalidated = false;
+
+        // S175: a resize is a REQUEST to the presenter (the framework applies the
+        // two-generation transaction + the S174 dest-rect recompute). The resize
+        // flag marks the frame invalid so the presenter re-renders at the new size.
+        if (ctx.resizePending)
         {
-            const auto& vkLoad = *vk;
-
-            // S167_1 — when a resize is pending, run the two-generation atomic
-            // recreate TRANSACTION (quiesce first, then prepare_recreate). The
-            // machine lands Ready (commit) or Retryable/Suspended (Gen N still
-            // live); Retryable/Suspended skip this frame but keep the loop alive.
-            if (ctx.resizePending)
+            ctx.resizePending = false;
+            const auto dest = vamlpoc::full_window_dest(ctx.framebufferW, ctx.framebufferH);
+            if (!vaml::composition::clip_to_zero(dest.width, dest.height))
             {
-                ctx.resizePending = false;
-                if (vkLoad.vkDeviceWaitIdle)
-                    vkLoad.vkDeviceWaitIdle(ctx.device->device());
-                if (!vamlpoc::recreateSwapchain(vkLoad, ctx))
-                    continue;
+                // A non-minimized resize -> the presenter refreshes the swapchain to
+                // the new framebuffer size (the swapchain extent source), then the
+                // S174 dest-rect recompute maps the virtual surface with ZERO churn.
+                if (ctx.presenter)
+                    ctx.presenter->request_resize(dest.width, dest.height);
             }
-
-            const std::uint32_t frames = ctx.frameSync->frame_count();
-            const std::uint32_t f      = frameIndex % frames;
-
-            // Acquire the next swapchain image (waiting imageAvailable[f]).
-            std::uint32_t imageIndex = 0;
-            VkResult acq = vkLoad.vkAcquireNextImageKHR(
-                ctx.device->device(), ctx.swapchain->handle(), UINT64_MAX,
-                ctx.frameSync->image_available(f),
-                VK_NULL_HANDLE, &imageIndex);
-
-            // S167_1: follow the state machine. An out-of-date/suboptimal acquire
-            // means the swapchain no longer matches the surface — quiesce + run the
-            // recreate TRANSACTION, then retry next iteration. DEVICE/SURFACE_LOST
-            // escalates the machine to Fatal (engine stops + OnPresentationLost; the
-            // app decides recovery) — never draw from an invalid generation.
-            if (vk->vkDeviceWaitIdle &&
-                vaml::vulkan::next_state(
-                    ctx.swapchain->state(), acq, vaml::vulkan::should_suspend_extent(ctx.swapchain->extent()))
-                == vaml::vulkan::SwapchainState::Fatal)
-            {
-                ctx.swapchain->mark_fatal();
-                continue;
-            }
-            if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(acq))
-            {
-                vkLoad.vkDeviceWaitIdle(ctx.device->device());
-                vamlpoc::recreateSwapchain(vkLoad, ctx);
-                continue;
-            }
-            if (acq != VK_SUCCESS)
-                continue;
-
-            // Wait the in-flight fence for this frame's slot, then reset it.
-            const VkFence inFlight = ctx.frameSync->in_flight_fence(f);
-            vkLoad.vkWaitForFences(ctx.device->device(), 1, &inFlight, VK_TRUE, UINT64_MAX);
-            vkLoad.vkResetFences(ctx.device->device(), 1, &inFlight);
-
-            VkCommandBuffer cmd = ctx.commandPool->command_buffer(f);
-            VkFramebuffer fb = ctx.swapchain->framebuffer(imageIndex)->framebuffer();
-
-            if (!vamlpoc::record_draw_frame(vkLoad, cmd, ctx.pipeline->pipeline(),
-                                            ctx.pipeline->pipeline_layout(),
-                                            ctx.renderPass->render_pass(), fb,
-                                            ctx.swapchain->extent(),
-                                            ctx.swapchain->depth_format().has_value(),
-                                            ctx.renderPass->config().uses_msaa_resolve()))
-            {
-                continue;
-            }
-
-            // Submit: waits imageAvailable (color-attachment stage), signals
-            // renderFinished + the in-flight fence.
-            const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            VkSemaphore waitSem = ctx.frameSync->image_available(f);
-            VkSemaphore signalSem = ctx.frameSync->render_finished(f);
-            VkSubmitInfo submit{};
-            submit.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submit.waitSemaphoreCount   = 1;
-            submit.pWaitSemaphores      = &waitSem;
-            submit.pWaitDstStageMask    = &waitStage;
-            submit.commandBufferCount   = 1;
-            submit.pCommandBuffers      = &cmd;
-            submit.signalSemaphoreCount = 1;
-            submit.pSignalSemaphores    = &signalSem;
-            if (vkLoad.vkQueueSubmit(ctx.device->graphics_queue(), 1, &submit, inFlight) != VK_SUCCESS)
-                continue;
-
-            // Present: waits renderFinished on the swapchain's acquired image.
-            VkSwapchainKHR swapchain = ctx.swapchain->handle();
-            VkSemaphore renderDone = ctx.frameSync->render_finished(f);
-            VkPresentInfoKHR present{};
-            present.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-            present.waitSemaphoreCount = 1;
-            present.pWaitSemaphores    = &renderDone;
-            present.swapchainCount     = 1;
-            present.pSwapchains        = &swapchain;
-            present.pImageIndices      = &imageIndex;
-            VkResult pres = vkLoad.vkQueuePresentKHR(ctx.device->graphics_queue(), &present);
-
-            // S167_1: an out-of-date/suboptimal present also means run the recreate
-            // TRANSACTION at the new size (the S160 on_resize path may have raced
-            // the present). DEVICE/SURFACE_LOST escalates to Fatal (engine stops).
-            if (vk->vkDeviceWaitIdle &&
-                vaml::vulkan::next_state(
-                    ctx.swapchain->state(), pres, vaml::vulkan::should_suspend_extent(ctx.swapchain->extent()))
-                == vaml::vulkan::SwapchainState::Fatal)
-            {
-                ctx.swapchain->mark_fatal();
-                continue;
-            }
-            if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(pres))
-            {
-                vkLoad.vkDeviceWaitIdle(ctx.device->device());
-                vamlpoc::recreateSwapchain(vkLoad, ctx);
-                continue;
-            }
-
-            ++frameIndex;
+            // (A minimized/framebuffer-zero pane is clipped to zero — nothing to
+            // draw, no churn (S174). The presenter parks on a zero extent next tick.)
+            invalidated = true;
         }
+
+        if (ctx.presenter)
+            (void)ctx.presenter->tick(invalidated, tickDue);  // the framework owns the loop
     }
 
     // Wait for any in-flight submit before destroying the CommandPool/FrameSync so

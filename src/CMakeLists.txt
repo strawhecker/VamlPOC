@@ -9,3 +9,8 @@ add_subdirectory(core)
 # its real content arrives at S287.
 add_subdirectory(vulkan)
 add_subdirectory(tools)
+# Sprint 4B (S173-S175): the OPTIONAL presentation/composition framework ABOVE the
+# primitives. vaml-presentation wraps vaml-vulkan (S167_1 + S166 + S165 + S169) into
+# ONE Presenter owner + the CompositionEngine. It never joins the CORE aggregation —
+# NOT linking it is the primitive-only (D.I.Y.) consumer ("with-or-without-framework").
+add_subdirectory(presentation)

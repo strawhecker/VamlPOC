@@ -84,8 +84,17 @@ function(vaml_add_library lib_name)
         set_property(GLOBAL APPEND PROPERTY VAML_CORE_LIBRARIES "${_target}")
     elseif(lib_name STREQUAL "vulkan")
         set_target_properties(${_target} PROPERTIES VAML_LAYER "VULKAN")
+    elseif(lib_name STREQUAL "presentation")
+        # Sprint 4B (S173-S175): vaml-presentation — the OPTIONAL presentation/
+        # composition framework ABOVE the primitives. It is a VULKAN-layer target
+        # (it wraps vaml-vulkan: S167_1 + S166 + S165 + the S169 Device), but it is
+        # deliberately NOT appended to VAML_CORE_LIBRARIES — so ADR-011's core-link
+        # check never trips on it, and the framework stays OPTIONAL: not linking
+        # vaml-presentation is the primitive-only (D.I.Y.) consumer. It never joins
+        # the CORE aggregation, keeping core/tools strictly Vulkan-free.
+        set_target_properties(${_target} PROPERTIES VAML_LAYER "VULKAN")
     else()
-        message(FATAL_ERROR "vaml_add_library: unknown library name '${lib_name}' (expected core|vulkan|tools)")
+        message(FATAL_ERROR "vaml_add_library: unknown library name '${lib_name}' (expected core|vulkan|tools|presentation)")
     endif()
 
     # Shared compiler/warning policy (S002) — including /WX / -Werror.

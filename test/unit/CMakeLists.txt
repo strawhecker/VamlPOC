@@ -151,3 +151,36 @@ endif()
 target_link_libraries(vaml-vulkan-tests PRIVATE vaml-vulkan)
 
 add_test(NAME vaml-vulkan-tests COMMAND vaml-vulkan-tests)
+
+# ============================================================================
+# vaml-presentation-tests — Sprint 4B (S173-S175) headless tests of the OPTIONAL
+# vaml-presentation framework.
+# Links the real vaml-presentation library (which PUBLIC-links vaml-vulkan) so the
+# Presenter + CompositionEngine pure decision seams (S173 loop/state/recovery +
+# S174 viewport/scissor/reserve/clip math) are proven headlessly, mirroring the
+# S160+ vaml-vulkan-tests precedent.
+# ============================================================================
+add_executable(vaml-presentation-tests
+    PresentationTestMain.cpp
+    Presenter_test.cpp
+    Composition_test.cpp
+)
+
+vaml_apply_compiler_policy(vaml-presentation-tests)
+
+target_include_directories(vaml-presentation-tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/presentation/include
+)
+target_include_directories(vaml-presentation-tests SYSTEM PRIVATE
+    ${VAML_DEPS_DIR}
+)
+
+if(MSVC)
+    target_compile_options(vaml-presentation-tests PRIVATE /external:W0)
+else()
+    target_compile_options(vaml-presentation-tests PRIVATE "-Wno-error=#warnings")
+endif()
+
+target_link_libraries(vaml-presentation-tests PRIVATE vaml-presentation)
+
+add_test(NAME vaml-presentation-tests COMMAND vaml-presentation-tests)
