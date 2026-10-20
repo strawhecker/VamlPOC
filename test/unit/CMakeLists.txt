@@ -130,6 +130,7 @@ add_executable(vaml-vulkan-tests
     CommandSync_test.cpp
     Msaa_test.cpp
     Device_test.cpp
+    TeardownOrder_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)
