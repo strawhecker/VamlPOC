@@ -33,6 +33,7 @@
 // hidden) — callers own the ordering.
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 
 #include <cstdint>
@@ -80,14 +81,15 @@ VAML_VULKAN_EXPORT std::uint32_t choose_concurrency(std::uint32_t imageCount) no
 class VAML_VULKAN_EXPORT FrameSync
 {
 public:
-    // Creates `frameCount` frames' sync set on `device` via `loader`: per frame an
-    // imageAvailable semaphore, a renderFinished semaphore, and an inFlight fence
-    // (ALL initially signaled — the first-frame handshake so frame 0's wait is a
-    // no-op). `frameCount` = choose_concurrency(imageCount), typically. Returns
-    // nullptr (no throw) on failure. `loader` and `device` must outlive the returned
-    // object; the draw loop must be idle before destruction.
+    // Creates `frameCount` frames' sync set on `device` (the S169 Device owner)
+    // via `loader`: per frame an imageAvailable semaphore, a renderFinished
+    // semaphore, and an inFlight fence (ALL initially signaled — the first-frame
+    // handshake so frame 0's wait is a no-op). `frameCount` =
+    // choose_concurrency(imageCount), typically. Returns nullptr (no throw) on
+    // failure. `loader` and `device` must outlive the returned object; the draw
+    // loop must be idle before destruction.
     [[nodiscard]] static std::unique_ptr<FrameSync>
-    create(const VulkanLoader& loader, VkDevice device, std::uint32_t frameCount);
+    create(const VulkanLoader& loader, const Device& device, std::uint32_t frameCount);
 
     ~FrameSync();
     FrameSync(FrameSync&&) noexcept;
@@ -104,10 +106,10 @@ public:
     [[nodiscard]] VkFence in_flight_fence(std::uint32_t f) const noexcept { return (f < frame_count()) ? inFlight_[f] : VK_NULL_HANDLE; }
 
 private:
-    FrameSync(const VulkanLoader& loader, VkDevice device);
+    FrameSync(const VulkanLoader& loader, const Device& device);
 
     const VulkanLoader* loader_ = nullptr;
-    VkDevice           device_  = VK_NULL_HANDLE;
+    VkDevice           device_  = VK_NULL_HANDLE;  // BORROWED from the Device
     std::vector<VkSemaphore> imageAvailable_;
     std::vector<VkSemaphore> renderFinished_;
     std::vector<VkFence>     inFlight_;

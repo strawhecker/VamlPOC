@@ -56,21 +56,20 @@ FeedbackKind feedback_for_state(SwapchainState state) noexcept
 
 SwapchainStateBuilders SwapchainStateBuilders::real(
     const VulkanLoader& loader,
-    VkDevice device,
-    VkPhysicalDevice physicalDevice,
+    const Device& device,
     const VulkanSurface& surface,
     VkRenderPass renderPass,
     VkSampleCountFlagBits sampleCount)
 {
     SwapchainStateBuilders b;
     const bool msaa = sampleCount != VK_SAMPLE_COUNT_1_BIT;
-    b.buildSwapchain = [&loader, device, physicalDevice, &surface](
+    b.buildSwapchain = [&loader, &device, &surface](
         std::uint32_t w, std::uint32_t h) -> std::unique_ptr<Swapchain> {
         // NULLABLE: pass surface by reference (owned by the caller, must outlive the
         // machine). Return nullptr on any failure — the "stillborn generation" case.
-        return Swapchain::create(loader, device, physicalDevice, surface, w, h);
+        return Swapchain::create(loader, device, surface, w, h);
     };
-    b.buildMsaa = [&loader, device, physicalDevice, msaa](
+    b.buildMsaa = [&loader, &device, msaa](
         const Swapchain& sw, VkSampleCountFlagBits sc) -> std::unique_ptr<MsaaTarget> {
         // S168: when the pass is multisampled (sc != 1_BIT), build the multisampled
         // target from the swapchain's color/depth formats + extent. When non-MSAA
@@ -78,15 +77,14 @@ SwapchainStateBuilders SwapchainStateBuilders::real(
         // framebuffer path below then uses no msaa target).
         if (!msaa)
             return nullptr;
-        return MsaaTarget::create(loader, device, physicalDevice,
-                                  sw.color_format(), sw.depth_format(),
+        return MsaaTarget::create(loader, device, sw.color_format(), sw.depth_format(),
                                   sw.extent(), sc);
     };
     // S168: the framebuffer builder is MSAA-AWARE — it receives the built msaa
     // target (null for the non-MSAA path) so it can choose the msaa framebuffer
     // layout ([msaa color, resolve, msaa depth?]) vs the classic S165 layout
     // ([colorView, depth?]).
-    b.buildFramebuffers = [&loader, device, renderPass](
+    b.buildFramebuffers = [&loader, &device, renderPass](
         const Swapchain& sw, const MsaaTarget* msaaTarget) -> std::vector<std::unique_ptr<Framebuffer>> {
         std::vector<std::unique_ptr<Framebuffer>> fbs;
         if (sw.image_count() == 0)

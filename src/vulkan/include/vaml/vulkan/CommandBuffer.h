@@ -38,6 +38,7 @@
 // same command-buffer-per-in-flight-frame shape.
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 
 #include <cstdint>
@@ -131,14 +132,15 @@ VAML_VULKAN_EXPORT const std::vector<RecordStep>& draw_record_plan() noexcept;
 class VAML_VULKAN_EXPORT CommandPool
 {
 public:
-    // Creates a command pool on `device` via `loader` for `queueFamily`, allocating
-    // `imageCount` PRIMARY command buffers (one per swapchain image / in-flight frame).
-    // Runs the S166 seams (describe_command_pool + describe_command_buffer_alloc),
-    // calls vkCreateCommandPool + vkAllocateCommandBuffers. Returns nullptr (no throw)
-    // on failure. `loader` and `device` must outlive the returned object; the draw
-    // loop must be idle before destruction.
+    // Creates a command pool on `device` (the S169 Device owner) via `loader`
+    // for `queueFamily`, allocating `imageCount` PRIMARY command buffers (one
+    // per swapchain image / in-flight frame). Runs the S166 seams
+    // (describe_command_pool + describe_command_buffer_alloc), calls
+    // vkCreateCommandPool + vkAllocateCommandBuffers. Returns nullptr (no throw)
+    // on failure. `loader` and `device` must outlive the returned object; the
+    // draw loop must be idle before destruction.
     [[nodiscard]] static std::unique_ptr<CommandPool>
-    create(const VulkanLoader& loader, VkDevice device, std::uint32_t queueFamily, std::uint32_t imageCount);
+    create(const VulkanLoader& loader, const Device& device, std::uint32_t queueFamily, std::uint32_t imageCount);
 
     ~CommandPool();
     CommandPool(CommandPool&&) noexcept;
@@ -154,10 +156,10 @@ public:
     [[nodiscard]] const std::vector<VkCommandBuffer>& command_buffers() const noexcept { return commandBuffers_; }
 
 private:
-    CommandPool(const VulkanLoader& loader, VkDevice device);
+    CommandPool(const VulkanLoader& loader, const Device& device);
 
     const VulkanLoader*        loader_ = nullptr;
-    VkDevice                   device_ = VK_NULL_HANDLE;
+    VkDevice                   device_ = VK_NULL_HANDLE;  // BORROWED from the Device
     VkCommandPool              pool_   = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> commandBuffers_;
 };

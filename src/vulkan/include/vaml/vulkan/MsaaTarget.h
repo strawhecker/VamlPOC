@@ -30,6 +30,7 @@
 // the framework's concern (recorded, not silent).
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 
 #include <cstdint>
@@ -51,15 +52,16 @@ class VAML_VULKAN_EXPORT MsaaTarget
 {
 public:
     // Creates the multisampled render target at `extent` with `sampleCount`
-    // samples. `colorFormat` is the swapchain color format (the resolve target's
-    // format = this target's format); `depthFormat` (optional) selects whether a
+    // samples, on `device` (the S169 Device owner; the physical device is
+    // borrowed from `device->physical_device()` for the memory-property probe).
+    // `colorFormat` is the swapchain color format (the resolve target's format
+    // = this target's format); `depthFormat` (optional) selects whether a
     // multisampled depth image is created. Returns nullptr (no throw) on any
-    // failure, mirroring Swapchain::create. `loader`, `device`, and
-    // `physicalDevice` must outlive the returned object.
+    // failure, mirroring Swapchain::create. `loader` and `device` must outlive
+    // the returned object.
     [[nodiscard]] static std::unique_ptr<MsaaTarget>
     create(const VulkanLoader& loader,
-           VkDevice device,
-           VkPhysicalDevice physicalDevice,
+           const Device& device,
            VkFormat colorFormat,
            std::optional<VkFormat> depthFormat,
            VkExtent2D extent,
@@ -83,12 +85,13 @@ public:
     [[nodiscard]] VkExtent2D          extent()       const noexcept { return extent_; }
 
 private:
-    MsaaTarget(const VulkanLoader& loader, VkDevice device);
+    MsaaTarget(const VulkanLoader& loader, const Device& device);
 
     void destroy_resources() noexcept;
 
     const VulkanLoader* loader_ = nullptr;
-    VkDevice           device_  = VK_NULL_HANDLE;
+    VkDevice           device_  = VK_NULL_HANDLE;  // BORROWED from the Device
+    VkPhysicalDevice   physicalDevice_ = VK_NULL_HANDLE;  // BORROWED (instance-owned)
 
     VkImage              colorImage_      = VK_NULL_HANDLE;
     VkImageView          colorImageView_  = VK_NULL_HANDLE;

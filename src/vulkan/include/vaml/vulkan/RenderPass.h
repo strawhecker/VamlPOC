@@ -36,6 +36,7 @@
 // Swapchain; a pass with no depth attachment is a color-only pass).
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 
 #include <cstdint>
@@ -158,15 +159,16 @@ struct RenderPassConfig
 class VAML_VULKAN_EXPORT RenderPass
 {
 public:
-    // Creates a color render pass (+ optional depth) on `device` via `loader`.
-    // Runs the S165 decision seams for the attachment descriptions and the
-    // load/store layouts, assembles one subpass (color[0], optional depth) + one
-    // subpass dependency, and calls vkCreateRenderPass. Returns nullptr (no
-    // throw) on failure, mirroring PlatformWindow/VulkanInstance/Swapchain::create.
-    // `loader` and `device` must outlive the returned object.
+    // Creates a color render pass (+ optional depth) on `device` (the S169
+    // Device owner) via `loader`. Runs the S165 decision seams for the
+    // attachment descriptions and the load/store layouts, assembles one subpass
+    // (color[0], optional depth) + one subpass dependency, and calls
+    // vkCreateRenderPass. Returns nullptr (no throw) on failure, mirroring
+    // PlatformWindow/VulkanInstance/Swapchain::create. `loader` and `device`
+    // must outlive the returned object.
     [[nodiscard]] static std::unique_ptr<RenderPass>
     create(const VulkanLoader& loader,
-           VkDevice device,
+           const Device& device,
            VkFormat colorFormat,
            std::optional<VkFormat> depthFormat,
            VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT);
@@ -182,10 +184,10 @@ public:
     [[nodiscard]] const RenderPassConfig& config() const noexcept { return config_; }
 
 private:
-    RenderPass(const VulkanLoader& loader, VkDevice device);
+    RenderPass(const VulkanLoader& loader, const Device& device);
 
     const VulkanLoader* loader_  = nullptr;
-    VkDevice           device_   = VK_NULL_HANDLE;
+    VkDevice           device_   = VK_NULL_HANDLE;  // BORROWED from the Device
     VkRenderPass       renderPass_ = VK_NULL_HANDLE;
     RenderPassConfig   config_{};
 };

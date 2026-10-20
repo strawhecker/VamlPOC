@@ -239,15 +239,14 @@ Swapchain::negotiate(const VulkanLoader& loader,
 
 std::unique_ptr<Swapchain>
 Swapchain::create(const VulkanLoader& loader,
-                  VkDevice device,
-                  VkPhysicalDevice physicalDevice,
+                  const Device& device,
                   const VulkanSurface& surface,
                   std::uint32_t framebufferWidth,
                   std::uint32_t framebufferHeight,
                   std::optional<SwapchainConfig> configOpt)
 {
     // The S164 swapchain entry points are required.
-    if (!loader.has_swapchain_loader() || !device)
+    if (!loader.has_swapchain_loader() || !device.device())
         return nullptr;
 
     // Query the surface + negotiate unless an explicit config was supplied.
@@ -258,7 +257,7 @@ Swapchain::create(const VulkanLoader& loader,
     }
     else
     {
-        auto negotiated = negotiate(loader, physicalDevice, surface,
+        auto negotiated = negotiate(loader, device.physical_device(), surface,
                                     framebufferWidth, framebufferHeight);
         if (!negotiated)
             return nullptr;
@@ -269,7 +268,7 @@ Swapchain::create(const VulkanLoader& loader,
         return nullptr;
 
     std::unique_ptr<Swapchain> sw(new Swapchain(loader, device));
-    sw->physicalDevice_ = physicalDevice;
+    sw->physicalDevice_ = device.physical_device();
     sw->surface_        = &surface;
 
     if (!sw->rebuild(cfg))
@@ -455,9 +454,9 @@ bool Swapchain::rebuild(const SwapchainConfig& cfg)
     return true;
 }
 
-Swapchain::Swapchain(const VulkanLoader& loader, VkDevice device)
+Swapchain::Swapchain(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 

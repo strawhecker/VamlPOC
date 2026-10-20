@@ -77,10 +77,11 @@ tri_mvp(std::uint32_t width, std::uint32_t height) noexcept
 }
 
 std::unique_ptr<Pipeline>
-Pipeline::create(const VulkanLoader& loader, VkDevice device, const PipelineSpec& spec)
+Pipeline::create(const VulkanLoader& loader, const Device& device, const PipelineSpec& spec)
 {
+    const VkDevice vkDevice = device.device();
     // The S165 render-pipeline entry points are required.
-    if (!loader.has_render_loader() || !device)
+    if (!loader.has_render_loader() || !vkDevice)
         return nullptr;
     if (!spec.renderPass || !spec.vertexModule || !spec.fragmentModule ||
         spec.colorFormat == VK_FORMAT_UNDEFINED || spec.extent.width == 0 || spec.extent.height == 0)
@@ -100,7 +101,7 @@ Pipeline::create(const VulkanLoader& loader, VkDevice device, const PipelineSpec
     plci.pushConstantRangeCount = 1;
     plci.pPushConstantRanges    = &range;
 
-    if (loader.vkCreatePipelineLayout(device, &plci, nullptr, &pl->pipelineLayout_) != VK_SUCCESS)
+    if (loader.vkCreatePipelineLayout(vkDevice, &plci, nullptr, &pl->pipelineLayout_) != VK_SUCCESS)
         return nullptr;
 
     // --- Shader stages ---
@@ -191,7 +192,7 @@ Pipeline::create(const VulkanLoader& loader, VkDevice device, const PipelineSpec
     gpi.renderPass          = spec.renderPass;
     gpi.subpass             = 0;
 
-    if (loader.vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpi, nullptr, &pl->pipeline_) != VK_SUCCESS)
+    if (loader.vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &gpi, nullptr, &pl->pipeline_) != VK_SUCCESS)
     {
         return nullptr;
     }
@@ -199,9 +200,9 @@ Pipeline::create(const VulkanLoader& loader, VkDevice device, const PipelineSpec
     return pl;
 }
 
-Pipeline::Pipeline(const VulkanLoader& loader, VkDevice device)
+Pipeline::Pipeline(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 

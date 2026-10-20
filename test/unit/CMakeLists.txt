@@ -129,6 +129,7 @@ add_executable(vaml-vulkan-tests
     Pipeline_test.cpp
     CommandSync_test.cpp
     Msaa_test.cpp
+    Device_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

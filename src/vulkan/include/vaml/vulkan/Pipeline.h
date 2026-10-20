@@ -49,6 +49,7 @@
 // are explicitly owned by later named sprints.
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/RenderPass.h>
 #include <vaml/vulkan/ShaderModule.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -141,15 +142,16 @@ struct PipelineSpec
 class VAML_VULKAN_EXPORT Pipeline
 {
 public:
-    // Creates a graphics pipeline on `device` via `loader`. Runs the S165 decision
-    // seams, builds the pipeline layout (one 64-byte push-constant range) +
-    // VkGraphicsPipelineCreateInfo (triangle-list, fill, no cull, MSAA 1, write-
-    // all no-blend, dynamic viewport+scissor, null vertex input), and calls
-    // vkCreateGraphicsPipelines. Returns nullptr (no throw) on failure.
-    // `loader`, `device`, `spec.renderPass` and the spec's two shader modules
-    // must outlive the returned object.
+    // Creates a graphics pipeline on `device` (the S169 Device owner) via
+    // `loader`. Runs the S165 decision seams, builds the pipeline layout (one
+    // 64-byte push-constant range) + the VkGraphicsPipelineCreateInfo
+    // (triangle-list, fill, no cull, MSAA 1, write-all no-blend, dynamic
+    // viewport+scissor, null vertex input), and calls vkCreateGraphicsPipelines.
+    // Returns nullptr (no throw) on failure. `loader`, `device`,
+    // `spec.renderPass` and the spec's two shader modules must outlive the
+    // returned object.
     [[nodiscard]] static std::unique_ptr<Pipeline>
-    create(const VulkanLoader& loader, VkDevice device, const PipelineSpec& spec);
+    create(const VulkanLoader& loader, const Device& device, const PipelineSpec& spec);
 
     ~Pipeline();
     Pipeline(Pipeline&&) noexcept;
@@ -163,10 +165,10 @@ public:
     [[nodiscard]] const PipelineSpec& spec() const noexcept { return spec_; }
 
 private:
-    Pipeline(const VulkanLoader& loader, VkDevice device);
+    Pipeline(const VulkanLoader& loader, const Device& device);
 
     const VulkanLoader* loader_ = nullptr;
-    VkDevice           device_  = VK_NULL_HANDLE;
+    VkDevice           device_  = VK_NULL_HANDLE;  // BORROWED from the Device
     VkPipelineLayout   pipelineLayout_ = VK_NULL_HANDLE;
     VkPipeline         pipeline_ = VK_NULL_HANDLE;
     PipelineSpec       spec_{};

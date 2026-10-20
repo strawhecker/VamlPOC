@@ -168,10 +168,11 @@ std::span<const float> tri_fragment_color() noexcept
 
 std::unique_ptr<ShaderModule>
 ShaderModule::create(const VulkanLoader& loader,
-                     VkDevice device,
+                     const Device& device,
                      std::span<const std::uint32_t> spirv)
 {
-    if (!loader.vkCreateShaderModule || !device)
+    const VkDevice vkDevice = device.device();
+    if (!loader.vkCreateShaderModule || !vkDevice)
         return nullptr;
     // A module must have the 5-word header + at least one instruction.
     if (spirv.size() < 5u)
@@ -184,14 +185,14 @@ ShaderModule::create(const VulkanLoader& loader,
     smci.codeSize = spirv.size_bytes();
     smci.pCode    = spirv.data();
 
-    if (loader.vkCreateShaderModule(device, &smci, nullptr, &sm->module_) != VK_SUCCESS)
+    if (loader.vkCreateShaderModule(vkDevice, &smci, nullptr, &sm->module_) != VK_SUCCESS)
         return nullptr;
     return sm;
 }
 
-ShaderModule::ShaderModule(const VulkanLoader& loader, VkDevice device)
+ShaderModule::ShaderModule(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 

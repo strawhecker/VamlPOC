@@ -43,6 +43,7 @@
 // commits atomically; S167's history entry stays intact as what first shipped).
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 #include <vaml/vulkan/VulkanSurface.h>
 
@@ -150,27 +151,28 @@ struct SwapchainConfig
 class VAML_VULKAN_EXPORT Swapchain
 {
 public:
-    // Creates a swapchain on `device` for `surface`. Queries the surface
-    // capabilities/formats/presentModes via `loader`, runs the S164 decision
-    // seams, creates the swapchain (VK_KHR_swapchain — the device extension
-    // must already be enabled at device creation), fetches the images, creates
-    // the image views, and creates the depth image/image-view/device-memory.
+    // Creates a swapchain on `device` (the S169 Device owner) for `surface`.
+    // Queries the surface capabilities/formats/presentModes via `loader`, runs
+    // the S164 decision seams, creates the swapchain (VK_KHR_swapchain — the
+    // device extension must already be enabled at device creation, which the
+    // S169 Device does by default), fetches the images, creates the image views,
+    // and creates the depth image/image-view/device-memory. The physical device
+    // is borrowed from `device->physical_device()`.
     // Returns nullptr (no throw) on any failure, mirroring
     // PlatformWindow/VulkanInstance/VulkanSurface::create. `loader`, the
     // instance (through `surface`), the `surface`, and `device` must outlive
     // the returned object.
     [[nodiscard]] static std::unique_ptr<Swapchain>
     create(const VulkanLoader& loader,
-           VkDevice device,
-           VkPhysicalDevice physicalDevice,
+           const Device& device,
            const VulkanSurface& surface,
            std::uint32_t framebufferWidth,
            std::uint32_t framebufferHeight,
            std::optional<SwapchainConfig> configOpt = std::nullopt);
 
     // Convenience: the negotiated parameters WITHOUT creating a swapchain.
-    // Pure — consumes the seams + the live surface queries. Exposed so a caller
-    // can inspect/adjust the negotiated config before create().
+    // Pure-ish — consumes the seams + the live surface queries. Exposed so a
+    // caller can inspect/adjust the negotiated config before create().
     [[nodiscard]] static std::optional<SwapchainConfig>
     negotiate(const VulkanLoader& loader,
               VkPhysicalDevice physicalDevice,
@@ -208,16 +210,16 @@ public:
     [[nodiscard]] const SwapchainConfig& config() const noexcept { return config_; }
 
 private:
-    Swapchain(const VulkanLoader& loader, VkDevice device);
+    Swapchain(const VulkanLoader& loader, const Device& device);
 
     // Internal: (re)builds the swapchain + image views + depth from `cfg` into
     // fresh members, destroying any existing members FIRST (reverse order:
-    // depth -> image views -> swapchain). Used by create() and recreate().
+    // depth -> image views -> swapchain). Used by create().
     bool rebuild(const SwapchainConfig& cfg);
 
     const VulkanLoader*    loader_         = nullptr;
-    VkDevice               device_         = VK_NULL_HANDLE;
-    VkPhysicalDevice       physicalDevice_ = VK_NULL_HANDLE;
+    VkDevice               device_         = VK_NULL_HANDLE;  // BORROWED from the Device
+    VkPhysicalDevice       physicalDevice_ = VK_NULL_HANDLE;  // BORROWED (instance-owned)
     const VulkanSurface*   surface_        = nullptr;  // must outlive this swapchain (LIFETIMES)
     VkSwapchainKHR         swapchain_      = VK_NULL_HANDLE;
 

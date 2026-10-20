@@ -14,6 +14,7 @@ vaml_add_library(vulkan
     src/VulkanSurface.cpp
     src/QueueFamilySelection.cpp
     src/BestGpuSelection.cpp
+    src/Device.cpp
     src/Swapchain.cpp
     src/SwapchainState.cpp
     src/MsaaTarget.cpp

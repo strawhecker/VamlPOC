@@ -24,6 +24,7 @@
 #include <vaml/vulkan/VulkanLoader.h>
 #include <vaml/vulkan/VulkanInstance.h>
 #include <vaml/vulkan/VulkanSurface.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/Swapchain.h>
 #include <vaml/vulkan/SwapchainState.h>
 #include <vaml/vulkan/RenderPass.h>
@@ -54,13 +55,14 @@ constexpr uint32_t kWindowH = 600;
 // The S166 clear color (light/gray) so the blue S165 triangle is visible against it.
 inline constexpr float kClearColor[4] = { 0.2f, 0.2f, 0.25f, 1.0f };
 
-// Small RAII-free Vulkan context holder (baseline; S168 introduces wrappers).
-// Holds handles long enough for the demo loop, destroys in reverse order.
+// Small RAII-closing Vulkan context holder. The S169 Device (unique_ptr) owns
+// the raw VkDevice + VkQueue — the app NEVER owns a raw Vulkan handle. Holds
+// handles long enough for the demo loop, destroys in reverse order.
 struct VulkanCtx
 {
-    VkDevice                                     device        = VK_NULL_HANDLE;
-    VkQueue                                      graphicsQueue = VK_NULL_HANDLE;
-    uint32_t                                     queueFamily   = 0;
+    // S169: the logical-device + graphics-queue RAII owner (owns the raw
+    // VkDevice/VkQueue; the app borrows device()/graphics_queue()/queue_family()).
+    std::unique_ptr<vaml::vulkan::Device>    device;
     // S167 resize state: the latest framebuffer (physical) px reported by the
     // S160 on_resize hook, + a pending flag the draw loop checks each iteration.
     int                                          framebufferW  = 0;
@@ -82,7 +84,7 @@ struct VulkanCtx
     std::unique_ptr<vaml::vulkan::CommandPool>   commandPool;
     std::unique_ptr<vaml::vulkan::FrameSync>     frameSync;
 
-    void destroy(const vaml::vulkan::VulkanLoader& vk)
+    void destroy()
     {
         // Destroy order: FrameSync -> CommandPool -> pipeline -> shader modules ->
         // swapchain(s) -> render pass -> device. The draw loop must be idle before
@@ -90,7 +92,8 @@ struct VulkanCtx
         // SwapchainStateMachine's dtor destroys its per-image framebuffers FIRST
         // (they reference the render pass + the swapchain's image views), then its
         // swapchain — so the machine must be destroyed BEFORE the render pass, and
-        // before the device (teardown-order-reverse).
+        // before the device (teardown-order-reverse). The S169 Device's dtor
+        // (vkDestroyDevice) runs LAST of the Vulkan objects.
         frameSync.reset();
         commandPool.reset();
         pipeline.reset();
@@ -98,10 +101,7 @@ struct VulkanCtx
         fragmentModule.reset();
         swapchain.reset();  // framebuffers -> swapchain (reverse build order)
         renderPass.reset();
-        if (device)
-            vk.vkDestroyDevice(device, nullptr);
-        device        = VK_NULL_HANDLE;
-        graphicsQueue = VK_NULL_HANDLE;
+        device.reset();     // S169: vkDestroyDevice, the device must outlive all borrowed handles
     }
 };
 
@@ -183,31 +183,17 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
     auto queueFamily = select_queue_family(fams.data(), famCount, present);
     if (!queueFamily)
         throw std::runtime_error("No graphics-capable queue family found");
-    ctx.queueFamily = *queueFamily;
+    const std::uint32_t familyIndex = *queueFamily;
 
-    // --- Logical device + graphics queue (S163 loader device entries).
-    const float queuePriority = 1.0f;
-    VkDeviceQueueCreateInfo queueInfo{};
-    queueInfo.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueInfo.queueFamilyIndex = ctx.queueFamily;
-    queueInfo.queueCount       = 1;
-    queueInfo.pQueuePriorities = &queuePriority;
-
-    // S164: enable VK_KHR_swapchain at device creation (else vkCreateSwapchainKHR
-    // fails). The swapchain extension is the ONE device extension S164 requires.
-    const char* kSwapchainExtension = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-    VkDeviceCreateInfo devInfo{};
-    devInfo.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    devInfo.queueCreateInfoCount    = 1;
-    devInfo.pQueueCreateInfos       = &queueInfo;
-    devInfo.enabledExtensionCount   = 1;
-    devInfo.ppEnabledExtensionNames = &kSwapchainExtension;
-    devInfo.pEnabledFeatures        = nullptr;
-
-    if (vk.vkCreateDevice(gpu.device, &devInfo, nullptr, &ctx.device) != VK_SUCCESS)
-        throw std::runtime_error("vkCreateDevice failed");
-
-    vk.vkGetDeviceQueue(ctx.device, ctx.queueFamily, 0, &ctx.graphicsQueue);
+    // --- Logical device + graphics queue (S169: the Device RAII owner) ----
+    // S169 deletes the raw vkCreateDevice/vkGetDeviceQueue block from the app.
+    // The Device owner constructs the logical device on the chosen physical
+    // device, enables the S164 swapchain extension, and owns the VkDevice +
+    // graphics VkQueue. `familyIndex` is passed through. Returns nullptr (no
+    // throw) on failure.
+    ctx.device = vaml::vulkan::Device::create(vk, gpu, familyIndex);
+    if (!ctx.device)
+        throw std::runtime_error("Device::create failed");
 
     // --- Swapchain + image views + depth + per-image framebuffers (S164/S165/S167_1)
     // Consumes the surface + the S163 device + the S164 loader entries. The
@@ -244,9 +230,9 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
         // builder. S168: built at the negotiated sample count (multisampled + resolve).
         if (vk.has_render_loader())
         {
-            ctx.renderPass = RenderPass::create(vk, ctx.device, colorFormat.format, depthFormat, sampleCount);
-            ctx.vertexModule   = ShaderModule::create(vk, ctx.device, tri_vertex_spirv());
-            ctx.fragmentModule = ShaderModule::create(vk, ctx.device, tri_fragment_spirv());
+            ctx.renderPass = RenderPass::create(vk, *ctx.device, colorFormat.format, depthFormat, sampleCount);
+            ctx.vertexModule   = ShaderModule::create(vk, *ctx.device, tri_vertex_spirv());
+            ctx.fragmentModule = ShaderModule::create(vk, *ctx.device, tri_fragment_spirv());
 
             if (ctx.renderPass && ctx.vertexModule && ctx.fragmentModule)
             {
@@ -258,7 +244,7 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
                 spec.extent         = cfg ? cfg->extent : VkExtent2D{ kWindowW, kWindowH };
                 spec.vertexModule   = ctx.vertexModule->shader_module();
                 spec.fragmentModule = ctx.fragmentModule->shader_module();
-                ctx.pipeline = Pipeline::create(vk, ctx.device, spec);
+                ctx.pipeline = Pipeline::create(vk, *ctx.device, spec);
             }
         }
 
@@ -274,7 +260,7 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
         {
             ctx.swapchain = SwapchainStateMachine::create(
                 SwapchainStateBuilders::real(
-                    vk, ctx.device, gpu.device, *surface, ctx.renderPass->render_pass(), sampleCount),
+                    vk, *ctx.device, *surface, ctx.renderPass->render_pass(), sampleCount),
                 kWindowW, kWindowH, sampleCount);
             if (ctx.swapchain)
                 std::printf("[s167_1] SwapchainStateMachine gen0 built: %u images, extent %ux%u, state=%d, msaa=%u\n",
@@ -291,9 +277,9 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
             if (vk.has_command_loader() && ctx.swapchain)
             {
                 ctx.commandPool = CommandPool::create(
-                    vk, ctx.device, ctx.queueFamily, ctx.swapchain->image_count());
+                    vk, *ctx.device, ctx.device->queue_family(), ctx.swapchain->image_count());
                 ctx.frameSync = FrameSync::create(
-                    vk, ctx.device, choose_concurrency(ctx.swapchain->image_count()));
+                    vk, *ctx.device, choose_concurrency(ctx.swapchain->image_count()));
                 if (ctx.commandPool && ctx.frameSync)
                     std::printf("[s166] command pool (%u buffers) + frame sync (%u in-flight frames)\n",
                                 ctx.commandPool->count(), ctx.frameSync->frame_count());
@@ -433,9 +419,9 @@ int main()
     if (vk->has_render_loader() && ctx.device)
     {
         auto rp = vaml::vulkan::RenderPass::create(
-            *vk, ctx.device, VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT);
-        auto vm = vaml::vulkan::ShaderModule::create(*vk, ctx.device, vaml::vulkan::tri_vertex_spirv());
-        auto fm = vaml::vulkan::ShaderModule::create(*vk, ctx.device, vaml::vulkan::tri_fragment_spirv());
+            *vk, *ctx.device, VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT);
+        auto vm = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::tri_vertex_spirv());
+        auto fm = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::tri_fragment_spirv());
         if (rp && vm && fm)
         {
             vaml::vulkan::PipelineSpec spec{};
@@ -446,7 +432,7 @@ int main()
             spec.extent         = VkExtent2D{ 800, 600 };
             spec.vertexModule   = vm->shader_module();
             spec.fragmentModule = fm->shader_module();
-            auto pl = vaml::vulkan::Pipeline::create(*vk, ctx.device, spec);
+            auto pl = vaml::vulkan::Pipeline::create(*vk, *ctx.device, spec);
             if (pl)
                 std::printf("[s165-live] render pass + shader modules + pipeline created on %s (embedded SPIR-V accepted)\n",
                             gpuName.c_str());
@@ -493,7 +479,7 @@ int main()
             {
                 ctx.resizePending = false;
                 if (vkLoad.vkDeviceWaitIdle)
-                    vkLoad.vkDeviceWaitIdle(ctx.device);
+                    vkLoad.vkDeviceWaitIdle(ctx.device->device());
                 if (!recreateSwapchain(vkLoad, ctx))
                     continue;
             }
@@ -504,7 +490,7 @@ int main()
             // Acquire the next swapchain image (waiting imageAvailable[f]).
             std::uint32_t imageIndex = 0;
             VkResult acq = vkLoad.vkAcquireNextImageKHR(
-                ctx.device, ctx.swapchain->handle(), UINT64_MAX,
+                ctx.device->device(), ctx.swapchain->handle(), UINT64_MAX,
                 ctx.frameSync->image_available(f),
                 VK_NULL_HANDLE, &imageIndex);
 
@@ -523,7 +509,7 @@ int main()
             }
             if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(acq))
             {
-                vkLoad.vkDeviceWaitIdle(ctx.device);
+                vkLoad.vkDeviceWaitIdle(ctx.device->device());
                 recreateSwapchain(vkLoad, ctx);
                 continue;
             }
@@ -532,8 +518,8 @@ int main()
 
             // Wait the in-flight fence for this frame's slot, then reset it.
             const VkFence inFlight = ctx.frameSync->in_flight_fence(f);
-            vkLoad.vkWaitForFences(ctx.device, 1, &inFlight, VK_TRUE, UINT64_MAX);
-            vkLoad.vkResetFences(ctx.device, 1, &inFlight);
+            vkLoad.vkWaitForFences(ctx.device->device(), 1, &inFlight, VK_TRUE, UINT64_MAX);
+            vkLoad.vkResetFences(ctx.device->device(), 1, &inFlight);
 
             VkCommandBuffer cmd = ctx.commandPool->command_buffer(f);
             VkFramebuffer fb = ctx.swapchain->framebuffer(imageIndex)->framebuffer();
@@ -562,7 +548,7 @@ int main()
             submit.pCommandBuffers      = &cmd;
             submit.signalSemaphoreCount = 1;
             submit.pSignalSemaphores    = &signalSem;
-            if (vkLoad.vkQueueSubmit(ctx.graphicsQueue, 1, &submit, inFlight) != VK_SUCCESS)
+            if (vkLoad.vkQueueSubmit(ctx.device->graphics_queue(), 1, &submit, inFlight) != VK_SUCCESS)
                 continue;
 
             // Present: waits renderFinished on the swapchain's acquired image.
@@ -575,7 +561,7 @@ int main()
             present.swapchainCount     = 1;
             present.pSwapchains        = &swapchain;
             present.pImageIndices      = &imageIndex;
-            VkResult pres = vkLoad.vkQueuePresentKHR(ctx.graphicsQueue, &present);
+            VkResult pres = vkLoad.vkQueuePresentKHR(ctx.device->graphics_queue(), &present);
 
             // S167_1: an out-of-date/suboptimal present also means run the recreate
             // TRANSACTION at the new size (the S160 on_resize path may have raced the
@@ -590,7 +576,7 @@ int main()
             }
             if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(pres))
             {
-                vkLoad.vkDeviceWaitIdle(ctx.device);
+                vkLoad.vkDeviceWaitIdle(ctx.device->device());
                 recreateSwapchain(vkLoad, ctx);
                 continue;
             }
@@ -602,8 +588,8 @@ int main()
     // Wait for any in-flight submit before destroying the CommandPool/FrameSync so
     // nothing references them during teardown.
     if (ctx.device && vk->vkDeviceWaitIdle)
-        vk->vkDeviceWaitIdle(ctx.device);
+        vk->vkDeviceWaitIdle(ctx.device->device());
 
-    ctx.destroy(*vk);
+    ctx.destroy();
     return 0;
 }

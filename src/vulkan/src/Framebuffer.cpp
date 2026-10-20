@@ -18,13 +18,14 @@ framebuffer_attachment_count(std::uint32_t colorViewCount, bool hasDepth, bool h
 
 std::unique_ptr<Framebuffer>
 Framebuffer::create(const VulkanLoader& loader,
-                    VkDevice device,
+                    const Device& device,
                     VkRenderPass renderPass,
                     VkExtent2D extent,
                     const std::vector<VkImageView>& colorViews,
                     std::optional<VkImageView> depthView)
 {
-    if (!loader.vkCreateFramebuffer || !device || !renderPass)
+    const VkDevice vkDevice = device.device();
+    if (!loader.vkCreateFramebuffer || !vkDevice || !renderPass)
         return nullptr;
     if (colorViews.empty() || extent.width == 0 || extent.height == 0)
         return nullptr;
@@ -49,20 +50,21 @@ Framebuffer::create(const VulkanLoader& loader,
     fci.height          = extent.height;
     fci.layers          = 1;
 
-    if (loader.vkCreateFramebuffer(device, &fci, nullptr, &fb->framebuffer_) != VK_SUCCESS)
+    if (loader.vkCreateFramebuffer(vkDevice, &fci, nullptr, &fb->framebuffer_) != VK_SUCCESS)
         return nullptr;
     return fb;
 }
 
 std::unique_ptr<Framebuffer>
 Framebuffer::create_msaa(const VulkanLoader& loader,
-                         VkDevice device,
+                         const Device& device,
                          VkRenderPass renderPass,
                          VkExtent2D extent,
                          const MsaaTarget& msaa,
                          VkImageView resolveView)
 {
-    if (!loader.vkCreateFramebuffer || !device || !renderPass)
+    const VkDevice vkDevice = device.device();
+    if (!loader.vkCreateFramebuffer || !vkDevice || !renderPass)
         return nullptr;
     if (!msaa.valid() || resolveView == VK_NULL_HANDLE || extent.width == 0 || extent.height == 0)
         return nullptr;
@@ -92,14 +94,14 @@ Framebuffer::create_msaa(const VulkanLoader& loader,
     fci.height          = extent.height;
     fci.layers          = 1;
 
-    if (loader.vkCreateFramebuffer(device, &fci, nullptr, &fb->framebuffer_) != VK_SUCCESS)
+    if (loader.vkCreateFramebuffer(vkDevice, &fci, nullptr, &fb->framebuffer_) != VK_SUCCESS)
         return nullptr;
     return fb;
 }
 
-Framebuffer::Framebuffer(const VulkanLoader& loader, VkDevice device)
+Framebuffer::Framebuffer(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 

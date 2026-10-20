@@ -34,10 +34,11 @@ std::uint32_t choose_concurrency(std::uint32_t imageCount) noexcept
 }
 
 std::unique_ptr<FrameSync>
-FrameSync::create(const VulkanLoader& loader, VkDevice device, std::uint32_t frameCount)
+FrameSync::create(const VulkanLoader& loader, const Device& device, std::uint32_t frameCount)
 {
+    const VkDevice vkDevice = device.device();
     // The S166 sync-loader entry points are required.
-    if (!loader.has_command_loader() || !device || frameCount == 0)
+    if (!loader.has_command_loader() || !vkDevice || frameCount == 0)
         return nullptr;
 
     std::unique_ptr<FrameSync> fs(new FrameSync(loader, device));
@@ -52,19 +53,19 @@ FrameSync::create(const VulkanLoader& loader, VkDevice device, std::uint32_t fra
 
     for (std::uint32_t i = 0; i < frameCount; ++i)
     {
-        if (loader.vkCreateSemaphore(device, &semInfo, nullptr, &fs->imageAvailable_[i]) != VK_SUCCESS)
+        if (loader.vkCreateSemaphore(vkDevice, &semInfo, nullptr, &fs->imageAvailable_[i]) != VK_SUCCESS)
             return nullptr;
-        if (loader.vkCreateSemaphore(device, &semInfo, nullptr, &fs->renderFinished_[i]) != VK_SUCCESS)
+        if (loader.vkCreateSemaphore(vkDevice, &semInfo, nullptr, &fs->renderFinished_[i]) != VK_SUCCESS)
             return nullptr;
-        if (loader.vkCreateFence(device, &fenceInfo, nullptr, &fs->inFlight_[i]) != VK_SUCCESS)
+        if (loader.vkCreateFence(vkDevice, &fenceInfo, nullptr, &fs->inFlight_[i]) != VK_SUCCESS)
             return nullptr;
     }
     return fs;
 }
 
-FrameSync::FrameSync(const VulkanLoader& loader, VkDevice device)
+FrameSync::FrameSync(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 

@@ -33,6 +33,7 @@
 // faithful to "hardcoded MVP". Multi-triangle / real geometry = S200+.
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 
 #include <cstdint>
@@ -72,12 +73,12 @@ class VAML_VULKAN_EXPORT ShaderModule
 {
 public:
     // Creates a shader module from a pre-baked SPIR-V word span (e.g. the
-    // tri_vertex_spirv()/tri_fragment_spirv() pair). Returns nullptr (no throw)
-    // on failure — including when the SPIR-V is rejected by the driver (the S165
-    // live validation path). Mirrors PlatformWindow/VulkanInstance/Swapchain/
-    // RenderPass::create.
+    // tri_vertex_spirv()/tri_fragment_spirv() pair) on `device` (the S169
+    // Device owner). Returns nullptr (no throw) on failure — including when the
+    // SPIR-V is rejected by the driver (the S165 live validation path). Mirrors
+    // PlatformWindow/VulkanInstance/Swapchain/RenderPass::create.
     [[nodiscard]] static std::unique_ptr<ShaderModule>
-    create(const VulkanLoader& loader, VkDevice device, std::span<const std::uint32_t> spirv);
+    create(const VulkanLoader& loader, const Device& device, std::span<const std::uint32_t> spirv);
 
     ~ShaderModule();
     ShaderModule(ShaderModule&&) noexcept;
@@ -89,10 +90,10 @@ public:
     [[nodiscard]] VkShaderModule shader_module() const noexcept { return module_; }
 
 private:
-    ShaderModule(const VulkanLoader& loader, VkDevice device);
+    ShaderModule(const VulkanLoader& loader, const Device& device);
 
     const VulkanLoader* loader_ = nullptr;
-    VkDevice           device_  = VK_NULL_HANDLE;
+    VkDevice           device_  = VK_NULL_HANDLE;  // BORROWED from the Device
     VkShaderModule     module_  = VK_NULL_HANDLE;
 };
 

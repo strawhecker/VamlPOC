@@ -43,6 +43,7 @@
 // then its swapchain (reverse of the build order).
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 #include <vaml/vulkan/VulkanSurface.h>
 #include <vaml/vulkan/Swapchain.h>
@@ -144,12 +145,13 @@ struct VAML_VULKAN_EXPORT SwapchainStateBuilders
     std::function<std::vector<std::unique_ptr<Framebuffer>>(const Swapchain&, const MsaaTarget*)> buildFramebuffers;
 
     // The real builders: Swapchain::create + one Framebuffer per image view
-    // (vs the swapchain's depth view) + MsaaTarget::create. Returns empty/null on
-    // any build failure. `renderPass` must outlive the machine.
+    // (vs the swapchain's depth view) + MsaaTarget::create, all threaded through
+    // the S169 `Device` owner (device + physical device borrowed from it).
+    // Returns empty/null on any build failure. `renderPass` must outlive the
+    // machine.
     static SwapchainStateBuilders
     real(const VulkanLoader& loader,
-         VkDevice device,
-         VkPhysicalDevice physicalDevice,
+         const Device& device,
          const VulkanSurface& surface,
          VkRenderPass renderPass,
          VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT);

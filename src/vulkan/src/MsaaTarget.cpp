@@ -145,14 +145,15 @@ VkImageView build_image_view(const VulkanLoader& loader,
 
 std::unique_ptr<MsaaTarget>
 MsaaTarget::create(const VulkanLoader& loader,
-                   VkDevice device,
-                   VkPhysicalDevice physicalDevice,
+                   const Device& device,
                    VkFormat colorFormat,
                    std::optional<VkFormat> depthFormat,
                    VkExtent2D extent,
                    VkSampleCountFlagBits sampleCount)
 {
-    if (!loader.has_swapchain_loader() || !device)
+    const VkDevice        vkDevice     = device.device();
+    const VkPhysicalDevice physicalDevice = device.physical_device();
+    if (!loader.has_swapchain_loader() || !vkDevice)
         return nullptr;
     if (colorFormat == VK_FORMAT_UNDEFINED || extent.width == 0 || extent.height == 0 ||
         sampleCount == VK_SAMPLE_COUNT_1_BIT)
@@ -161,19 +162,20 @@ MsaaTarget::create(const VulkanLoader& loader,
     }
 
     std::unique_ptr<MsaaTarget> t(new MsaaTarget(loader, device));
+    t->physicalDevice_ = physicalDevice;
     t->depthFormat_  = depthFormat;
     t->sampleCount_  = sampleCount;
     t->extent_       = extent;
 
     // --- Multisampled color image + view + memory ---
     VkDeviceSize colorMemSize = 0;
-    if (!build_sample_image(loader, device, physicalDevice, colorFormat,
+    if (!build_sample_image(loader, vkDevice, physicalDevice, colorFormat,
                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, sampleCount,
                             extent, t->colorImage_, t->colorMemory_, colorMemSize))
     {
         return nullptr;  // dtor no-op (colorImage_ null)
     }
-    t->colorImageView_ = build_image_view(loader, device, t->colorImage_, colorFormat,
+    t->colorImageView_ = build_image_view(loader, vkDevice, t->colorImage_, colorFormat,
                                           VK_IMAGE_ASPECT_COLOR_BIT);
     if (t->colorImageView_ == VK_NULL_HANDLE)
         return nullptr;  // dtor releases color image+memory
@@ -182,13 +184,13 @@ MsaaTarget::create(const VulkanLoader& loader,
     if (depthFormat)
     {
         VkDeviceSize depthMemSize = 0;
-        if (!build_sample_image(loader, device, physicalDevice, *depthFormat,
+        if (!build_sample_image(loader, vkDevice, physicalDevice, *depthFormat,
                                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, sampleCount,
                                 extent, t->depthImage_, t->depthMemory_, depthMemSize))
         {
             return nullptr;  // dtor releases color + frees depth resources if any
         }
-        t->depthImageView_ = build_image_view(loader, device, t->depthImage_, *depthFormat,
+        t->depthImageView_ = build_image_view(loader, vkDevice, t->depthImage_, *depthFormat,
                                               VK_IMAGE_ASPECT_DEPTH_BIT);
         if (t->depthImageView_ == VK_NULL_HANDLE)
             return nullptr;  // dtor releases all
@@ -197,9 +199,9 @@ MsaaTarget::create(const VulkanLoader& loader,
     return t;
 }
 
-MsaaTarget::MsaaTarget(const VulkanLoader& loader, VkDevice device)
+MsaaTarget::MsaaTarget(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 

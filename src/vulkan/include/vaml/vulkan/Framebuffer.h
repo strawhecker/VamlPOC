@@ -26,6 +26,7 @@
 // after a swapchain recreation) = S167; MSAA resolves framebuffers = S168.
 
 #include <vaml/vulkan/Vulkan.h>
+#include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 
 #include <cstdint>
@@ -67,15 +68,16 @@ framebuffer_attachment_count(std::uint32_t colorViewCount, bool hasDepth, bool h
 class VAML_VULKAN_EXPORT Framebuffer
 {
 public:
-    // Creates one VkFramebuffer on `device` for `renderPass`, sized to `extent`,
-    // with the given color image views + an optional depth image view. `attachments`
-    // must be the color views (in swapchain order) followed by the depth view
-    // (in that order — see framebuffer_attachment_count). Returns nullptr (no
-    // throw) on failure, mirroring the other S165 owners. `loader`, `device`,
-    // `renderPass` and the view objects must outlive the returned object.
+    // Creates one VkFramebuffer on `device` (the S169 Device owner) for
+    // `renderPass`, sized to `extent`, with the given color image views + an
+    // optional depth image view. `attachments` must be the color views (in
+    // swapchain order) followed by the depth view (in that order — see
+    // framebuffer_attachment_count). Returns nullptr (no throw) on failure,
+    // mirroring the other S165 owners. `loader`, `device`, `renderPass` and the
+    // view objects must outlive the returned object.
     [[nodiscard]] static std::unique_ptr<Framebuffer>
     create(const VulkanLoader& loader,
-           VkDevice device,
+           const Device& device,
            VkRenderPass renderPass,
            VkExtent2D extent,
            const std::vector<VkImageView>& colorViews,
@@ -91,7 +93,7 @@ public:
     // and `resolveView`'s owner must outlive the returned object.
     [[nodiscard]] static std::unique_ptr<Framebuffer>
     create_msaa(const VulkanLoader& loader,
-                VkDevice device,
+                const Device& device,
                 VkRenderPass renderPass,
                 VkExtent2D extent,
                 const MsaaTarget& msaa,
@@ -108,10 +110,10 @@ public:
     [[nodiscard]] VkExtent2D    extent()       const noexcept { return extent_; }
 
 private:
-    Framebuffer(const VulkanLoader& loader, VkDevice device);
+    Framebuffer(const VulkanLoader& loader, const Device& device);
 
     const VulkanLoader* loader_     = nullptr;
-    VkDevice           device_      = VK_NULL_HANDLE;
+    VkDevice           device_      = VK_NULL_HANDLE;  // BORROWED from the Device
     VkFramebuffer      framebuffer_ = VK_NULL_HANDLE;
     VkExtent2D         extent_{ 0, 0 };
 };

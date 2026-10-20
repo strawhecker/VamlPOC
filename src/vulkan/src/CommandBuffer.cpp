@@ -110,30 +110,31 @@ draw_record_plan() noexcept
 
 std::unique_ptr<CommandPool>
 CommandPool::create(const VulkanLoader& loader,
-                    VkDevice device,
+                    const Device& device,
                     std::uint32_t queueFamily,
                     std::uint32_t imageCount)
 {
+    const VkDevice vkDevice = device.device();
     // The S166 command-loader entry points are required.
-    if (!loader.has_command_loader() || !device || imageCount == 0)
+    if (!loader.has_command_loader() || !vkDevice || imageCount == 0)
         return nullptr;
 
     std::unique_ptr<CommandPool> cp(new CommandPool(loader, device));
 
     const VkCommandPoolCreateInfo poolInfo = describe_command_pool(queueFamily);
-    if (loader.vkCreateCommandPool(device, &poolInfo, nullptr, &cp->pool_) != VK_SUCCESS)
+    if (loader.vkCreateCommandPool(vkDevice, &poolInfo, nullptr, &cp->pool_) != VK_SUCCESS)
         return nullptr;
 
     const VkCommandBufferAllocateInfo allocInfo = describe_command_buffer_alloc(cp->pool_, imageCount);
     cp->commandBuffers_.resize(imageCount);
-    if (loader.vkAllocateCommandBuffers(device, &allocInfo, cp->commandBuffers_.data()) != VK_SUCCESS)
+    if (loader.vkAllocateCommandBuffers(vkDevice, &allocInfo, cp->commandBuffers_.data()) != VK_SUCCESS)
         return nullptr;
     return cp;
 }
 
-CommandPool::CommandPool(const VulkanLoader& loader, VkDevice device)
+CommandPool::CommandPool(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 

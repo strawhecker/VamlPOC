@@ -100,13 +100,14 @@ decide_load_store(bool hasDepth, bool initialLayoutIsUndefined) noexcept
 
 std::unique_ptr<RenderPass>
 RenderPass::create(const VulkanLoader& loader,
-                   VkDevice device,
+                   const Device& device,
                    VkFormat colorFormat,
                    std::optional<VkFormat> depthFormat,
                    VkSampleCountFlagBits sampleCount)
 {
+    const VkDevice vkDevice = device.device();
     // The S165 render-pass entry points are required.
-    if (!loader.has_render_loader() || !device)
+    if (!loader.has_render_loader() || !vkDevice)
         return nullptr;
     if (colorFormat == VK_FORMAT_UNDEFINED)
         return nullptr;
@@ -211,15 +212,15 @@ RenderPass::create(const VulkanLoader& loader,
     rpci.dependencyCount = 1;
     rpci.pDependencies   = &dep;
 
-    if (loader.vkCreateRenderPass(device, &rpci, nullptr, &rp->renderPass_) != VK_SUCCESS)
+    if (loader.vkCreateRenderPass(vkDevice, &rpci, nullptr, &rp->renderPass_) != VK_SUCCESS)
         return nullptr;
 
     return rp;
 }
 
-RenderPass::RenderPass(const VulkanLoader& loader, VkDevice device)
+RenderPass::RenderPass(const VulkanLoader& loader, const Device& device)
     : loader_(&loader)
-    , device_(device)
+    , device_(device.device())
 {
 }
 
