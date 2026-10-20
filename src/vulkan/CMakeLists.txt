@@ -16,6 +16,7 @@ vaml_add_library(vulkan
     src/BestGpuSelection.cpp
     src/Swapchain.cpp
     src/SwapchainState.cpp
+    src/MsaaTarget.cpp
     src/RenderPass.cpp
     src/ShaderModule.cpp
     src/Pipeline.cpp

@@ -41,6 +41,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #ifndef VAML_VULKAN_EXPORT
 #  define VAML_VULKAN_EXPORT
@@ -87,6 +88,33 @@ struct LoadStoreDecision
     VkImageLayout depthFinal   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 };
 
+// The S168 MSAA sample-count candidates, in DESCENDING preference order. S168
+// picks the LARGEST count the physical device supports in BOTH the color and
+// depth attachment sample-count sets (best antialiasing); 1_BIT is the always-
+// valid floor returned when nothing higher is mutually supported. 8/4/2 are the
+// commonly-supported multisampling counts; 1 means "no MSAA" (the S165 path).
+VAML_VULKAN_EXPORT const std::vector<VkSampleCountFlagBits>& sample_count_candidates() noexcept;
+
+// The S168 sample-count NEGOTIATION (pure): given the physical device's
+// supported COLOR and DEPTH sample-count bitmasks (VkPhysicalDeviceProperties
+// .limits.framebufferColorSampleCounts / .framebufferDepthSampleCounts), returns
+// the largest candidate present in BOTH, else VK_SAMPLE_COUNT_1_BIT (always
+// valid — the S165 non-MSAA path). A 0 supported-flag (no samples reported)
+// yields 1_BIT. Pure + headless-testable (the S168 proof surface, RESOLVED for
+// real — NOT MINIMAL REAL).
+VAML_VULKAN_EXPORT VkSampleCountFlagBits
+choose_sample_count(VkSampleCountFlags colorSupported, VkSampleCountFlags depthSupported) noexcept;
+
+// The description of the S168 color RESOLVE attachment — the swapchain color
+// image (1 sample) that the multisampled color attachment resolves into at the
+// end of the subpass. `format` is the swapchain color format. Returns a
+// fully-populated VkAttachmentDescription: 1_BIT samples, LOAD_OP_DONT_CARE
+// (the resolve overwrites it), STORE_OP_STORE (the presented image), final
+// layout PRESENT_SRC_KHR. Used when the pass's sampleCount > 1; the non-MSAA
+// path (1_BIT) has no resolve attachment.
+VAML_VULKAN_EXPORT VkAttachmentDescription
+describe_color_resolve_attachment(VkFormat format) noexcept;
+
 // Derives the pass's load/store layouts: a fresh/first-use swapchain image
 // (initialLayoutIsUndefined) clears; the color attachment always finishes in the
 // present-source layout (so S166's present consumes it) and the depth attachment
@@ -111,6 +139,17 @@ struct RenderPassConfig
     VkAttachmentStoreOp      colorStoreOp   = VK_ATTACHMENT_STORE_OP_STORE;
     VkAttachmentLoadOp       depthLoadOp    = VK_ATTACHMENT_LOAD_OP_CLEAR;
     VkAttachmentStoreOp      depthStoreOp   = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+    // True when the pass is MULTISAMPLED (sampleCount > 1): the render pass
+    // resolves the multisampled color attachment into a 1-sample swapchain
+    // attachment at the end of the subpass (see RenderPass::create + the S168
+    // resolve attachment). False (the S165 default) = a single 1-sample color
+    // attachment with no resolve. Mirrors sampleCount != 1_BIT; kept explicit
+    // so framebuffer/command-buffer consumers branch on one clear signal.
+    [[nodiscard]] bool uses_msaa_resolve() const noexcept
+    {
+        return sampleCount != VK_SAMPLE_COUNT_1_BIT;
+    }
 };
 
 // The real S165 render-pass owner: RAII + move-only. Constructed only via

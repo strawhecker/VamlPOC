@@ -58,11 +58,15 @@ build_render_pass_begin(VkRenderPass renderPass,
                         VkFramebuffer framebuffer,
                         VkExtent2D extent,
                         VkClearValue clearValue,
-                        bool hasDepth) noexcept
+                        bool hasDepth,
+                        bool hasResolve) noexcept
 {
     // clearValues = [colorClear, (depthClear when hasDepth)]. Depth clears to 1.0/0
     // (the far plane — everything authored is closer). The color clear is the one
-    // S166's caller selects (the S165 blue triangle is drawn over it).
+    // S166's caller selects (the S165 blue triangle is drawn over it). The S168
+    // RESOLVE attachment (hasResolve) is DONT_CARE-loaded (the resolve overwrites
+    // it), so it contributes NO clear value — clearValueCount stays 1+hasDepth
+    // regardless of hasResolve (only the optional depth adds a clear).
     //
     // The clear array lives in STATIC (process-lifetime) storage because the returned
     // VkRenderPassBeginInfo exposes pClearValues into it: each call overwrites the
@@ -74,13 +78,16 @@ build_render_pass_begin(VkRenderPass renderPass,
     clears[1] = VkClearValue{};
     clears[1].depthStencil = VkClearDepthStencilValue{ 1.0f, 0 };
 
+    (void)hasResolve;  // the S168 resolve attachment is DONT_CARE-loaded (resolved over),
+                       // so it adds NO clear value — clearValueCount stays 1+hasDepth.
+
     VkRenderPassBeginInfo info{};
     info.sType                    = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     info.renderPass               = renderPass;
     info.framebuffer              = framebuffer;
     info.renderArea.offset        = VkOffset2D{ 0, 0 };
     info.renderArea.extent        = extent;
-    info.clearValueCount          = framebuffer_attachment_count(1, hasDepth);
+    info.clearValueCount          = 1 + (hasDepth ? 1u : 0u);
     info.pClearValues             = clears.data();
     return info;
 }

@@ -77,15 +77,20 @@ describe_clear_value(const float color[4]) noexcept;
 
 // The fully-populated VkRenderPassBeginInfo: the render pass + one framebuffer +
 // the render area = the framebuffer extent at (0,0) + the clear values. Attachment
-// count = framebuffer_attachment_count(1, hasDepth); clearValues = [colorClear,
-// (depth 1.0/0 clears when hasDepth)]. `clearValue` is the color clear (the pass's
-// LOAD_OP_CLEAR uses it verbatim).
+// count = framebuffer_attachment_count(1, hasDepth, hasResolve); clearValues =
+// [colorClear, (depth 1.0/0 clears when hasDepth)]. `clearValue` is the color
+// clear (the pass's LOAD_OP_CLEAR uses it verbatim). `hasResolve` (S168) selects
+// whether the pass is multisampled/resolved — the RESOLVE attachment needs no
+// clear value (the resolve overwrites it), so it is NOT added to clearValues; it
+// only affects the (informational) attachment count. With the default
+// hasResolve=false the behavior is EXACTLY the S166 contract.
 VAML_VULKAN_EXPORT VkRenderPassBeginInfo
 build_render_pass_begin(VkRenderPass renderPass,
                         VkFramebuffer framebuffer,
                         VkExtent2D extent,
                         VkClearValue clearValue,
-                        bool hasDepth) noexcept;
+                        bool hasDepth,
+                        bool hasResolve = false) noexcept;
 
 // ---------------------------------------------------------------------------
 // The draw-loop record DECISION (pure; headless-provable)

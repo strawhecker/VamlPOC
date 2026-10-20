@@ -120,7 +120,8 @@ bool record_draw_frame(const vaml::vulkan::VulkanLoader& vk,
                        VkRenderPass renderPass,
                        VkFramebuffer framebuffer,
                        VkExtent2D extent,
-                       bool hasDepth)
+                       bool hasDepth,
+                       bool hasResolve)
 {
     using namespace vaml::vulkan;
     if (!cmd || !pipeline || !layout || !renderPass || !framebuffer)
@@ -135,7 +136,7 @@ bool record_draw_frame(const vaml::vulkan::VulkanLoader& vk,
     // The S166 fixed ordered record (see draw_record_plan()).
     const auto vs = viewport_scissor(extent);
     VkClearValue clear = describe_clear_value(kClearColor);  // light/gray; blue triangle over it
-    const auto rpBegin = build_render_pass_begin(renderPass, framebuffer, extent, clear, hasDepth);
+    const auto rpBegin = build_render_pass_begin(renderPass, framebuffer, extent, clear, hasDepth, hasResolve);
     vk.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     vk.vkCmdSetViewport(cmd, 0, 1, &vs.viewport);
     vk.vkCmdSetScissor(cmd, 0, 1, &vs.scissor);
@@ -228,15 +229,28 @@ vaml::vulkan::PhysicalDeviceInfo createVulkanCtx(
                     cfg ? cfg->imageCount : 0u,
                     depthFormat.has_value() ? "yes" : "no");
 
-        // --- Render pass + shader modules + graphics pipeline (S165) ---------
+        // --- S168: negotiate the MSAA sample count from the physical device ----
+        // The largest candidate the device supports in BOTH the color and depth
+        // framebuffer sample-count sets; 1_BIT (the non-MSAA path) when nothing
+        // higher is mutually supported.
+        VkPhysicalDeviceProperties props{};
+        if (vk.vkGetPhysicalDeviceProperties)
+            vk.vkGetPhysicalDeviceProperties(gpu.device, &props);
+        const VkSampleCountFlagBits sampleCount = vaml::vulkan::choose_sample_count(
+            props.limits.framebufferColorSampleCounts,
+            props.limits.framebufferDepthSampleCounts);
+        std::printf("[s168] MSAA sampleCount=%u\n", static_cast<unsigned>(sampleCount));
+
+        // --- Render pass + shader modules + graphics pipeline (S165/S168) -----
         // These are size-independent (the render area comes from the extent at record
         // time) so they are built ONCE and SURVIVE every swapchain recreation (S167_1).
         // The render pass is needed by the SwapchainStateMachine's per-image framebuffer
-        // builder.
+        // builder. S168: the render pass + pipeline are built at the negotiated
+        // sampleCount (a multisampled pass resolves into the swapchain image).
         if (vk.has_render_loader())
         {
             ctx.renderPass = vaml::vulkan::RenderPass::create(
-                vk, ctx.device, colorFormat.format, depthFormat, VK_SAMPLE_COUNT_1_BIT);
+                vk, ctx.device, colorFormat.format, depthFormat, sampleCount);
             ctx.vertexModule   = vaml::vulkan::ShaderModule::create(vk, ctx.device, vaml::vulkan::tri_vertex_spirv());
             ctx.fragmentModule = vaml::vulkan::ShaderModule::create(vk, ctx.device, vaml::vulkan::tri_fragment_spirv());
 
@@ -246,7 +260,7 @@ vaml::vulkan::PhysicalDeviceInfo createVulkanCtx(
                 spec.renderPass     = ctx.renderPass->render_pass();
                 spec.colorFormat    = colorFormat.format;
                 spec.hasDepth       = depthFormat.has_value();
-                spec.sampleCount    = VK_SAMPLE_COUNT_1_BIT;
+                spec.sampleCount    = sampleCount;
                 spec.extent         = cfg ? cfg->extent : VkExtent2D{ vamlpoc::kWindowW, vamlpoc::kWindowH };
                 spec.vertexModule   = ctx.vertexModule->shader_module();
                 spec.fragmentModule = ctx.fragmentModule->shader_module();
@@ -258,19 +272,21 @@ vaml::vulkan::PhysicalDeviceInfo createVulkanCtx(
         // Builds Gen 0 (swapchain + image views + depth + per-image framebuffers) and
         // OWNS every presentation-facing handle + the SwapchainState machine. Callers
         // never touch a raw swapchain. The REAL builders use Swapchain::create +
-        // Framebuffer::create (+ the render pass). If the initial generation cannot be
+        // Framebuffer::create (+ the render pass) and, at the S168 negotiated sample
+        // count, build the multisampled target. If the initial generation cannot be
         // built there is no Gen N to fall back to — treat as startup failure, never
         // present a null handle.
         if (ctx.renderPass && ctx.pipeline)
         {
             ctx.swapchain = vaml::vulkan::SwapchainStateMachine::create(
                 vaml::vulkan::SwapchainStateBuilders::real(
-                    vk, ctx.device, gpu.device, *surface, ctx.renderPass->render_pass()),
-                vamlpoc::kWindowW, vamlpoc::kWindowH);
+                    vk, ctx.device, gpu.device, *surface, ctx.renderPass->render_pass(), sampleCount),
+                vamlpoc::kWindowW, vamlpoc::kWindowH, sampleCount);
             if (ctx.swapchain)
-                std::printf("[s167_1] SwapchainStateMachine gen0 built: %u images, extent %ux%u, state=%d\n",
+                std::printf("[s167_1] SwapchainStateMachine gen0 built: %u images, extent %ux%u, state=%d, msaa=%u\n",
                             ctx.swapchain->image_count(), ctx.swapchain->extent().width,
-                            ctx.swapchain->extent().height, static_cast<int>(ctx.swapchain->state()));
+                            ctx.swapchain->extent().height, static_cast<int>(ctx.swapchain->state()),
+                            static_cast<unsigned>(ctx.swapchain->sample_count()));
             else
                 std::fprintf(stderr, "[s167_1] SwapchainStateMachine::create failed\n");
 
@@ -489,7 +505,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
                                             ctx.pipeline->pipeline_layout(),
                                             ctx.renderPass->render_pass(), fb,
                                             ctx.swapchain->extent(),
-                                            ctx.swapchain->depth_format().has_value()))
+                                            ctx.swapchain->depth_format().has_value(),
+                                            ctx.renderPass->config().uses_msaa_resolve()))
             {
                 continue;
             }

@@ -50,6 +50,16 @@ tri_vertex_input_state() noexcept
     return info;
 }
 
+VkPipelineMultisampleStateCreateInfo
+describe_multisample_state(VkSampleCountFlagBits sampleCount) noexcept
+{
+    VkPipelineMultisampleStateCreateInfo ms{};
+    ms.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = sampleCount;  // S168: honor the pass's sample count (S165 was 1)
+    ms.sampleShadingEnable  = VK_FALSE;     // no per-sample shading (edge AA only)
+    return ms;
+}
+
 Mat4
 tri_mvp(std::uint32_t width, std::uint32_t height) noexcept
 {
@@ -121,13 +131,8 @@ Pipeline::create(const VulkanLoader& loader, VkDevice device, const PipelineSpec
         r.lineWidth               = 1.0f;
         return r;
     }();
-    const VkPipelineMultisampleStateCreateInfo multisampling = [] {
-        VkPipelineMultisampleStateCreateInfo ms{};
-        ms.sType                = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;  // MSAA > 1 = S168
-        ms.sampleShadingEnable  = VK_FALSE;
-        return ms;
-    }();
+    const VkPipelineMultisampleStateCreateInfo multisampling =
+        describe_multisample_state(spec.sampleCount);  // S168: match the pass's sample count
     const VkPipelineDepthStencilStateCreateInfo depthStencil = [&] {
         VkPipelineDepthStencilStateCreateInfo ds{};
         ds.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;

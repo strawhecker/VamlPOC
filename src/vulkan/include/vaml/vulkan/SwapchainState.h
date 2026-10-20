@@ -46,6 +46,7 @@
 #include <vaml/vulkan/VulkanLoader.h>
 #include <vaml/vulkan/VulkanSurface.h>
 #include <vaml/vulkan/Swapchain.h>
+#include <vaml/vulkan/MsaaTarget.h>
 #include <vaml/vulkan/Framebuffer.h>
 
 #include <cstdint>
@@ -130,17 +131,28 @@ VAML_VULKAN_EXPORT FeedbackKind feedback_for_state(SwapchainState state) noexcep
 struct VAML_VULKAN_EXPORT SwapchainStateBuilders
 {
     std::function<std::unique_ptr<Swapchain>(std::uint32_t w, std::uint32_t h)> buildSwapchain;
-    std::function<std::vector<std::unique_ptr<Framebuffer>>(const Swapchain&)> buildFramebuffers;
+    // S168: builds the multisampled render target (msaa color + optional msaa
+    // depth at the given size/sampleCount). Returns nullptr on failure (the
+    // stillborn generation teardown path) — a failed build is a stillborn
+    // generation. This is the S176 mock-ICD seam for the physically-failing
+    // MSAA-image/depth build + DEVICE_LOST scenarios (recorded, not silent) —
+    // tests REPLACE it with scripted fakes.
+    std::function<std::unique_ptr<MsaaTarget>(const Swapchain&, VkSampleCountFlagBits)> buildMsaa;
+    // Builds the per-image framebuffers for a swapchain. `msaaTarget` is the
+    // S168 multisampled target of the same generation (null for the non-MSAA
+    // path). Returns empty on any build failure (the stillborn teardown path).
+    std::function<std::vector<std::unique_ptr<Framebuffer>>(const Swapchain&, const MsaaTarget*)> buildFramebuffers;
 
     // The real builders: Swapchain::create + one Framebuffer per image view
-    // (vs the swapchain's depth view). Returns empty/null on any build failure.
-    // `renderPass` must outlive the machine.
+    // (vs the swapchain's depth view) + MsaaTarget::create. Returns empty/null on
+    // any build failure. `renderPass` must outlive the machine.
     static SwapchainStateBuilders
     real(const VulkanLoader& loader,
          VkDevice device,
          VkPhysicalDevice physicalDevice,
          const VulkanSurface& surface,
-         VkRenderPass renderPass);
+         VkRenderPass renderPass,
+         VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT);
 };
 
 // ---------------------------------------------------------------------------
@@ -164,10 +176,13 @@ public:
     // to fall back to; the engine should treat it as Fatal-equivalent at startup
     // rather than present a null handle). `loader`/the device/`surface`/`renderPass`
     // must outlive the returned object.
+    // `sampleCount` is the S168 MSAA sample count for the multisampled target
+    // (1_BIT = the non-MSAA S165 path, no resolve/msaa images are built).
     [[nodiscard]] static std::unique_ptr<SwapchainStateMachine>
     create(SwapchainStateBuilders builders,
            std::uint32_t framebufferWidth,
-           std::uint32_t framebufferHeight);
+           std::uint32_t framebufferHeight,
+           VkSampleCountFlagBits sampleCount = VK_SAMPLE_COUNT_1_BIT);
 
     ~SwapchainStateMachine();
     SwapchainStateMachine(SwapchainStateMachine&&) noexcept;
@@ -215,17 +230,29 @@ public:
     {
         return (i < framebuffersN_.size()) ? framebuffersN_[i].get() : nullptr;
     }
+    // The S168 multisampled render target of the live generation (null for the
+    // non-MSAA S165 path / 1_BIT). Owned alongside the framebuffers; generation-scoped.
+    [[nodiscard]] const MsaaTarget*       msaa_target() const noexcept { return msaaN_.get(); }
+    [[nodiscard]] VkSampleCountFlagBits   sample_count() const noexcept { return sampleCount_; }
 
 private:
-    SwapchainStateMachine(SwapchainStateBuilders builders);
+    SwapchainStateMachine(SwapchainStateBuilders builders, VkSampleCountFlagBits sampleCount);
 
-    // Members are declared so that destruction runs in REVERSE build order: the
-    // per-image framebuffers (declared LAST, destroyed FIRST) before the swapchain
-    // generation (declared FIRST, destroyed second), matching teardown-order-reverse
-    // and leaving no reference to the swapchain's image views alive in a framebuffer.
+    // S168: the sample count + the multisampled target of the live generation.
+    VkSampleCountFlagBits sampleCount_ = VK_SAMPLE_COUNT_1_BIT;
+
+    // Members are declared SO THAT destruction runs in REVERSE build order
+    // (teardown-order-reverse). C++ destroys in REVERSE declaration order, so the
+    // ORDER below is: [trivial state] -> genN_ -> msaaN_ -> framebuffersN_, giving
+    // a DESTRUCTION order of framebuffersN_ (first) -> msaaN_ -> genN_ -> state.
+    // A per-image framebuffer references BOTH the swapchain's image views and (on
+    // the S168 MSAA path) the msaa target's views, so the framebuffers must be
+    // destroyed before both; msaaN_ before genN_ so the target's images are freed
+    // before the swapchain. See the LIFETIMES comment in the header.
     SwapchainStateBuilders builders_;
     SwapchainState         state_ = SwapchainState::Fatal;  // set by create()
     std::unique_ptr<Swapchain>                                  genN_;
+    std::unique_ptr<MsaaTarget>                                 msaaN_;
     std::vector<std::unique_ptr<Framebuffer>>                   framebuffersN_;
 };
 

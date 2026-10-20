@@ -107,6 +107,16 @@ tri_vertex_input_state() noexcept;
 VAML_VULKAN_EXPORT Mat4
 tri_mvp(std::uint32_t width, std::uint32_t height) noexcept;
 
+// The S168 multisample-state decision: the VkPipelineMultisampleStateCreateInfo
+// for `sampleCount`. The pipeline's rasterizationSamples MUST equal the render
+// pass's sample count (a mismatched pipeline/render-pass sample count is a
+// validation error). S165's pipeline hardcoded 1_BIT; S168 replaces that with
+// `spec.sampleCount` so a multisampled (MSAA) pass renders correctly. sampleShading
+// stays disabled (S168 requests no per-sample shading — pure multi-sampled
+// rasterization/edge AA). Pure + headless-testable.
+VAML_VULKAN_EXPORT VkPipelineMultisampleStateCreateInfo
+describe_multisample_state(VkSampleCountFlagBits sampleCount) noexcept;
+
 // ---------------------------------------------------------------------------
 // Real graphics pipeline owner (RAII; also owns its pipeline layout)
 // ---------------------------------------------------------------------------

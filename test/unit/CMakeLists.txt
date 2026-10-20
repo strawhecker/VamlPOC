@@ -128,6 +128,7 @@ add_executable(vaml-vulkan-tests
     SwapchainGeneration_test.cpp
     Pipeline_test.cpp
     CommandSync_test.cpp
+    Msaa_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

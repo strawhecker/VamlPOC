@@ -40,17 +40,22 @@
 
 namespace vaml::vulkan {
 
+class MsaaTarget;  // S168 — the multisampled target; see MsaaTarget.h
+
 // ---------------------------------------------------------------------------
 // PURE helper (headless-testable)
 // ---------------------------------------------------------------------------
 
 // The framebuffer attachment-layout contract: the attachments for a single
-// framebuffer are [ colorImageViews... , optionalDepthImageView ] laid
-// sequentially. Returns the attachment count = colorViewCount +
-// (hasDepth ? 1 : 0). Exposed so the attachment array builder + tests agree
-// (kept trivial + explicit, not a hidden backfill).
+// framebuffer are [ colorImageViews... , resolveImageView? , optionalDepthImageView ]
+// laid sequentially. Returns the attachment count = colorViewCount +
+// (hasResolve ? 1 : 0) + (hasDepth ? 1 : 0). `hasResolve` (S168) is true when
+// the pass is multisampled and the framebuffer carries the 1-sample resolve
+// (swapchain) image view alongside the multisampled color. With the default
+// hasResolve=false the behavior is EXACTLY the S165 contract (colorViewCount +
+// hasDepth), so S165/Framebuffer tests are byte-unchanged.
 VAML_VULKAN_EXPORT std::uint32_t
-framebuffer_attachment_count(std::uint32_t colorViewCount, bool hasDepth) noexcept;
+framebuffer_attachment_count(std::uint32_t colorViewCount, bool hasDepth, bool hasResolve = false) noexcept;
 
 // ---------------------------------------------------------------------------
 // Real framebuffer owner (RAII)
@@ -75,6 +80,22 @@ public:
            VkExtent2D extent,
            const std::vector<VkImageView>& colorViews,
            std::optional<VkImageView> depthView = std::nullopt);
+
+    // S168 — creates a MULTISAMPLED framebuffer for a resolved (MSAA) render
+    // pass: attachments = [ msaa->color_view(), resolveView, msaa->depth_view? ].
+    // `msaa` is the S168 multisampled target (yields the msaa color + optional
+    // msaa depth views); `resolveView` is the 1-sample swapchain image view the
+    // pass resolves into. The attachment count follows
+    // framebuffer_attachment_count(1, hasDepth, hasResolve=true). Returns
+    // nullptr (no throw) on failure. `loader`, `device`, `renderPass`, `msaa`
+    // and `resolveView`'s owner must outlive the returned object.
+    [[nodiscard]] static std::unique_ptr<Framebuffer>
+    create_msaa(const VulkanLoader& loader,
+                VkDevice device,
+                VkRenderPass renderPass,
+                VkExtent2D extent,
+                const MsaaTarget& msaa,
+                VkImageView resolveView);
 
     ~Framebuffer();
     Framebuffer(Framebuffer&&) noexcept;
