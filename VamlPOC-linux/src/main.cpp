@@ -25,6 +25,7 @@
 #include <vaml/vulkan/VulkanInstance.h>
 #include <vaml/vulkan/VulkanSurface.h>
 #include <vaml/vulkan/Swapchain.h>
+#include <vaml/vulkan/SwapchainState.h>
 #include <vaml/vulkan/RenderPass.h>
 #include <vaml/vulkan/ShaderModule.h>
 #include <vaml/vulkan/Pipeline.h>
@@ -65,31 +66,38 @@ struct VulkanCtx
     int                                          framebufferW  = 0;
     int                                          framebufferH  = 0;
     bool                                         resizePending = false;
-    std::unique_ptr<vaml::vulkan::Swapchain>     swapchain;   // destroyed before device
+    // S167_1: the presentation-facing owner (two-generation atomic swapchain +
+    // image views + depth + per-image framebuffers + SwapchainState). Destroyed
+    // before the device. The app NEVER owns a raw swapchain / framebuffer here.
+    std::unique_ptr<vaml::vulkan::SwapchainStateMachine> swapchain;
     // S165 render resources (constructed after the swapchain, destroyed before it).
     std::unique_ptr<vaml::vulkan::RenderPass>    renderPass;
     std::unique_ptr<vaml::vulkan::ShaderModule>  vertexModule;
     std::unique_ptr<vaml::vulkan::ShaderModule>  fragmentModule;
     std::unique_ptr<vaml::vulkan::Pipeline>      pipeline;
-    std::vector<std::unique_ptr<vaml::vulkan::Framebuffer>> framebuffers;
     // S166 draw-loop resources (constructed after the framebuffers, destroyed before
     // the device — after the last submit + a device wait so nothing is in flight).
+    // The per-image framebuffers are OWNED BY the SwapchainStateMachine (S167_1),
+    // so they are no longer a VulkanCtx member here.
     std::unique_ptr<vaml::vulkan::CommandPool>   commandPool;
     std::unique_ptr<vaml::vulkan::FrameSync>     frameSync;
 
     void destroy(const vaml::vulkan::VulkanLoader& vk)
     {
-        // Destroy order: FrameSync -> CommandPool -> framebuffers -> pipeline ->
-        // shader modules -> render pass -> swapchain -> device. The draw loop must be
-        // idle before these — destroy() is called after the loop's device-wait.
+        // Destroy order: FrameSync -> CommandPool -> pipeline -> shader modules ->
+        // swapchain(s) -> render pass -> device. The draw loop must be idle before
+        // these — destroy() is called after the loop's device-wait. The
+        // SwapchainStateMachine's dtor destroys its per-image framebuffers FIRST
+        // (they reference the render pass + the swapchain's image views), then its
+        // swapchain — so the machine must be destroyed BEFORE the render pass, and
+        // before the device (teardown-order-reverse).
         frameSync.reset();
         commandPool.reset();
-        framebuffers.clear();
         pipeline.reset();
         vertexModule.reset();
         fragmentModule.reset();
+        swapchain.reset();  // framebuffers -> swapchain (reverse build order)
         renderPass.reset();
-        swapchain.reset();  // swapchain -> its image views -> its depth -> swapchain
         if (device)
             vk.vkDestroyDevice(device, nullptr);
         device        = VK_NULL_HANDLE;
@@ -200,42 +208,33 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
 
     vk.vkGetDeviceQueue(ctx.device, ctx.queueFamily, 0, &ctx.graphicsQueue);
 
-    // --- Swapchain + image views + depth (S164) -----------------------------
+    // --- Swapchain + image views + depth + per-image framebuffers (S164/S165/S167_1)
     // Consumes the surface + the S163 device + the S164 loader entries. The
     // framebuffer size comes from the window; the S164 decision seams negotiate
     // the format/BPP/present-mode/extent/depth.
     if (surface && vk.has_swapchain_loader())
     {
         const auto cfg = Swapchain::negotiate(vk, gpu.device, *surface, kWindowW, kWindowH);
+        const VkSurfaceFormatKHR colorFormat = cfg ? cfg->surfaceFormat
+                                                   : VkSurfaceFormatKHR{ VK_FORMAT_B8G8R8A8_SRGB,
+                                                                        VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+        const std::optional<VkFormat> depthFormat = cfg ? cfg->depthFormat : std::nullopt;
         std::printf("[swapchain] negotiated BPP=%u present=%d extent=%ux%u count=%u depth=%s\n",
                     cfg ? cfg->surface_bytes_per_pixel() : 0u,
                     cfg ? static_cast<int>(cfg->presentMode) : -1,
                     cfg ? cfg->extent.width : 0u,
                     cfg ? cfg->extent.height : 0u,
                     cfg ? cfg->imageCount : 0u,
-                    (cfg && cfg->depthFormat) ? "yes" : "no");
+                    depthFormat.has_value() ? "yes" : "no");
 
-        ctx.swapchain = Swapchain::create(vk, ctx.device, gpu.device, *surface, kWindowW, kWindowH);
-        if (!ctx.swapchain)
-            std::fprintf(stderr, "[swapchain] Swapchain::create failed\n");
-        else
-            std::printf("[swapchain] created: %u images, format %s, %u BPP, present %d, extent %ux%u\n",
-                        ctx.swapchain->image_count(),
-                        ctx.swapchain->color_format() == VK_FORMAT_B8G8R8A8_SRGB ? "B8G8R8A8_SRGB" : "other",
-                        ctx.swapchain->bytes_per_pixel(),
-                        static_cast<int>(ctx.swapchain->present_mode()),
-                        ctx.swapchain->extent().width,
-                        ctx.swapchain->extent().height);
-
-        // --- Render pass + shader modules + graphics pipeline + framebuffers (S165)
-        // Consumes the swapchain's color/depth formats + extent + image views.
-        // No command buffer / no present yet — that is S166.
+        // --- Render pass + shader modules + graphics pipeline (S165) ---------
+        // These are size-independent (the render area comes from the extent at record
+        // time) so they are built ONCE and SURVIVE every swapchain recreation (S167_1).
+        // The render pass is needed by the SwapchainStateMachine's per-image framebuffer
+        // builder.
         if (vk.has_render_loader())
         {
-            const auto colorFormat = ctx.swapchain->color_format();
-            const auto depthFormat = ctx.swapchain->depth_format();
-
-            ctx.renderPass = RenderPass::create(vk, ctx.device, colorFormat, depthFormat, VK_SAMPLE_COUNT_1_BIT);
+            ctx.renderPass = RenderPass::create(vk, ctx.device, colorFormat.format, depthFormat, VK_SAMPLE_COUNT_1_BIT);
             ctx.vertexModule   = ShaderModule::create(vk, ctx.device, tri_vertex_spirv());
             ctx.fragmentModule = ShaderModule::create(vk, ctx.device, tri_fragment_spirv());
 
@@ -243,100 +242,95 @@ PhysicalDeviceInfo createVulkanCtx(const vaml::vulkan::VulkanLoader& vk,
             {
                 PipelineSpec spec{};
                 spec.renderPass     = ctx.renderPass->render_pass();
-                spec.colorFormat    = colorFormat;
+                spec.colorFormat    = colorFormat.format;
                 spec.hasDepth       = depthFormat.has_value();
                 spec.sampleCount    = VK_SAMPLE_COUNT_1_BIT;
-                spec.extent         = ctx.swapchain->extent();
+                spec.extent         = cfg ? cfg->extent : VkExtent2D{ kWindowW, kWindowH };
                 spec.vertexModule   = ctx.vertexModule->shader_module();
                 spec.fragmentModule = ctx.fragmentModule->shader_module();
                 ctx.pipeline = Pipeline::create(vk, ctx.device, spec);
-
-                if (ctx.pipeline)
-                {
-                    for (VkImageView view : ctx.swapchain->image_views())
-                    {
-                        ctx.framebuffers.push_back(Framebuffer::create(
-                            vk, ctx.device, ctx.renderPass->render_pass(),
-                            ctx.swapchain->extent(),
-                            std::vector<VkImageView>{ view },
-                            ctx.swapchain->depth_image_view() ? std::optional<VkImageView>(ctx.swapchain->depth_image_view())
-                                                              : std::nullopt));
-                    }
-                    std::printf("[s165] render pass + pipeline + %zu framebuffer(s): color %s, depth %s, %ux%u\n",
-                                ctx.framebuffers.size(),
-                                colorFormat == VK_FORMAT_B8G8R8A8_SRGB ? "B8G8R8A8_SRGB" : "other",
-                                depthFormat.has_value() ? "yes" : "no",
-                                ctx.swapchain->extent().width, ctx.swapchain->extent().height);
-
-                    // --- Command pool (one buffer per swapchain image) + FrameSync
-                    // (in-flight semaphores + fences) — S166. Consumes the S166 loader
-                    // entries + the graphics queue family.
-                    if (vk.has_command_loader())
-                    {
-                        ctx.commandPool = CommandPool::create(
-                            vk, ctx.device, ctx.queueFamily, ctx.swapchain->image_count());
-                        ctx.frameSync = FrameSync::create(
-                            vk, ctx.device, choose_concurrency(ctx.swapchain->image_count()));
-                        if (ctx.commandPool && ctx.frameSync)
-                            std::printf("[s166] command pool (%u buffers) + frame sync (%u in-flight frames)\n",
-                                        ctx.commandPool->count(), ctx.frameSync->frame_count());
-                        else
-                            std::fprintf(stderr, "[s166] CommandPool/FrameSync::create failed\n");
-                    }
-                }
-                else
-                {
-                    std::fprintf(stderr, "[s165] Pipeline::create failed (invalid SPIR-V or state?)\n");
-                }
             }
+        }
+
+        // --- SwapchainStateMachine: the S167_1 two-generation atomic owner ----
+        // Builds Gen 0 (swapchain + image views + depth + per-image framebuffers) and
+        // OWNS every presentation-facing handle + the SwapchainState machine. Callers
+        // never touch a raw swapchain. The REAL builders use Swapchain::create +
+        // Framebuffer::create (+ the render pass). If the initial generation cannot be
+        // built there is no Gen N to fall back to — treat as startup failure, never
+        // present a null handle.
+        if (ctx.renderPass && ctx.pipeline)
+        {
+            ctx.swapchain = SwapchainStateMachine::create(
+                SwapchainStateBuilders::real(
+                    vk, ctx.device, gpu.device, *surface, ctx.renderPass->render_pass()),
+                kWindowW, kWindowH);
+            if (ctx.swapchain)
+                std::printf("[s167_1] SwapchainStateMachine gen0 built: %u images, extent %ux%u, state=%d\n",
+                            ctx.swapchain->image_count(), ctx.swapchain->extent().width,
+                            ctx.swapchain->extent().height, static_cast<int>(ctx.swapchain->state()));
             else
+                std::fprintf(stderr, "[s167_1] SwapchainStateMachine::create failed\n");
+
+            // --- Command pool (one buffer per swapchain image) + FrameSync ----
+            // These are FRAME-SLOT-indexed (independent of image count) so they survive
+            // every swapchain recreation unchanged (S167_1 — the machine does NOT touch
+            // them). S166.
+            if (vk.has_command_loader() && ctx.swapchain)
             {
-                std::fprintf(stderr, "[s165] RenderPass/ShaderModule::create failed\n");
+                ctx.commandPool = CommandPool::create(
+                    vk, ctx.device, ctx.queueFamily, ctx.swapchain->image_count());
+                ctx.frameSync = FrameSync::create(
+                    vk, ctx.device, choose_concurrency(ctx.swapchain->image_count()));
+                if (ctx.commandPool && ctx.frameSync)
+                    std::printf("[s166] command pool (%u buffers) + frame sync (%u in-flight frames)\n",
+                                ctx.commandPool->count(), ctx.frameSync->frame_count());
+                else
+                    std::fprintf(stderr, "[s166] CommandPool/FrameSync::create failed\n");
             }
         }
     }
     return gpu;
 }
 
-// S167 — rebuild the swapchain + dependent framebuffers at a new framebuffer
+// S167_1 — rebuild the swapchain + dependent framebuffers at a new framebuffer
 // size (called from the draw loop on a resize/out-of-date signal). Assumes the
 // caller has already vkDeviceWaitIdle'd the device (the draw loop does). The
 // command pool + frame sync are FRAME-SLOT-indexed (independent of image count)
-// so they survive the recreation unchanged; only the swapchain (image views)
-// and the per-image framebuffers are rebuilt. IDENTICAL in both apps.
+// so they survive the recreation unchanged; the pipeline + render pass are size-
+// independent so they survive too. IDENTICAL in both apps.
 //
-// Returns false on failure (the draw loop treats a failed recreate as a skip,
-// not a crash). The pipeline + render pass are size-independent (the render area
-// comes from the current extent at record time) so they are UNAFFECTED by a
-// resize (recorded NO-GAP).
+// S167_1 (the corrective to S167): this is now a TRANSACTIONAL change. The
+// SwapchainStateMachine builds Gen N+1 (swapchain + image views + depth + per-image
+// framebuffers) into FRESH temporaries and COMMITS only on full success; on ANY
+// failure only the stillborn N+1 is destroyed and Gen N stays live + presentable
+// (machine lands Retryable). The old destroy-then-create Swapchain::recreate is
+// GONE. Returns true if the machine is Ready to draw (a fresh Gen N+1 or Gen N
+// still live); false if the rebuild failed (Retryable) — the loop keeps drawing
+// Gen N under the stale-ghost frost and retries next time.
 bool recreateSwapchain(const vaml::vulkan::VulkanLoader& vk, VulkanCtx& ctx)
 {
     using namespace vaml::vulkan;
+    (void)vk;  // S167_1: the machine owns the swapchain+framebuffer build (framebuffers
+               // moved inside it); the loader is no longer needed here for a manual rebuild.
     if (!ctx.swapchain)
         return false;
     const std::uint32_t w = ctx.framebufferW > 0 ? static_cast<std::uint32_t>(ctx.framebufferW) : 1u;
     const std::uint32_t h = ctx.framebufferH > 0 ? static_cast<std::uint32_t>(ctx.framebufferH) : 1u;
 
-    if (!ctx.swapchain->recreate(w, h))
+    // Zero/minimized extent -> park into Suspended (nothing to present until a
+    // resize re-drives). The machine's prepare_recreate handles this internally.
+    if (!ctx.swapchain->prepare_recreate(w, h))
     {
-        std::fprintf(stderr, "[s167] swapchain recreate failed at %ux%u\n", w, h);
-        return false;
+        if (ctx.swapchain->state() == SwapchainState::Retryable)
+            std::fprintf(stderr, "[s167_1] Gen N+1 rebuild failed at %ux%u -> Retryable (Gen N still live)\n", w, h);
+        // Suspended -> quiet park; Fatal -> the feedback already surfaces it.
+        return ctx.swapchain->state() == SwapchainState::Ready;
     }
-
-    // Rebuild the per-image framebuffers against the NEW image views/extent.
-    ctx.framebuffers.clear();
-    for (VkImageView view : ctx.swapchain->image_views())
-    {
-        ctx.framebuffers.push_back(Framebuffer::create(
-            vk, ctx.device, ctx.renderPass->render_pass(),
-            ctx.swapchain->extent(),
-            std::vector<VkImageView>{ view },
-            ctx.swapchain->depth_image_view() ? std::optional<VkImageView>(ctx.swapchain->depth_image_view())
-                                              : std::nullopt));
-    }
-    std::printf("[s167] swapchain + %zu framebuffer(s) recreated at %ux%u\n",
-                ctx.framebuffers.size(), ctx.swapchain->extent().width, ctx.swapchain->extent().height);
-    return !ctx.framebuffers.empty();
+    std::printf("[s167_1] transactional recreate COMMITTED: %u images, extent %ux%u, state=%d\n",
+                ctx.swapchain->image_count(), ctx.swapchain->extent().width,
+                ctx.swapchain->extent().height, static_cast<int>(ctx.swapchain->state()));
+    return true;
 }
 
 } // namespace
@@ -468,14 +462,21 @@ int main()
         if (glfwGetKey(glfwWindow, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             window->request_close();
 
+        // S167_1: the loop is CHANGE-DRIVEN + asks state() every iteration. Draw
+        // ONLY when the machine is Ready (Gen N valid + presentable). Suspended parks
+        // (zero/minimized extent — nothing to present); Retryable keeps drawing Gen N
+        // (under the stale-ghost frost) until a rebuild commits; Fatal stops (the
+        // app owns recovery). The per-image framebuffers live INSIDE the machine.
         if (ctx.swapchain && ctx.commandPool && ctx.frameSync && ctx.pipeline &&
-            !ctx.framebuffers.empty() && vk->has_command_loader())
+            vk->has_command_loader() &&
+            ctx.swapchain->state() == vaml::vulkan::SwapchainState::Ready)
         {
             const auto& vkLoad = *vk;
 
-            // S167 — quiesce + recreate the swapchain before acquiring when a
-            // resize is pending (the S160 on_resize hook flagged one), so the
-            // new frame targets a fresh swapchain, never stale image views.
+            // S167_1 — when a resize is pending, run the two-generation atomic
+            // recreate TRANSACTION (quiesce first, then prepare_recreate). The
+            // machine lands Ready (commit) or Retryable/Suspended (Gen N still
+            // live); Retryable/Suspended skip this frame but keep the loop alive.
             if (ctx.resizePending)
             {
                 ctx.resizePending = false;
@@ -491,13 +492,23 @@ int main()
             // Acquire the next swapchain image (waiting imageAvailable[f]).
             std::uint32_t imageIndex = 0;
             VkResult acq = vkLoad.vkAcquireNextImageKHR(
-                ctx.device, ctx.swapchain->swapchain(), UINT64_MAX,
+                ctx.device, ctx.swapchain->handle(), UINT64_MAX,
                 ctx.frameSync->image_available(f),
                 VK_NULL_HANDLE, &imageIndex);
 
-            // S167: an out-of-date/suboptimal acquire means the swapchain no
-            // longer matches the surface — quiesce + recreate, then retry next
-            // iteration. Any other non-success is a transient skip, not a recreate.
+            // S167_1: follow the state machine. An out-of-date/suboptimal acquire
+            // means the swapchain no longer matches the surface — quiesce + run the
+            // recreate TRANSACTION, then retry next iteration. DEVICE/SURFACE_LOST
+            // escalates the machine to Fatal (engine stops + OnPresentationLost; the
+            // app decides recovery) — never draw from an invalid generation.
+            if (vk->vkDeviceWaitIdle &&
+                vaml::vulkan::next_state(
+                    ctx.swapchain->state(), acq, vaml::vulkan::should_suspend_extent(ctx.swapchain->extent()))
+                == vaml::vulkan::SwapchainState::Fatal)
+            {
+                ctx.swapchain->mark_fatal();
+                continue;
+            }
             if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(acq))
             {
                 vkLoad.vkDeviceWaitIdle(ctx.device);
@@ -513,7 +524,7 @@ int main()
             vkLoad.vkResetFences(ctx.device, 1, &inFlight);
 
             VkCommandBuffer cmd = ctx.commandPool->command_buffer(f);
-            VkFramebuffer fb = ctx.framebuffers[imageIndex]->framebuffer();
+            VkFramebuffer fb = ctx.swapchain->framebuffer(imageIndex)->framebuffer();
 
             if (!record_draw_frame(vkLoad, cmd, ctx.pipeline->pipeline(),
                                    ctx.pipeline->pipeline_layout(),
@@ -542,7 +553,7 @@ int main()
                 continue;
 
             // Present: waits renderFinished on the swapchain's acquired image.
-            VkSwapchainKHR swapchain = ctx.swapchain->swapchain();
+            VkSwapchainKHR swapchain = ctx.swapchain->handle();
             VkSemaphore renderDone = ctx.frameSync->render_finished(f);
             VkPresentInfoKHR present{};
             present.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -553,8 +564,17 @@ int main()
             present.pImageIndices      = &imageIndex;
             VkResult pres = vkLoad.vkQueuePresentKHR(ctx.graphicsQueue, &present);
 
-            // S167: an out-of-date/suboptimal present also means recreate at the
-            // new size (the S160 on_resize path may have raced the present).
+            // S167_1: an out-of-date/suboptimal present also means run the recreate
+            // TRANSACTION at the new size (the S160 on_resize path may have raced the
+            // present). DEVICE/SURFACE_LOST escalates to Fatal (engine stops).
+            if (vk->vkDeviceWaitIdle &&
+                vaml::vulkan::next_state(
+                    ctx.swapchain->state(), pres, vaml::vulkan::should_suspend_extent(ctx.swapchain->extent()))
+                == vaml::vulkan::SwapchainState::Fatal)
+            {
+                ctx.swapchain->mark_fatal();
+                continue;
+            }
             if (vk->vkDeviceWaitIdle && vaml::vulkan::should_recreate_swapchain(pres))
             {
                 vkLoad.vkDeviceWaitIdle(ctx.device);

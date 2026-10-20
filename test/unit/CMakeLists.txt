@@ -125,6 +125,7 @@ add_executable(vaml-vulkan-tests
     BestGpu_test.cpp
     Swapchain_test.cpp
     ResizeRecreate_test.cpp
+    SwapchainGeneration_test.cpp
     Pipeline_test.cpp
     CommandSync_test.cpp
 )

@@ -277,40 +277,14 @@ Swapchain::create(const VulkanLoader& loader,
     return sw;
 }
 
-bool Swapchain::recreate(std::uint32_t newWidth,
-                         std::uint32_t newHeight,
-                         std::optional<SwapchainConfig> configOpt)
-{
-    // S167 recreate. The caller MUST have vkDeviceWaitIdle'd the device first
-    // (documented in the header) so no in-flight frame references the old
-    // swapchain/image views. Re-negotiate at the new size unless an explicit
-    // config was supplied.
-    SwapchainConfig cfg;
-    if (configOpt)
-    {
-        cfg = *configOpt;
-        cfg.extent.width  = newWidth;
-        cfg.extent.height = newHeight;
-    }
-    else
-    {
-        if (physicalDevice_ == VK_NULL_HANDLE || surface_ == nullptr)
-            return false;
-        auto negotiated = negotiate(*loader_, physicalDevice_, *surface_, newWidth, newHeight);
-        if (!negotiated)
-            return false;
-        cfg = std::move(*negotiated);
-    }
-
-    if (cfg.surfaceFormat.format == VK_FORMAT_UNDEFINED || cfg.imageCount == 0)
-        return false;
-
-    return rebuild(cfg);
-}
-
 // Private shared (re)builder: destroys any existing members in reverse order
 // (depth -> image views -> swapchain), then builds a fresh swapchain + image
-// views + depth from `cfg`. Used by create() and recreate().
+// views + depth from `cfg`. Used by create().
+//
+// S167_1 (the corrective to S167) SUPERSEDES the destructive-path resize: the
+// two-generation atomic model in SwapchainState.h builds Gen N+1 into fresh
+// temporaries and commits only on success — this rebuild() is retained solely
+// for the INITIAL create() (where there is no prior generation to preserve).
 bool Swapchain::rebuild(const SwapchainConfig& cfg)
 {
     // Tear down the previous generation first (reverse order): depth ->

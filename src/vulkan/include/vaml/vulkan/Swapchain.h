@@ -35,9 +35,12 @@
 //
 // NO-GAP recorded (not silent): vkAcquireNextImageKHR/vkQueuePresentKHR belong
 // to the S166 draw loop; S165's render pass/framebuffers consume this
-// Swapchain's image views; resize-safe swapchain recreation = S167 (reuses
-// choose_extent/negotiate_image_count); MSAA depth = S168; VMA allocator
-// construction = S202 (depth uses raw device memory here).
+// Swapchain's image views; MSAA depth = S168; VMA allocator construction = S202
+// (depth uses raw device memory here). RESIZE: S167 delivered destroy-then-create
+// Swapchain::recreate(w,h); S167_1 SUPERSEDES that mechanism with the two-generation
+// atomic `SwapchainStateMachine` (see SwapchainState.h) — the destructive recreate()
+// is REMOVED from this owner (the state builds Gen N+1 into fresh temporaries and
+// commits atomically; S167's history entry stays intact as what first shipped).
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -203,26 +206,6 @@ public:
     [[nodiscard]] VkDeviceMemory          depth_memory()   const noexcept { return depthMemory_; }
 
     [[nodiscard]] const SwapchainConfig& config() const noexcept { return config_; }
-
-    // Resize-safe recreation (S167): renegotiates a NEW config at `newWidth` x
-    // `newHeight` (or reuses the previous config's format/present-mode when
-    // `configOpt` is supplied), destroys the OLD swapchain image views -> depth
-    // image/view/memory -> swapchain in reverse order, then builds a fresh
-    // swapchain + image views + depth at the new size. Returns true on success.
-    //
-    // CONTRACT: the caller MUST have quiesced the device (vkDeviceWaitIdle) and
-    // drained all in-flight frames BEFORE calling — no submitted work may
-    // reference the old swapchain/image views (that is exactly the "no
-    // validation errors on resize" guarantee). Callers own that wait (the POCs
-    // do it in the draw loop). On failure the swapchain is left with no valid
-    // swapchain/image-views and returns false (retry/fatal is the caller's call).
-    //
-    // After a successful recreate the caller must REBUILD any objects bound to
-    // the old image views/extent (the app-owned Framebuffers) — the library
-    // exposes the primitive; the app owns its dependent render targets.
-    bool recreate(std::uint32_t newWidth,
-                  std::uint32_t newHeight,
-                  std::optional<SwapchainConfig> configOpt = std::nullopt);
 
 private:
     Swapchain(const VulkanLoader& loader, VkDevice device);
