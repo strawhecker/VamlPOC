@@ -142,6 +142,33 @@ VulkanLoader::VulkanLoader()
     vkQueuePresentKHR                         = reinterpret_cast<PFN_vkQueuePresentKHR>(resolve("vkQueuePresentKHR"));
     vkQueueWaitIdle                           = reinterpret_cast<PFN_vkQueueWaitIdle>(resolve("vkQueueWaitIdle"));
     vkDeviceWaitIdle                          = reinterpret_cast<PFN_vkDeviceWaitIdle>(resolve("vkDeviceWaitIdle"));
+
+    // ---- S200 vertex/index-buffer + sampler + descriptor + copy entry points ----
+    // The recorded S162..S166 "expanded by later sprints" continuation (S200 quad
+    // renderer): buffer + memory + indexed-draw + sampler + descriptor + copy
+    // entries. has_quad_loader()/has_texture_loader() gate the S200 surfaces.
+    vkCreateBuffer                           = reinterpret_cast<PFN_vkCreateBuffer>(resolve("vkCreateBuffer"));
+    vkDestroyBuffer                          = reinterpret_cast<PFN_vkDestroyBuffer>(resolve("vkDestroyBuffer"));
+    vkGetBufferMemoryRequirements            = reinterpret_cast<PFN_vkGetBufferMemoryRequirements>(resolve("vkGetBufferMemoryRequirements"));
+    vkBindBufferMemory                       = reinterpret_cast<PFN_vkBindBufferMemory>(resolve("vkBindBufferMemory"));
+    vkMapMemory                              = reinterpret_cast<PFN_vkMapMemory>(resolve("vkMapMemory"));
+    vkUnmapMemory                            = reinterpret_cast<PFN_vkUnmapMemory>(resolve("vkUnmapMemory"));
+    vkFlushMappedMemoryRanges                = reinterpret_cast<PFN_vkFlushMappedMemoryRanges>(resolve("vkFlushMappedMemoryRanges"));
+    vkCmdBindVertexBuffers                   = reinterpret_cast<PFN_vkCmdBindVertexBuffers>(resolve("vkCmdBindVertexBuffers"));
+    vkCmdBindIndexBuffer                     = reinterpret_cast<PFN_vkCmdBindIndexBuffer>(resolve("vkCmdBindIndexBuffer"));
+    vkCmdDrawIndexed                         = reinterpret_cast<PFN_vkCmdDrawIndexed>(resolve("vkCmdDrawIndexed"));
+    vkCmdBindDescriptorSets                  = reinterpret_cast<PFN_vkCmdBindDescriptorSets>(resolve("vkCmdBindDescriptorSets"));
+    vkCreateSampler                          = reinterpret_cast<PFN_vkCreateSampler>(resolve("vkCreateSampler"));
+    vkDestroySampler                         = reinterpret_cast<PFN_vkDestroySampler>(resolve("vkDestroySampler"));
+    vkCreateDescriptorSetLayout              = reinterpret_cast<PFN_vkCreateDescriptorSetLayout>(resolve("vkCreateDescriptorSetLayout"));
+    vkDestroyDescriptorSetLayout             = reinterpret_cast<PFN_vkDestroyDescriptorSetLayout>(resolve("vkDestroyDescriptorSetLayout"));
+    vkAllocateDescriptorSets                 = reinterpret_cast<PFN_vkAllocateDescriptorSets>(resolve("vkAllocateDescriptorSets"));
+    vkUpdateDescriptorSets                   = reinterpret_cast<PFN_vkUpdateDescriptorSets>(resolve("vkUpdateDescriptorSets"));
+    vkCreateDescriptorPool                   = reinterpret_cast<PFN_vkCreateDescriptorPool>(resolve("vkCreateDescriptorPool"));
+    vkDestroyDescriptorPool                  = reinterpret_cast<PFN_vkDestroyDescriptorPool>(resolve("vkDestroyDescriptorPool"));
+    vkCmdPipelineBarrier                     = reinterpret_cast<PFN_vkCmdPipelineBarrier>(resolve("vkCmdPipelineBarrier"));
+    vkCmdCopyBuffer                          = reinterpret_cast<PFN_vkCmdCopyBuffer>(resolve("vkCmdCopyBuffer"));
+    vkCmdCopyBufferToImage                   = reinterpret_cast<PFN_vkCmdCopyBufferToImage>(resolve("vkCmdCopyBufferToImage"));
 }
 
 VulkanLoader::VulkanLoader(VulkanLoader&&) noexcept = default;

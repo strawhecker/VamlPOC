@@ -34,6 +34,9 @@
 #include <vaml/vulkan/CommandBuffer.h>
 #include <vaml/vulkan/FrameSync.h>
 #include <vaml/vulkan/gpu/BestGpuSelection.h>
+#include <vaml/vulkan/quad/QuadPipeline.h>
+#include <vaml/vulkan/quad/QuadTexture.h>
+#include <vaml/vulkan/quad/QuadScene.h>
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
@@ -445,7 +448,50 @@ int main()
         }
     }
 
-    // --- S175 change-driven loop (the framework owns it) ------------------------
+    // --- S200/S201 live quad proof (device-only; no surface required) -----------
+    // Like the S165 device-only proof + the S165-live block above, the QUAD surface
+    // (QuadPipeline + QuadTexture) only needs a DEVICE, so it proves live here even
+    // without a surface: the critical S200 risk is that the EMBEDDED QUAD SPIR-V
+    // (quad_vertex / quad_fragment) is accepted by a real driver (vkCreateShaderModule)
+    // + a real quad pipeline create (alpha blend + SRGB color format + the 80-byte
+    // QuadUniform push constant) + a real device-local texture create (the minimal
+    // staging → device-local copy). The surface-dependent N-quad frame is the
+    // display-backed manual step ([both apps, not CI]).
+    if (vk->has_render_loader() && vk->has_quad_loader() && vk->has_texture_loader() && ctx.device)
+    {
+        using namespace vaml::vulkan;
+        using namespace vaml::vulkan::quad;
+        auto qrp = vaml::vulkan::RenderPass::create(
+            *vk, *ctx.device, VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT);
+        auto qvm = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, quad_vertex_spirv());
+        auto qfm = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, quad_fragment_spirv());
+        if (qrp && qvm && qfm)
+        {
+            vaml::vulkan::quad::QuadPipelineSpec qspec{};
+            qspec.renderPass     = qrp->render_pass();
+            qspec.colorFormat    = VK_FORMAT_B8G8R8A8_SRGB;  // the S200 SRGB pairing
+            qspec.hasDepth       = true;
+            qspec.sampleCount    = VK_SAMPLE_COUNT_1_BIT;
+            qspec.extent         = VkExtent2D{ 800, 600 };
+            qspec.vertexModule   = qvm->shader_module();
+            qspec.fragmentModule = qfm->shader_module();
+            auto qpl = vaml::vulkan::quad::QuadPipeline::create(*vk, *ctx.device, qspec);
+            auto qtex = vaml::vulkan::quad::QuadTexture::create_procedural(*vk, *ctx.device, 8, 8, 2);
+            if (qpl && qtex)
+                std::printf("[s200-live] quad pipeline (alpha blend + SRGB + 80B uniform) "
+                            "+ device-local texture created on %s (embedded quad SPIR-V accepted)\n",
+                            gpuName.c_str());
+            else
+                std::fprintf(stderr, "[s200-live] QuadPipeline/QuadTexture::create failed on %s\n",
+                             gpuName.c_str());
+        }
+        else
+        {
+            std::fprintf(stderr, "[s200-live] Quad RenderPass/ShaderModule::create failed (quad SPIR-V rejected?)\n");
+        }
+    }
+
+    // --- S175 change-driven loop (the framework owns it) ---------------------------------------------
     // The app NEVER touches the swapchain/command pool/frame sync/acquire/present.
     // It just DECLARES: an invalidation flag (a resize is a dest-rect change -> the
     // composition engine recomputes the viewport/scissor -> ZERO object churn; the

@@ -35,6 +35,9 @@
 #include <vaml/vulkan/CommandBuffer.h>
 #include <vaml/vulkan/FrameSync.h>
 #include <vaml/vulkan/gpu/BestGpuSelection.h>
+#include <vaml/vulkan/quad/QuadPipeline.h>
+#include <vaml/vulkan/quad/QuadTexture.h>
+#include <vaml/vulkan/quad/QuadScene.h>
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a

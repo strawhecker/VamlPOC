@@ -24,6 +24,10 @@ vaml_add_library(vulkan
     src/Framebuffer.cpp
     src/CommandBuffer.cpp
     src/FrameSync.cpp
+    src/quad/QuadVertex.cpp
+    src/quad/QuadPipeline.cpp
+    src/quad/QuadTexture.cpp
+    src/quad/QuadScene.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

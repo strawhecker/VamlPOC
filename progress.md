@@ -26,9 +26,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S179 (dep:S178) — Sprint 4C (three-lane testing harness, codification) SURVIVOR + checkpoint advance to S200 (Sprint 5, docs-only closure)
-- Next step to do     : S200 (dep:S172) — Sprint 5 — Quad renderer: vertex/index buffers, textured quads, uniform MVP/UI scale, alpha blend, SRGB
-- PENDING work        : none (S179 fully complete; both CI lanes green from S176 + the S177 local WSI gate green from first principles this session)
+- Last completed step : S201 (dep:S200) — Sprint 5 — Draw N quads from CPU list each frame; blend + SRGB tests
+- Next step to do     : S202 (dep:S201) — Sprint 5 — Texture atlas + image upload (staging → device-local); sub-region invalidation
+- PENDING work        : none (S200 + S201 fully complete, both CI lanes green from first principles; the Sprint 5 surviving state is in the `## SPRINT 5 — SURVIVOR` block below)
   **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap Ã¢â‚¬â€ DOCS-ONLY (no build, per the
   S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
   principles). (1) RELOCATE: Sprint 3.5 (S140Ã¢â‚¬â€œS147) is consolidated into the `## SPRINT 3.5 Ã¢â‚¬â€ SURVIVOR`
@@ -1715,6 +1715,55 @@ superseded by S142 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the pimpl is removed, 
 ## SPRINT 4 — SURVIVOR
 - [x] S160..S172 — Sprint 4 (Vulkan window + swapchain + first pixels) SURVIVOR + checkpoint advance to S200 - DONE
   SURVIVOR: (dep chain S147→S160→S161→S162→S163→S164→S165→S166→S167→S167_1→S168→S169→S170→S171→S172; Sprint 4 wrap; docs-only closure over the S170/S171 green lanes; ADR-018 reaffirmed: ZERO new locks across S160–S172 — every S4 owner is move-only RAII, teardown is single-threaded, the only kept lock remains the standing S037/S041 ChangeQueue mutex). SPRINT 4 delivered the single-thread Vulkan proof: platform window via GLFW (S160, Win32+X11 callbacks + resize/input dispatch seams); Vulkan/VMA linkage + the S003 vulkan MINIMAL REAL marker RESOLVED (S161 — real version symbol kept + extended, sentinel removed); runtime loader + instance + surface + queue-family selection + debug-only validation layers (S162); best-GPU auto-selection + VAML_PREFERRED_GPU override (S163); swapchain + image views + depth + format/present negotiation (S164); render pass + embedded single-triangle SPIR-V shaders + graphics pipeline + framebuffers + the hardcoded tri_mvp (S165); command buffers + semaphores/fences + the main-thread acquire/record/submit/present draw loop (S166); S167 + the S167_1 CORRECTIVE: the two-generation ATOMIC swapchain-recreation transaction + the SwapchainState machine (Ready/Suspended/Retryable/Fatal) + change-driven/retained loop + stale-ghost feedback + replaceable SwapchainStateBuilders seam (the future S176 mock-ICD injection point); MSAA sample-count negotiation + the resolve/multisample seams + the MsaaTarget owner (S168); the RAII consolidation — the Cat 1 Device owner (device.cpp = the SINGLE house of the raw VkDevice/VkQueue) + every wrapper re-pointed to borrow const Device& (S169); destruction-order-CLEAN close: TeardownOrder_test proving every owner move-only + non-trivial-dtor + the SwapchainStateMachine generation members destroy in REVERSE build order, + the ASan no-leak lane (verify_s170_asan.cmd: msvc-asan zero ASan errors + clang-asan zero LSan leaks — the S4 heap owns no retain-forever pools so LSan is genuinely clean) (S170); the REFACTOR GATE (S171): triangle renders (S165/S166 live + device-only llvmpipe proof), no validation errors (debug-gated S162 + the two-gen resize S167_1), resize-safe (S167_1), RAII clean (S170) — both CI lanes re-verified from first principles, grep-audit clean (no raw vk* outside device.cpp, no STUB/TODO scaffold, no dead surface, MINIMAL REAL sentinels intact). LIVE render + resize + close remain [both apps, not CI] on a display-backed host per the standing S160+ precedent. NO-GAP: the grow-only SKIA/GTK-less OOD-first framing carries to S173+ (composition framework) + the three-lane harness S176 (mock-ICD) / S177 (hidden-window resize + validation gate) / S178 (programmer acceptance) + docs/testing.md maturation (S179); the quad renderer + real MVP/UI scale + vertex buffers = S200 (Sprint 5). MINIMAL REAL accounting: vulkan RESOLVED at S161; carry-forward active marks — tools→S287, built-in element seeds (Button→S401, Text→S400, TextBox→S402, CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440), VamlReader event hooks→S322, UIElement transform-owner→S208. No new repo md created (directive honored). Roadmap S160..S172 [DONE]; checkpoint regenerated: last = S172, next = S200. No build at the wrap (S170/S171 green), no commits.
+
+## SPRINT 5 — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S200 & S201, the Vulkan UI renderer)
+- **Goal met (S200 + S201): the Vulkan quad renderer + the N-quad scene encoder are real, green on both CI lanes.
+  A VAML-declared UI can now be drawn as N textured, alpha-blended quads through a real quad pipeline with a real
+  uniform-MVP/UI-scale projection + SRGB color — the first "more than the triangle" render surface.** Sprint 5
+  (dep:S172) delivered the `vaml::vulkan::quad` Cat 1 module: the quad segment of S200/S201 is complete; the live
+  presented N-quad FRAME is [both apps, not CI] on a display-backed host (the standing S160+ precedent), with the
+  device-only live proof already green on the headless VM.
+- **S200 (dep:S172) — quad renderer delivered (real public symbols, none MINIMAL REAL / none STUB):** the S200
+  LOADER EXPANSION (VulkanLoader binds vkCreateBuffer/vkDestroyBuffer/vkGetBufferMemoryRequirements/
+  vkBindBufferMemory/vkMapMemory/vkUnmapMemory/vkFlushMappedMemoryRanges; vkCmdBindVertexBuffers/vkCmdBindIndexBuffer/
+  vkCmdDrawIndexed; vkCmdBindDescriptorSets + vkCreateSampler/vkDestroySampler + descriptor-set-layout/pool/
+  allocate/update; vkCmdPipelineBarrier/vkCmdCopyBuffer/vkCmdCopyBufferToImage; new gates has_quad_loader() +
+  has_texture_loader()). `vaml::vulkan::quad::QuadVertex` {x,y,u,v,r,g,b,a} (logical px + straight-alpha) + the pure
+  mesh seams (quad_vertex_count=4, quad_index_count=6, quad_indices=[0,1,2,0,2,3], unit_quad_positions, append_quad).
+  `QuadPipeline` + pure seams: QuadBlendMode {None,Alpha} + quad_blend_state (the straight-alpha
+  SRC_ALPHA/ONE_MINUS_SRC_ALPHA blend), quad_vertex_input_state (QuadVertex stride 32 + 3 attributes), the 80-byte
+  `QuadUniform { Mat4 mvp; float uiScale; pad[3] }` push constant (the KEPT-AND-EXTENDED resolution of S165's 64-byte
+  tri_mvp), ui_projection(width,height,uiScale) (the S200 UI-scale orthographic MVP), the S200-local combined-image-
+  sampler (quad_sampler/quad_set_layout_binding/quad_descriptor_write), is_srgb_format + quad_format_bytes (the S200
+  SRGB pairing: the quad pipeline color attachment IS the swapchain B8G8R8A8_SRGB, so linear output sRGB-encodes on
+  present). RAII `QuadPipeline::create` REQUIRES an SRGB colorFormat. `QuadTexture` + create_procedural_checker (the
+  minimal device-local texture: S164 image/memory/view + S200 buffer/copy entries, a TRANSFER_DST → SHADER_READ_ONLY
+  barrier + one-shot submit+wait). The EMBEDDED quad shader pair (quad_vertex_spirv/quad_fragment_spirv) compiled +
+  spirv-val + spirv-opt --strip-debug on the Linux VM (the S165 precedent).
+- **S201 (dep:S200) — draw N quads from CPU list + blend/SRGB tests delivered:** `vaml::vulkan::quad::QuadScene`
+  (the N-quad CPU-list → vertex/index buffers + indexed-draw encoder): scene_vertex_count(n)=4N / scene_index_count(n)=6N,
+  `QuadItem` + append_scene_item, `SceneRecordStep` + scene_record_plan (BindPipeline→SetViewport→SetScissor→
+  BindDescriptorSet→PushQuadUniform→BindIndexBuffer→DrawIndexed); QuadScene::create builds HOST-visible vertex+index
+  buffers + the S200-local descriptor pool + the scene descriptor set; set_quads(vertices,n) maps both buffers + writes
+  the per-quad index pattern; record_draw binds pipeline + pushes QuadUniform + vkCmdDrawIndexed(6N,1,0,0,0). The
+  "blend + SRGB tests" headline is delivered headlessly in QuadScene_test.cpp (per-quad QuadBlendMode; the SRGB pairing
+  + BPP; N-quad counts + the per-quad index window).
+- **NO-GAP recorded (not silent):** S202 owns the general staging→device-local upload + the texture ATLAS + sub-region
+  invalidation (S200's QuadTexture is the ONE minimal textured path); S205 owns the shared descriptor layout + real UI
+  shaders (S200's descriptor is the isolated kept+extended S200-local seam); S207/S208/S209 own the scene→command-buffer
+  encoder + per-element Model + GPU batching/retained (S201 keeps the CPU-list-per-frame Sprint-5 single-thread model);
+  S212 consumes this as the first real vertical slice. S200/S201 add ZERO new locks (ADR-018). No MINIMAL REAL
+  introduced/resolved (the quad:: surface is real + permanent; S165's tri_mvp/vertex-input are kept+extended here).
+- **MINIMAL REAL carried forward RESOLVED/unresolved:** NONE resolved in Sprint 5. Active marks unchanged: vulkan →
+  RESOLVED at S161; tools → S287; built-in element seeds Button→S401/Text→S400/TextBox→S402/CheckBox→S404/Slider→S403/
+  ScrollViewer→S405/Window→S440; VamlReader event hooks→S322; UIElement transform-owner→S208. All carry searchable
+  sentinels; NO-GAP intact.
+- **Build lanes both green (from first principles):** windows-msvc (build/verify_s200.cmd + build/verify_s201.cmd,
+  msvc-debug: configure clean + build warning-as-error CLEAN + ctest 3/3 PASS + BOTH POCs build clean) + ubuntu-clang
+  (/mnt/hgfs/VamlPOC clang-debug: configure clean + build warning-clean [only the pre-existing upstream <ciso646>
+  doctest deprecation, non-error] + ctest 3/3 PASS; the Linux POC S200 device-only live proof builds clean).
+  windows-clang-debug is NOT a lane (not built/tested/flagged).
+- **Next = S202** (Sprint 5 — texture atlas + image upload (staging → device-local); sub-region invalidation).
 
 ## SPRINT 4C — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S176..S179, closed at S179)
 - [x] S176..S179 — Sprint 4C (three-lane testing harness, codification) SURVIVOR + checkpoint advance to S200 - DONE

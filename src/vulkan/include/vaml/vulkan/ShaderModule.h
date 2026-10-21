@@ -66,6 +66,18 @@ VAML_VULKAN_EXPORT std::span<const float> tri_vertex_positions() noexcept;
 // The hardcoded per-vertex color the fragment shader outputs (r, g, b, a).
 VAML_VULKAN_EXPORT std::span<const float> tri_fragment_color() noexcept;
 
+// ---- S200 embedded QUAD shader pair (the textured-quad shaders) ----
+// The S200 quad vertex + fragment shaders as pre-baked SPIR-V words (S205 owns
+// the real in-repo glslc pipeline + the SDF/solid/border UI shaders; S200 embeds
+// this one textured-quad pair so "textured quads" is real — the NO-GAP record at
+// S200, not a backfill). The vertex shader reads the S200 80-byte QuadUniform
+// push constant (mvp + uiScale) + the S200 vertex input (pos/uv/color); the
+// fragment samples the S200-local combined-image-sampler descriptor (set 0,
+// binding 0) and multiplies by the straight-alpha vertex color (the S200 alpha
+// blend + SRGB path). See quad_vertex_spirv()/quad_fragment_spirv() below.
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> quad_vertex_spirv() noexcept;
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> quad_fragment_spirv() noexcept;
+
 // The REAL S165 shader-module owner: RAII + move-only wrapping a single
 // vkCreateShaderModule result. Constructed only via create(); destroys the
 // shader module on destruction. `loader` and `device` must outlive it.

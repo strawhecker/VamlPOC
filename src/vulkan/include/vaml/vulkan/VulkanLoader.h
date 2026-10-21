@@ -186,6 +186,60 @@ public:
                vkQueuePresentKHR != nullptr;
     }
 
+    // ---- S200 vertex/index-buffer + sampler + descriptor + copy entry points ----
+    // The recorded S162..S166 "expanded by later sprints" continuation: S200 is
+    // the first sprint to build VERTEX/INDEX BUFFERS (quad geometry), a SAMPLER
+    // + a combined image sampler descriptor set (the S200-local minimal textured
+    // quad), an INDEXED DRAW (vkCmdDrawIndexed — N quads = 6N indices), and a
+    // CPU→GPU copy (staging the quad mesh + the procedural texture). These were
+    // deliberately left unbound by the S166 draw loop (which used vkCmdDraw(3)
+    // with no buffer); S200 binds them here. vkGetDeviceProcAddr remains the
+    // general seam later sprints extend. has_quad_loader() gates the S200 vertex/
+    // index/draw surface; has_texture_loader() gates the S200 sampler/descriptor/
+    // copy/pipeline-barrier surface.
+    // --- vertex/index buffers + memory ---
+    PFN_vkCreateBuffer                 vkCreateBuffer                 = nullptr;
+    PFN_vkDestroyBuffer                vkDestroyBuffer                = nullptr;
+    PFN_vkGetBufferMemoryRequirements  vkGetBufferMemoryRequirements  = nullptr;
+    PFN_vkBindBufferMemory             vkBindBufferMemory             = nullptr;
+    PFN_vkMapMemory                    vkMapMemory                    = nullptr;
+    PFN_vkUnmapMemory                  vkUnmapMemory                  = nullptr;
+    PFN_vkFlushMappedMemoryRanges      vkFlushMappedMemoryRanges      = nullptr;
+    // --- indexed quad draw + descriptor binding ---
+    PFN_vkCmdBindVertexBuffers         vkCmdBindVertexBuffers         = nullptr;
+    PFN_vkCmdBindIndexBuffer           vkCmdBindIndexBuffer           = nullptr;
+    PFN_vkCmdDrawIndexed               vkCmdDrawIndexed               = nullptr;
+    PFN_vkCmdBindDescriptorSets        vkCmdBindDescriptorSets        = nullptr;
+    // --- sampler + descriptor set (the S200-local combined image sampler) ---
+    PFN_vkCreateSampler                vkCreateSampler                = nullptr;
+    PFN_vkDestroySampler               vkDestroySampler               = nullptr;
+    PFN_vkCreateDescriptorSetLayout    vkCreateDescriptorSetLayout    = nullptr;
+    PFN_vkDestroyDescriptorSetLayout   vkDestroyDescriptorSetLayout   = nullptr;
+    PFN_vkAllocateDescriptorSets       vkAllocateDescriptorSets       = nullptr;
+    PFN_vkUpdateDescriptorSets         vkUpdateDescriptorSets         = nullptr;
+    PFN_vkCreateDescriptorPool         vkCreateDescriptorPool         = nullptr;
+    PFN_vkDestroyDescriptorPool        vkDestroyDescriptorPool        = nullptr;
+    // --- CPU→GPU copy (staging the quad mesh + the procedural texture) ---
+    PFN_vkCmdPipelineBarrier           vkCmdPipelineBarrier           = nullptr;
+    PFN_vkCmdCopyBuffer                vkCmdCopyBuffer                = nullptr;
+    PFN_vkCmdCopyBufferToImage         vkCmdCopyBufferToImage         = nullptr;
+
+    // True iff the S200 vertex/index-buffer + indexed-draw entry points are bound.
+    [[nodiscard]] bool has_quad_loader() const noexcept
+    {
+        return vkCreateBuffer != nullptr && vkGetBufferMemoryRequirements != nullptr &&
+               vkBindBufferMemory != nullptr && vkCmdBindVertexBuffers != nullptr &&
+               vkCmdBindIndexBuffer != nullptr && vkCmdDrawIndexed != nullptr;
+    }
+
+    // True iff the S200 sampler/descriptor/copy/pipeline-barrier entry points are bound.
+    [[nodiscard]] bool has_texture_loader() const noexcept
+    {
+        return vkCreateSampler != nullptr && vkCreateDescriptorPool != nullptr &&
+               vkCreateDescriptorSetLayout != nullptr && vkCmdCopyBuffer != nullptr &&
+               vkCmdPipelineBarrier != nullptr;
+    }
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

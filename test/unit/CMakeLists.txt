@@ -132,6 +132,8 @@ add_executable(vaml-vulkan-tests
     Msaa_test.cpp
     Device_test.cpp
     TeardownOrder_test.cpp
+    Quad_test.cpp
+    QuadScene_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)
