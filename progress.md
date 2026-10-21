@@ -26,9 +26,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S202 (dep:S201) — Sprint 5 — Texture atlas + image upload (staging → device-local); sub-region invalidation
-- Next step to do     : S202_1 (dep:S202) — Sprint 5 — Icon asset pipeline (single quad engine; PNG+SVG rasterized once into the atlas)
-- PENDING work        : none (S200 + S201 + S202 fully complete, both CI lanes green from first principles; the Sprint 5 surviving state is in the `## SPRINT 5 — SURVIVOR` block below)
+- Last completed step : S202_1 (dep:S202) — Sprint 5 — Icon asset pipeline (single quad engine; PNG+SVG rasterized once into the atlas; output tagged with its texel count for S213_1 best-fit)
+- Next step to do     : S203 (dep:S202) — Sprint 5 — Embedded bitmap-font loader + ASCII 32–126 glyph atlas build
+- PENDING work        : none (S200 + S201 + S202 + S202_1 fully complete, both CI lanes green from first principles; the Sprint 5 surviving state is in the `## SPRINT 5 — SURVIVOR` block below)
   **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap Ã¢â‚¬â€ DOCS-ONLY (no build, per the
   S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
   principles). (1) RELOCATE: Sprint 3.5 (S140Ã¢â‚¬â€œS147) is consolidated into the `## SPRINT 3.5 Ã¢â‚¬â€ SURVIVOR`
@@ -1716,13 +1716,14 @@ superseded by S142 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the pimpl is removed, 
 - [x] S160..S172 — Sprint 4 (Vulkan window + swapchain + first pixels) SURVIVOR + checkpoint advance to S200 - DONE
   SURVIVOR: (dep chain S147→S160→S161→S162→S163→S164→S165→S166→S167→S167_1→S168→S169→S170→S171→S172; Sprint 4 wrap; docs-only closure over the S170/S171 green lanes; ADR-018 reaffirmed: ZERO new locks across S160–S172 — every S4 owner is move-only RAII, teardown is single-threaded, the only kept lock remains the standing S037/S041 ChangeQueue mutex). SPRINT 4 delivered the single-thread Vulkan proof: platform window via GLFW (S160, Win32+X11 callbacks + resize/input dispatch seams); Vulkan/VMA linkage + the S003 vulkan MINIMAL REAL marker RESOLVED (S161 — real version symbol kept + extended, sentinel removed); runtime loader + instance + surface + queue-family selection + debug-only validation layers (S162); best-GPU auto-selection + VAML_PREFERRED_GPU override (S163); swapchain + image views + depth + format/present negotiation (S164); render pass + embedded single-triangle SPIR-V shaders + graphics pipeline + framebuffers + the hardcoded tri_mvp (S165); command buffers + semaphores/fences + the main-thread acquire/record/submit/present draw loop (S166); S167 + the S167_1 CORRECTIVE: the two-generation ATOMIC swapchain-recreation transaction + the SwapchainState machine (Ready/Suspended/Retryable/Fatal) + change-driven/retained loop + stale-ghost feedback + replaceable SwapchainStateBuilders seam (the future S176 mock-ICD injection point); MSAA sample-count negotiation + the resolve/multisample seams + the MsaaTarget owner (S168); the RAII consolidation — the Cat 1 Device owner (device.cpp = the SINGLE house of the raw VkDevice/VkQueue) + every wrapper re-pointed to borrow const Device& (S169); destruction-order-CLEAN close: TeardownOrder_test proving every owner move-only + non-trivial-dtor + the SwapchainStateMachine generation members destroy in REVERSE build order, + the ASan no-leak lane (verify_s170_asan.cmd: msvc-asan zero ASan errors + clang-asan zero LSan leaks — the S4 heap owns no retain-forever pools so LSan is genuinely clean) (S170); the REFACTOR GATE (S171): triangle renders (S165/S166 live + device-only llvmpipe proof), no validation errors (debug-gated S162 + the two-gen resize S167_1), resize-safe (S167_1), RAII clean (S170) — both CI lanes re-verified from first principles, grep-audit clean (no raw vk* outside device.cpp, no STUB/TODO scaffold, no dead surface, MINIMAL REAL sentinels intact). LIVE render + resize + close remain [both apps, not CI] on a display-backed host per the standing S160+ precedent. NO-GAP: the grow-only SKIA/GTK-less OOD-first framing carries to S173+ (composition framework) + the three-lane harness S176 (mock-ICD) / S177 (hidden-window resize + validation gate) / S178 (programmer acceptance) + docs/testing.md maturation (S179); the quad renderer + real MVP/UI scale + vertex buffers = S200 (Sprint 5). MINIMAL REAL accounting: vulkan RESOLVED at S161; carry-forward active marks — tools→S287, built-in element seeds (Button→S401, Text→S400, TextBox→S402, CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440), VamlReader event hooks→S322, UIElement transform-owner→S208. No new repo md created (directive honored). Roadmap S160..S172 [DONE]; checkpoint regenerated: last = S172, next = S200. No build at the wrap (S170/S171 green), no commits.
 
-## SPRINT 5 — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S200 & S201, the Vulkan UI renderer)
-- **Goal met (S200 + S201): the Vulkan quad renderer + the N-quad scene encoder are real, green on both CI lanes.
-  A VAML-declared UI can now be drawn as N textured, alpha-blended quads through a real quad pipeline with a real
-  uniform-MVP/UI-scale projection + SRGB color — the first "more than the triangle" render surface.** Sprint 5
-  (dep:S172) delivered the `vaml::vulkan::quad` Cat 1 module: the quad segment of S200/S201 is complete; the live
-  presented N-quad FRAME is [both apps, not CI] on a display-backed host (the standing S160+ precedent), with the
-  device-only live proof already green on the headless VM.
+## SPRINT 5 — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S200 & S201 & S202 & S202_1, the Vulkan UI renderer + the icon asset pipeline)
+- **Goal met (S200 + S201 + S202 + S202_1): the Vulkan quad renderer + the N-quad scene encoder + the texture
+  atlas + sub-region invalidation + the ICON asset pipeline are real, green on both CI lanes. A VAML-declared UI
+  can now be drawn as N textured, alpha-blended quads through a real quad pipeline with a real uniform-MVP/UI-scale
+  projection + SRGB color, textured from a real staging→device-local atlas, and PNG/SVG icons rasterized once into
+  that atlas.** Sprint 5 (dep:S172) delivered the `vaml::vulkan::quad` Cat 1 module (S200/S201/S202) + the
+  `vaml::vulkan::icon` asset pipeline (S202_1); the live presented N-quad FRAME is [both apps, not CI] on a
+  display-backed host (the standing S160+ precedent), with the device-only live proofs already green on the headless VM.
 - **S200 (dep:S172) — quad renderer delivered (real public symbols, none MINIMAL REAL / none STUB):** the S200
   LOADER EXPANSION (VulkanLoader binds vkCreateBuffer/vkDestroyBuffer/vkGetBufferMemoryRequirements/
   vkBindBufferMemory/vkMapMemory/vkUnmapMemory/vkFlushMappedMemoryRanges; vkCmdBindVertexBuffers/vkCmdBindIndexBuffer/
@@ -1765,7 +1766,45 @@ superseded by S142 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the pimpl is removed, 
   windows-clang-debug is NOT a lane (not built/tested/flagged).
 - **S202 (dep:S201) — texture atlas + image upload + sub-region invalidation delivered (real, permanent; NOT MINIMAL REAL / NOT a stub):** RESOLVES the S161/S200-recorded NO-GAP hand-offs into one real `vaml::vulkan::quad::TextureAtlas` owner: (1) `AtlasLayout { atlasW, atlasH, cols, rows, tileW, tileH }` + `AtlasRegion { x, y, w, h }` + PURE decision seams (headless, ctest-proven): the EXACT-GRID contract — `atlas_layout(w,h,cols,rows)` returns an INVALID all-zero layout unless every dimension is non-zero AND atlasW%cols==0 && atlasH%rows==0 (no tile straddles a partial edge); atlas_layout_valid / atlas_tile_count (=cols·rows) / atlas_tile_region (row-major placement) / atlas_tile_offset ((y·atlasW+x)·4) / atlas_tile_bytes (tileW·tileH·4) / atlas_image_bytes (atlasW·atlasH·4); and the HEADLINE `atlas_dirty_regions(layout, dirtyIndices)` — the SUB-REGION INVALIDATION derivation (dirty tile indices → their pixel sub-rects in ASCENDING tile-index order, DEDUPED by index, out-of-range ignored). (2) `TextureAtlas` RAII owner: create() → one device-local R8G8B8A8_SRGB image (TRANSFER_DST|SAMPLED — the S200 SRGB pairing) + view + RAW S164 device memory + host-visible|coherent full-atlas staging buffer + shared quad_sampler + persistent RESET_COMMAND_BUFFER command pool + one command buffer (S166); CPU bookkeeper = full-atlas RGBA8 buffer + per-tile dirty flag set. upload_tile(i, bytes) validates size + writes the tile's bytes at its offset + marks ONLY tile `i` dirty (one flag flips — sub-region invalidation); flush() maps staging, copies ONLY the dirty tiles' bytes at their offsets, records ONE command buffer (whole-image barrier currentLayout→TRANSFER_DST, one vkCmdCopyBufferToImage per dirty sub-region with its bufferOffset+imageExtent, barrier TRANSFER_DST→SHADER_READ_ONLY), submits+waits idle, clears the dirty set, returns the count (0 when nothing dirty or on failure WITHOUT clearing — retry-safe); tracks currentLayout_ (starts UNDEFINED). LOADER: NO new S202 entry points — reuses the S200 vkCmdCopyBufferToImage+vkCmdPipelineBarrier (has_texture_loader) + S166 command-pool/buffer/begin/end/submit/wait entries (has_command_loader). DECISION (confirmed, recorded NOT silent): the atlas uses RAW S164 device memory, NOT VMA (one image + one staging buffer = no sub-allocation pressure; VMA becomes right at S202_1/S203/S204+/S205) — the S161 "S202 consumes VMA" note DIVERGED BY DECLARED DECISION, recorded in TextureAtlas.h. Tests: TextureAtlas_test.cpp (headless, the pure-seam precedent) — exact-grid contract, tile count, region placement (first/mid/last/out-of-range), byte offsets, tile+image bytes, atlas_dirty_regions (empty/out-of-range-only/ascending/input-order-independence/dedupe/multi-with-interleaved-dup+out-of-range/invalid-empty). The LIVE create/upload/flush path is [both apps, not CI] manual via POCs, per precedent. NO-GAP: the atlas is a real kept-and-extended owner for S202_1 (icon assets) + S203 (glyph atlas) + S204 (SDF) + the S205 shared descriptor layout.
 - **Build lanes both green (from first principles):** the S200/S201/S202 lanes — windows-msvc (build/verify_s200.cmd + build/verify_s201.cmd + build/verify_s202.cmd, msvc-debug: configure clean + build warning-as-error CLEAN + ctest 3/3 PASS incl. TextureAtlas_test + BOTH POCs build clean) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: configure clean + build warning-clean [only the pre-existing upstream <ciso646> doctest deprecation, non-error] + ctest 3/3 PASS). windows-clang-debug is NOT a lane (not built/tested/flagged).
-- **Next = S202_1** (Sprint 5 — icon asset pipeline (single quad engine; PNG and SVG are BOTH source asset formats, each rasterized ONCE into the atlas exactly as fonts are (S203/S204) — no vector-on-screen, no second renderer; output tagged with its texel count for best-fit selection S213_1)).
+- **S202_1 (dep:S202) — ICON asset pipeline delivered (real, permanent; NOT MINIMAL REAL / NOT a stub):** the
+  vendored decode/raster supply + the `vaml::vulkan::icon` pure seams + the real `IconAtlas` owner over the S202
+  atlas. PNG and SVG are BOTH source asset formats, each rasterized ONCE into the S202 atlas exactly as fonts are
+  (S203/S204 model) — no vector-on-screen, no second renderer; output tagged with its texel count for best-fit
+  selection (S213_1). (1) SUPPLY: cmake/FindImageDecoders.cmake exposes `vaml::image` (SYSTEM includes) for the
+  vendored single-header CPU rasterizers `stb_image` (public domain, PNG decode) + `nanosvg` (MIT, SVG rasterize) —
+  both pushed to the PUBLIC vaml-deps repo (verified @95d1300) so every host compiles identically (FindGLFW/FindVMA
+  precedent); the single-TU implementation defines live in StbImageImpl.cpp / NanosvgImpl.cpp (with the required
+  standard headers + a scoped pragma-warning push for the benign upstream C4702 so vendor noise stays off OUR strict
+  bar). (2) PURE SEAMS (IconPipeline.h/.cpp, headless): `IconFormat { Png, Svg }`; `IconSource` (one packaged asset,
+  never a path) + `IconSourceSet` (bounded key → source map); `IconRaster { w, h, rgba, texelCount }` (texelCount ==
+  w*h = the S213_1 best-fit tag); `icon_raster_valid`; the ADR-015 STRUCTURAL SOURCE-SET RULE seam `source_by_key`
+  (only in-set keys consumable; a raw path/URI is structurally unrepresentable — no path-taking API); `raster_icon`
+  (PNG → stb decode → bilinear-resample; SVG → nanosvg contain-fit rasterize; both → tightly-packed R8G8B8A8 tagged
+  with texelCount; computed ONCE, never per-frame); structured NON-crashing `IconErrorKind { None, Malformed,
+  Unsupported, OutOfSet }` (ADR-015 NO-GAP: the fallback GLYPH is S400_1's, not this module's). (3) `IconAtlas`
+  (the REAL owner, IconAtlas.h/.cpp): `add_icon(key, sizeW, sizeH)` enforces OutOfSet FIRST, rasterizes ONCE, then
+  `upload_tile` to the S202 atlas (preserving its SUB-REGION INVALIDATION — only that tile's flag flips), recording
+  the slot `{tileIndex, texelCount}`; supports the SIZE FAMILY for S213_1 best-fit later; `texture_atlas()` samples
+  via the UNCHANGED S200/S201 quad pipeline. ZERO new locks (ADR-018; single-threaded once-at-import). The DPI
+  best-fit SELECTION POLICY stays fully with S213_1 (accepted plan decision #2). (4) ciso646 FIX (user call-out):
+  the Linux `#warning` is a meaningless clang-only doctest libc++ heuristic (vaml uses GNU libstdc++); the permanent
+  fix replaces `-Wno-error=#warnings` with `-Wno-#warnings` on the test targets → ubuntu-clang now reports 0
+  warnings. (5) TESTS (IconPipeline_test.cpp, 7 cases): PNG decode + exact pixel + texelCount; PNG malformed →
+  structured no-crash; SVG raster + sampled pixel + texelCount; SVG malformed → structured no-crash; zero/oversized
+  → Unsupported; the ADR-015 source-set rule; two-source same-surface. (6) POC `[s202_1-live]` block in BOTH apps
+  (device-only, [both apps, not CI]): IconAtlas over a 256x128 4x2 atlas, rasterize embedded PNG + SVG ONCE into
+  32x64 tiles (texelCount == 32*64 each), upload tiles, reject an out-of-set key, log texel counts; the presented
+  tile sampling via QuadScene UVs stays the display-backed manual step. (7) NO-GAP (not silent): S205_1 (tint),
+  S213_1 (consumes the texelCount tag + size family; the POLICY stays S213_1's), S360_1 (IconKey→resource), S400_1
+  (Icon control + the fallback GLYPH), S528_1 (gallery). ADR-011: icon import lives in vaml-vulkan, never core.
+- **Build lanes both green (from first principles, incl. S202_1):** the Sprint-5 lanes — windows-msvc
+  (build/verify_s202_1.cmd, msvc-debug: configure clean + build warning-as-error CLEAN + ctest 3/3 PASS incl.
+  IconPipeline_test + both POCs build clean) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: configure clean + build
+  **warnings==0** (the ciso646 noise is FIXED) + ctest 3/3 PASS, all 7 S202_1 cases green on both lanes). GH runner
+  supply (vaml-deps stb/nanosvg @95d1300) confirmed pushed, closing the CI supply blocker. windows-clang-debug is
+  NOT a lane (not built/tested/flagged).
+- **Next = S203** (Sprint 5 — the bitmap-font loader + ASCII 32–126 glyph atlas build, the "exactly as fonts are"
+  model S202_1 referenced).
 
 ## SPRINT 4C — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S176..S179, closed at S179)
 - [x] S176..S179 — Sprint 4C (three-lane testing harness, codification) SURVIVOR + checkpoint advance to S200 - DONE
