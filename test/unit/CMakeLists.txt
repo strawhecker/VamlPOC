@@ -138,6 +138,7 @@ add_executable(vaml-vulkan-tests
     IconPipeline_test.cpp
     FontAtlas_test.cpp
     SdfAtlas_test.cpp
+    UiPipeline_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

@@ -49,6 +49,11 @@ vaml_add_library(vulkan
     src/font/FontAtlas.cpp
     src/font/SdfAtlas.cpp
     src/font/TruetypeImpl.cpp
+    # S205 — the UI pipeline family (SDF text + solid color + border) on ONE
+    # SHARED descriptor-set layout + pipeline layout (the four real UI shaders
+    # are embedded in ShaderModule. The shared 128-byte UiPushConstants + the
+    # shared set-0-binding-0 sampler generalize the S200-local descriptor seam.
+    src/ui/UiPipeline.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

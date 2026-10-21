@@ -78,6 +78,35 @@ VAML_VULKAN_EXPORT std::span<const float> tri_fragment_color() noexcept;
 VAML_VULKAN_EXPORT std::span<const std::uint32_t> quad_vertex_spirv() noexcept;
 VAML_VULKAN_EXPORT std::span<const std::uint32_t> quad_fragment_spirv() noexcept;
 
+// ---- S205 embedded UI shader set (the four "UI shaders") ----
+// S205's shader half: ONE shared UI vertex shader + THREE UI fragment shaders
+// (SDF text / solid color / border), all rendering the S200 unit quad. Each is
+// pre-baked, validated SPIR-V (the S165/S200/S203 precedent — compiled with
+// glslangValidator on the S205 shader tools, spirv-val, spirv-opt --strip-debug,
+// then the EXACT word array embedded). The canonical GLSL is in the source
+// comments of ShaderModule.cpp as the auditable source of truth; the validators
+// ran on the Ubuntu VM (the repo's declared shader-authoring toolchain), NOT
+// CMake glslc — a recorded divergence of the S165/S200 "glslc in CMake" wording.
+//   * ui_vertex_spirv()         — shared UI vertex: reads UiPushConstants.mvp +
+//     the S200 QuadVertex input (pos/uv/vcolor) -> clip + the uv/color varyings.
+//   * sdf_text_fragment_spirv() — SDF text: samples the shared set-0-binding-0
+//     atlas, recovers the packed SDF distance, applies the S204 `sdf_soft_alpha`
+//     linear-AA ramp mirrored exactly in-shader (the S204-recorded "text shader
+//     mirrors the CPU sdf_soft_alpha AA contract" hand-off, RESOLVED here),
+//     multiplied by the straight-alpha text/vertex color.
+//   * solid_color_fragment_spirv() — flat straight-alpha fill from
+//     UiPushConstants.color x the vertex color; no sampling.
+//   * border_fragment_spirv()  — rectangular-stroke coverage from vUv +
+//     pc.params (thickness01/radius01/feather/aa) + pc; outputs the border color
+//     in the band, transparent outside; mirrors UiPipeline's border_coverage().
+// All three fragments share the SAME 128-byte UiPushConstants + the SAME shared
+// set-0-binding-0 atlas layout as the vertex shader, so one shared pipeline
+// layout + one bound descriptor set serves all three (the S206 batching premise).
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> ui_vertex_spirv() noexcept;
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> sdf_text_fragment_spirv() noexcept;
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> solid_color_fragment_spirv() noexcept;
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> border_fragment_spirv() noexcept;
+
 // The REAL S165 shader-module owner: RAII + move-only wrapping a single
 // vkCreateShaderModule result. Constructed only via create(); destroys the
 // shader module on destruction. `loader` and `device` must outlive it.

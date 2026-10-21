@@ -47,6 +47,10 @@
 // atlas) + the SDF rasterizer (coverage → SDF into the atlas, soft-edge sampling).
 #include <vaml/vulkan/font/FontAtlas.h>
 #include <vaml/vulkan/font/SdfAtlas.h>
+// S205: the real UI shader set (SDF text + solid color + border) + descriptor
+// sets on ONE shared layout (UiPipeline). Extends ShaderModule with the four
+// embedded UI shaders; consumes the S204 SDF atlas + the S200 quad geometry.
+#include <vaml/vulkan/ui/UiPipeline.h>
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
@@ -685,6 +689,122 @@ int main()
         else
         {
             std::fprintf(stderr, "[s203+s204-live] FontAtlas/SdfAtlas (TextureAtlas) create failed on %s\n", gpuName.c_str());
+        }
+    }
+
+    // --- S205 live UI-pipeline proof (device-only; no surface required) ---------
+    // The S205 real UI shader set (SDF text + solid color + border) + the SHARED
+    // descriptor-set layout + the 128-byte shared UiPushConstants generalize the
+    // S200-local descriptor seam into ONE layout. The three UiPipelines here are
+    // built over a temporary device-only SRGB render pass (no swapchain needed)
+    // so the HEADLINE risks prove live: (1) the four embedded UI shaders (the
+    // shared ui_vertex + the three fragments) CREATE REAL VkShaderModule +
+    // graphics pipelines on a real driver, (2) ONE shared VkDescriptorSetLayout
+    // (set 0 binding 0) + ONE shared VkPipelineLayout (the 128-byte push range)
+    // underpin all three kinds, (3) ONE descriptor set allocated from the shared
+    // layout and bound to the S204 SDF atlas's sampler serves all three, and
+    // (4) the S200 SRGB pairing + alpha blend hold. The presented sampling of the
+    // three kinds on the swapchain is the S206 display-backed batching step
+    // ([both apps, not CI]).
+    bool uiProof = false;
+    if (vk->has_render_loader() && vk->has_texture_loader() && ctx.device)
+    {
+        using namespace vaml::vulkan::ui;
+        // A device-only SRGB color render pass (no depth) matching the S200 pairing.
+        auto rp = vaml::vulkan::RenderPass::create(*vk, *ctx.device, VK_FORMAT_B8G8R8A8_SRGB,
+                                                   std::nullopt, VK_SAMPLE_COUNT_1_BIT);
+        auto uiVert = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::ui_vertex_spirv());
+        auto sdfFrag  = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::sdf_text_fragment_spirv());
+        auto solidFrag = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::solid_color_fragment_spirv());
+        auto borderFrag = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::border_fragment_spirv());
+        if (rp && uiVert && sdfFrag && solidFrag && borderFrag)
+        {
+            // The shared spec: the three pipelines differ ONLY by fragment + kind.
+            UiPipelineSpec spec{};
+            spec.renderPass  = rp->native_handle();
+            spec.colorFormat = VK_FORMAT_B8G8R8A8_SRGB;  // the S200 SRGB pairing
+            spec.sampleCount = VK_SAMPLE_COUNT_1_BIT;
+            spec.extent      = VkExtent2D{ 800, 600 };
+            spec.vertexModule = uiVert->shader_module();
+
+            spec.fragmentModule = solidFrag->shader_module();
+            auto solid = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::Solid);
+            spec.fragmentModule = borderFrag->shader_module();
+            auto border = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::Border);
+            spec.fragmentModule = sdfFrag->shader_module();
+            auto sdf = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::SdfText);
+
+            const bool threeCreated = solid && border && sdf;
+            const bool sharedLayout = solid && border && sdf &&
+                solid->descriptor_set_layout() == border->descriptor_set_layout() &&
+                solid->descriptor_set_layout() == sdf->descriptor_set_layout() &&
+                solid->pipeline_layout() == border->pipeline_layout() &&
+                solid->pipeline_layout() == sdf->pipeline_layout();
+            const auto range = ui_push_constant();
+            const bool sharedRange = range.size == 128u && range.offset == 0u &&
+                (range.stageFlags & VK_SHADER_STAGE_VERTEX_BIT) &&
+                (range.stageFlags & VK_SHADER_STAGE_FRAGMENT_BIT);
+            const bool srgbPair = vaml::vulkan::quad::is_srgb_format(VK_FORMAT_B8G8R8A8_SRGB);
+
+            VkDescriptorPool pool = VK_NULL_HANDLE;
+            VkDescriptorSet set = VK_NULL_HANDLE;
+            bool setBound = false;
+            if (sharedLayout && vk->vkCreateDescriptorPool)
+            {
+                VkDescriptorPoolSize poolSize{};
+                poolSize.type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                poolSize.descriptorCount = 1;
+                VkDescriptorPoolCreateInfo dpci{};
+                dpci.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+                dpci.maxSets       = 1;
+                dpci.poolSizeCount = 1;
+                dpci.pPoolSizes    = &poolSize;
+                if (vk->vkCreateDescriptorPool(ctx.device->device(), &dpci, nullptr, &pool) == VK_SUCCESS &&
+                    vk->vkAllocateDescriptorSets)
+                {
+                    VkDescriptorSetAllocateInfo dai{};
+                    dai.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+                    dai.descriptorPool     = pool;
+                    dai.descriptorSetCount = 1;
+                    const VkDescriptorSetLayout sharedSetLayout = solid->descriptor_set_layout();
+                    dai.pSetLayouts = &sharedSetLayout;
+                    setBound = vk->vkAllocateDescriptorSets(ctx.device->device(), &dai, &set) == VK_SUCCESS;
+                }
+                if (setBound && vk->vkUpdateDescriptorSets)
+                {
+                    VkSampler sampler = VK_NULL_HANDLE;
+                    if (vk->vkCreateSampler)
+                    {
+                        const auto samplerInfo = ui_sampler();
+                        vk->vkCreateSampler(ctx.device->device(), &samplerInfo, nullptr, &sampler);
+                    }
+                    VkDescriptorImageInfo info{};
+                    const VkWriteDescriptorSet write =
+                        ui_descriptor_write(set, info, VK_NULL_HANDLE, sampler);
+                    vk->vkUpdateDescriptorSets(ctx.device->device(), 1, &write, 0, nullptr);
+                    if (sampler && vk->vkDestroySampler)
+                        vk->vkDestroySampler(ctx.device->device(), sampler, nullptr);
+                }
+            }
+
+            uiProof = threeCreated && sharedLayout && sharedRange && srgbPair && setBound;
+            if (uiProof)
+                std::printf("[s205-live] UI pipelines on %s: SDF-text + solid + border "
+                            "created over ONE shared set layout + ONE shared 128-B push range; "
+                            "descriptor set bound=1\n", gpuName.c_str());
+            else
+                std::fprintf(stderr, "[s205-live] UI pipeline MISMATCH on %s "
+                            "(solid=%d border=%d sdf=%d sharedLayout=%d sharedRange=%d srgb=%d set=%d)\n",
+                            gpuName.c_str(), !!solid, !!border, !!sdf,
+                            sharedLayout, sharedRange, srgbPair, setBound);
+            if (pool && vk->vkDestroyDescriptorPool)
+                vk->vkDestroyDescriptorPool(ctx.device->device(), pool, nullptr);
+        }
+        else
+        {
+            std::fprintf(stderr, "[s205-live] UI pipeline create failed "
+                        "(rp=%d uiVert=%d sdf=%d solid=%d border=%d)\n",
+                        !!rp, !!uiVert, !!sdfFrag, !!solidFrag, !!borderFrag);
         }
     }
 
