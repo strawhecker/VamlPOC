@@ -134,6 +134,7 @@ add_executable(vaml-vulkan-tests
     TeardownOrder_test.cpp
     Quad_test.cpp
     QuadScene_test.cpp
+    TextureAtlas_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

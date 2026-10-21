@@ -37,6 +37,7 @@
 #include <vaml/vulkan/quad/QuadPipeline.h>
 #include <vaml/vulkan/quad/QuadTexture.h>
 #include <vaml/vulkan/quad/QuadScene.h>
+#include <vaml/vulkan/quad/TextureAtlas.h>
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
@@ -488,6 +489,62 @@ int main()
         else
         {
             std::fprintf(stderr, "[s200-live] Quad RenderPass/ShaderModule::create failed (quad SPIR-V rejected?)\n");
+        }
+    }
+
+    // --- S202 live quad-atlas proof (device-only; no surface required) -----------
+    // Like the S165/S200 device-only proofs above, the S202 TextureAtlas only needs
+    // a DEVICE, so it proves live here even without a surface: the critical S202
+    // risks are (1) the atlas's device-local image + view + RAW S164 device memory
+    // create, (2) the host-visible full-atlas staging buffer + the shared quad
+    // sampler + the persistent S166 command pool/buffer, and (3) — the HEADLINE —
+    // the STAGING → DEVICE-LOCAL SUB-REGION UPLOAD: upload_tile marks ONLY one tile
+    // dirty (SUB-REGION INVALIDATION), and flush() records ONE command buffer with a
+    // per-dirty-tile vkCmdCopyBufferToImage (whole-image currentLayout→TRANSFER_DST
+    // barrier, copy, TRANSFER_DST→SHADER_READ_ONLY barrier), submits + waits idle,
+    // and returns the count uploaded. Everything runs on a REAL driver (llvmpipe).
+    // (The surface-dependent N-quad atlas FRAME — sampling a tile via QuadScene's UVs
+    // into a presented window — is the display-backed manual step, [both apps, not CI].)
+    if (vk->has_quad_loader() && vk->has_texture_loader() && vk->has_command_loader() && ctx.device)
+    {
+        using namespace vaml::vulkan::quad;
+        // A 256x128 atlas as a 4x2 grid -> 32x64 tiles (256%4==0 && 128%2==0: exact).
+        auto atlas = TextureAtlas::create(*vk, *ctx.device, 256, 128, 4, 2);
+        if (atlas)
+        {
+            const AtlasLayout lay = atlas->layout();
+            const std::uint32_t tileCount = atlas_tile_count(lay);
+            const std::uint32_t tileBytes = atlas_tile_bytes(lay);
+            // Fill one tile, then a second tile — each upload dirties ONLY its own
+            // sub-region. Tile 0 = red, tile 1 = green (RGBA8, tightly packed).
+            std::vector<std::uint8_t> redTile(tileBytes, 0u), greenTile(tileBytes, 0u);
+            for (std::size_t i = 0; i < tileBytes; i += 4u)
+            {
+                redTile[i + 0] = 255; redTile[i + 1] = 0;   redTile[i + 2] = 0;   redTile[i + 3] = 255;
+                greenTile[i + 0] = 0;  greenTile[i + 1] = 255; greenTile[i + 2] = 0; greenTile[i + 3] = 255;
+            }
+            const bool up0 = atlas->upload_tile(0u, redTile);
+            const std::uint32_t dirtyAfter0 = atlas->dirty_count();
+            const bool up1 = atlas->upload_tile(1u, greenTile);
+            // SUB-REGION INVALIDATION: after uploading tile 1, exactly 2 tiles are
+            // dirty (tile 0 + tile 1) — never a whole-image/other-tile flag.
+            const std::uint32_t dirtyAfter1 = atlas->dirty_count();
+            const std::uint32_t uploaded = atlas->flush();
+            const std::uint32_t dirtyAfterFlush = atlas->dirty_count();
+            if (up0 && up1 && uploaded == 2u && dirtyAfter0 == 1u && dirtyAfter1 == 2u &&
+                dirtyAfterFlush == 0u)
+                std::printf("[s202-live] texture atlas created on %s (%ux%u, %u tiles, %uB/tile); "
+                            "upload_tile sub-region invalidation + flush() uploaded %u sub-regions "
+                            "(staging → device-local UPLOAD path exercised on a real driver)\n",
+                            gpuName.c_str(), lay.atlasW, lay.atlasH, tileCount, tileBytes, uploaded);
+            else
+                std::fprintf(stderr, "[s202-live] TextureAtlas create/upload/flush MISMATCH on %s "
+                            "(up0=%d up1=%d uploaded=%u dirty0=%u dirty1=%u dirtyF=%u)\n",
+                            gpuName.c_str(), up0, up1, uploaded, dirtyAfter0, dirtyAfter1, dirtyAfterFlush);
+        }
+        else
+        {
+            std::fprintf(stderr, "[s202-live] TextureAtlas::create failed on %s\n", gpuName.c_str());
         }
     }
 
