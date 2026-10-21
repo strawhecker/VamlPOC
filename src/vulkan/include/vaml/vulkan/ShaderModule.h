@@ -99,13 +99,22 @@ VAML_VULKAN_EXPORT std::span<const std::uint32_t> quad_fragment_spirv() noexcept
 //   * border_fragment_spirv()  — rectangular-stroke coverage from vUv +
 //     pc.params (thickness01/radius01/feather/aa) + pc; outputs the border color
 //     in the band, transparent outside; mirrors UiPipeline's border_coverage().
-// All three fragments share the SAME 128-byte UiPushConstants + the SAME shared
-// set-0-binding-0 atlas layout as the vertex shader, so one shared pipeline
-// layout + one bound descriptor set serves all three (the S206 batching premise).
+//   * monochrome_tint_fragment_spirv() — S205_1 monochrome icon tint: samples
+//     the shared set-0-binding-0 atlas as a SINGLE-CHANNEL ALPHA-MASK (.r =
+//     continuous coverage), recovers linear coverage (pow 1/2.2), clamps [0,1],
+//     and applies the Foreground color (UiPushConstants.color) ENTIRELY
+//     IN-SHADER — no bitmap color-effect recompositing — outputting
+//     vec4(fg.rgb, fg.a * mask01) * vColor so partial alpha is preserved
+//     (mask 0.5 -> 50% alpha). Mirrors UiPipeline's tint_alpha()/tint_sample().
+//     TintMode=Monochrome consumes this path; TintMode=Preserve samples the
+//     multicolor texture via the existing SDF-text/solid/quad kinds (S400_1
+//     maps the control-DP enum onto these; the UiShaderKind::Monochrome render
+//     kind + its shader are delivered here, recorded NO-GAP, not silent).
 VAML_VULKAN_EXPORT std::span<const std::uint32_t> ui_vertex_spirv() noexcept;
 VAML_VULKAN_EXPORT std::span<const std::uint32_t> sdf_text_fragment_spirv() noexcept;
 VAML_VULKAN_EXPORT std::span<const std::uint32_t> solid_color_fragment_spirv() noexcept;
 VAML_VULKAN_EXPORT std::span<const std::uint32_t> border_fragment_spirv() noexcept;
+VAML_VULKAN_EXPORT std::span<const std::uint32_t> monochrome_tint_fragment_spirv() noexcept;
 
 // The REAL S165 shader-module owner: RAII + move-only wrapping a single
 // vkCreateShaderModule result. Constructed only via create(); destroys the

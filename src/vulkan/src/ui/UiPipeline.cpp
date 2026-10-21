@@ -85,6 +85,41 @@ void sdf_style(UiPushConstants& pc, const Color4& color, float aa) noexcept
     pc.params = { aa, 0.0f, 0.0f, 0.0f };
 }
 
+void monochrome_style(UiPushConstants& pc, const Color4& foreground) noexcept
+{
+    // S205_1 — the MONOCHROME-TINT kind: pc.color = the Foreground tint; pc.params
+    // = 0. Does NOT clobber uiAndPad.x (uiScale, offset 64) — same contract as
+    // solid_style/border_style/sdf_style. The monochrome_tint fragment samples the
+    // shared atlas as a single-channel alpha-mask and applies `foreground` entirely
+    // in-shader, preserving partial alpha.
+    pc.color  = foreground;
+    pc.params = { 0.0f, 0.0f, 0.0f, 0.0f };
+}
+
+float tint_alpha(float mask01) noexcept
+{
+    // The PARTIAL-ALPHA authority (mirrors monochrome_tint.frag's mask clamp):
+    // the recovered linear alpha-mask coverage is clamped [0,1], identity for
+    // in-range masks (0.5 -> 0.5, 1 -> 1, 0 -> 0).
+    return std::clamp(mask01, 0.0f, 1.0f);
+}
+
+Color4 tint_sample(const Color4& foreground, float mask01) noexcept
+{
+    // The headless rewrite of monochrome_tint.frag's main() output: the Foreground
+    // straight-alpha color, with alpha = fg.a * tint_alpha(mask01) — partial alpha
+    // preserved (a mask of 0.5 yields alpha 0.5 * fg.a). NO recompositing of the
+    // stored bitmap texel; the tint is applied at sample. Mirrors the shader
+    // verbatim (the same discipline as sdf_text mirroring sdf_soft_alpha, and
+    // border mirroring border_coverage).
+    return Color4{
+        foreground[0],
+        foreground[1],
+        foreground[2],
+        foreground[3] * tint_alpha(mask01),
+    };
+}
+
 float sd_rounded_box(float px, float py, float b, float r) noexcept
 {
     // Matches border.frag's sdRoundBox EXACTLY (the CPU-side authority): the

@@ -26,9 +26,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S202_1 (dep:S202) — Sprint 5 — Icon asset pipeline (single quad engine; PNG+SVG rasterized once into the atlas; output tagged with its texel count for S213_1 best-fit)
-- Next step to do     : S203 (dep:S202) — Sprint 5 — Embedded bitmap-font loader + ASCII 32–126 glyph atlas build
-- PENDING work        : none (S200 + S201 + S202 + S202_1 fully complete, both CI lanes green from first principles; the Sprint 5 surviving state is in the `## SPRINT 5 — SURVIVOR` block below)
+- Last completed step : S205_1 (dep:S205) — Sprint 5/6 — Monochrome icon tint at sample: single-channel alpha-mask fragment (monochrome_tint_fragment_spirv) applies the Foreground in-shader (partial alpha preserved); UiShaderKind::Monochrome rides the S205 SHARED 128-B push + set-0-binding-0 layout; pure seams monochrome_style/tint_alpha/tint_sample; MonochromeTint_test 6 cases / 38 assertions
+- Next step to do     : S206 (dep:S205) — Sprint 5/6 — Draw text + rect from the shared descriptor layout; batch same-shader draws
+- PENDING work        : none (S200 + S201 + S202 + S202_1 + S203 + S204 + S205 + S205_1 fully complete, both CI lanes green from first principles; the Sprint 5/6 surviving state is in the `## SPRINT 5 — SURVIVOR` block below (S203–S205_1 carried in session-context.md + roadmap.md delivery notes))
   **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap Ã¢â‚¬â€ DOCS-ONLY (no build, per the
   S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
   principles). (1) RELOCATE: Sprint 3.5 (S140Ã¢â‚¬â€œS147) is consolidated into the `## SPRINT 3.5 Ã¢â‚¬â€ SURVIVOR`

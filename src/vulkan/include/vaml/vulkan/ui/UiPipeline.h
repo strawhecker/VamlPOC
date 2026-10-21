@@ -43,8 +43,10 @@
 // from descriptor_set_layout(), binds the SDF/atlas sampler into it, and reuses that
 // set across all three pipelines (the shared layout contract).
 //
-// NO-GAP recorded (not silent): S205_1 (monochrome icon tint) consumes the shared
-// sampler path; S206 (scene encoder + same-shader batching) uses this shared layout;
+// NO-GAP recorded (not silent): S205_1 (monochrome icon tint — the Monochrome
+// UiShaderKind + its single-channel alpha-mask fragment + the partial-alpha seam
+// tint_alpha/tint_sample) is DELIVERED here and consumes the shared sampler path;
+// S206 (scene encoder + same-shader batching) uses this shared layout;
 // S208 (per-element Model) composes into UiPushConstants.mvp; S400 (Text control)
 // samples the SDF-text shader. No MINIMAL REAL introduced/resolved. quad/font/icon
 // untouched. ADR-011 maintained (ui lives in vaml-vulkan). ADR-018: ZERO new locks
@@ -79,13 +81,25 @@ using Color4 = std::array<float, 4>;
 // PURE DECISION SEAMS (headless-testable; no Vulkan runtime required)
 // ---------------------------------------------------------------------------
 
-// The three UI shader kinds the UiPipeline family renders. One shared vertex
-// shader + one of three fragment shaders (see UiPipeline::create).
+// The UI shader kinds the UiPipeline family renders. One shared vertex
+// shader + one of the kind's fragment shaders (see UiPipeline::create). All
+// four ride the SAME shared 128-byte UiPushConstants + the SAME shared
+// set-0-binding-0 atlas layout, so ONE shared pipeline layout + one bound
+// descriptor set serves every kind (the S206 batching premise).
 enum class UiShaderKind
 {
     SdfText = 0,
     Solid = 1,
     Border = 2,
+    // S205_1 — monochrome icon tint: the kind's fragment (monochrome_tint_
+    // fragment_spirv) samples the shared atlas as a SINGLE-CHANNEL ALPHA-MASK
+    // (.r = continuous coverage) and applies the Foreground color (pc.color)
+    // ENTIRELY IN-SHADER (no bitmap color-effect recompositing), preserving
+    // partial alpha (mask 0.5 -> 50% alpha). TintMode=Monochrome (S400_1's
+    // control-DP surface) consumes this path; TintMode=Preserve samples the
+    // multicolor texture via the existing SDF-text/solid/quad kinds — the
+    // TintMode ENUM identity is S400_1's, recorded NO-GAP, not silent.
+    Monochrome = 3,
 };
 
 // The SHARED 128-byte push-constant block (the S205 shared-layout contract):
@@ -165,6 +179,31 @@ VAML_VULKAN_EXPORT void border_style(UiPushConstants& pc,
 VAML_VULKAN_EXPORT void sdf_style(UiPushConstants& pc,
                                   const Color4& color,
                                   float aa) noexcept;
+
+// Fills `pc` for the MONOCHROME-TINT kind: pc.color = `foreground` (the tint);
+// pc.params = 0 (no sampling params — the shader derives everything from the
+// mask). The monochrome_tint fragment samples the shared atlas as a single-
+// channel alpha-mask and applies `foreground` ENTIRELY IN-SHADER, preserving
+// partial alpha. Does NOT clobber `uiScale` (offset 64), the same contract as
+// solid_style/border_style/sdf_style.
+VAML_VULKAN_EXPORT void monochrome_style(UiPushConstants& pc,
+                                         const Color4& foreground) noexcept;
+
+// --- The monochrome-tint decision seam (mirrors monochrome_tint.frag exactly) ---
+
+// The PARTIAL-ALPHA authority: `mask01` (the recovered linear alpha-mask
+// coverage in [0,1]) -> the output mask, clamped [0,1]. Identity for in-range
+// masks (0.5 -> 0.5, 1 -> 1, 0 -> 0); out-of-range clamped. Mirrors the
+// shader's clamp(pow(mask, 1/2.2), 0, 1) after the sRGB decode.
+VAML_VULKAN_EXPORT float tint_alpha(float mask01) noexcept;
+
+// The headless rewrite of monochrome_tint.frag's output: given the Foreground
+// straight-alpha color and the recovered linear alpha-mask coverage `mask01`,
+// returns the straight-alpha { fg.rgb, fg.a * tint_alpha(mask01) } — the
+// CPU-side authority the shader mirrors verbatim (the same discipline that
+// makes sdf_text mirror S204's sdf_soft_alpha and border mirror border_coverage).
+// Partial alpha is preserved: a mask of 0.5 yields alpha 0.5 * fg.a.
+VAML_VULKAN_EXPORT Color4 tint_sample(const Color4& foreground, float mask01) noexcept;
 
 // --- The border decision seam (mirrors the border fragment shader exactly) ---
 

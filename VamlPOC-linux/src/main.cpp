@@ -717,7 +717,8 @@ int main()
         auto sdfFrag  = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::sdf_text_fragment_spirv());
         auto solidFrag = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::solid_color_fragment_spirv());
         auto borderFrag = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::border_fragment_spirv());
-        if (rp && uiVert && sdfFrag && solidFrag && borderFrag)
+        auto monoFrag = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::monochrome_tint_fragment_spirv());
+        if (rp && uiVert && sdfFrag && solidFrag && borderFrag && monoFrag)
         {
             // The shared spec: the three pipelines differ ONLY by fragment + kind.
             UiPipelineSpec spec{};
@@ -733,13 +734,22 @@ int main()
             auto border = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::Border);
             spec.fragmentModule = sdfFrag->shader_module();
             auto sdf = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::SdfText);
+            spec.fragmentModule = monoFrag->shader_module();
+            auto mono = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::Monochrome);
 
-            const bool threeCreated = solid && border && sdf;
-            const bool sharedLayout = solid && border && sdf &&
+            // ALL FOUR share the SAME shared set layout + pipeline layout. The S205_1
+            // monochrome-tint pipeline rides the IDENTICAL shared layout (one set +
+            // one 128-B push block serves it too — the S206 batching premise, and the
+            // TintMode=Monochrome render path S400_1 maps onto; TintMode=Preserve is
+            // the existing multicolor SDF-text/solid/quad kinds here).
+            const bool threeCreated = solid && border && sdf && mono;
+            const bool sharedLayout = solid && border && sdf && mono &&
                 solid->descriptor_set_layout() == border->descriptor_set_layout() &&
                 solid->descriptor_set_layout() == sdf->descriptor_set_layout() &&
+                solid->descriptor_set_layout() == mono->descriptor_set_layout() &&
                 solid->pipeline_layout() == border->pipeline_layout() &&
-                solid->pipeline_layout() == sdf->pipeline_layout();
+                solid->pipeline_layout() == sdf->pipeline_layout() &&
+                solid->pipeline_layout() == mono->pipeline_layout();
             const auto range = ui_push_constant();
             const bool sharedRange = range.size == 128u && range.offset == 0u &&
                 (range.stageFlags & VK_SHADER_STAGE_VERTEX_BIT) &&
@@ -789,22 +799,22 @@ int main()
 
             uiProof = threeCreated && sharedLayout && sharedRange && srgbPair && setBound;
             if (uiProof)
-                std::printf("[s205-live] UI pipelines on %s: SDF-text + solid + border "
-                            "created over ONE shared set layout + ONE shared 128-B push range; "
-                            "descriptor set bound=1\n", gpuName.c_str());
+                std::printf("[s205+s205_1-live] UI pipelines on %s: SDF-text + solid + border "
+                            "+ monochrome-tint created over ONE shared set layout + ONE shared "
+                            "128-B push range; descriptor set bound=1\n", gpuName.c_str());
             else
-                std::fprintf(stderr, "[s205-live] UI pipeline MISMATCH on %s "
-                            "(solid=%d border=%d sdf=%d sharedLayout=%d sharedRange=%d srgb=%d set=%d)\n",
-                            gpuName.c_str(), !!solid, !!border, !!sdf,
+                std::fprintf(stderr, "[s205+s205_1-live] UI pipeline MISMATCH on %s "
+                            "(solid=%d border=%d sdf=%d mono=%d sharedLayout=%d sharedRange=%d srgb=%d set=%d)\n",
+                            gpuName.c_str(), !!solid, !!border, !!sdf, !!mono,
                             sharedLayout, sharedRange, srgbPair, setBound);
             if (pool && vk->vkDestroyDescriptorPool)
                 vk->vkDestroyDescriptorPool(ctx.device->device(), pool, nullptr);
         }
         else
         {
-            std::fprintf(stderr, "[s205-live] UI pipeline create failed "
-                        "(rp=%d uiVert=%d sdf=%d solid=%d border=%d)\n",
-                        !!rp, !!uiVert, !!sdfFrag, !!solidFrag, !!borderFrag);
+            std::fprintf(stderr, "[s205+s205_1-live] UI pipeline create failed "
+                        "(rp=%d uiVert=%d sdf=%d solid=%d border=%d mono=%d)\n",
+                        !!rp, !!uiVert, !!sdfFrag, !!solidFrag, !!borderFrag, !!monoFrag);
         }
     }
 
