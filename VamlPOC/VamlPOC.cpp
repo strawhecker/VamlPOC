@@ -38,6 +38,12 @@
 #include <vaml/vulkan/quad/QuadPipeline.h>
 #include <vaml/vulkan/quad/QuadTexture.h>
 #include <vaml/vulkan/quad/QuadScene.h>
+// S202_1: the icon asset pipeline — PNG + SVG are BOTH source formats, each
+// rasterized ONCE into the S202 atlas (no vector-on-screen, no second renderer);
+// output tagged with its texel count for S213_1 best-fit.
+#include <vaml/vulkan/quad/TextureAtlas.h>
+#include <vaml/vulkan/icon/IconPipeline.h>
+#include <vaml/vulkan/icon/IconAtlas.h>
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
@@ -406,16 +412,92 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
     }
     auto surface = vaml::vulkan::VulkanSurface::create(*vk, *instance, *window);
 
+    std::string gpuName;
     try
     {
         auto gpu = vamlpoc::createVulkanCtx(*vk, *instance, surface.get(), ctx);
-        std::printf("Running on GPU: %s; close the window to quit.\n",
-                    gpu.name.empty() ? "<unnamed>" : gpu.name.c_str());
+        gpuName = gpu.name.empty() ? "<unnamed>" : gpu.name;
+        std::printf("Running on GPU: %s; close the window to quit.\n", gpuName.c_str());
     }
     catch (const std::exception& e)
     {
         std::fprintf(stderr, "Vulkan init error: %s\n", e.what());
         return 1;
+    }
+
+    // --- S202_1 live icon-pipeline proof (device-only; no surface required) --------
+    // The S202_1 icon surface (icon::raster_icon + IconAtlas over the S202
+    // TextureAtlas) only needs a DEVICE, so it proves live here even without a
+    // surface: the HEADLINE risks are (1) the PNG decode path (stb_image) + the SVG
+    // rasterize path (nanosvg) run on the real CPU-raster stack, (2) each source is
+    // rasterized ONCE into an RGBA8 tile tagged with its TEXEL COUNT (the S213_1
+    // best-fit input), (3) the icon tiles are uploaded into the S202 atlas via
+    // upload_tile (each add_icon dirties ONLY its own tile — the S202 SUB-REGION
+    // INVALIDATION preserved through the icon layer), and (4) the ADR-015 STRUCTURAL
+    // SOURCE-SET RULE holds on a live driver. The presented sampling of a tile via
+    // QuadScene UVs stays the display-backed manual step ([both apps, not CI]).
+    if (vk->has_quad_loader() && vk->has_texture_loader() && vk->has_command_loader() && ctx.device)
+    {
+        using namespace vaml::vulkan::quad;
+        using namespace vaml::vulkan::icon;
+        // A 256x128 atlas as a 4x2 grid -> 32x64 tiles (256%4==0 && 128%2==0: exact).
+        auto atlas = TextureAtlas::create(*vk, *ctx.device, 256, 128, 4, 2);
+        if (atlas)
+        {
+            // Embedded fixtures (packaged assets — the ADR-015 boundary, never a path):
+            // a 4x4 solid-red PNG + a 10x10 solid-red SVG square.
+            using Bytes = std::vector<std::uint8_t>;
+            const Bytes kPng = {
+                137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,4,0,0,0,4,8,6,0,0,0,169,241,158,126,0,0,0,18,73,
+                68,65,84,120,156,99,248,207,192,240,31,25,51,144,46,0,0,60,64,31,225,224,129,119,180,0,0,0,0,73,69,78,
+                68,174,66,96,130,
+            };
+            const Bytes kSvg = {
+                '<','s','v','g',' ','x','m','l','n','s','=','"','h','t','t','p',':','/','/','w','w','w','.','w','3','.',
+                'o','r','g','/','2','0','0','0','/','s','v','g','"',' ','w','i','d','t','h','=','"','1','0','"',' ',
+                'h','e','i','g','h','t','=','"','1','0','"','>','<','r','e','c','t',' ','w','i','d','t','h','=','"',
+                '1','0','"',' ','h','e','i','g','h','t','=','"','1','0','"',' ','f','i','l','l','=','"','#','f','f',
+                '0','0','0','0','"','/','>','<','/','s','v','g','>',
+            };
+            IconSourceSet sources;
+            sources.emplace(1, IconSource{ IconFormat::Png, kPng });
+            sources.emplace(2, IconSource{ IconFormat::Svg, kSvg });
+
+            IconAtlas icons(*atlas);
+            icons.set_sources(sources);
+            // Rasterize the PNG + the SVG ONCE at the atlas tile size (32x64).
+            IconErrorKind err = IconErrorKind::None;
+            const bool pngOk = icons.add_icon(1, 32, 64, &err);
+            const IconErrorKind pngErr = err;
+            const bool svgOk = icons.add_icon(2, 32, 64, &err);
+            const IconErrorKind svgErr = err;
+            // Out-of-set key: the ADR-015 structural rule rejects it, no crash.
+            const bool outOk = icons.add_icon(999, 32, 64, &err);
+            const IconErrorKind outErr = err;
+            icons.atlas().flush();
+            // Each add_icon dirties ONLY its own tile; the texel count tag is the same
+            // for both (32*64) — the S213_1 best-fit input.
+            const IconSlot slotPng = icons.slot_for(1);
+            const IconSlot slotSvg = icons.slot_for(2);
+            if (pngOk && svgOk && !outOk && outErr == IconErrorKind::OutOfSet &&
+                pngErr == IconErrorKind::None && svgErr == IconErrorKind::None &&
+                slotPng.texelCount == 32u * 64u && slotSvg.texelCount == 32u * 64u &&
+                slotPng.tileIndex != slotSvg.tileIndex)
+                std::printf("[s202_1-live] icon pipeline: PNG + SVG rasterized ONCE into the S202 atlas "
+                            "on %s (%u texels/tile PNG tile=%u SVG tile=%u; OutOfSet rejected), "
+                            "flush uploaded %u tiles\n",
+                            gpuName.c_str(), slotPng.texelCount, slotPng.tileIndex, slotSvg.tileIndex,
+                            icons.slot_count());
+            else
+                std::fprintf(stderr, "[s202_1-live] icon pipeline MISMATCH on %s "
+                            "(png=%d svg=%d outOk=%d outErr=%d slots=%u pngTx=%u svgTx=%u)\n",
+                            gpuName.c_str(), pngOk, svgOk, outOk, static_cast<int>(outErr),
+                            icons.slot_count(), slotPng.texelCount, slotSvg.texelCount);
+        }
+        else
+        {
+            std::fprintf(stderr, "[s202_1-live] IconAtlas::create (TextureAtlas) failed.\n");
+        }
     }
 
     // --- S175 change-driven loop (the framework owns it) ------------------------

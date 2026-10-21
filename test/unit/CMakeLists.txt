@@ -92,14 +92,14 @@ target_include_directories(vaml-core-tests SYSTEM PRIVATE
 if(MSVC)
     target_compile_options(vaml-core-tests PRIVATE /external:W0)
 else()
-    # Clang/Linux: the deps root is already on a -isystem path (silences normal
-    # warnings from system headers), but `#warning` directives are ALWAYS
-    # reported even from system headers — upstream doctest includes the
-    # compiler-provided <ciso646> (which carries a benign C++20 `#warning`) for
-    # libc++ detection. We use libstdc++, so that diagnostic is irrelevant; on
-    # C++20 clang -Werror escalates it. Downgrade only this one diagnostic
-    # family for the test target; every other warning stays an error.
-    target_compile_options(vaml-core-tests PRIVATE "-Wno-error=#warnings")
+    # Clang/Linux: fully suppress the `#warning` diagnostic family. vendored
+    # doctest includes the compiler-provided <ciso646> ONLY for clang (a libc++
+    # detection heuristic) — on GNU libstdc++ that header carries a benign C++20
+    # `#warning`. We never use libc++, so the heuristic is meaningless here; the
+    # noisy Rust-style diagnostic must not pollute a warning-clean build. ciso646
+    # is a system header we cannot patch, so we hide the family for the test
+    # target. Every OTHER warning stays an error (strict bar intact).
+    target_compile_options(vaml-core-tests PRIVATE "-Wno-#warnings")
 endif()
 
 # Link the real library — proves an external consumer can consume vaml-core.
@@ -135,6 +135,7 @@ add_executable(vaml-vulkan-tests
     Quad_test.cpp
     QuadScene_test.cpp
     TextureAtlas_test.cpp
+    IconPipeline_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)
@@ -149,7 +150,7 @@ target_include_directories(vaml-vulkan-tests SYSTEM PRIVATE
 if(MSVC)
     target_compile_options(vaml-vulkan-tests PRIVATE /external:W0)
 else()
-    target_compile_options(vaml-vulkan-tests PRIVATE "-Wno-error=#warnings")
+    target_compile_options(vaml-vulkan-tests PRIVATE "-Wno-#warnings")
 endif()
 
 target_link_libraries(vaml-vulkan-tests PRIVATE vaml-vulkan)
@@ -182,7 +183,7 @@ target_include_directories(vaml-presentation-tests SYSTEM PRIVATE
 if(MSVC)
     target_compile_options(vaml-presentation-tests PRIVATE /external:W0)
 else()
-    target_compile_options(vaml-presentation-tests PRIVATE "-Wno-error=#warnings")
+    target_compile_options(vaml-presentation-tests PRIVATE "-Wno-#warnings")
 endif()
 
 target_link_libraries(vaml-presentation-tests PRIVATE vaml-presentation)

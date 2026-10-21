@@ -70,6 +70,9 @@ message(STATUS "VAML deps root: ${VAML_DEPS_DIR}")
 include(cmake/FindGLFW.cmake)
 include(cmake/FindVulkan.cmake)
 include(cmake/FindVMA.cmake)
+# S202_1: CPU rasterizer headers (stb_image for PNG + nanosvg for SVG), consumed
+# only by vaml-vulkan (ADR-011). Mirrors the GLFW/VMA vendor strategy.
+include(cmake/FindImageDecoders.cmake)
 
 # ============================================================================
 # Directory aggregation — library/tool sources live under src/ (see ROADMAP).

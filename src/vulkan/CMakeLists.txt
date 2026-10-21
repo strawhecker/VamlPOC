@@ -29,12 +29,35 @@ vaml_add_library(vulkan
     src/quad/QuadTexture.cpp
     src/quad/QuadScene.cpp
     src/quad/TextureAtlas.cpp
+    # S202_1 — the icon asset pipeline (single quad engine; per ADR-015): PNG +
+    # SVG are BOTH source formats, each rasterized ONCE into the S202 atlas —
+    # no vector-on-screen, no second renderer. Output tagged with its texel
+    # count for S213_1 best-fit.
+    src/icon/IconPipeline.cpp
+    src/icon/IconAtlas.cpp
+    # The single-TU implementation defines (STB_IMAGE_IMPLEMENTATION,
+    # NANOSVG_IMPLEMENTATION + NANOSVGRAST_IMPLEMENTATION) live in these files,
+    # exactly once per process (the VMA single-TU precedent).
+    src/icon/StbImageImpl.cpp
+    src/icon/NanosvgImpl.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA
 # (S161), all resolved as interface targets by the top-level find modules.
+# S202_1 adds vaml::image (stb_image + nanosvg, the decode/raster headers),
+# also GPU-adjacent CPU rasterization reachable only via vaml-vulkan (ADR-011).
 target_link_libraries(vaml-vulkan
     PUBLIC vaml::glfw
     PUBLIC vaml::vulkan
     PUBLIC vaml::vma
+    PUBLIC vaml::image
 )
+
+# The vendored rasterizer headers are exposed via SYSTEM include dirs by
+# vaml::image; on MSVC that routing only takes effect when /external:W0 is on,
+# so the strict bar (/W4 /WX) governs our own sources and stays quiet on the
+# vendor noise compiled inside the implementation TUs (StbImageImpl/NanosvgImpl).
+# Clang/GCC treat SYSTEM as -isystem and need no extra flag.
+if(MSVC)
+    target_compile_options(vaml-vulkan PRIVATE /external:W0)
+endif()
