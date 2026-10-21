@@ -1,0 +1,6 @@
+[s177] begin
+[s177] loader ok
+[s177] instance ok
+[s177] gpu=NVIDIA RTX A5000 Laptop GPU
+[s177] device ok
+[s177] machine gen0 built: 3 images, extent 800x600, state=0
