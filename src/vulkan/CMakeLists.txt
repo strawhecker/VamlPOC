@@ -40,6 +40,15 @@ vaml_add_library(vulkan
     # exactly once per process (the VMA single-TU precedent).
     src/icon/StbImageImpl.cpp
     src/icon/NanosvgImpl.cpp
+    # S203 — the embedded bitmap-font loader + ASCII 32–126 glyph atlas build
+    # (dep:S202): parses the embedded default TrueType with stb_truetype and
+    # rasterizes each glyph's coverage ONCE into the S202 atlas via sub-region
+    # upload. S204 (dep:S203) converts those coverage tiles to SDF for soft-edge
+    # sampling. The STB_TRUETYPE_IMPLEMENTATION single-TU define lives in
+    # TruetypeImpl.cpp, exactly once (the VMA single-TU discipline).
+    src/font/FontAtlas.cpp
+    src/font/SdfAtlas.cpp
+    src/font/TruetypeImpl.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

@@ -43,6 +43,10 @@
 // output tagged with its texel count for S213_1 best-fit.
 #include <vaml/vulkan/icon/IconPipeline.h>
 #include <vaml/vulkan/icon/IconAtlas.h>
+// S203/S204: the embedded bitmap-font loader (stb_truetype + ASCII 32–126 glyph
+// atlas) + the SDF rasterizer (coverage → SDF into the atlas, soft-edge sampling).
+#include <vaml/vulkan/font/FontAtlas.h>
+#include <vaml/vulkan/font/SdfAtlas.h>
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
@@ -575,6 +579,7 @@ int main()
         {
             // Embedded fixtures (packaged assets — the ADR-015 boundary, never a path):
             // a 4x4 solid-red PNG + a 10x10 solid-red SVG square.
+            using Bytes = std::vector<std::uint8_t>;
             const Bytes kPng = {
                 137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,4,0,0,0,4,8,6,0,0,0,169,241,158,126,0,0,0,18,73,
                 68,65,84,120,156,99,248,207,192,240,31,25,51,144,46,0,0,60,64,31,225,224,129,119,180,0,0,0,0,73,69,78,
@@ -625,6 +630,61 @@ int main()
         else
         {
             std::fprintf(stderr, "[s202_1-live] IconAtlas::create (TextureAtlas) failed on %s\n", gpuName.c_str());
+        }
+    }
+
+    // --- S203+S204 live font/SDF-atlas proof (device-only; no surface required) -----
+    // The S203 FontAtlas (embedded TrueType loaded via stb_truetype + ASCII 32–126
+    // coverage glyph atlas) + the S204 SdfAtlas (coverage → SDF into the S202 atlas
+    // for soft-edge sampling) only need a DEVICE (over the S202 TextureAtlas), so
+    // they prove live here even without a surface: the HEADLINE risks are
+    // (1) the embedded default font PARSES (stbtt_InitFont) on the real CPU stack,
+    // (2) each of the 95 printable-ASCII glyphs gets a rasterized COVERAGE tile
+    // uploaded via the S202 sub-region upload (only its own tile dirties),
+    // (3) S204 converts the coverage to a packed SDF tile per glyph (+ the
+    // sdf_soft_alpha soft-edge value semantic), and (4) both are uploaded to a
+    // REAL driver via flush(). The presented sampling of an SDF tile via QuadScene
+    // UVs (the S205 text shader) stays the display-backed manual step.
+    bool fontProof = false;
+    if (vk->has_quad_loader() && vk->has_texture_loader() && vk->has_command_loader() && ctx.device)
+    {
+        using namespace vaml::vulkan::quad;
+        using namespace vaml::vulkan::font;
+        // A 256x128 atlas as a 16x8 grid -> 16x16 tiles (256%16==0 && 128%8==0:
+        // exact) — 128 tiles >= 95, the S203 glyph atlas requirement.
+        auto atlas = TextureAtlas::create(*vk, *ctx.device, 256, 128, 16, 8);
+        if (atlas)
+        {
+            FontAtlas glyphs(*atlas);
+            const bool loaded = glyphs.load();           // parse embedded font + rasterize 95
+            const std::uint32_t glyphTiles = glyphs.upload_glyphs();
+
+            SdfAtlas sdfs(*atlas, glyphs);
+            const bool sdfBuilt = sdfs.build();          // coverage -> SDF, 1 per glyph
+            const std::uint32_t sdfTiles = sdfs.upload_sdfs();
+
+            // A known glyph sanity: 'A' has a slot + a coverage tile + an SDF slot.
+            const bool aHasGlyph = glyphs.has_slot(static_cast<std::uint32_t>('A'));
+            const bool aHasSdf = sdfs.has_slot(static_cast<std::uint32_t>('A'));
+            const bool metricsOk = glyph_metrics_valid(glyphs.slot_for(static_cast<std::uint32_t>('A')).metrics);
+
+            fontProof = loaded && glyphs.slot_count() == 95u && glyphTiles == 95u &&
+                        sdfBuilt && sdfs.has_slot(static_cast<std::uint32_t>('A')) && sdfTiles == 95u &&
+                        aHasGlyph && aHasSdf && metricsOk;
+            if (fontProof)
+                std::printf("[s203+s204-live] font/SDF atlas on %s: embedded font parsed, "
+                            "%u glyph coverage tiles + %u SDF tiles uploaded (spread=%u); "
+                            "'A' has glyph+SDF+valid metrics\n",
+                            gpuName.c_str(), glyphs.slot_count(), sdfTiles, sdfs.spread());
+            else
+                std::fprintf(stderr, "[s203+s204-live] font/SDF MISMATCH on %s "
+                            "(loaded=%d slots=%u glyphTiles=%u sdfBuilt=%d sdfTiles=%u aG=%d aS=%d m=%d)\n",
+                            gpuName.c_str(), loaded, glyphs.slot_count(), glyphTiles,
+                            sdfBuilt, sdfTiles, aHasGlyph, aHasSdf, metricsOk);
+        }
+        else
+        {
+            std::fprintf(stderr, "[s203+s204-live] FontAtlas/SdfAtlas (TextureAtlas) create failed on %s\n", gpuName.c_str());
         }
     }
 

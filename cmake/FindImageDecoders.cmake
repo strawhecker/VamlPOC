@@ -26,11 +26,11 @@ endif()
 
 set(_vml_img_stb "${VAML_DEPS_DIR}/stb")
 set(_vml_img_nano "${VAML_DEPS_DIR}/nanosvg")
-if(NOT EXISTS "${_vml_img_stb}/stb_image.h")
+if(NOT EXISTS "${_vml_img_stb}/stb_image.h" OR NOT EXISTS "${_vml_img_stb}/stb_truetype.h")
     message(FATAL_ERROR
-        "stb_image.h not found. Expected the vendored single header at "
-        "VAML_DEPS_DIR/stb/stb_image.h. Vendor stb_image to keep the build "
-        "drift-free.")
+        "stb_image.h / stb_truetype.h not found. Expected the vendored single "
+        "headers at VAML_DEPS_DIR/stb/stb_image.h + stb_truetype.h. Vendor stb "
+        "(S202_1 decode + S203 TrueType load) to keep the build drift-free.")
 endif()
 if(NOT EXISTS "${_vml_img_nano}/nanosvg.h" OR NOT EXISTS "${_vml_img_nano}/nanosvgrast.h")
     message(FATAL_ERROR

@@ -22,7 +22,7 @@
 #endif
 
 #ifndef VAML_CORE_DEPRECATED
-#  define VAML_CORE_DEPRECATED __declspec(deprecated)
+#  define VAML_CORE_DEPRECATED __attribute__ ((__deprecated__))
 #endif
 
 #ifndef VAML_CORE_DEPRECATED_EXPORT
