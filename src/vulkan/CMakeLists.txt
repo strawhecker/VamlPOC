@@ -70,6 +70,12 @@ vaml_add_library(vulkan
     # frame (no re-encode) + recycles retired generations via the in-flight fence —
     # the render-thread loop end-to-end. Marshalling to a dual-thread model is S211.
     src/ui/SceneRenderer.cpp
+    # S211 (dep:S210) — the lock-free scene-change postbox (MarshalledScene): the
+    # UI thread mutates + publishes a CPU-encoded DrawItem snapshot ONCE per frame;
+    # the render thread consumes the LATEST once per frame (has_newer/consume_latest,
+    # release/acquire atomics, ZERO new locks per ADR-018). SceneRenderer::consume_changes
+    # drains it ahead of EncodeIfDirty in the S211 loop-plan. Consumed by S212.
+    src/ui/MarshalledScene.cpp
     # S207 (dep:S206) — the Scene→command-buffer encoder: walks the REAL core
     # visual tree (vaml::core::UIElement) and produces the S206 DrawItem list —
     # draw list by material, z-order via tree order (the CORE→vulkan feed edge).

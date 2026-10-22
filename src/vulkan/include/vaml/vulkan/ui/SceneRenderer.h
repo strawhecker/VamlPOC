@@ -43,6 +43,7 @@
 #include <vaml/vulkan/VulkanLoader.h>
 #include <vaml/vulkan/ui/UiScene.h>
 #include <vaml/vulkan/ui/UiPipeline.h>
+#include <vaml/vulkan/ui/MarshalledScene.h>
 
 #include <cstdint>
 #include <memory>
@@ -59,31 +60,47 @@ namespace vaml::vulkan::ui {
 // PURE DECISION SEAMS (headless-testable; no Vulkan runtime required)
 // ---------------------------------------------------------------------------
 
-// The S210 loop-plan (the S166/S201/S206 record-plan precedent): the fixed
+// The S210/S211 loop-plan (the S166/S201/S206 record-plan precedent): the fixed
 // ordered per-frame sequence a render-thread loop runs to draw the RETAINED
 // scene. scene->record_draw already encodes the S206 record steps; this is the
-// HIGHER loop plan: WaitFence (the S166 in-flight handshake) -> [if dirty:
-// encode/re-encode once] -> record the RETAINED buffers -> submit/present (the
-// S173 Presenter owns this) -> recycle (the S209 fence-driven free). The
-// [EncodeIfDirty] step is conditional (absent when the scene is unchanged).
+// HIGHER loop plan: WaitFence (the S166 in-flight handshake) -> [ConsumeMarshalled:
+// S211 — the render thread drains the UI thread's scene-change postbox ONCE per
+// frame (S211 consume_latest -> a newer version sets the dirty/re-encode pulse)] ->
+// [if dirty: encode/re-encode once] -> record the RETAINED buffers -> submit/present
+// (the S173 Presenter owns this) -> recycle (the S209 fence-driven free). The
+// [ConsumeMarshalled] + [EncodeIfDirty] steps are conditional (absent when the
+// UI thread published nothing / the scene is unchanged).
 enum class RenderLoopStep
 {
-    WaitFence,        // the S166 in-flight fence wait (frame slot freed for reuse)
-    EncodeIfDirty,    // only when dirty: set_scene -> encode the retained buffers ONCE
-    RecordRetained,   // record the RETAINED buffers (NO re-encode) each frame
-    SubmitPresent,    // the S173 Presenter owns submit + present (not this seam)
-    Recycle,          // the S209 fence-driven free of retired generations
+    WaitFence,          // the S166 in-flight fence wait (frame slot freed for reuse)
+    ConsumeMarshalled,  // S211: drain the marshalled change postbox (a newer UI-thread
+                        //       version makes this frame dirty -> EncodeIfDirty runs)
+    EncodeIfDirty,      // only when dirty: set_scene -> encode the retained buffers ONCE
+    RecordRetained,     // record the RETAINED buffers (NO re-encode) each frame
+    SubmitPresent,      // the S173 Presenter owns submit + present (not this seam)
+    Recycle,            // the S209 fence-driven free of retired generations
 };
 
-// The fixed ordered per-frame loop sequence (all steps except EncodeIfDirty run
-// EVERY frame; EncodeIfDirty is conditional). Pure + headless-testable.
+// The fixed ordered per-frame loop sequence (the S210/S211 loop-plan). All steps
+// except the two conditional ones run EVERY frame: ConsumeMarshalled gates a
+// re-encode on a newer marshalled version, and EncodeIfDirty runs only when a
+// UI-thread change (or a direct dirty set_scene) made the scene dirty. Pure +
+// headless-testable.
 VAML_VULKAN_EXPORT const std::vector<RenderLoopStep>& render_loop_steps() noexcept;
 
 // The RETAIN gate: true iff the renderer must re-encode this frame. A dirty flag
-// (the scene CHANGED since the last encode) forces a re-encode; an unchanged
+// (the scene CHANGED since the last encode — either a direct set_scene or a
+// marshalled change consumed this frame) forces a re-encode; an unchanged
 // (not-dirty) frame does NOT re-encode — it only records the retained buffers.
 // Pure + headless-testable.
 VAML_VULKAN_EXPORT bool should_reencode(bool dirty) noexcept;
+
+// S211 — the "consume the LATEST once per frame" re-encode GATE, headless:
+// the render thread re-encodes this frame iff the marshalled postbox holds a
+// version NEWER than the one already consumed. An idle frame (nothing new) does
+// NOT re-encode — the "retained scene drawn each frame" guarantee holds across a
+// marshalled UI-thread→render-thread handoff. Pure + headless-testable.
+VAML_VULKAN_EXPORT bool should_consume(bool hasNewer) noexcept;
 
 // ---------------------------------------------------------------------------
 // Real retained-scene owner (RAII; move-only; owns a UiScene)
@@ -144,6 +161,23 @@ public:
     // ring by frame index, which the waited fences drive.
     void recycle(VkFence /*fence*/);
 
+    // S211 — the render thread's marshalled-change CONSUMPTION step (the loop's
+    // ConsumeMarshalled): drains the LOCK-FREE postbox exactly ONCE per frame
+    // (copy the LATEST published snapshot out + advance last_consumed). Returns
+    // true iff a NEWER version was drained (this frame became dirty → EncodeIfDirty
+    // re-encodes via the freshly drained list); false on an idle frame (nothing
+    // new → the retained buffers are drawn as-is, ZERO re-encodes). The renderer
+    // owns its MarshalledScene by value (below); the UI thread mutates+publishes
+    // to the SAME instance. Pure/headless-testable at the loop-seam level
+    // (has_newer/consume_latest), no Vulkan runtime required for this call.
+    bool consume_changes();
+
+    // S211 — the owned lock-free scene-change postbox (the UI-thread→render-thread
+    // handoff). The UI thread calls `postbox().mutate(encodedItems)` +
+    // `postbox().publish()`; the render thread's consume_changes() (above) drains it.
+    [[nodiscard]] MarshalledScene& postbox() noexcept { return marshalled_; }
+    [[nodiscard]] const MarshalledScene& postbox() const noexcept { return marshalled_; }
+
     // True until the first record is called (the renderer has not yet recorded).
     [[nodiscard]] bool dirty() const noexcept { return dirty_; }
     [[nodiscard]] std::uint32_t item_count()  const noexcept { return scene_ ? scene_->item_count() : 0u; }
@@ -154,6 +188,7 @@ private:
     SceneRenderer();
 
     std::unique_ptr<UiScene> scene_;
+    MarshalledScene marshalled_;    // S211: the lock-free UI→render change postbox
     bool dirty_ = false;            // a set_scene happened; the next record uses it
     std::uint32_t lastEncodeCount_ = 0;  // encode counter for the no-op retained check
 };

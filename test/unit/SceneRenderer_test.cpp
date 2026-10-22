@@ -22,13 +22,17 @@ using namespace vaml::vulkan::ui;
 TEST_CASE("S210: the loop-plan is the fixed ordered per-frame sequence")
 {
     // The S166/S201/S206 record-plan precedent: the loop's fixed per-frame steps.
+    // S211 (dep:S210) inserts ConsumeMarshalled between WaitFence and EncodeIfDirty
+    // (the render thread drains the UI-thread's change postbox ONCE per frame before
+    // the conditional re-encode), evolving S210's 5-step loop to the S211 6-step loop.
     const auto& steps = render_loop_steps();
-    REQUIRE(steps.size() == 5u);
+    REQUIRE(steps.size() == 6u);
     CHECK(steps[0] == RenderLoopStep::WaitFence);
-    CHECK(steps[1] == RenderLoopStep::EncodeIfDirty);
-    CHECK(steps[2] == RenderLoopStep::RecordRetained);
-    CHECK(steps[3] == RenderLoopStep::SubmitPresent);
-    CHECK(steps[4] == RenderLoopStep::Recycle);
+    CHECK(steps[1] == RenderLoopStep::ConsumeMarshalled);
+    CHECK(steps[2] == RenderLoopStep::EncodeIfDirty);
+    CHECK(steps[3] == RenderLoopStep::RecordRetained);
+    CHECK(steps[4] == RenderLoopStep::SubmitPresent);
+    CHECK(steps[5] == RenderLoopStep::Recycle);
 }
 
 TEST_CASE("S210: the retain gate — only a dirty flag re-encodes")

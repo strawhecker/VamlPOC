@@ -151,6 +151,11 @@ add_executable(vaml-vulkan-tests
     # S210 — the render-thread loop contract (render_loop_steps, should_reencode) +
     # the retained-scene owner structure. Device-backed record/recycle is [s210-live].
     SceneRenderer_test.cpp
+    # S211 — the marshalled-change consumption per frame FIRST WIRE: the lock-free
+    # scene-change postbox (coalescing producer / consume-once-per-frame gate /
+    # backpressure) + the S211 loop-plan (ConsumeMarshalled + should_consume) + a
+    # REAL two-thread handoff (UI mutates, render drains once per frame). Headless.
+    MarshalledScene_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

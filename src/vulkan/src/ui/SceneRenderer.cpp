@@ -15,8 +15,13 @@ namespace vaml::vulkan::ui {
 
 const std::vector<RenderLoopStep>& render_loop_steps() noexcept
 {
+    // S211 inserts ConsumeMarshalled ahead of EncodeIfDirty (in place, the loop
+    // stays forward-compatible): each frame the render thread first drains the
+    // UI-thread's change postbox (once per frame), which sets the dirty/re-encode
+    // pulse that EncodeIfDirty consumes. Idle frames (nothing new) skip both.
     static const std::vector<RenderLoopStep> plan = {
         RenderLoopStep::WaitFence,
+        RenderLoopStep::ConsumeMarshalled,
         RenderLoopStep::EncodeIfDirty,
         RenderLoopStep::RecordRetained,
         RenderLoopStep::SubmitPresent,
@@ -28,6 +33,11 @@ const std::vector<RenderLoopStep>& render_loop_steps() noexcept
 bool should_reencode(bool dirty) noexcept
 {
     return dirty;
+}
+
+bool should_consume(bool hasNewer) noexcept
+{
+    return hasNewer;
 }
 
 std::unique_ptr<SceneRenderer>
@@ -87,6 +97,25 @@ bool SceneRenderer::record(VkCommandBuffer cmd)
     if (ok)
         dirty_ = false;
     return ok;
+}
+
+bool SceneRenderer::consume_changes()
+{
+    // S211 — the render thread's per-frame marshalled-change drain (the loop's
+    // ConsumeMarshalled). Copy the LATEST published snapshot out once; if a newer
+    // version was drained, re-encode the retained buffers via set_scene (EncodeIfDirty).
+    // An idle frame (nothing new) returns false WITHOUT re-encoding — the retained
+    // buffers are recorded as-is (the "retained scene drawn each frame" across a
+    // marshalled handoff). The postbox is lock-free (release/acquire atomics).
+    std::vector<DrawItem> snapshot;
+    const std::uint64_t before = marshalled_.last_consumed_version();
+    const std::uint64_t drained = marshalled_.consume_latest(snapshot);
+    if (drained == before)
+        return false;  // nothing newer this frame
+    // A newer UI-thread version was consumed: re-encode the retained scene with it.
+    if (scene_)
+        set_scene(snapshot);
+    return true;
 }
 
 void SceneRenderer::recycle(VkFence /*fence*/)

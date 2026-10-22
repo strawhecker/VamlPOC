@@ -1032,6 +1032,59 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
                                                             gpuName.c_str(), s210Built, renderer ? !!renderer->scene() : 0,
                                                             s210Retained);
                                             renderer.reset();  // dtor frees every retained generation (device-idle)
+
+                                            // --- S211 live marshalled-change consumption proof (device-only) ---------
+                                            // RESOLVES the S210-recorded NO-GAP in place: UI thread mutates + encodes
+                                            // the DrawItem snapshot, publish() hands it to the render thread via the
+                                            // LOCK-FREE postbox; the render thread's consume_changes() drains the
+                                            // LATEST once per frame and re-encodes the retained scene ONLY when a
+                                            // newer version is present (idle frames: ZERO re-encodes). Here the
+                                            // "two threads" are enacted as a sequenced producer/consumer handoff
+                                            // over ONE SceneRenderer's postbox (the lock-free seams + the S211 loop
+                                            // are proven headlessly in MarshalledScene_test; the device-backed
+                                            // re-encode is proven here on a real driver).
+                                            {
+                                                auto r2 = SceneRenderer::create(*vk, *ctx.device, sspec);
+                                                const bool s211Built = !!r2;
+                                                bool s211Consumed = false;
+                                                if (r2)
+                                                {
+                                                    // UI thread produces frame 1, publishes, render thread consumes +
+                                                    // re-encodes (a NEWER version -> dirty -> EncodeIfDirty).
+                                                    r2->postbox().mutate(treeItems);
+                                                    r2->postbox().publish();
+                                                    const bool enc1 = r2->consume_changes();
+                                                    const std::uint32_t itemsAfter = r2->item_count();
+                                                    // UI thread produces frame 2, publishes, but the render thread is
+                                                    // LAGGING (does NOT consume yet) -> publish backpressures: no lost
+                                                    // update, and the NEXT consume gets the LATEST.
+                                                    std::vector<DrawItem> changed = treeItems;
+                                                    changed.push_back(solid_rect(220, 220, 20, 20, sRed));
+                                                    r2->postbox().mutate(changed);
+                                                    const std::uint64_t backpressured = r2->postbox().publish();
+                                                    const bool enc2 = r2->consume_changes();
+                                                    const std::uint32_t itemsAfter2 = r2->item_count();
+                                                    // Idle frame: nothing new -> consume_changes returns false (NO re-encode).
+                                                    const bool idle = r2->consume_changes();
+                                                    s211Consumed = enc1 && itemsAfter == treeItems.size() &&
+                                                                   backpressured == 1u && // backpressured: v1 not drained before flip
+                                                                   enc2 && itemsAfter2 == changed.size() &&
+                                                                   !idle;
+                                                }
+                                                const bool s211Proof = s211Built && s211Consumed;
+                                                if (s211Proof)
+                                                    std::printf("[s211-live] marshalled consume on %s: UI thread "
+                                                                "produced+publisht, render thread consumed the LATEST "
+                                                                "once per frame (%u items re-encoded), backpressured a "
+                                                                "lagging frame without loss, idle frame did NOT re-encode\n",
+                                                                gpuName.c_str(),
+                                                                static_cast<unsigned>(treeItems.size()));
+                                                else
+                                                    std::fprintf(stderr, "[s211-live] marshalled consume MISMATCH on %s "
+                                                                "(built=%d consumed=%d)\n",
+                                                                gpuName.c_str(), s211Built, s211Consumed);
+                                                r2.reset();
+                                            }
                                         }
                                         if (pool2 && vk->vkDestroyDescriptorPool)
                                             vk->vkDestroyDescriptorPool(ctx.device->device(), pool2, nullptr);
