@@ -703,7 +703,23 @@
       internally-wired DrawBody. The DISPLAY proof is demonstrated in the REAL surviving vehicle
       (vaml_viewer/S222, which consumes the public surface) — the work is NOT built for the throwaway POCs
       that S220 deletes. [Clear objective: "I run it and I SEE the declared panels."]
+      [RECORDED — committed forward objective; library present-path delivered by S212, display proof bound to S222.]
+      CONTRACT (recorded at S212_1, NOT silent): (1) the library-surface present path is ALREADY complete via
+      S212 — `VamlRenderer::create_device(...)` builds + owns the SceneRenderer + the Presenter and wires the
+      Presenter's DrawBody INTERNALLY (`record_draw`: reset/begin, begin render pass against the acquired
+      framebuffer via `self.machine().framebuffer(imageIndex)`, then ConsumeMarshalled → EncodeIfDirty(+RecordRetained)
+      → RecordRetained → Recycle; WaitFence + SubmitPresent are the Presenter's own — present-ready given a real
+      surface + render pass + swapchain + `tick(invalidated,tickDue)`). Verified by audit at S212_1 (no new
+      library code required). (2) The DISPLAY proof ("I run it and I SEE the declared panels") is S222's obligation
+      by definition (the objective text binds it to vaml_viewer; S222 "DEMONSTRATES S212_1 ... in the real window"),
+      NOT a throwaway POC (S220 deletes them) and NOT built now. (3) NO-GAP (not silent): S213 (DPI) PROCEEDS
+      INDEPENDENTLY — its host-side uiScale consumer is an already-recorded seam and does not wait on the window
+      demonstration. (4) Scope boundary (recorded, NOT silent): real control materials (Text/Button → S400/S401)
+      do not exist yet — the slice renders the real layout panels via the visualOf classifier filling each at its
+      final_rect (the accepted S212 judgment); glyphs stay S400. No backfill.
 - S213 dep:S212_1  DPI + framebuffer scale: logical px layout, render scales by framebufferScale; high-DPI crisp.
+      [S212_1 RECORDED the NO-GAP: S213 proceeds independently — the host already carries set_frame_size + the
+      uiScale consumer; it does not wait on the window demonstration.]
 - S213_1 dep:S213  DPI-aware icon best-fit selection (per ADR-015): scaling policy { none | down-only | both },
       default none. "none" = never resample, pick largest authored texel set ≤ physical N (N_physical =
       logical_size × dpiScale), sprite may be smaller than its slot; "down-only" may sample a larger set

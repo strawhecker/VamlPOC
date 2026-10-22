@@ -1,7 +1,1 @@
-<Solution>
-  <Configurations>
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Project Path="VamlPOC.vcxproj" Id="e19984e4-c58e-43ad-a6f1-a25691d334df" />
-</Solution>
+<Solution />
