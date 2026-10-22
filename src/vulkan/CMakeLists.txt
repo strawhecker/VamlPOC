@@ -60,6 +60,10 @@ vaml_add_library(vulkan
     # pipeline rebind + push update, never a descriptor-set rebind). UiScene is
     # the named consumer of S205's shared layout. See UiScene.h for the NO-GAP.
     src/ui/UiScene.cpp
+    # S207 (dep:S206) — the Scene→command-buffer encoder: walks the REAL core
+    # visual tree (vaml::core::UIElement) and produces the S206 DrawItem list —
+    # draw list by material, z-order via tree order (the CORE→vulkan feed edge).
+    src/ui/UiSceneEncoder.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA
@@ -71,6 +75,12 @@ target_link_libraries(vaml-vulkan
     PUBLIC vaml::vulkan
     PUBLIC vaml::vma
     PUBLIC vaml::image
+    # S207: the UiSceneEncoder walks the REAL core visual tree (vaml::core::UIElement),
+    # so vaml-vulkan gains a PUBLIC vaml-core edge. This is a legitimate
+    # Vulkan→core dependency under ADR-011 (core still never reaches Vulkan/GLFW —
+    # vaml_validate_layer_rules enforces that direction). PUBLIC mirrors the
+    # glfw/vulkan/vma/image edges: consumers + the test target see core too.
+    PUBLIC vaml-core
 )
 
 # The vendored rasterizer headers are exposed via SYSTEM include dirs by

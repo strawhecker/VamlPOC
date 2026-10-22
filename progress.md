@@ -26,9 +26,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S206 (dep:S205) — Sprint 5/6 — Draw text + rect from the shared descriptor layout; batch same-shader draws (UiScene + batch_plan: contiguous same-key draws → ONE vkCmdDrawIndexed each, never a descriptor-set rebind — the S205 shared-layout premise; pure seams DrawItemKind/DrawItem/ui_batch_key/draw_kind_to_shader/ui_vertex_count/ui_index_count/append_ui_item/UI batch_plan/ui_record_steps; UiScene_test 11 cases)
-- Next step to do     : S207 (dep:S206) — Sprint 5/6 — Scene→command-buffer encoder: walk visual tree → draw list by material; z-order via tree order
-- PENDING work        : none (S200 + S201 + S202 + S202_1 + S203 + S204 + S205 + S205_1 + S206 fully complete, both CI lanes green from first principles; the Sprint 5/6 surviving state is in the `## SPRINT 5 — SURVIVOR` block below + the roadmap S206 delivery note + session-context.md)
+- Last completed step : S207 (dep:S206) — Sprint 5/6 — Scene→command-buffer encoder: walk the REAL core visual tree (vaml::core::UIElement) → S206 DrawItem list; draw list by material, z-order via tree order (UiSceneEncoder + encode_visual_tree: depth-first pre-order walk = z-order via tree order; skip rules None/Collapsed/degenerate each leave the subtree walking; MaterialKind/classify_element [vulkan-side default → None, the S400/S364 seam]/ElementVisual/MaterialGroupCount [== UiScene::batch_count]/VisualWalkStep + the REAL PUBLIC vaml-core edge; UiSceneEncoder_test 8 cases)
+- Next step to do     : S208 (dep:S207) — Sprint 5/6 — the encoder HONORS Opacity + Clip + RenderTransform and composes the per-element Model → UiPushConstants.mvp (the UIElement transform-owner sentinel resolves here)
+- PENDING work        : none (S200 + S201 + S202 + S202_1 + S203 + S204 + S205 + S205_1 + S206 + S207 fully complete, both CI lanes green from first principles; the Sprint 5/6 surviving state is in the `## SPRINT 5 — SURVIVOR` block below + session-context.md)
   **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap Ã¢â‚¬â€ DOCS-ONLY (no build, per the
   S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
   principles). (1) RELOCATE: Sprint 3.5 (S140Ã¢â‚¬â€œS147) is consolidated into the `## SPRINT 3.5 Ã¢â‚¬â€ SURVIVOR`

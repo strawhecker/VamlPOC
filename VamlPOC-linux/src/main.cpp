@@ -55,6 +55,15 @@
 // SHARED descriptor layout, batching contiguous same-shader draws into ONE
 // vkCmdDrawIndexed (the S205 shared-layout premise; dep:S205).
 #include <vaml/vulkan/ui/UiScene.h>
+// S207 (dep:S206): the Scene→command-buffer encoder — walks the REAL core
+// visual tree (vaml::core::UIElement) and produces the S206 DrawItem list
+// (draw list by material, z-order via tree order).
+#include <vaml/vulkan/ui/UiSceneEncoder.h>
+// The REAL core visual tree the S207 encoder walks (StackPanel + UIElement +
+// the S120 Visibility DP + the S122/S123/S124 layout rects).
+#include <vaml/core/Element.h>   // StackPanel, Orientation
+#include <vaml/core/UIElement.h> // UIElement, Visibility
+#include <vaml/core/Geometry.h>  // Size, Rect
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
@@ -83,6 +92,25 @@ namespace {
 
 constexpr uint32_t kWindowW = 800;
 constexpr uint32_t kWindowH = 600;
+
+// A device-only proof leaf for [s207-live]: a REAL core UIElement with a content
+// extent (MeasureOverride), so arranging a StackPanel of these yields NON-
+// degenerate final_rects for the S207 encoder to read (a base UIElement has
+// empty content -> 0-height rows -> skipped). Not a control seed — POC-local.
+class LeafLike : public vaml::UIElement
+{
+public:
+    explicit LeafLike(float w, float h) : extent{ w, h } {}
+
+protected:
+    vaml::Size MeasureOverride(const vaml::Size& /*available*/) const override
+    {
+        return extent;
+    }
+
+private:
+    vaml::Size extent;
+};
 
 // The S166 clear color (light/gray) so the blue S165 triangle is visible against it.
 inline constexpr float kClearColor[4] = { 0.2f, 0.2f, 0.25f, 1.0f };
@@ -918,6 +946,76 @@ int main()
                         std::fprintf(stderr, "[s206-live] draw batcher MISMATCH on %s "
                                     "(encoded=%d batches=%u items=%u solid=%u border=%u text=%u)\n",
                                     gpuName.c_str(), encoded, nBatches, nItems, nSolid, nBorder, nText);
+
+                    // --- S207 live scene-encoder proof (device-only) ------------
+                    // The S207 encoder walks the REAL core visual tree (a
+                    // StackPanel with arranged children) and produces the DrawItem
+                    // list that feeds THIS live scene. The HEADLINE risk proven
+                    // live: encode_visual_tree -> scene->set_items gives
+                    // scene->batch_count() == MaterialGroupCount(items) — the
+                    // "draw list by material" IS the batcher's input, and z-order
+                    // is tree order (pre-order emission).
+                    {
+                        using namespace vaml;   // UIElement, StackPanel, Visibility
+                        vaml::StackPanel panel;
+                        // Two solid leaves + a text leaf + another solid leaf: the
+                        // material run sequence solid,solid,text,solid -> 3 runs.
+                        vaml::UIElement* s1 = panel.create_child<LeafLike>(100.0f, 20.0f);
+                        vaml::UIElement* s2 = panel.create_child<LeafLike>(100.0f, 20.0f);
+                        vaml::UIElement* t  = panel.create_child<LeafLike>(80.0f, 16.0f);
+                        vaml::UIElement* s3 = panel.create_child<LeafLike>(100.0f, 20.0f);
+                        // Give arranged final_rects (the field the encoder reads).
+                        panel.Measure(Size{ 800.0f, Size::Infinite().height });
+                        panel.Arrange(Rect{ 0.0f, 0.0f, 800.0f, 200.0f });
+                        // material authority seam (vulkan-side; real controls replace
+                        // it at S400/S364) keyed by element pointer:
+                        const Color4 red{ 1, 0, 0, 1 }, white{ 1, 1, 1, 1 };
+                        auto visualOf = [&](const UIElement& e) -> ElementVisual {
+                            ElementVisual v;
+                            if (&e == s1 || &e == s2 || &e == s3)
+                            {
+                                const Rect r = e.final_rect();
+                                v.kind = MaterialKind::Solid;
+                                v.item = solid_rect(r.x, r.y, r.width, r.height, red);
+                            }
+                            else if (&e == t)
+                            {
+                                const Rect r = e.final_rect();
+                                v.kind = MaterialKind::Text;
+                                v.item = text_glyph(r.x, r.y, r.width, r.height,
+                                                    0.0f, 0.0f, 1.0f, 1.0f, white, 0.15f);
+                            }
+                            else
+                            {
+                                v.kind = classify_element(e);  // None for the panel
+                            }
+                            return v;
+                        };
+
+                        std::vector<DrawItem> treeItems;
+                        encode_visual_tree(panel, visualOf, treeItems);
+                        const std::uint32_t groups = MaterialGroupCount(treeItems);
+                        const bool sceneFed = scene->set_items(treeItems);
+                        const std::uint32_t sceneGroups = scene->batch_count();
+
+                        // 4 leaves -> 4 items; 3 contiguous material runs -> 3 batches.
+                        const bool s207Proof = sceneFed && treeItems.size() == 4u &&
+                                               groups == 3u && sceneGroups == groups;
+                        if (s207Proof)
+                            std::printf("[s207-live] scene encoder on %s: walked the REAL core "
+                                        "visual tree (StackPanel, %u arranged leaves) -> %u draw items "
+                                        "in %u material groups; UiScene re-encoded them into %u batches "
+                                        "(draw list by material, z-order via tree order)\n",
+                                        gpuName.c_str(),
+                                        static_cast<unsigned>(treeItems.size()),
+                                        static_cast<unsigned>(treeItems.size()),
+                                        groups, sceneGroups);
+                        else
+                            std::fprintf(stderr, "[s207-live] scene encoder MISMATCH on %s "
+                                        "(fed=%d items=%u groups=%u sceneGroups=%u)\n",
+                                        gpuName.c_str(), sceneFed,
+                                        static_cast<unsigned>(treeItems.size()), groups, sceneGroups);
+                    }
                 }
                 else
                 {
