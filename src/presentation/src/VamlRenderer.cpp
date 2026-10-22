@@ -13,6 +13,7 @@
 
 #include <vaml/presentation/VamlRenderer.h>
 
+#include <vaml/presentation/dpi.h>              // S213: dpi_render_plan (physical/logical)
 #include <vaml/vulkan/CommandBuffer.h>      // describe_command_buffer_begin, build_render_pass_begin
 #include <vaml/vulkan/ui/MarshalledScene.h> // has_newer / consume_latest
 
@@ -233,7 +234,17 @@ bool VamlRenderer::record_draw(vaml::presentation::Presenter& self,
     const bool consumed = sceneRenderer_->consume_changes();
     (void)consumed;  // an idle frame simply records the retained buffers unchanged
 
-    const bool recorded = sceneRenderer_->record(cmd);
+    // S213 — the DPI/framebuffer-scale render plan: the LOGICAL frame (frameW/H_,
+    // the host's set_frame_size = the uiScale consumer's logical extent) mapped onto
+    // the PHYSICAL framebuffer (the presenter's swapchain extent). uiScale = derived
+    // physical/logical (NEVER set independently — dpi.h), so the S208 clip scissor
+    // aligns with the scaled geometry at the physical viewport: 1 logical px renders
+    // at exactly `framebufferScale` physical px (high-DPI crisp). This replaces the
+    // no-arg `record(cmd)` (which used extent/uiScale 1, ignoring the DPI gap).
+    const dpi::RenderPlan plan = dpi::dpi_render_plan(
+        extent.width, extent.height, frameW_, frameH_);
+    const bool recorded = sceneRenderer_->record(cmd, plan.mvp, plan.uiScale);
+    lastFramebufferScale_ = plan.uiScale;   // S213 observability + the S213_1 dpiScale input
     if (recorded)
         sceneRenderer_->recycle(VK_NULL_HANDLE);
 

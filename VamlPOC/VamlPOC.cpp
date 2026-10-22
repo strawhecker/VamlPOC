@@ -78,6 +78,9 @@
 // owns loop/composition/recovery" contract.
 #include <vaml/presentation/Presenter.h>
 #include <vaml/presentation/VamlRenderer.h>
+// S213 (dep:S212_1): the DPI + framebuffer-scale pure seams (logical-px layout,
+// render scales by framebufferScale; high-DPI crisp) — the [s213-live] proof.
+#include <vaml/presentation/dpi.h>
 #include <vaml/composition/CompositionEngine.h>
 // S212 (the MERGE POINT's disk -> tree path): the REAL VamlReader::Load the
 // vertical slice uses to turn declared VAML text into the live core tree.
@@ -1147,6 +1150,59 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
                                                     std::fprintf(stderr, "[s212-live] vertical slice MISMATCH on %s "
                                                                 "(host=%d merge=%d encoded=%u)\n",
                                                                 gpuName.c_str(), s212Host, s212Merge, s212Encoded);
+
+                                                // --- S213 live DPI/framebuffer-scale proof (device-only) ---------
+                                                // DPI + framebuffer scale: the layout is LOGICAL px; the host's
+                                                // set_frame_size IS the logical extent, and the S213 pure seams
+                                                // derive the ONE self-consistent render plan (mvp = canvas_projection
+                                                // over the logical canvas; uiScale = physical/logical) that the host's
+                                                // record_draw feeds the S206 SceneRenderer's 3-arg record — the crisp
+                                                // high-DPI mapping (1 logical px -> framebufferScale physical px, and
+                                                // the S208 clip scissor ALIGNS because uiScale == physical/logical).
+                                                // This device-only block proves the pure seams + the host's derived
+                                                // scale (last_framebuffer_scale = the S213_1 dpiScale input) on the
+                                                // real stack; the on-screen high-DPI frame is S222/S224 ([both apps,
+                                                // not CI]).
+                                                {
+                                                    namespace dpi = vaml::presentation::dpi;
+                                                    // A 2x hiDPI scenario: a 800x600 LOGICAL layout in a 1600x1200
+                                                    // PHYSICAL framebuffer -> the crisp scale 2.0 + the canvas MVP.
+                                                    const dpi::RenderPlan plan =
+                                                        dpi::dpi_render_plan(1600u, 1200u, 800.0f, 600.0f);
+                                                    const float scale = plan.uiScale;
+                                                    // The crisp invariant: a 1-logical-px rect is EXACTLY 2 physical px.
+                                                    const dpi::PhysicalRect crisp =
+                                                        dpi::logical_to_physical(0.0f, 0.0f, 1.0f, 1.0f, scale);
+                                                    // A 100x50 logical element renders at exactly 200x100 physical px.
+                                                    const dpi::PhysicalRect elem =
+                                                        dpi::logical_to_physical(20.0f, 30.0f, 100.0f, 50.0f, scale);
+
+                                                    // The host's derived dpiScale input (the S213_1 icon best-fit's
+                                                    // physical N = logical size * dpiScale): the headless create() host
+                                                    // carries the seam (1.0 by default, the no-DPI identity).
+                                                    auto dpiHost = vaml::presentation::VamlRenderer::create();
+                                                    const bool s213Host = !!dpiHost;
+                                                    const float dpiScale = dpiHost ? dpiHost->last_framebuffer_scale() : 1.0f;
+
+                                                    const bool s213Proof = s213Host &&
+                                                        scale == 2.0f &&
+                                                        crisp.w == 2.0f && crisp.h == 2.0f &&
+                                                        elem.w == 200.0f && elem.h == 100.0f &&
+                                                        elem.x == 40.0f && elem.y == 60.0f &&
+                                                        dpiScale == 1.0f;  // default (no frame/framebuffer yet)
+                                                    if (s213Proof)
+                                                        std::printf("[s213-live] DPI/framebuffer scale on %s: an 800x600 "
+                                                                    "logical layout in a 1600x1200 framebuffer -> framebufferScale "
+                                                                    "%.1f (crisp: 1 logical px == %.0f physical px; a 100x50 logical "
+                                                                    "element == 200x100 physical px); host's S213_1 dpiScale %.1f\n",
+                                                                    gpuName.c_str(), scale, crisp.w, dpiScale);
+                                                    else
+                                                        std::fprintf(stderr, "[s213-live] DPI MISMATCH on %s "
+                                                                    "(host=%d scale=%.2f crispW=%.1f crispH=%.1f "
+                                                                    "elem=%.0fx%.0f@%.0f,%.0f dpiScale=%.2f)\n",
+                                                                    gpuName.c_str(), s213Host, scale,
+                                                                    crisp.w, crisp.h, elem.w, elem.h, elem.x, elem.y, dpiScale);
+                                                }
                                             }
                                         }
                                         if (pool2 && vk->vkDestroyDescriptorPool)

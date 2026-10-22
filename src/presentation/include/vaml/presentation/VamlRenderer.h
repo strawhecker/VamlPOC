@@ -227,6 +227,14 @@ public:
     [[nodiscard]] bool has_root() const noexcept { return root_ != nullptr; }
     [[nodiscard]] float frame_width()  const noexcept { return frameW_; }
     [[nodiscard]] float frame_height() const noexcept { return frameH_; }
+    // S213 — the DERIVED framebuffer scale (physical/logical px) of the LAST
+    // record_draw: the S213 DPI/Framebuffer-scale seam. 1 logical px rendered at
+    // exactly `last_framebuffer_scale()` physical px (high-DPI crisp). Since the
+    // scale is DERIVED (never set independently — see dpi.h), this accessor is the
+    // OBSERVABILITY + the S213_1 `dpiScale` input: the DPI-aware icon best-fit
+    // (S213_1) multiplies a logical icon size by this to get the physical N it
+    // best-fits against. 1.0 before the first record (no frame/framebuffer yet).
+    [[nodiscard]] float last_framebuffer_scale() const noexcept { return lastFramebufferScale_; }
     // True after an invalidate() that published (a re-encode is pending until the
     // render side consumes + re-encodes).
     [[nodiscard]] bool dirty() const noexcept { return dirty_; }
@@ -251,6 +259,8 @@ private:
     VisualOf visualOf_;
     vaml::vulkan::ui::MarshalledScene postbox_;   // S211 (headless path)
     bool dirty_ = false;
+    // S213 — the derived framebuffer scale of the last record_draw (1.0 before any).
+    float lastFramebufferScale_ = 1.0f;
 
     // The live composition state (null in the headless create() path).
     std::unique_ptr<vaml::vulkan::ui::SceneRenderer> sceneRenderer_;

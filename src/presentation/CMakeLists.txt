@@ -25,6 +25,11 @@ vaml_add_library(presentation
     # to window via the full S5 path"). The host owns the CPU/merge logic headlessly
     # (create) + the device-backed integration (create_device, [both apps, not CI]).
     src/VamlRenderer.cpp
+    # S213 (dep:S212_1): the DPI + framebuffer-scale pure seams (logical-px layout,
+    # render scales by framebufferScale; high-DPI crisp). The host (VamlRenderer)
+    # consumes dpi_render_plan in record_draw to call the S206 SceneRenderer's
+    # 3-arg record with the derived uiScale (the set_frame_size uiScale consumer).
+    src/dpi.cpp
     src/version.cpp
 )
 

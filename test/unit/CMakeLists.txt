@@ -193,6 +193,11 @@ add_executable(vaml-presentation-tests
     # Rail 1) through the vaml::presentation::VamlRenderer host — VAML disk ->
     # VamlReader::Load -> UIElement root -> arrange -> encode -> publish/consume.
     VamlRenderer_vertical_test.cpp
+    # S213 (dep:S212_1) — DPI + framebuffer scale: logical px layout, render scales
+    # by framebufferScale; high-DPI crisp. The PURE dpi:: seams (framebuffer_scale_for,
+    # canvas_projection, dpi_render_plan, logical_to_physical crisp invariant) + the
+    # S213_1 dpiScale input (last_framebuffer_scale). Headless, no Vulkan runtime.
+    Dpi_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
