@@ -1843,6 +1843,11 @@ superseded by S142 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the pimpl is removed, 
   S400 / TextBox → S402 / CheckBox → S404 / Slider → S403 / ScrollViewer → S405 / Window → S440; VamlReader event
   hooks → S322. [ADR-001..012] [layer-rule] [no-managed] [no-stub] [NO-GAP] [NO LAZY LLM] [ADR-018 lock governance].
 - **Next = S213** (Sprint 5/6 — DPI + framebuffer scale; the host already carries the uiScale consumer S213 consumes).
+- **VIEWER GROWTH:** the vaml_viewer (S220+) is the permanent visual-feedback vehicle (reload S222_1 + pan/zoom
+  S224 + the per-sprint growth table S256/S293/S329_1/S369/S409_1 — see roadmap.md conventions). Completion
+  gate: no viewer-growth token, no ✅ (the anti-grave-whistle clause). Viewer is preview-only (no embedded
+  source editor). S212_1 (option A): the library's create_device present objective is demonstrated in the
+  viewer (S222), NOT in the doomed POCs (S220 deletes them).
 
 ## SPRINT 4C — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S176..S179, closed at S179)
 - [x] S176..S179 — Sprint 4C (three-lane testing harness, codification) SURVIVOR + checkpoint advance to S200 - DONE

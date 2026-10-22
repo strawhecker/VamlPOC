@@ -84,6 +84,17 @@
   dead code and re-verifies full build (MSVC + Clang) + ctest.
 - Layer rule: `src/core` NEVER depends on Vulkan/GLFW; only `src/vulkan` may. Enforced by CMake.
 - Distribution: consumer chooses shared/static; default static. [ADR-003]
+- **VIEWER GROWTH (official term — the "always updated" contract, enforceable, NOT prose):** the
+  vaml_viewer (S220+) is the PERMANENT visual-feedback vehicle — the app's face. Its reload loop
+  (S222_1) re-runs the whole S5 path with ZERO imperative tree-building ("render live VAML like an app
+  would, without a code-behind"). COMPLETION GATE: a sprint named in the viewer-growth table (below) is
+  NOT DONE until its viewer-growth token is demonstrated in the LIVE viewer — no token, no ✅, same as
+  no green lane (the anti-grave-whistle clause). MARKER: each affected sprint header + progress.md
+  carries a `VIEWER GROWTH:` line — a recorded, carried state, never assumed. The viewer is
+  PREVIEW-ONLY (pan/zoom on the rendered view); there is NO embedded source editor (no distraction from
+  the core mission; edits happen in any external editor + live reload). The viewer is NOT built for the
+  throwaway POCs (S220 deletes both); it is the single surviving vehicle that consumes ONLY the public
+  surface.
 
 ---
 ## Sprint 0 — Repo, toolchain, CI, test harness   (goal: green skeleton, no feature code)
@@ -686,7 +697,13 @@
 - S210 dep:S209  [DONE — ADDED src/vulkan/include/vaml/vulkan/ui/SceneRenderer.h + ADDED src/vulkan/src/ui/SceneRenderer.cpp (S210 — the move-only retained-scene owner over the S209 pool: set_scene(items) encodes ONCE into the S209 retained buffers [the app calls it ONLY on a dirty frame — an unchanged frame does NOT call it, so nothing re-encodes]; record(cmd, mvp, uiScale) RECORDS the retained buffers every frame WITHOUT re-encoding — the "retained scene drawn each frame" headline; recycle(fence) forwards the per-frame S209 fence-driven pool advance [fence may be VK_NULL_HANDLE — the pool tracks the ring by frame index, driven by the waited fences]; pure seams render_loop_steps() [the fixed ordered 5-step per-frame loop: WaitFence → EncodeIfDirty → RecordRetained → SubmitPresent → Recycle] + should_reencode(dirty) [the retain gate]) + MOD src/vulkan/CMakeLists.txt (+src/ui/SceneRenderer.cpp) + ADDED test/unit/SceneRenderer_test.cpp (4 TEST_CASEs, headless: the loop-plan is the fixed ordered per-frame sequence; the retain gate — only a dirty flag re-encodes; SceneRenderer move-only RAII; the fence-driven recycle frees only after the ring wraps [cross-lane with S209]) + MOD test/unit/CMakeLists.txt (+SceneRenderer_test.cpp) + ADDED build/verify_s210.cmd + MOD VamlPOC/VamlPOC.cpp + MOD VamlPOC-linux/src/main.cpp (+[s210-live] block in BOTH apps, device-only: SceneRenderer builds over the S209 pool, set_scene the treeItems ONCE, item_count() proves the retained list is fixed — frames record WITHOUT re-encoding until a dirty set_scene; dtor frees every retained generation [device-idle]) + MOD docs/roadmap.md + MOD progress.md + MOD session-context.md (no commits; no NEW md files). S210 delivered the single-thread render-thread loop end-to-end: SceneRenderer draws the RETAINED scene every frame via the S209 fence-aware pool WITHOUT re-encoding — RESOLVING the S208/S209-recorded "the retained scene is drawn each frame" hand-off IN PLACE (dep:S209; S211 consumes). (1) PURE LOOP SEAMS (headless): render_loop_steps() = the fixed ordered 5-step per-frame sequence (WaitFence → EncodeIfDirty → RecordRetained → SubmitPresent → Recycle — the S166/S201/S206 record-plan precedent) + should_reencode(dirty) = the retain gate (only a dirty flag re-encodes). (2) SceneRenderer (move-only RAII retained-scene owner, owns a UiScene): set_scene(items) encodes ONCE into the S209 retained buffers (the app calls it ONLY on a dirty frame — an unchanged frame does NOT call it, so nothing re-encodes); record(cmd, mvp, uiScale) RECORDS the retained buffers every frame WITHOUT re-encoding (the "retained scene drawn each frame" headline); recycle(fence) forwards the per-frame S209 fence-driven pool advance (fence may be VK_NULL_HANDLE — the pool tracks the ring by frame index, driven by the waited fences). (3) TESTS (SceneRenderer_test.cpp, 4 TEST_CASEs, headless): the loop-plan sequence; the retain gate (false=no re-encode / true=re-encode); SceneRenderer move-only; the cross-lane S209 fence-driven recycle contract. (4) NO-GAP (recorded, not silent): 'single thread first' is DELIBERATE — UI-thread→render-thread MARSHALLING is S211 (SceneRenderer is the single-thread foundation it builds on); ZERO new locks (ADR-018); NO MINIMAL REAL introduced. The actual record→submit→present WIRING is the S173 Presenter DrawBody (SceneRenderer plugs into it at S211/S400; the loop-plan seam defines the ordering); the first real vertical slice = S212. (5) LIVE [s210-live] (BOTH apps, device-only, [both apps, not CI]): SceneRenderer builds over the S209 pool, set_scene the treeItems ONCE, item_count() proves the retained list is fixed — frames record WITHOUT re-encoding until a dirty set_scene; dtor frees every retained generation (device-idle). BOTH CI LANES green from first principles: windows-msvc (build/verify_s210.cmd, msvc-debug warning-as-error CLEAN + ctest 3/3 PASS incl. SceneRenderer_test + both POCs build clean) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: build warnings==0 + ctest 3/3 PASS + the Linux POC with the [s210-live] block builds clean). windows-clang-debug is NOT a lane.]  Render-thread loop end-to-end (single thread first): retained scene drawn each frame.
 - S211 dep:S210  [DONE — ADDED src/vulkan/include/vaml/vulkan/ui/MarshalledScene.h + ADDED src/vulkan/src/ui/MarshalledScene.cpp (S211 — the LOCK-FREE scene-change POSTBOX, the marshalled-change consumption per frame FIRST WIRE: **the UI thread MUTATES the core visual tree; a separate RENDER thread draws** — the UI (affinity, S037/S041/S143) thread CPU-encodes the DrawItem snapshot via the S207/S208 encoder when the scene invalidates [race-free by affinity — a render thread cannot safely walk the live tree, so PRODUCER-on-UI-thread is the only race-free snapshot source], POSTS it; the render thread CONSUMES the LATEST snapshot ONCE PER FRAME and re-encodes via set_scene, RECORDING the retained scene each frame. Transport = a per-render-thread postbox modeled on vaml::ChangeQueue semantics (cross-thread enqueue, owner-thread drain) carrying monotonically-increasing scene versions + a DOUBLE-BUFFERED snapshot (two alternating slots; produce into 'next,' release-publish a version; consume the latest once per frame, frame-aligned single-produce/single-consume). API: mutate(items) [coalescing latest-wins producer side] → publish() [the UI frame boundary; flips the pending snapshot to the free slot + bumps the version, with BACKPRESSURE — publish only flips when the render thread has DRAINED the previous version (version_ == lastConsumed_), otherwise the pending snapshot is RETAINED and delivered on the next publish (a lagging render thread receives the LATEST a frame later, never lost, never torn)]; render side has_newer() [the re-encode gate] + consume_latest(out) [copies the LATEST published slot OUT + advances last_consumed; idle-frame no-op leaves out untouched] + accessors scene_version()/last_consumed_version()/pending(). Implemented as release/acquire SPSC over TWO std::atomic<uint64_t> (version_ = last published, lastConsumed_ = last drained) + two vector slots — the S146 relaxed-atomic/HeapStats precedent: ZERO mutex, ZERO spin, ZERO wait → ADR-018 lock governance UNTOUCHED (this is the new cross-thread shared datum, implemented LOCK-FREE, so NO new lock requires the ADR-018 approval gate). Move-only [std::atomic is not movable — the move ctor is WRITTEN (load-from-source/store-into-dest, the source is a never-yet-shared fresh postbox); SceneRenderer is returned by value from create, so the postbox feeds that move-only RAII]. Not copyable [an SPSC postbox must not be aliased]) + MOD src/vulkan/include/vaml/vulkan/ui/SceneRenderer.h + MOD src/vulkan/src/ui/SceneRenderer.cpp (scene renderer gains the S211 MARSHALLED-CHANGE CONSUMPTION seam: owns a MarshalledScene by value + `postbox()` accessor [UI thread mutates+publishes to the SAME instance]; `consume_changes()` = the render thread's ConsumeMarshalled step — drains consume_latest, re-encodes via set_scene ONLY on a newer version, returns true iff a newer version was drained / false on an idle frame [ZERO re-encode]; render_loop_steps() EVOLVED from S210's 5-step to the 6-step loop: WaitFence → **ConsumeMarshalled** → EncodeIfDirty → RecordRetained → SubmitPresent → Recycle [ConsumeMarshalled inserted ahead of EncodeIfDirty, in place, so the loop stays forward-compatible]; pure seam should_consume(hasNewer) = the drain gate) + MOD src/vulkan/CMakeLists.txt (+src/ui/MarshalledScene.cpp) + ADDED test/unit/MarshalledScene_test.cpp (6 TEST_CASEs, headless, no Vulkan runtime: the S211 loop-plan gains ConsumeMarshalled before EncodeIfDirty [6-step sequence]; the retain gate unchanged + should_consume gates the drain; producer coalesces + publishes + consumer drains the LATEST once [coalescing/version proof]; backpressure — a lagging render thread receives the LATEST a frame later, never lost [the flip only proceeds after lastConsumed_ catches up]; publish with nothing pending is an idle no-op; **REAL two-thread handoff** [the S037 join-barrier precedent]: a std::thread UI producer + a std::thread render consumer over ONE postbox — the render thread drains EXACTLY ONCE per frame, re-encoding ONLY on a newer version, idle frames never re-encode, and the final drained version == the final published version) + MOD test/unit/SceneRenderer_test.cpp (the S210 5-step loop-plan test EVOLVED to the S211 6-step loop) + MOD test/unit/CMakeLists.txt (+MarshalledScene_test.cpp) + ADDED build/verify_s211.cmd + MOD VamlPOC/VamlPOC.cpp + MOD VamlPOC-linux/src/main.cpp (+[s211-live] block in BOTH apps, device-only: over an S211 SceneRenderer's postbox — UI thread produces frame 1 + publish, render thread consume_changes() re-encodes [item_count proof]; UI produces frame 2 with an extra item + publish while the render thread LAGS → backpressured (version held), then consume gets the LATEST [item_count grows]; an idle-frame consume_changes() returns false [ZERO re-encode]) + MOD docs/roadmap.md + progress.md + session-context.md (no commits; no NEW md files). RESOLVES THE S210-RECORDED NO-GAP IN PLACE (dep:S210): S210 explicitly deferred "UI-thread → render-thread MARSHALLING" to S211, and S211 delivers it — the FIRST WIRE of the STATED dual-thread model "UI thread mutates, render thread draws" from S037/S041/S143 to the S210 retained-scene loop. (1) THE MARSHALLING MODEL (producer-on-UI-thread, consumer-on-render-thread): because the core value store is the affinity (UI) thread's ALONE (S037/S041/S143 Get() race-safety), the UI thread owns the CPU encode (S207/S208) of the DrawItem snapshot and POSTS it; the render thread owns the GPU SceneRenderer (S210) and CONSUMES the LATEST once per frame → re-encode (EncodeIfDirty) → record retained → present → recycle. This is the only encoding race-free under the affinity contract, and it keeps the GPU encode on the render thread exactly as S210 intended. (2) THE LOCK-FREE TRANSPORT: a per-render-thread change postbox modeled on vaml::ChangeQueue semantics (cross-thread enqueue, owner-thread drain), carrying monotonically-increasing scene versions + a DOUBLE-BUFFERED snapshot, frame-aligned single-produce/single-consume. Backpressure (only flip when lastConsumed_ == version_) is what makes the double-buffer sound — the producer never reuses a slot the consumer is mid-read of, WITHOUT a mutex. (3) THE LOOP: S210's render_loop_steps() gains ConsumeMarshalled ahead of EncodeIfDirty (in place); SceneRenderer::consume_changes() drains + re-encodes on newer-versions only, idle frames ZERO re-encode. (4) NO-GAP (recorded, not silent): this is a REAL Cat-1 public symbol (NOT MINIMAL REAL, NOT a STUB) — kept-and-extended by S212 (vertical slice), S620 (full concurrent live-tree mutation + async layout), S626 (multiple UI threads / copy-on-write). S211 is the deliberately-narrow FIRST WIRE that those build on. ADR-018: ZERO new locks (this is the new cross-thread shared datum, implemented LOCK-FREE via release/acquire atomics, so no new lock + no ADR-018 approval gate). ADR-011 maintained (lives in vaml-vulkan). The actual record→submit→present WIRING into the S173 Presenter DrawBody (render thread runs tick(...), DrawBody = renderer.record()) is the next step — S212's vertical slice (recorded, not silent). (5) LIVE [s211-live] (BOTH apps, device-only, [both apps, not CI]): the marshalled handoff + backpressure + idle-no-reencode proven on a real driver over a live SceneRenderer. BOTH CI LANES green from first principles: windows-msvc (build/verify_s211.cmd, msvc-debug warning-as-error CLEAN + ctest 3/3 PASS incl. MarshalledScene_test 6 cases + SceneRenderer_test + both POCs build clean) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: build warnings==0 + ctest 3/3 PASS + the Linux POC with the [s211-live] block builds clean). windows-clang-debug is NOT a lane.]  Marshalled-change consumption per frame (UI thread mutates, render thread draws) — first wire.
 - S212 dep:S211  [DONE â€” ADDED src/presentation/include/vaml/presentation/VamlRenderer.h + ADDED src/presentation/src/VamlRenderer.cpp (S212 â€” the MERGE-POINT vertical-slice RENDER HOST, namespace vaml::presentation) + MOD src/presentation/CMakeLists.txt (+VamlRenderer.cpp into vaml-presentation) + ADDED test/unit/VamlRenderer_vertical_test.cpp (headless Rail 1) + MOD test/unit/CMakeLists.txt (+VamlRenderer_vertical_test.cpp into vaml-presentation-tests) + ADDED build/verify_s212.cmd + MOD VamlPOC/VamlPOC.cpp + MOD VamlPOC-linux/src/main.cpp (+[s212-live] device-only block in BOTH apps + the VamlReader include) + MOD docs/roadmap.md + MOD progress.md + session-context.md (no commits; no NEW md files). THE MERGE POINT: UI DECLARED IN VAML RENDERS TO THE WINDOW VIA THE FULL S5 PATH â€” the first REAL VERTICAL SLICE, resolving the accumulated NO-GAP hand-offs at once: S207/S208 (the scene encoder FEEDS this CPU encode), S211 (the lock-free postbox mutate+publish / the render thread's ConsumeMarshalled feeds the retained re-encode), S210 (the retained renderer's EncodeIfDirty+RecordRetained+Recycle), and S173 (the Presenter's DrawBody record). RESOLVES the THREE explicitly-deferred "next step" hand-offs, all recorded in prior steps: S210's "the recordâ†’submitâ†’present WIRING is the S173 Presenter DrawBody (SceneRenderer plugs into it at S211/S400 ... the first real vertical slice = S212)", S211's "the actual recordâ†’submitâ†’present WIRING into the S173 Presenter DrawBody (render thread runs tick(...), DrawBody = renderer.record()) is the next step â€” S212's vertical slice", and the S222 dependency line "consumer touches ONLY the public surface" â€” the merge LOGIC is a public LIBRARY surface (vaml::presentation::VamlRenderer), never POC-internal code (S220 deletes the POCs). THE RENDER HOST (real, permanent Category-1; NOT a stub, NOT MINIMAL REAL): `VamlRenderer` COMPOSES the S173 Presenter + the S210 SceneRenderer + the S211 MarshalledScene postbox + the S207/S208 encoder behind ONE public surface (never re-authors them). FULL PATH PROVEN: VAML text â†’ VamlReader::Load (S091/S092, real) â†’ UIElement root (real panels) â†’ Measure/Arrange (S123/S124 final_rects) â†’ encode_visual_slice (the merge's encoder wrapping S207 encode_visual_tree, draw-list-by-material + z-order-by-tree-order) â†’ postbox mutate+publish (S211 lock-free producer side) â†’ [render thread] consume_latest â†’ set_scene re-encode-on-newer â†’ record retained â†’ recycle â†’ present. UI-THREAD SURFACE: `set_root(UIElement*)` (borrowed, arranged by in-place) + `set_frame_size(w,h)` + `invalidate()` (Measure+Arrange then encode then mutate+publish; returns the published version, 0 when nothing published) + `set_visual_of(VisualOf)` (the S207 material/classifier seam). RENDER-LOOP SURFACE: `tick(invalidated,tickDue)` (forwards to the owned Presenter) + `request_resize` + `state()` + `renderer()`/`presenter()`. PURE DECISION SEAMS (headless-testable, no Vulkan runtime): `classify_merge_element` (the DEFAULT vertical-slice classifier â€” the accepted judgment: every real UIElement panel contributes a SOLID fill at its ARRANGED final_rect, alpha = its S208 effective_opacity; a DependencyObject-only control seed â†’ None, its subtree still walks) + `default_visual_of()` + `encode_visual_slice(root, visualOf, out)` + `render_loop_steps()` (REUSED â€” the S210/S211 6-step loop WaitFenceâ†’ConsumeMarshalledâ†’EncodeIfDirtyâ†’RecordRetainedâ†’SubmitPresentâ†’Recycle) + `should_reencode(dirty)` + `should_consume(hasNewer)` (REUSED from S210/S211) + `presenter_lifetimes_ok` (REUSED from S173). RAII + MOVE-ONLY (the S170 discipline). TWO CREATION PATHS: `create()` (the CPU/merge host â€” owns the postbox + the tree reference + the visualOf seam + the arrange/invalidate producer path; constructible WITHOUT Vulkan = the headless test + S222's CPU half) and `create_device(VamlRendererDeviceOptions)` (the LIVE owner â€” additionally builds + owns the SceneRenderer over the S206 sceneSpec + the Presenter, wiring the Presenter's DrawBody INTERNALLY = ConsumeMarshalled â†’ EncodeIfDirty(+RecordRetained) â†’ Recycle over the acquired image's framebuffer; device-backed [both apps, not CI]; returns nullptr (no throw) if the S173 lifetime gates fail). SCOPE BOUNDARY (recorded, NOT silent): real control MATERIALS (Text/Button â†’ S400/S401) do not exist yet, so the slice renders what IS renderable today â€” the real layout panels via the visualOf classifier filling each at its final_rect (a real declared panel tree produces real, visible, arranged rectangles; glyphs stay S400). This is the HONEST first vertical slice of the declared LAYOUT. NO-GAP recorded (not silent): S213 (DPI/framebuffer scale â€” the host already carries set_frame_size + the uiScale consumer), S222 (the official viewer CONSUMES this host's public surface), S400+/S364 (real materials + templates REPLACE the visualOf classifier in place). ADR-018: ZERO new locks (the S211 postbox is lock-free; create_device composes single-threaded). ADR-011 maintained (the host lives in vaml-presentation over vulkan/core; never a core virtual for the material seam). (7) TESTS (VamlRenderer_vertical_test.cpp, 9 TEST_CASEs / ~48 asserts, headless â€” no live runtime): VamlReader::Load â†’ root dynamic_casts to UIElement (the REAL core visual tree); arrange the Load tree â†’ the encoder emits the root at its real final_rect (a Solid fill); the default visual-of fills every real panel at its final_rect (the accepted judgment â€” a hand-built StackPanel + content leaves â†’ 3 solid items in pre-order, each matching its ARRANGED final_rect); the encoder honestly SKIPS a degenerate (zero-extent) panel but walks its subtree; the producer/consumer contract â€” invalidate() arranges+encodes+publishes a NEWER version, a SECOND invalidate before a drain is BACKPRESSURED (the S211 lock-free flip only proceeds once lastConsumed_ == version_; the pending update is RETAINED, never lost/torn), the drain (consume_latest) delivers the published root fill, an UNCHANGED frame does NOT re-encode (should_reencode/should_consume gates false); the host's DrawBody seam == the fixed S210/S211 render-loop plan (6 steps, ConsumeMarshalled ahead of EncodeIfDirty); presenter_lifetimes_ok (the S173 no-handle gate) is reused; VamlRenderer is MOVE-ONLY RAII (static_asserts, the S170 discipline). (8) LIVE [s212-live] (BOTH apps, device-only, [both apps, not CI], mirrored in both POCs): VamlReader::Load a VAML StackPanel doc â†’ dynamic_cast UIElement â†’ VamlRenderer::create + set_root + set_frame_size + invalidate â†’ the merge's CPU encoder (encode_visual_slice, encode count == 1 for the single-panel root) â†’ a REAL SceneRenderer::set_scene(encoded) + item_count parity on a real driver â€” the CPU/merge half of the vertical slice proven live; the presented WINDOW FRAME (the acquire/record/submit/present to an actual surface) is the display-backed MANUAL step (the S160..S211 precedent; RAIL 3 [both apps, not CI]). (9) CI LANES green from first principles (BOTH, not assumed from S211): windows-msvc (build/verify_s212.cmd, msvc-debug: configure clean + build warning-as-error CLEAN + ctest 3/3 PASS incl. VamlRenderer_vertical 9 cases + the VamlPOC.exe POC builds clean) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug on the Ubuntu 26.04 VM: configure clean + build warnings==0 + ctest 3/3 PASS + the VamlPOC-linux POC builds clean against the fresh libs). windows-clang-debug is NOT a lane (not built/tested/flagged).]  MERGE POINT: UI declared in VAML renders to window via full S5 path (first real vertical slice).
-- S213 dep:S212  DPI + framebuffer scale: logical px layout, render scales by framebufferScale; high-DPI crisp.
+- S212_1 dep:S212  [VIEWER OBJECTIVE — option A] DECLARED PANELS VISIBLY RENDER IN THE WINDOW (library-surface
+      present objective, NOT dogfooded in a doomed POC): `VamlRenderer::create_device` must, GIVEN a real
+      surface + render pass + swapchain, PRESENT the VAML-declared panels at their final_rects via the
+      internally-wired DrawBody. The DISPLAY proof is demonstrated in the REAL surviving vehicle
+      (vaml_viewer/S222, which consumes the public surface) — the work is NOT built for the throwaway POCs
+      that S220 deletes. [Clear objective: "I run it and I SEE the declared panels."]
+- S213 dep:S212_1  DPI + framebuffer scale: logical px layout, render scales by framebufferScale; high-DPI crisp.
 - S213_1 dep:S213  DPI-aware icon best-fit selection (per ADR-015): scaling policy { none | down-only | both },
       default none. "none" = never resample, pick largest authored texel set ≤ physical N (N_physical =
       logical_size × dpiScale), sprite may be smaller than its slot; "down-only" may sample a larger set
@@ -714,20 +731,34 @@
       keeps the entry path HEADLESS-ctestable against the S095 golden fixture.
 - S222 dep:S221  MVP "soup-to-nuts" render: loaded tree → retained render path (S174 CompositionEngine +
       S173 Presenter + S207/S208 scene encoder + S210 SceneRenderer) → declared UI in a window. Consumer
-      touches ONLY the public surface. (Structurally builds on S212's vertical slice.)
-- S223 dep:S222  Drag-and-drop entry: `PlatformWindow` (S160) gains a FILE-DROP callback (GLFW drop path,
+      touches ONLY the public surface. (Structurally builds on S212's vertical slice.) DEMONSTRATES S212_1
+      (the library's create_device present objective) in the real window. [VIEWER GROWTH: this sprint]
+- S222_1 dep:S222  FILE-WATCH LIVE RELOAD (the viewer's PERMANENT visual-feedback vehicle): on file mtime
+      change → `VamlReader::Load` again → re-render (the whole S5 path re-runs with ZERO imperative
+      tree-building — "render live VAML like an app would, without a code-behind"). mtime-poll + a notify
+      seam both `load_file`-headless-ctestable (golden fixture: edit → reload → same tree). This is the early
+      resolution of the hot-reload loop (S825 matures it, not re-does it). [VIEWER GROWTH: reload]
+- S223 dep:S222_1  Drag-and-drop entry: `PlatformWindow` (S160) gains a FILE-DROP callback (GLFW drop path,
       Win32 + X11); viewer reopens the dropped `.vaml`; drop-dispatch → reopen handler seam is headless-testable.
-- S224 dep:S223  Boot/window polish: title = loaded filename, `--help` usage, teardown-order-clean + ASan
-      no-leak (S170 discipline). Reload-in-place on a second drop when feasible (no restart).
+- S224 dep:S223  Boot/window polish + RENDERED-VIEW PAN & ZOOM: title = loaded filename, `--help` usage,
+      teardown-order-clean + ASan no-leak (S170 discipline). Reload-in-place on a second drop when feasible
+      (no restart). The rendered view supports PAN (drag) + ZOOM (wheel) — exercising the S208 RenderTransform
+      + the S213 DPI/framebuffer-scale surface (viewer chrome harnesses library work, not editor chrome).
+      [VIEWER GROWTH: pan/zoom]
 - S225 dep:S224  REFACTOR GATE(S5a): POC removal left zero dead code; viewer + lib green BOTH CI lanes +
       both platforms; CI covers the viewer's file→tree seam headlessly (golden fixture); ASan no-leak.
-- S226 dep:S225  SURVIVOR + checkpoint advance. Document how vaml_viewer grows as later sprints land
-      (controls → S400+, MVVM → S6, styles/templates → S9, compiled `.vbaml` → S7, hot-reload → S825).
+- S226 dep:S225  SURVIVOR + checkpoint advance. Document how vaml_viewer grows as later sprints land:
+      VIEWER-GROWTH MECHANISM (per-sprint token + completion gate + marker, see roadmap conventions):
+      controls → S400+; MVVM/binding → S6 (S256); styles/templates → S9 (S369); compiled `.vbaml` → S7
+      (S293); live-reload → S222_1 + S825 mature; pan/zoom → S224.
       Reserve S227–S239 for viewer-growth steps discovered mid-execution (gap-headroom convention).
 > EXPLICITLY DEFERRED for the MVP (recorded NOT silent / NO-GAP — the viewer upgrades when each sprint ships):
-> rich control visuals (real `Text`/`Button`/`TextBox` etc.) → S400+; MVVM/binding → S6; styles/templates →
-> S9; compiled `.vbaml` → S7; hot-reload → S825; themes/resources → S9; asset/icon loading via
-> ResourceDictionary → S360_1. Drag-and-drop depends on a small `PlatformWindow` extension (S223).
+> rich control visuals (real `Text`/`Button`/`TextBox` etc.) → S400+ (S409_1); MVVM/binding → S6 (S256);
+> styles/templates → S9 (S369); compiled `.vbaml` → S7 (S293); live file-reload → S222_1 (S825 matures);
+> themes/resources → S9; asset/icon loading via ResourceDictionary → S360_1. Drag-and-drop depends on a
+> small `PlatformWindow` extension (S223). The viewer is preview-only (pan/zoom on the rendered view) — NO
+> embedded source editor (distraction from the core mission; edits happen in any external editor + live
+> reload).
 
 ---
 ## Sprint 6 — Binding engine + MVVM core  (goal: v1 is an MVVM app)  [token S240+]
@@ -749,16 +780,60 @@
       non-error. Diagnostics ≠ control-flow (subscriber gets info, never control).
 - S246 dep:S245  RelayCommand (ICommand-analogue): invoke + CanExecute + CanExecuteChanged (full, no stub).
 - S247 dep:S246  RelayCommand tests.
-- S248 dep:S247  Messenger (typed loosely-coupled bus): publish/subscribe + token unsubscribe, no leaks.
-- S249 dep:S248  Messenger tests.
-- S250 dep:S249  Static CompositionRoot (user's DI style): resolves VM + service; no runtime container.
-- S250_1 dep:S250  IBindingDiagnostics sink + BindingPolicy injectable via CompositionRoot, reachable from
-      BOTH VM and view/control layers (V vs VM = one channel, two consumers; per ADR-016).
-- S251 dep:S250  CompositionRoot + VM-with-injected-service tests.
+- S247_1 dep:S247  Bindable-property convenience over the S240/S241 core (PROPERTY_BINDABLE(type,Name)-style
+      generator): backing field + change notification; the Toolkit-analog convenience layer (vaml/mvvm). NO
+      runtime DI, NO reflection — source-generation spirit, plain C++ templates. [VIEWER GROWTH: S256]
+- [Items S248 (Messenger) + S249 (Messenger tests) REMOVED — pub/sub is NOT VAML's domain to impose; the
+  engineer wires their own looely-coupled bus if they choose, we do not offer/own one. Part-1 decision,
+  recorded not silent.]
+- S250 dep:S247_1  STATIC APP-OWNED COMPOSITION (no library DI): the engineer authors their OWN
+      VM/repository/command construction (plain constructors, their wiring) — NO library CompositionRoot type,
+      NO runtime container, NO ViewModelLocator/DI/pub-sub from us. The lib only DOCUMENTS the pattern.
+      [Sounding the identical Part-1/onboarding decision, now at the binding level.]
+- S250_1 dep:S250  IBindingDiagnostics sink + BindingPolicy reachable directly from BOTH the VM layer and the
+      view/control layer (V vs VM = one channel, two consumers; per ADR-016) — reached by a PLAIN ACCESSOR on
+      each layer, NOT via any library CompositionRoot/DI slot.
+- S251 dep:S250  App-constructed VM-with-injected-service tests: the app passes its service into the VM via
+      plain constructor wiring (no library container), binding one-way/two-way to it — proves the "engineer
+      wires, we bind" pattern.
 - S252 dep:S251  Markup {Binding} resolved in VamlReader (deferred extension now bound): <Text Text="{Binding Title}"/>.
 - S253 dep:S252  Command via {Binding DoIt}; one/two-way markup binding end-to-end.
 - S254 dep:S253  REFACTOR GATE(S6): full MVVM works in v1, all modes + converters, diagnostics wired, no stubs.
 - S255 dep:S254  SURVIVOR + checkpoint advance to S280.
+- S256 dep:S253  VIEWER-GROWTH: vaml_viewer Reload populates a VM (plain constructor; no DI) + renders
+      `{Binding}` (the S240–S252 binding path visible) — a `ViewModel` object + `ObservableObject`,
+      wired per S250's app-constructed pattern, bound via the S252 markup `{Binding}`. [VIEWER GROWTH: you
+      SEE data binding appear in the live window]
+
+---
+## VIEWER-GROWTH CONVENTION (baked from S5a/S6 forward — the binding rule, now enforceable)
+The vaml_viewer's reload loop (S222_1) is the PERMANENT visual-feedback vehicle. Every sprint that introduces
+a renderable feature MUST either flow through the generic renderer automatically (it does — the viewer is a
+GENERIC renderer over the public surface) or carry a NAMED viewer-growth token in that sprint. COMPLETION GATE
+(the anti-grave-whistle clause): a sprint named in the viewer-growth table is NOT DONE until its viewer-growth
+token is demonstrated in the LIVE viewer — no token, no ✅, same as no green lane. MARKER: each affected sprint
+header + progress.md carries a `VIEWER GROWTH:` line so the update is a recorded, carried state, never assumed.
+The viewer is PREVIEW-ONLY (pan/zoom), NO embedded source editor (no distraction from the core mission).
+
+**OPEN-ENDED (no "past the list" hole — the gate does NOT end at S10):** the completion gate applies to EVERY
+sprint that introduces a renderable feature, for the WHOLE road (S11 through S18 and beyond, to S989), not just
+the enumerated tokens up to S10. The table below is a NON-EXHAUSTIVE exemplar, not a closed list. This closes
+the lazy-LLM escape route of "the list stops at S10, so no growth is owed after it": (a) EVERY Sprint-11+
+SURVIVOR + checkpoint MUST carry a `VIEWER GROWTH:` line (present even when it says "no new renderable feature
+this sprint — viewer unchanged; RELOAD still demonstrated"); and (b) any sprint that DOES add a renderable
+feature MUST add a named viewer-growth token in that same sprint, on penalty of not being DONE (same as no
+green lane).
+Growth tokens by sprint:
+  S5a : S222_1 (file-watch reload) · S224 (pan/zoom)            — see the layout live
+  S6  : S256 (Reload populates a VM + renders {Binding})        — see data binding
+  S7  : S293 (opens a compiled .vbaml)                          — see text→compiled→render
+  S8  : S329_1 (interactive: click → routed event → handler)    — see input work
+  S9  : S369 (live re-skns on a template edit)                  — see styling/visual-states
+  S10 : S409_1 (+S410) (hosts the real control set: Text/Button/...) — the "same for S10+" commitment
+  S11+: concrete — the viewer app-shell (S440–S449, "v1 in-repo deliverable") · S828_1 (Sprint 16 DPI + i18n/RTL). Sprints 11–18
+        each carry a `VIEWER GROWTH:` SURVIVOR header marker (docs/perf/hardening/release sprints say "no
+        new renderable feature — viewer unchanged; S222_1 RELOAD still demonstrated", so no sprint is
+        marker-free). NO closed list — every renderable-feature sprint from S11 to S989 carries its own token.
 
 ---
 ## Sprint 7 — VBAML compiler (BAML analogue; FIRST full pipeline)  (goal: text→vbaml→tree)  [token S280+]
@@ -781,6 +856,9 @@
 - S290 dep:S289  Refactor-gated dual path: S2 reader = dev tool, S7 reader = release.
 - S291 dep:S290  REFACTOR GATE(S7): FULL text→vbaml→tree pipeline, parity proven, no stubs.
 - S292 dep:S291  SURVIVOR + checkpoint advance to S320.
+- S293 dep:S288  VIEWER-GROWTH: vaml_viewer opens a COMPILED `.vbaml` (the S280–S289 path visible): view a
+      prebuilt `.vbaml` via the runtime VBamlReader (S285) — text→compiled→render demonstrated in the live
+      viewer; reload (S222_1) recompiles .vaml→.vbaml (vamlcc S287) then reopens. [VIEWER GROWTH: compiled path]
 
 ---
 ## Sprint 8 — Routed events + input + async  (goal: real events + input + dispatcher)  [token S320+]
@@ -794,6 +872,9 @@
 - S327 dep:S326  Async continuation updates VM prop → binding updates UI; no races.
 - S328 dep:S327  REFACTOR GATE(S8): events, routing, markup wiring, input, async dispatcher all real.
 - S329 dep:S328  SURVIVOR + checkpoint advance to S360.
+- S329_1 dep:S323  VIEWER-GROWTH: vaml_viewer INTERACTIVE — click a rendered `Button` → routed event (S320/321)
+      → markup handler (S322) runs → a visible state change in the live window (handler updates the VM →
+      binding repaints). [VIEWER GROWTH: input works in the live viewer]
 
 ---
 ## Sprint 9 — Styles / resources / templates  (goal: full styling)  [token S360+]
@@ -809,6 +890,9 @@
 - S366 dep:S365  Template lookup from markup + compiled (S2 and S7 readers agree).
 - S367 dep:S366  REFACTOR GATE(S9): resources/styles/templates fully functional; no stubs.
 - S368 dep:S367  SURVIVOR + checkpoint advance to S400.
+- S369 dep:S364  VIEWER-GROWTH: vaml_viewer LIVE RE-SKIN on a template/style edit — edit a ControlTemplate or
+      Style in the external .vaml → reload (S222_1) → the rendered control re-skins (brushes/visual-states
+      swap live). [VIEWER GROWTH: styling/visual-states visible in the live viewer]
 
 ---
 ## Sprint 10 — Core controls  (goal: usable control set)  [token S400+]
@@ -825,23 +909,42 @@
 - S406 dep:S405  Focus + tab order + Enter-activates-default + routed key events.
 - S407 dep:S406  Milestone: all controls fully implemented; each has test; no stubs.
 - S408 dep:S407  REFACTOR GATE(S10) + SURVIVOR.
+- S409_1 dep:S408  VIEWER-GROWTH: vaml_viewer hosts the REAL control set (Text/Button/TextBox/Slider/
+      CheckBox/ScrollViewer — the S400–S406 controls) render + interactive via the generic renderer; a
+      dedicated sample .vaml exercising every control + a template (the "same for S10+" commitment —
+      the viewer matures as the controls land). [VIEWER GROWTH: rich UI in the live viewer]
 
 ---
-## Sprint 11 — v1 app vertical slice  (goal: complete MVVM app on VAML+Vulkan)  [token S440+]
-- S440 dep:S408  app/hmi MainView.vaml: Grid+StackPanel+Button+Text+TextBox+Slider+CheckBox layout.
-- S441 dep:S440  MainViewModel: observable props + RelayCommands wiring to a domain service.
-- S442 dep:S441  app/infra service (filesystem/data demo service) + CompositionRoot wiring.
-- S443 dep:S442  Wire MainView to MainViewModel via markup {Binding} + {Command}.
-- S444 dep:S443  Compile MainView.vaml→.vbaml via vamlcc in the CMake custom command (release path).
-- S445 dep:S444  Launch exe → full declared UI renders; click/type/slide updates VM-driven UI end to end.
-- S446 dep:S445  Zero validation-layer errors; no leaks over 10k frames; no layout thrash.
-- S447 dep:S446  v1 E2E integration test (headless/offscreen where feasible).
-- S448 dep:S447  v1 acceptance doc written from real behavior (not spec).
-- S449 dep:S448  REFACTOR GATE(S11) — v1 VERTICAL SLICE COMPLETE. SURVIVOR. (This is NOT a throwaway
-      "POC complete" — it is the working first-version app that v2-as-v1 builds on; see ADR-017.)
+## Sprint 11 — vaml_viewer = the v1 in-repo deliverable  (goal: complete MVVM "app" on VAML+Vulkan — the viewer)  [token S440+]
+> **V1 APP (external); ACT; then RESUME here on acceptance.**
+> VIEWER GROWTH: the viewer IS the in-repo S11 deliverable (the complete MVVM app shell) — it contains all it
+> can (reload S222_1 + pan/zoom S224 + MVVM S256 + the S400–S406 control set) and is the in-repo dogfood that
+> pre-validates VAML so the external v1 app port is cheap. `S440–S447` below = the viewer's OWN canonical
+> app-shell that contains "all it can"; no separate in-repo `app/hmi` binary (S449_1 removed — nothing to
+> sample; the app IS the viewer).
+- S440 dep:S408  vaml_viewer app-shell: an authored `MainView.vaml` (Grid+StackPanel+Button+Text+TextBox+
+      Slider+CheckBox) rendered via the public surface (reload + pan/zoom harness it). CHILD TOKENS BELOW ARE
+      THE VIEWER'S OWN APP-LAYER DOGFOOD, in-repo.
+- S441 dep:S440  MainViewModel for the app-shell: observable props + RelayCommands wiring to an in-repo demo
+      domain service (the S250 app-constructed composition, no DI).
+- S442 dep:S441  in-repo demo infra service + the app-shell's own constructor wiring (the S250 static
+      app-owned composition pattern — no library CompositionRoot).
+- S443 dep:S442  App-shell ↔ MainViewModel wired via markup {Binding} + {Command} (the S240–S252 + S256 path).
+- S444 dep:S443  Compile the app-shell MainView.vaml→.vbaml via vamlcc in the CMake custom command (release path).
+- S445 dep:S444  Launch vaml_viewer → the app-shell declared UI renders; click/type/slide updates VM-driven
+      UI end to end (the in-repo v1 vertical slice).
+- S446 dep:S445  Zero validation-layer errors; no leaks over 10k frames; no layout thrash (app-shell, in-repo).
+- S447 dep:S446  In-repo E2E integration test of the app-shell (headless/offscreen where feasible).
+- S448 dep:S447  In-repo app-shell acceptance doc written from real behavior (not spec). [v1-app EXTERNAL
+      acceptance is NOT in this repo — see the header marker; this is the VIEWER's acceptance only.]
+- S449 dep:S448  REFACTOR GATE(S11) — v1 vertical slice (the viewer app-shell) COMPLETE in-repo. SURVIVOR.
+      (This is NOT a throwaway "POC complete" — it is the working first-version app that v2-as-v1 builds on;
+      see ADR-017. The EXTERNAL v1 app acceptance is separate + outside this repo + not CI-gated.)
 
 ---
 ## Sprint 12 — Docs from evidence + production packaging  (goal: production-ready repo + packaging)  [token S480+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (docs + packaging) — viewer UNCHANGED; S222_1 RELOAD
+> still demonstrated per convention. Marker present so a lazy cursor cannot claim "no marker = no obligation."
 - S480 dep:S449  Write architecture.md FINAL from real v1 code (not the seed).
 - S481 dep:S480  Write design docs (measure/arrange, renderer, binding, VBAML schema) from evidence.
 - S482 dep:S481  Complete ADR log (all standing decisions + lessons learned with rationale).
@@ -854,6 +957,9 @@
 
 ---
 ## Sprint 13 — Test coverage expansion  (goal: CI-grade coverage, property-based, fuzz)  [token S520+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (coverage/fuzz) — viewer UNCHANGED; S222_1 RELOAD
+> still demonstrated. S528_1's icon test gallery renders fixtures OFFSCREEN, not in the viewer (it is a test,
+> not a viewer feature); the viewer's generic renderer already covers icon-drawable paths.
 - S520 dep:S486  Coverage gate (gcov/lcov + llvm-cov) wired into CI on core.
 - S521 dep:S520  Property-system fuzz harness (random value sets → invariants).
 - S522 dep:S521  Parser fuzz harness (malformed VAML → no crash, structure errors only).
@@ -870,6 +976,9 @@
 
 ---
 ## Sprint 14 — Performance & GPU-driven rendering  (goal: production perf)  [token S620+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (perf/GPU-driven) — viewer UNCHANGED; S222_1 RELOAD
+> still demonstrated. The viewer is the natural BENCHMARK surface for the perf harness (S627 smoke): the
+> same generic renderer shows the 60fps@10k-elements target live.
 - S620 dep:S529  Async layout: measure/arrange on worker threads, single commit to render; TSan-clean.
 - S621 dep:S620  Async layout correctness == single-threaded (diff test).
 - S622 dep:S621  GPU-driven batching: indirect/draw-list, instance buffer, minimal pipeline switches.
@@ -890,6 +999,9 @@
 
 ---
 ## Sprint 15 — Production hardening  (goal: release-quality robustness)  [token S720+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (robustness/hardening) — viewer UNCHANGED; S222_1
+> RELOAD still demonstrated. The viewer + its reload loop are a primary EXERCISER for the reentrancy/
+> teardown (S721/S725) + TSan/ASan (S723) audits.
 - S720 dep:S629  Cancellation tokens through Task/Executor; no deadlocks; deterministic ordering.
 - S721 dep:S720  Reentrancy audit across property/binding/event paths.
 - S722 dep:S721  Allocator policy finalization (arena/pool rules in ADR).
@@ -901,12 +1013,16 @@
 
 ---
 ## Sprint 16 — DPI, i18n, accessibility, tooling  (goal: broad applicability)  [token S820+]
+> VIEWER GROWTH: DPI (S820) + i18n/RTL (S821/S822) DIRECTLY AFFECT THE RENDERED OUTPUT — the viewer must
+> demonstrate them (named token S828_1 below): high-DPI crisp + a localized/RTL view live.
 - S820 dep:S727  Per-monitor DPI correctness across multi-monitor.
 - S821 dep:S820  i18n: resource fallback (culture→neutral), string tables from VAML resources.
 - S822 dep:S821  RTL mirroring + glyph shaping for localized text.
 - S823 dep:S822  Culture-aware number/date formatting in bindings (converters).
 - S824 dep:S823  Accessibility: text alternatives + keyboard navigation completeness.
-- S825 dep:S824  Hot-reload dev loop for .vaml (S2 reader) in tooling.
+- S825 dep:S824  Hot-reload dev loop MATURE (the tooling-integrated form of S222_1 — NOT a re-do): async
+      reload + definition-of-done hardening on the viewer's S222_1 file-watch reload; editor-agnostic
+      (any external editor + watch), no in-app editor (no vi/emacs-in-viewer, no distraction).
 - S826 dep:S825  vamlcc diagnostics (nice errors: source line/col, suggested fix).
 - S826_1 dep:S826  Compile-time binding coverage ratio (per ADR-016): vamlcc reports "this build validated
       N% of bindings at compile time; M% fell back to bind-time" so a large codebase (e.g. 500k lines) can
@@ -914,9 +1030,14 @@
       screen's root silently becomes runtime-typed.
 - S827 dep:S826  Packaging: single-exe consumer link demo + install rules.
 - S828 dep:S827  REFACTOR GATE(S16) + SURVIVOR.
+- S828_1 dep:S822  VIEWER-GROWTH: vaml_viewer demonstrates DPI (a high-DPI crisp view on the same .vaml) +
+      a localized/RTL view (the S821/S822 i18n path) live in the viewer. [VIEWER GROWTH: DPI + i18n/RTL
+      visible]
 
 ---
 ## Sprint 17 — Release readiness + production roadmap  (goal: v1 control set + release)  [token S920+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (release/API/docs) — viewer UNCHANGED; S222_1 RELOAD
+> still demonstrated. The S923 sample gallery is authored/viewed THROUGH the viewer.
 - S920 dep:S828  Documented v1 control set + API stabilization pass.
 - S921 dep:S920  Public headers/export-surface audit (API surface clean; export machinery is build-model
                  plumbing only, NOT IP hiding — market: public OSS headers + consumer app's own IP compiled
@@ -933,6 +1054,8 @@
 
 ---
 ## Sprint 18 — Commercial user guide: authoring a VAML app in C++ (goal: v1.0 commercial guide covering ONLY the C#→C++ application gap)  [token S940+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (docs/guide) — viewer UNCHANGED; S222_1 RELOAD still
+> demonstrated. Every guide snippet that renders (Ch.1/2/6/9) is evidenced through the viewer/reload.
 - S940 dep:S930  Guide charter + outline + audience + style guide; docs/guide/README.md.
       Rules: every chapter declares its evidence source = an exact ROADMAP token; no chapter cites an
       unimplemented API (NO-LAZY-LLM gate).
