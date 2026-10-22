@@ -51,6 +51,10 @@
 // sets on ONE shared layout (UiPipeline). Extends ShaderModule with the four
 // embedded UI shaders; consumes the S204 SDF atlas + the S200 quad geometry.
 #include <vaml/vulkan/ui/UiPipeline.h>
+// S206: the UI primitive draw batcher (UiScene) — rects + text glyphs from the
+// SHARED descriptor layout, batching contiguous same-shader draws into ONE
+// vkCmdDrawIndexed (the S205 shared-layout premise; dep:S205).
+#include <vaml/vulkan/ui/UiScene.h>
 
 // Sprint 4B (S175): the OPTIONAL presentation framework (vaml-presentation) is
 // dogfooded into this POC. The app DECLARES its scene (the S165 triangle via a
@@ -815,6 +819,122 @@ int main()
             std::fprintf(stderr, "[s205+s205_1-live] UI pipeline create failed "
                         "(rp=%d uiVert=%d sdf=%d solid=%d border=%d mono=%d)\n",
                         !!rp, !!uiVert, !!sdfFrag, !!solidFrag, !!borderFrag, !!monoFrag);
+        }
+    }
+
+    // --- S206 live draw batcher proof (device-only; no surface required) ---------
+    // The S206 UiScene (rects + text glyphs from the SHARED descriptor layout,
+    // batching same-shader draws) only needs a DEVICE (+ the S205 UiPipelines +
+    // a shader-ready atlas), so it proves live here even without a surface —
+    // the HEADLINE risks are (1) UiScene::create builds the host-visible vertex/
+    // index buffers + a descriptor POOL + ONE descriptor set allocated from the
+    // S205 SHARED set layout + written to an atlas view/sampler (set 0, binding 0),
+    // (2) set_items encodes the CPU item list (solid rects + a border + a text
+    // run) into the buffers and recomputes batch_plan, and (3) the SRGB pairing +
+    // shared 128-B push hold. The actual vkCmdDraw record (which requires a begun
+    // render pass — the S205/S207 display step) is exercised through the same
+    // UiScene::record_draw path by the S207 display-integration test.
+    if (vk->has_quad_loader() && vk->has_texture_loader() && vk->has_render_loader() && ctx.device)
+    {
+        using namespace vaml::vulkan::ui;
+        using namespace vaml::vulkan::quad;
+        // A device-only SRGB render pass (no depth) + the SHARED UI pipelines.
+        auto rp = vaml::vulkan::RenderPass::create(*vk, *ctx.device, VK_FORMAT_B8G8R8A8_SRGB,
+                                                   std::nullopt, VK_SAMPLE_COUNT_1_BIT);
+        auto uiVert = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::ui_vertex_spirv());
+        auto sdfFrag  = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::sdf_text_fragment_spirv());
+        auto solidFrag = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::solid_color_fragment_spirv());
+        auto borderFrag = vaml::vulkan::ShaderModule::create(*vk, *ctx.device, vaml::vulkan::border_fragment_spirv());
+        // A shader-ready atlas over the S202 quad::TextureAtlas (the S206 text
+        // sampler source — we only need its view + sampler, not glyphs).
+        auto atlas = TextureAtlas::create(*vk, *ctx.device, 256, 128, 16, 8);
+        if (rp && uiVert && sdfFrag && solidFrag && borderFrag && atlas)
+        {
+            UiPipelineSpec spec{};
+            spec.renderPass   = rp->native_handle();
+            spec.colorFormat  = VK_FORMAT_B8G8R8A8_SRGB;
+            spec.hasDepth     = false;
+            spec.sampleCount  = VK_SAMPLE_COUNT_1_BIT;
+            spec.extent       = VkExtent2D{ 800, 600 };
+            spec.vertexModule = uiVert->shader_module();
+            spec.fragmentModule = solidFrag->shader_module();
+            auto solid = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::Solid);
+            spec.fragmentModule = borderFrag->shader_module();
+            auto border = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::Border);
+            spec.fragmentModule = sdfFrag->shader_module();
+            auto sdf = UiPipeline::create(*vk, *ctx.device, spec, UiShaderKind::SdfText);
+
+            if (solid && border && sdf)
+            {
+                UiScene::Spec sspec{};
+                sspec.renderPass     = rp->native_handle();
+                sspec.colorFormat    = VK_FORMAT_B8G8R8A8_SRGB;
+                sspec.extent         = VkExtent2D{ 800, 600 };
+                sspec.pipelineLayout = solid->pipeline_layout();   // SHARED layout
+                sspec.setLayout      = solid->descriptor_set_layout();  // SHARED set layout
+                sspec.sdfPipeline    = sdf->pipeline();
+                sspec.solidPipeline  = solid->pipeline();
+                sspec.borderPipeline = border->pipeline();
+                sspec.atlasView      = atlas->image_view();
+                sspec.atlasSampler   = atlas->sampler();
+
+                auto scene = UiScene::create(*vk, *ctx.device, sspec);
+                if (scene)
+                {
+                    // A mixed list: 3 solid rects + a border + a text run of 3
+                    // same-color glyphs — attached to the SHARED descriptor set.
+                    const Color4 red{ 1, 0, 0, 1 }, green{ 0, 1, 0, 1 }, white{ 1, 1, 1, 1 };
+                    std::vector<DrawItem> items;
+                    items.push_back(solid_rect(10, 10, 100, 50, red));
+                    items.push_back(solid_rect(120, 10, 100, 50, red));
+                    items.push_back(solid_rect(230, 10, 100, 50, red));
+                    items.push_back(border_rect(10, 80, 320, 80, green, 0.05f, 0.05f, 0.01f));
+                    items.push_back(text_glyph(10, 200, 24, 24, 0.0f, 0.0f, 0.1f, 0.2f, white, 0.15f));
+                    items.push_back(text_glyph(40, 200, 24, 24, 0.1f, 0.0f, 0.2f, 0.2f, white, 0.15f));
+                    items.push_back(text_glyph(70, 200, 24, 24, 0.2f, 0.0f, 0.3f, 0.2f, white, 0.15f));
+
+                    const bool encoded = scene->set_items(items);
+                    // 3 solid -> 1 batch; border -> 1; 3 glyphs -> 1 => 3 batches.
+                    const std::uint32_t nBatches = scene->batch_count();
+                    const std::uint32_t nItems = scene->item_count();
+
+                    std::uint32_t nSolid = 0, nBorder = 0, nText = 0;
+                    for (const UiBatch& b : scene->batches())
+                    {
+                        if (b.kind == UiShaderKind::Solid) ++nSolid;
+                        else if (b.kind == UiShaderKind::Border) ++nBorder;
+                        else ++nText;
+                    }
+
+                    const bool proof = encoded && nBatches == 3u && nItems == 7u &&
+                                       nSolid == 1u && nBorder == 1u && nText == 1u;
+                    if (proof)
+                        std::printf("[s206-live] draw batcher on %s: UiScene created the buffers + the "
+                                    "SHARED descriptor set + encoded %u items into %u batches "
+                                    "(solid%u border%u text%u) on a real driver; one draw each over the "
+                                    "shared 128-B push range\n",
+                                    gpuName.c_str(), nItems, nBatches, nSolid, nBorder, nText);
+                    else
+                        std::fprintf(stderr, "[s206-live] draw batcher MISMATCH on %s "
+                                    "(encoded=%d batches=%u items=%u solid=%u border=%u text=%u)\n",
+                                    gpuName.c_str(), encoded, nBatches, nItems, nSolid, nBorder, nText);
+                }
+                else
+                {
+                    std::fprintf(stderr, "[s206-live] UiScene::create failed on %s\n", gpuName.c_str());
+                }
+            }
+            else
+            {
+                std::fprintf(stderr, "[s206-live] UiPipeline create failed "
+                            "(solid=%d border=%d sdf=%d)\n", !!solid, !!border, !!sdf);
+            }
+        }
+        else
+        {
+            std::fprintf(stderr, "[s206-live] UiScene deps create failed "
+                        "(rp=%d uiVert=%d sdf=%d solid=%d border=%d atlas=%d)\n",
+                        !!rp, !!uiVert, !!sdfFrag, !!solidFrag, !!borderFrag, !!atlas);
         }
     }
 

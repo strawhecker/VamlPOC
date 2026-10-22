@@ -54,6 +54,12 @@ vaml_add_library(vulkan
     # are embedded in ShaderModule. The shared 128-byte UiPushConstants + the
     # shared set-0-binding-0 sampler generalize the S200-local descriptor seam.
     src/ui/UiPipeline.cpp
+    # S206 — the UI primitive draw batcher (dep:S205): rects + text glyphs from
+    # the SHARED descriptor layout, batching contiguous same-shader draws into
+    # ONE vkCmdDrawIndexed each (the S205 shared-layout premise — kind switch =
+    # pipeline rebind + push update, never a descriptor-set rebind). UiScene is
+    # the named consumer of S205's shared layout. See UiScene.h for the NO-GAP.
+    src/ui/UiScene.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

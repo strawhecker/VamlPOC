@@ -26,9 +26,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S205_1 (dep:S205) — Sprint 5/6 — Monochrome icon tint at sample: single-channel alpha-mask fragment (monochrome_tint_fragment_spirv) applies the Foreground in-shader (partial alpha preserved); UiShaderKind::Monochrome rides the S205 SHARED 128-B push + set-0-binding-0 layout; pure seams monochrome_style/tint_alpha/tint_sample; MonochromeTint_test 6 cases / 38 assertions
-- Next step to do     : S206 (dep:S205) — Sprint 5/6 — Draw text + rect from the shared descriptor layout; batch same-shader draws
-- PENDING work        : none (S200 + S201 + S202 + S202_1 + S203 + S204 + S205 + S205_1 fully complete, both CI lanes green from first principles; the Sprint 5/6 surviving state is in the `## SPRINT 5 — SURVIVOR` block below (S203–S205_1 carried in session-context.md + roadmap.md delivery notes))
+- Last completed step : S206 (dep:S205) — Sprint 5/6 — Draw text + rect from the shared descriptor layout; batch same-shader draws (UiScene + batch_plan: contiguous same-key draws → ONE vkCmdDrawIndexed each, never a descriptor-set rebind — the S205 shared-layout premise; pure seams DrawItemKind/DrawItem/ui_batch_key/draw_kind_to_shader/ui_vertex_count/ui_index_count/append_ui_item/UI batch_plan/ui_record_steps; UiScene_test 11 cases)
+- Next step to do     : S207 (dep:S206) — Sprint 5/6 — Scene→command-buffer encoder: walk visual tree → draw list by material; z-order via tree order
+- PENDING work        : none (S200 + S201 + S202 + S202_1 + S203 + S204 + S205 + S205_1 + S206 fully complete, both CI lanes green from first principles; the Sprint 5/6 surviving state is in the `## SPRINT 5 — SURVIVOR` block below + the roadmap S206 delivery note + session-context.md)
   **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap Ã¢â‚¬â€ DOCS-ONLY (no build, per the
   S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
   principles). (1) RELOCATE: Sprint 3.5 (S140Ã¢â‚¬â€œS147) is consolidated into the `## SPRINT 3.5 Ã¢â‚¬â€ SURVIVOR`

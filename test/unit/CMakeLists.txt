@@ -140,6 +140,7 @@ add_executable(vaml-vulkan-tests
     SdfAtlas_test.cpp
     UiPipeline_test.cpp
     MonochromeTint_test.cpp
+    UiScene_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)
