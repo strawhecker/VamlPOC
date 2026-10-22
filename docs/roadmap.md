@@ -696,12 +696,42 @@
 - S215 dep:S214  SURVIVOR + checkpoint advance to S240.
 
 ---
-## Sprint 5a
-- S220 dep:S215  Build vaml_viewer to show final product using framework, scene, etc. soup to nuts view of the file.vaml. stand alone app using only our lib and its own app.
+## Sprint 5a — vaml_viewer (standalone consumer app: `.vaml` file → window)  (goal: one official app that renders a `.vaml` file soup-to-nuts)  [token S220+]
+> The single official consumer app — built against ONLY the public VAML library (vaml-core + vaml-vulkan +
+> vaml-presentation) and its OWN `main`, replacing the two throwaway POC harnesses (`VamlPOC/`,
+> `VamlPOC-linux/`). MVP is deliberately minimal: open a `.vaml` file (CLI param OR drag-and-drop) and render
+> it "soup to nuts" (file → parse → tree → layout → rendered window). It inherits the POCs' live-host +
+> dogfood role (S175) and the "our lib + its own app" contract. It is a LONG-LIVED surface that grows with
+> later sprints, not a one-shot demo. Because so little is in place yet, the initial sprint is very limited.
+> Token range S220–S239 reserves headroom for viewer-growth steps discovered mid-execution (roadmap gap
+> convention); do NOT append growth here until later sprints land.
+- S220 dep:S215  Repo restructure + viewer scaffold: DELETE `VamlPOC/` + `VamlPOC-linux/`; ADD `vaml_viewer/`
+      (Windows, VS project) + `vaml_viewer-linux/` (Linux, CMake) as the single official consumer app (the
+      S175 live-host + dogfood role). Record the CONSUMER-APP PATTERN (an app uses ONLY the public surface;
+      no internal headers) in an ADR. Scaffold only — zero feature code; builds clean both platforms.
+- S221 dep:S220  Viewer CLI entry: `vaml_viewer <file.vaml>`; structured open → `VamlReader::Load` → live tree,
+      or a TYPED error + non-zero exit on missing/unreadable/parse-error (never silent). A `load_file` seam
+      keeps the entry path HEADLESS-ctestable against the S095 golden fixture.
+- S222 dep:S221  MVP "soup-to-nuts" render: loaded tree → retained render path (S174 CompositionEngine +
+      S173 Presenter + S207/S208 scene encoder + S210 SceneRenderer) → declared UI in a window. Consumer
+      touches ONLY the public surface. (Structurally builds on S212's vertical slice.)
+- S223 dep:S222  Drag-and-drop entry: `PlatformWindow` (S160) gains a FILE-DROP callback (GLFW drop path,
+      Win32 + X11); viewer reopens the dropped `.vaml`; drop-dispatch → reopen handler seam is headless-testable.
+- S224 dep:S223  Boot/window polish: title = loaded filename, `--help` usage, teardown-order-clean + ASan
+      no-leak (S170 discipline). Reload-in-place on a second drop when feasible (no restart).
+- S225 dep:S224  REFACTOR GATE(S5a): POC removal left zero dead code; viewer + lib green BOTH CI lanes +
+      both platforms; CI covers the viewer's file→tree seam headlessly (golden fixture); ASan no-leak.
+- S226 dep:S225  SURVIVOR + checkpoint advance. Document how vaml_viewer grows as later sprints land
+      (controls → S400+, MVVM → S6, styles/templates → S9, compiled `.vbaml` → S7, hot-reload → S825).
+      Reserve S227–S239 for viewer-growth steps discovered mid-execution (gap-headroom convention).
+> EXPLICITLY DEFERRED for the MVP (recorded NOT silent / NO-GAP — the viewer upgrades when each sprint ships):
+> rich control visuals (real `Text`/`Button`/`TextBox` etc.) → S400+; MVVM/binding → S6; styles/templates →
+> S9; compiled `.vbaml` → S7; hot-reload → S825; themes/resources → S9; asset/icon loading via
+> ResourceDictionary → S360_1. Drag-and-drop depends on a small `PlatformWindow` extension (S223).
 
 ---
 ## Sprint 6 — Binding engine + MVVM core  (goal: v1 is an MVVM app)  [token S240+]
-- S240 dep:S220  PropertyPath parser + evaluator (dot-path; indexers; null-safe; errors reported).
+- S240 dep:S226  PropertyPath parser + evaluator (dot-path; indexers; null-safe; errors reported).
 - S240_1 dep:S240  BindingDiagnostic record {bindingId, sourcePath, targetProp, direction, reasonCode,
       sourceType, targetType, converter, detail, timestamp, sourceFile, sourceLine} + IBindingDiagnostics
       sink emitted at every failure point (S240 resolve, S242 converter/fallback, S243 one-way, S244
