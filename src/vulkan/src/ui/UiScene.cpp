@@ -15,32 +15,6 @@
 
 namespace vaml::vulkan::ui {
 
-namespace {
-
-// Picks a host-visible|coherent memory type (mirror QuadScene/QuadTexture).
-std::uint32_t find_host_visible_type(const VulkanLoader& loader,
-                                     VkPhysicalDevice physicalDevice,
-                                     const VkMemoryRequirements& req) noexcept
-{
-    if (!loader.vkGetPhysicalDeviceMemoryProperties)
-        return UINT32_MAX;
-    VkPhysicalDeviceMemoryProperties props{};
-    loader.vkGetPhysicalDeviceMemoryProperties(physicalDevice, &props);
-    for (std::uint32_t i = 0; i < props.memoryTypeCount; ++i)
-    {
-        if ((req.memoryTypeBits & (1u << i)) != 0 &&
-            (props.memoryTypes[i].propertyFlags &
-             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-        {
-            return i;
-        }
-    }
-    return UINT32_MAX;
-}
-
-} // namespace
-
 DrawItem solid_rect(float x, float y, float w, float h, const Color4& color) noexcept
 {
     DrawItem it{};
@@ -105,6 +79,10 @@ UiBatchKey ui_batch_key(const DrawItem& item) noexcept
     key.clipActive = item.clipActive;
     key.clipX = item.clipX; key.clipY = item.clipY;
     key.clipW = item.clipW; key.clipH = item.clipH;
+    // S209 Texture: the item's descriptor set is part of the batch-equality key —
+    // items sampling DIFFERENT sets can never share one draw (each set must be
+    // bound before its draws).
+    key.texture = item.texture;
     return key;
 }
 
@@ -195,7 +173,8 @@ batch_plan(std::span<const DrawItem> items) noexcept
         if (haveCur && key.kind == cur.kind && key.color == cur.color &&
             key.params == cur.params &&
             key.clipActive == cur.clipActive && key.clipX == cur.clipX &&
-            key.clipY == cur.clipY && key.clipW == cur.clipW && key.clipH == cur.clipH)
+            key.clipY == cur.clipY && key.clipW == cur.clipW && key.clipH == cur.clipH &&
+            key.texture == cur.texture)
         {
             // Extend the current batch (contiguous same-key run).
             ++batches.back().count;
@@ -211,6 +190,8 @@ batch_plan(std::span<const DrawItem> items) noexcept
             b.clipActive = key.clipActive;
             b.clipX = key.clipX; b.clipY = key.clipY;
             b.clipW = key.clipW; b.clipH = key.clipH;
+            // S209: carry the run's texture (descriptor set).
+            b.texture = key.texture;
             batches.push_back(b);
             cur = key;
             haveCur = true;
@@ -258,57 +239,17 @@ UiScene::create(const VulkanLoader& loader, const Device& device, const Spec& sp
     sc->colorFormat_     = spec.colorFormat;
     sc->extent_          = spec.extent;
 
-    // --- create the vertex + index buffers (host-visible) at a small initial cap ---
+    // --- create the S209 RetainedBufferPool + the ACTIVE generation at a small cap ---
+    // The pool owns the vertex/index buffer generations (the grow path RETIRES the
+    // old generation into the pool and frees it once the in-flight fence signals —
+    // the S209 fence-driven lifetime, no UAF). The scene's S206 accessors + record
+    // bind alias the pool's ACTIVE generation.
+    sc->pool_ = std::make_unique<detail::RetainedBufferPool>(loader, device, spec.inFlightCount);
     const std::uint32_t kInitialItems = 16u;
-    sc->capacityItems_ = kInitialItems;
-    const VkDeviceSize kInitialVerts  = ui_vertex_count(kInitialItems) * sizeof(quad::QuadVertex);
-    const VkDeviceSize kInitialIndices = ui_index_count(kInitialItems) * sizeof(std::uint16_t);
-
-    VkBufferCreateInfo vbci{};
-    vbci.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    vbci.size        = kInitialVerts;
-    vbci.usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    vbci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (loader.vkCreateBuffer(vkDevice, &vbci, nullptr, &sc->vertexBuffer_) != VK_SUCCESS)
+    if (!sc->pool_->ensure(kInitialItems))
         return nullptr;
-
-    VkMemoryRequirements vreq{};
-    loader.vkGetBufferMemoryRequirements(vkDevice, sc->vertexBuffer_, &vreq);
-    const std::uint32_t vtype = find_host_visible_type(loader, device.physical_device(), vreq);
-    if (vtype == UINT32_MAX)
-        return nullptr;
-    VkMemoryAllocateInfo vmai{};
-    vmai.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    vmai.allocationSize  = vreq.size;
-    vmai.memoryTypeIndex = vtype;
-    if (loader.vkAllocateMemory(vkDevice, &vmai, nullptr, &sc->vertexMemory_) != VK_SUCCESS)
-        return nullptr;
-    if (loader.vkBindBufferMemory(vkDevice, sc->vertexBuffer_, sc->vertexMemory_, 0u) != VK_SUCCESS)
-        return nullptr;
-
-    VkBufferCreateInfo ibci{};
-    ibci.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    ibci.size        = kInitialIndices;
-    ibci.usage       = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    ibci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    if (loader.vkCreateBuffer(vkDevice, &ibci, nullptr, &sc->indexBuffer_) != VK_SUCCESS)
-        return nullptr;
-
-    VkMemoryRequirements ireq{};
-    loader.vkGetBufferMemoryRequirements(vkDevice, sc->indexBuffer_, &ireq);
-    const std::uint32_t itype = find_host_visible_type(loader, device.physical_device(), ireq);
-    if (itype == UINT32_MAX)
-        return nullptr;
-    VkMemoryAllocateInfo imai{};
-    imai.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    imai.allocationSize  = ireq.size;
-    imai.memoryTypeIndex = itype;
-    if (loader.vkAllocateMemory(vkDevice, &imai, nullptr, &sc->indexMemory_) != VK_SUCCESS)
-        return nullptr;
-    if (loader.vkBindBufferMemory(vkDevice, sc->indexBuffer_, sc->indexMemory_, 0u) != VK_SUCCESS)
-        return nullptr;
-
-    // --- create the S205-SHARED descriptor pool + ONE descriptor set ---
+    sc->vertexBuffer_ = sc->pool_->active().vertex;
+    sc->indexBuffer_  = sc->pool_->active().index;
     // The set is allocated from the SHARED set layout (the S206 premise: one
     // bound set serves every batch/kind — never a per-kind rebind).
     VkDescriptorPoolSize poolSize{};
@@ -358,63 +299,17 @@ bool UiScene::set_items(std::span<const DrawItem> items)
     if (itemCount_ == 0u)
         return true;  // empty scene -> zero batches next record
 
-    // Grow the buffers on demand when the compacted list exceeds the cap.
-    if (itemCount_ > capacityItems_)
+    // Grow the buffers on demand via the S209 RetainedBufferPool: a grow RETIRES
+    // the previous generation into the pool (never frees it this frame — the
+    // S166 in-flight ring may still be reading it); recycle_buffers() frees it
+    // once the ring's fence signals. Refresh the record/accessor handle caches
+    // to the pool's new ACTIVE generation.
+    if (itemCount_ > pool_->active().capacityItems)
     {
-        const std::uint32_t newCap = itemCount_;  // exact-fit grow (amortized by the caller's reuse)
-        const VkDeviceSize newVBase = static_cast<VkDeviceSize>(ui_vertex_count(newCap) * sizeof(quad::QuadVertex));
-        const VkDeviceSize newIBase = static_cast<VkDeviceSize>(ui_index_count(newCap) * sizeof(std::uint16_t));
-
-        VkBufferCreateInfo nvbci{};
-        nvbci.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        nvbci.size        = newVBase;
-        nvbci.usage       = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        nvbci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        VkBuffer nvb = VK_NULL_HANDLE;
-        VkDeviceMemory nvm = VK_NULL_HANDLE;
-        if (loader_->vkCreateBuffer(device_, &nvbci, nullptr, &nvb) != VK_SUCCESS)
+        if (!pool_->ensure(itemCount_))  // exact-fit grow (amortized by the caller's reuse)
             return false;
-        VkMemoryRequirements nvreq{};
-        loader_->vkGetBufferMemoryRequirements(device_, nvb, &nvreq);
-        const std::uint32_t nvtype = find_host_visible_type(*loader_, physical_, nvreq);
-        if (nvtype == UINT32_MAX) { loader_->vkDestroyBuffer(device_, nvb, nullptr); return false; }
-        VkMemoryAllocateInfo nvmai{};
-        nvmai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        nvmai.allocationSize = nvreq.size; nvmai.memoryTypeIndex = nvtype;
-        if (loader_->vkAllocateMemory(device_, &nvmai, nullptr, &nvm) != VK_SUCCESS)
-        { loader_->vkDestroyBuffer(device_, nvb, nullptr); return false; }
-        if (loader_->vkBindBufferMemory(device_, nvb, nvm, 0u) != VK_SUCCESS)
-        { loader_->vkFreeMemory(device_, nvm, nullptr); loader_->vkDestroyBuffer(device_, nvb, nullptr); return false; }
-
-        VkBufferCreateInfo nibci{};
-        nibci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        nibci.size = newIBase;
-        nibci.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        nibci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        VkBuffer nib = VK_NULL_HANDLE;
-        VkDeviceMemory nim = VK_NULL_HANDLE;
-        if (loader_->vkCreateBuffer(device_, &nibci, nullptr, &nib) != VK_SUCCESS)
-        { loader_->vkFreeMemory(device_, nvm, nullptr); loader_->vkDestroyBuffer(device_, nvb, nullptr); return false; }
-        VkMemoryRequirements nireq{};
-        loader_->vkGetBufferMemoryRequirements(device_, nib, &nireq);
-        const std::uint32_t nitype = find_host_visible_type(*loader_, physical_, nireq);
-        if (nitype == UINT32_MAX) { loader_->vkDestroyBuffer(device_, nib, nullptr); loader_->vkFreeMemory(device_, nvm, nullptr); loader_->vkDestroyBuffer(device_, nvb, nullptr); return false; }
-        VkMemoryAllocateInfo nimai{};
-        nimai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        nimai.allocationSize = nireq.size; nimai.memoryTypeIndex = nitype;
-        if (loader_->vkAllocateMemory(device_, &nimai, nullptr, &nim) != VK_SUCCESS)
-        { loader_->vkDestroyBuffer(device_, nib, nullptr); loader_->vkFreeMemory(device_, nvm, nullptr); loader_->vkDestroyBuffer(device_, nvb, nullptr); return false; }
-        if (loader_->vkBindBufferMemory(device_, nib, nim, 0u) != VK_SUCCESS)
-        { loader_->vkFreeMemory(device_, nim, nullptr); loader_->vkDestroyBuffer(device_, nib, nullptr); loader_->vkFreeMemory(device_, nvm, nullptr); loader_->vkDestroyBuffer(device_, nvb, nullptr); return false; }
-
-        // Swap in the new pair, free the old.
-        loader_->vkFreeMemory(device_, indexMemory_, nullptr);
-        loader_->vkDestroyBuffer(device_, indexBuffer_, nullptr);
-        loader_->vkFreeMemory(device_, vertexMemory_, nullptr);
-        loader_->vkDestroyBuffer(device_, vertexBuffer_, nullptr);
-        indexBuffer_ = nib; indexMemory_ = nim;
-        vertexBuffer_ = nvb; vertexMemory_ = nvm;
-        capacityItems_ = newCap;
+        vertexBuffer_ = pool_->active().vertex;
+        indexBuffer_  = pool_->active().index;
     }
 
     // Encode the vertex buffer (4N) via the S200 append_quad encoder.
@@ -425,10 +320,10 @@ bool UiScene::set_items(std::span<const DrawItem> items)
 
     const VkDeviceSize vertexBytes = static_cast<VkDeviceSize>(vertices.size() * sizeof(quad::QuadVertex));
     void* vMapped = nullptr;
-    if (loader_->vkMapMemory(device_, vertexMemory_, 0u, vertexBytes, 0u, &vMapped) != VK_SUCCESS)
+    if (loader_->vkMapMemory(device_, pool_->active().vertexMemory, 0u, vertexBytes, 0u, &vMapped) != VK_SUCCESS)
         return false;
     std::memcpy(vMapped, vertices.data(), static_cast<std::size_t>(vertexBytes));
-    loader_->vkUnmapMemory(device_, vertexMemory_);
+    loader_->vkUnmapMemory(device_, pool_->active().vertexMemory);
 
     // Build the index buffer [0,1,2,0,2,3] offset by 4*i for item i (the S200
     // quad_indices pattern) — N items = 6N indices.
@@ -442,12 +337,45 @@ bool UiScene::set_items(std::span<const DrawItem> items)
     }
     const VkDeviceSize indexBytes = static_cast<VkDeviceSize>(indices.size() * sizeof(std::uint16_t));
     void* iMapped = nullptr;
-    if (loader_->vkMapMemory(device_, indexMemory_, 0u, indexBytes, 0u, &iMapped) != VK_SUCCESS)
+    if (loader_->vkMapMemory(device_, pool_->active().indexMemory, 0u, indexBytes, 0u, &iMapped) != VK_SUCCESS)
         return false;
     std::memcpy(iMapped, indices.data(), static_cast<std::size_t>(indexBytes));
-    loader_->vkUnmapMemory(device_, indexMemory_);
+    loader_->vkUnmapMemory(device_, pool_->active().indexMemory);
 
     return true;
+}
+
+bool UiScene::set_texture_binding(std::uint32_t textureId, VkDescriptorSet set)
+{
+    if (!loader_ || !device_)
+        return false;
+    // Replace-or-append the texture binding under `textureId`.
+    for (auto& entry : textureBindings_)
+    {
+        if (entry.first == textureId)
+        {
+            entry.second = set;
+            return true;
+        }
+    }
+    textureBindings_.emplace_back(textureId, set);
+    return true;
+}
+
+VkDescriptorSet UiScene::texture_binding(std::uint32_t textureId) const noexcept
+{
+    for (const auto& entry : textureBindings_)
+    {
+        if (entry.first == textureId)
+            return entry.second;
+    }
+    return VK_NULL_HANDLE;
+}
+
+void UiScene::recycle_buffers()
+{
+    if (pool_)
+        pool_->recycle();
 }
 
 bool UiScene::record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale)
@@ -455,13 +383,11 @@ bool UiScene::record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale)
     if (!cmd || !loader_ || !device_ || batches_.empty())
         return false;
 
-    // Once-per-frame: viewport + the SHARED descriptor set + buffers. The
-    // scissor is set per batch below (full-extent default; S208 clipped batches
-    // override it with their own mapped scissor).
+    // Once-per-frame: viewport + buffers. The scissor + descriptor set are set
+    // per batch below (full-extent default scissor; the S209 texture set binds
+    // on a texture change — a cheap descriptor rebind, never a pipeline rebind).
     const auto vs = viewport_scissor(extent_);
     loader_->vkCmdSetViewport(cmd, 0, 1, &vs.viewport);
-    loader_->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
-                                     0u, 1u, &descriptorSet_, 0u, nullptr);
     loader_->vkCmdBindVertexBuffers(cmd, 0u, 1u, &vertexBuffer_, nullptr);
     loader_->vkCmdBindIndexBuffer(cmd, indexBuffer_, 0u, VK_INDEX_TYPE_UINT16);
 
@@ -472,9 +398,13 @@ bool UiScene::record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale)
     loader_->vkCmdSetScissor(cmd, 0, 1, &currentScissor);
 
     // The per-batch record (the stored batch_plan from the last set_items):
-    // bind the batch's kind pipeline (rebind ONLY on a kind change), push one
-    // UiPushConstants (mvp + uiScale + the batch's style), draw 6N indices.
+    // bind the batch's kind pipeline (rebind ONLY on a kind change), bind the
+    // batch's descriptor set (the SHARED default set; a per-texture set bound
+    // ONLY on a texture change — a cheap descriptor rebind, NEVER a pipeline
+    // rebind: the S209 minimal-pipeline-switch guard), push one UiPushConstants
+    // (mvp + uiScale + the batch's style), draw 6N indices.
     UiShaderKind lastKind = UiShaderKind::Solid;
+    VkDescriptorSet lastSet = VK_NULL_HANDLE;  // sentinel: nothing bound yet
     bool firstBatch = true;
     for (const UiBatch& b : batches_)
     {
@@ -487,6 +417,18 @@ bool UiScene::record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale)
             loader_->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
             lastKind = b.kind;
             firstBatch = false;
+        }
+
+        // S209 Texture — the batch's descriptor set. A texture CHANGES -> bind the
+        // batch's set (a cheap descriptor rebind; NO pipeline change — the minimal
+        // pipeline-switch guard holds across the texture axis). The SHARED default
+        // set (descriptorSet_) is used for VK_NULL_HANDLE batches (the S206 premise).
+        const VkDescriptorSet batchSet = (b.texture != VK_NULL_HANDLE) ? b.texture : descriptorSet_;
+        if (firstBatch || batchSet != lastSet)
+        {
+            loader_->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
+                                             0u, 1u, &batchSet, 0u, nullptr);
+            lastSet = batchSet;
         }
 
         // S208 Clip: a clipped batch sets its OWN dynamic scissor (the element's
@@ -561,19 +503,13 @@ UiScene::~UiScene()
         return;
     if (descriptorPool_)
         loader_->vkDestroyDescriptorPool(device_, descriptorPool_, nullptr);
-    if (indexMemory_)
-        loader_->vkFreeMemory(device_, indexMemory_, nullptr);
-    if (indexBuffer_)
-        loader_->vkDestroyBuffer(device_, indexBuffer_, nullptr);
-    if (vertexMemory_)
-        loader_->vkFreeMemory(device_, vertexMemory_, nullptr);
-    if (vertexBuffer_)
-        loader_->vkDestroyBuffer(device_, vertexBuffer_, nullptr);
     descriptorPool_ = VK_NULL_HANDLE;
-    indexMemory_    = VK_NULL_HANDLE;
-    indexBuffer_    = VK_NULL_HANDLE;
-    vertexMemory_   = VK_NULL_HANDLE;
-    vertexBuffer_   = VK_NULL_HANDLE;
+    // The vertex/index buffers are owned by the S209 RetainedBufferPool (now
+    // destroyed after the descriptor pool — it frees every generation; the caller
+    // must have device-idled the loop first so nothing references a generation).
+    pool_.reset();
+    vertexBuffer_ = VK_NULL_HANDLE;
+    indexBuffer_  = VK_NULL_HANDLE;
 }
 
 } // namespace vaml::vulkan::ui

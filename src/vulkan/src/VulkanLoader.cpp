@@ -137,6 +137,9 @@ VulkanLoader::VulkanLoader()
     vkDestroyFence                            = reinterpret_cast<PFN_vkDestroyFence>(resolve("vkDestroyFence"));
     vkWaitForFences                           = reinterpret_cast<PFN_vkWaitForFences>(resolve("vkWaitForFences"));
     vkResetFences                             = reinterpret_cast<PFN_vkResetFences>(resolve("vkResetFences"));
+    // S209 — the fence-status queries (see VulkanLoader.h): bound at S209 so the
+    // RetainedBufferPool can ask when a retired generation is safe to free.
+    vkGetFenceStatus                          = reinterpret_cast<PFN_vkGetFenceStatus>(resolve("vkGetFenceStatus"));
     vkAcquireNextImageKHR                     = reinterpret_cast<PFN_vkAcquireNextImageKHR>(resolve("vkAcquireNextImageKHR"));
     vkQueueSubmit                             = reinterpret_cast<PFN_vkQueueSubmit>(resolve("vkQueueSubmit"));
     vkQueuePresentKHR                         = reinterpret_cast<PFN_vkQueuePresentKHR>(resolve("vkQueuePresentKHR"));

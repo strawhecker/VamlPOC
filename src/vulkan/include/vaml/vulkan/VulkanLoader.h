@@ -170,6 +170,10 @@ public:
     PFN_vkDestroyFence             vkDestroyFence             = nullptr;
     PFN_vkWaitForFences            vkWaitForFences            = nullptr;
     PFN_vkResetFences              vkResetFences              = nullptr;
+    // S209 — the fence STATUS query (the retained-buffer lifetime driver): the
+    // RetainedBufferPool asks "has this in-flight fence signaled?" to decide when a
+    // retired generation is safe to free (no UAF under the 3-in-flight window).
+    PFN_vkGetFenceStatus           vkGetFenceStatus           = nullptr;
     // --- acquire / submit / present / wait ---
     PFN_vkAcquireNextImageKHR      vkAcquireNextImageKHR      = nullptr;
     PFN_vkQueueSubmit              vkQueueSubmit              = nullptr;

@@ -142,8 +142,15 @@ add_executable(vaml-vulkan-tests
     UiPipeline_test.cpp
     MonochromeTint_test.cpp
     UiScene_test.cpp
+    # S209 — the fence-aware retired-buffer pool lifetime decision (should_free_generation)
+    # + the texture-aware batching tests live in UiScene_test.cpp (the S209 batching
+    # half) + RetainedBufferPool_test.cpp (the pool-half).
+    RetainedBufferPool_test.cpp
     UiSceneEncoder_test.cpp
     UiSceneEncoder_transform_test.cpp
+    # S210 — the render-thread loop contract (render_loop_steps, should_reencode) +
+    # the retained-scene owner structure. Device-backed record/recycle is [s210-live].
+    SceneRenderer_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

@@ -239,3 +239,103 @@ TEST_CASE("S206: the shared set-layout binding is set 0 binding 0 combined sampl
     CHECK(binding.binding == quadBinding.binding);
     CHECK(binding.descriptorType == quadBinding.descriptorType);
 }
+
+// ============================================================================
+// S209: GPU batching by texture + material; minimal pipeline switches
+// ============================================================================
+
+TEST_CASE("S209: texture variance splits same-kind runs into separate batches")
+{
+    // Three solid rects, all the SAME color (a single batch by S206), but the
+    // MIDDLE one samples a DIFFERENT texture (registered set). The S209 batching
+    // keys by texture too, so the same-kind run splits: [A][B][C] -> 3 batches
+    // (each set must be bound before its draws — a texture change is a draw key).
+    VkDescriptorSet otherSet = reinterpret_cast<VkDescriptorSet>(0xABC0u);
+    std::vector<DrawItem> items;
+    items.push_back(solid_rect(0, 0, 10, 10, col(1, 0, 0, 1)));           // default set
+    DrawItem mid = solid_rect(20, 0, 10, 10, col(1, 0, 0, 1));
+    mid.texture = otherSet;                                               // different texture
+    items.push_back(mid);
+    items.push_back(solid_rect(40, 0, 10, 10, col(1, 0, 0, 1)));          // default set again
+
+    const auto batches = batch_plan(items);
+    REQUIRE(batches.size() == 3u);  // texture change -> 2 draw boundaries
+    CHECK(batches[0].kind == UiShaderKind::Solid);
+    CHECK(batches[0].texture == VK_NULL_HANDLE);  // default shared atlas set
+    CHECK(batches[1].texture == otherSet);
+    CHECK(batches[2].texture == VK_NULL_HANDLE);
+    // Order preserved (first indices 0, 1, 2).
+    CHECK(batches[0].first == 0u);
+    CHECK(batches[1].first == 1u);
+    CHECK(batches[2].first == 2u);
+}
+
+TEST_CASE("S209: same-texture same-kind contiguous runs stay ONE batch")
+{
+    // Same texture (the default shared set) + same kind + same color -> ONE batch,
+    // exactly the S206 behavior (backward compatible: the default single-texture
+    // path is byte-identical to today's batching).
+    std::vector<DrawItem> items;
+    items.push_back(solid_rect(0, 0, 10, 10, col(1, 0, 0, 1)));
+    items.push_back(solid_rect(20, 0, 10, 10, col(1, 0, 0, 1)));
+    items.push_back(solid_rect(40, 0, 10, 10, col(1, 0, 0, 1)));
+
+    const auto batches = batch_plan(items);
+    REQUIRE(batches.size() == 1u);
+    CHECK(batches[0].texture == VK_NULL_HANDLE);
+    CHECK(batches[0].count == 3u);  // ONE draw for the whole run
+}
+
+TEST_CASE("S209: a texture change between same-kind runs adds a descriptor bind, NOT a pipeline bind")
+{
+    // The S209 MINIMAL-PIPELINE-SWITCH guarantee: a texture change (default set ->
+    // otherSet -> default set) between THREE same-KIND (Solid) runs splits the
+    // batches, but every batch is STILL the Solid kind. The descriptor set changes
+    // are cheap (a descriptor rebind per batch) — the PIPELINE is never rebound on
+    // the texture axis. batch_plan proves the "Solid everywhere" part (one kind);
+    // the record path binds the pipeline on a kind change only, so the kind-stable
+    // texture runs scroll the descriptor set (never the pipeline). The headless
+    // assertion here IS the S209 guard's batching half: all batches share the kind
+    // that a texture change must NOT disturb.
+    VkDescriptorSet otherSet = reinterpret_cast<VkDescriptorSet>(0xDEADu);
+    std::vector<DrawItem> items;
+    items.push_back(solid_rect(0, 0, 10, 10, col(1, 0, 0, 1)));
+    DrawItem m1 = solid_rect(20, 0, 10, 10, col(1, 0, 0, 1)); m1.texture = otherSet;
+    items.push_back(m1);
+    items.push_back(solid_rect(40, 0, 10, 10, col(1, 0, 0, 1)));
+
+    const auto batches = batch_plan(items);
+    REQUIRE(batches.size() == 3u);
+    // Every batch is SOLID — a texture change NEVER forces a pipeline switch.
+    for (const UiBatch& b : batches)
+        CHECK(b.kind == UiShaderKind::Solid);
+    // And the descriptor sets differ across the runs (the batcher tracks them).
+    CHECK(batches[0].texture == VK_NULL_HANDLE);
+    CHECK(batches[1].texture == otherSet);
+    CHECK(batches[2].texture == VK_NULL_HANDLE);
+}
+
+TEST_CASE("S209: text glyphs sampling different textures split the glyph run")
+{
+    // A text run with different atlas UVs but same color+aa: S206 collapses it
+    // into ONE batch. S209: if the glyphs sample DIFFERENT textures, they can't
+    // share a draw (each set must be bound) -> split.
+    VkDescriptorSet setA = reinterpret_cast<VkDescriptorSet>(0x11u);
+    std::vector<DrawItem> items;
+    DrawItem g1 = text_glyph(0, 0, 8, 8, 0.0f, 0.0f, 0.1f, 0.2f, col(1, 1, 1, 1), 0.15f); g1.texture = setA;
+    DrawItem g2 = text_glyph(10, 0, 8, 8, 0.1f, 0.0f, 0.2f, 0.2f, col(1, 1, 1, 1), 0.15f); g2.texture = setA;
+    DrawItem g3 = text_glyph(20, 0, 8, 8, 0.2f, 0.0f, 0.3f, 0.2f, col(1, 1, 1, 1), 0.15f); g3.texture = VK_NULL_HANDLE;
+    items.push_back(g1);
+    items.push_back(g2);
+    items.push_back(g3);
+
+    const auto batches = batch_plan(items);
+    REQUIRE(batches.size() == 2u);  // [g1,g2] on setA + [g3] on default
+    CHECK(batches[0].kind == UiShaderKind::SdfText);
+    CHECK(batches[0].count == 2u);
+    CHECK(batches[0].texture == setA);
+    CHECK(batches[1].kind == UiShaderKind::SdfText);
+    CHECK(batches[1].count == 1u);
+    CHECK(batches[1].texture == VK_NULL_HANDLE);
+}
+

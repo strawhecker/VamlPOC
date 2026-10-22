@@ -54,12 +54,22 @@ vaml_add_library(vulkan
     # are embedded in ShaderModule. The shared 128-byte UiPushConstants + the
     # shared set-0-binding-0 sampler generalize the S200-local descriptor seam.
     src/ui/UiPipeline.cpp
+    # S209 (dep:S208) — the fence-aware retired-buffer pool: owns the vertex/index
+    # buffer GENERATIONS so a UiScene grow RETIRES the old buffer instead of freeing
+    # it, and recycle() frees it once the S166 in-flight ring's fence signals
+    # (the "retired-buffer lifetime via fence" guarantee — no UAF).
+    src/ui/RetainedBufferPool.cpp
     # S206 — the UI primitive draw batcher (dep:S205): rects + text glyphs from
     # the SHARED descriptor layout, batching contiguous same-shader draws into
     # ONE vkCmdDrawIndexed each (the S205 shared-layout premise — kind switch =
     # pipeline rebind + push update, never a descriptor-set rebind). UiScene is
     # the named consumer of S205's shared layout. See UiScene.h for the NO-GAP.
     src/ui/UiScene.cpp
+    # S210 (dep:S209) — the single-thread retained-scene owner: encodes a logical
+    # scene ONCE into the S209 fence-aware retained buffers and RECORDS them every
+    # frame (no re-encode) + recycles retired generations via the in-flight fence —
+    # the render-thread loop end-to-end. Marshalling to a dual-thread model is S211.
+    src/ui/SceneRenderer.cpp
     # S207 (dep:S206) — the Scene→command-buffer encoder: walks the REAL core
     # visual tree (vaml::core::UIElement) and produces the S206 DrawItem list —
     # draw list by material, z-order via tree order (the CORE→vulkan feed edge).

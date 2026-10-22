@@ -53,6 +53,7 @@
 #include <vaml/vulkan/Device.h>
 #include <vaml/vulkan/VulkanLoader.h>
 #include <vaml/vulkan/ui/UiPipeline.h>
+#include <vaml/vulkan/ui/RetainedBufferPool.h>
 #include <vaml/vulkan/quad/QuadVertex.h>
 
 #include <vaml/core/Transform.h>   // vaml::Matrix2D (S208 per-element Model)
@@ -60,6 +61,7 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <utility>   // std::pair (S209 textureBindings_)
 #include <vector>
 
 #ifndef VAML_VULKAN_EXPORT
@@ -135,6 +137,17 @@ struct DrawItem
     float u0 = 0.0f, v0 = 0.0f;
     float u1 = 1.0f, v1 = 1.0f;
     float aa = 0.15f;   // the S204 sdf_soft_alpha half-width (default soft edge)
+
+    // S209 — the TEXTURE IDENTITY this item samples. `VK_NULL_HANDLE` = the
+    // scene's DEFAULT shared atlas set (set-0-binding-0, the S206 premise);
+    // a non-null VkDescriptorSet = a per-texture descriptor set registered via
+    // UiScene::set_texture_binding. Texture is PART OF THE BATCH KEY: items
+    // sampling DIFFERENT descriptor sets can never share one vkCmdDrawIndexed
+    // (each set must be bound before its draws). Because texture changes only
+    // rebind a DESCRIPTOR SET (cheap) and NEVER a pipeline, the S209
+    // "minimal pipeline switches" hold: a same-kind texture change stays in the
+    // same pipeline, only scrolling the bound set.
+    VkDescriptorSet texture = VK_NULL_HANDLE;
 };
 
 // Constructors for the three kinds (pure; the S201 append_scene_item precedent).
@@ -181,6 +194,11 @@ struct UiBatchKey
     bool  clipActive = false;
     float clipX = 0.0f, clipY = 0.0f;
     float clipW = 0.0f, clipH = 0.0f;
+    // S209 — the TEXTURE identity (see DrawItem::texture): VK_NULL_HANDLE (the
+    // default shared atlas set) groups with any other default item; two items
+    // sampling DIFFERENT registered sets never share a batch. A texture change
+    // is a descriptor-set rebind at record, NOT a pipeline rebind.
+    VkDescriptorSet texture = VK_NULL_HANDLE;
 };
 VAML_VULKAN_EXPORT UiBatchKey ui_batch_key(const DrawItem& item) noexcept;
 
@@ -220,6 +238,12 @@ struct UiBatch
     bool  clipActive = false;
     float clipX = 0.0f, clipY = 0.0f;  // logical px
     float clipW = 0.0f, clipH = 0.0f;  // logical px
+
+    // S209 — the batch's TEXTURE descriptor set (the run's representative
+    // texture). Default VK_NULL_HANDLE = the scene's shared atlas set; a
+    // non-null set = record binds THIS set before the batch's draws (a
+    // descriptor rebind on a texture change, never a pipeline rebind).
+    VkDescriptorSet texture = VK_NULL_HANDLE;
 
     [[nodiscard]] std::uint32_t vertex_count() const noexcept { return ui_vertex_count(count); }
     [[nodiscard]] std::uint32_t index_count()  const noexcept { return ui_index_count(count); }
@@ -285,6 +309,10 @@ public:
         // The atlas every text glyph samples (set 0, binding 0) — the S204 SDF atlas.
         VkImageView           atlasView    = VK_NULL_HANDLE;
         VkSampler             atlasSampler = VK_NULL_HANDLE;
+        // S209 — the S166 in-flight ring depth (choose_concurrency, typically 3)
+        // the RetainedBufferPool uses to decide when a retired generation is safe
+        // to free (its slot fence has signaled). Default 3 = the S166 max.
+        std::uint32_t         inFlightCount = 3;
     };
 
     // Creates the scene buffers + the SHARED descriptor set on `device` via
@@ -303,17 +331,48 @@ public:
     // (Re)encodes the per-frame CPU item list: COMPACTS degenerate (zero/negative
     // size) items, encodes the survivors into the vertex buffer (4N vertices) +
     // the index buffer ([0,1,2,0,2,3]+4*i per item, 6N indices), and recomputes
-    // batch_plan. Grows the buffers on demand when the list exceeds the current
-    // cap. Returns false on failure (no throw). An empty (or all-degenerate)
-    // list clears the scene (zero batches next record).
+    // batch_plan. Grows the buffers on demand via the S209 RetainedBufferPool
+    // (a grow RETIRES the old generation; the pool frees it once the in-flight
+    // ring's fence signals — no UAF under the 3-in-flight window). Returns false
+    // on failure (no throw). An empty (or all-degenerate) list clears the scene
+    // (zero batches next record).
     bool set_items(std::span<const DrawItem> items);
+
+    // S209 — registers a per-texture descriptor set for the set-0-binding-0 slot
+    // under a caller-chosen `textureId`. Items set their DrawItem::texture to the
+    // matching `set` (or use the scene's default shared set via VK_NULL_HANDLE).
+    // record_draw binds the batch's set on a texture change (cheap descriptor
+    // rebind, NEVER a pipeline rebind — the S209 minimal-pipeline-switch guard).
+    // The `set` must outlive the scene (it is borrowed). Returns false if the
+    // binding could not be registered (e.g. a null loader).
+    bool set_texture_binding(std::uint32_t textureId, VkDescriptorSet set);
+
+    // S209 — advances the RetainedBufferPool's frame counter once per frame (the
+    // caller calls this after submit+present) so a retired generation whose slot
+    // fence has SIGNALED (the ring wrapped) is freed — the fence-driven lifetime.
+    void recycle_buffers();
+
+    // S209 — the number of still-retired (not-yet-freed) buffer generations in
+    // the RetainedBufferPool (read-only; for the POC/test observation of the
+    // fence-driven retire/recycle lifecycle).
+    [[nodiscard]] std::size_t retired_generation_count() const noexcept
+    {
+        return pool_ ? pool_->retired_count() : 0u;
+    }
+    // S209 — the pool's current frame index (advanced once per recycle_buffers).
+    [[nodiscard]] std::uint32_t pool_frame_index() const noexcept
+    {
+        return pool_ ? pool_->frame_index() : 0u;
+    }
 
     // Records the batched draws onto `cmd` AFTER the render pass has begun (the
     // caller owns pass boundaries — the S201 QuadScene precedent). Runs the
     // stored batch_plan (from the last set_items): per batch binds the batch's
     // UiPipeline (rebind ONLY on a kind change), sets viewport/scissor once,
-    // binds the SHARED descriptor set + the vertex/index buffers ONCE, pushes
-    // one UiPushConstants (mvp + uiScale + the batch's style), and issues ONE
+    // binds the SHARED vertex/index buffers ONCE, binds the batch's descriptor
+    // set (the shared set by default; a per-texture set on a texture change) —
+    // the descriptor rebind is CHEAP and never a pipeline rebind — pushes one
+    // UiPushConstants (mvp + uiScale + the batch's style), and issues ONE
     // vkCmdDrawIndexed(6N). Returns false on an empty scene (no draw) or a
     // record failure.
     bool record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale);
@@ -324,6 +383,10 @@ public:
     [[nodiscard]] VkBuffer        vertex_buffer() const noexcept { return vertexBuffer_; }
     [[nodiscard]] VkBuffer        index_buffer()  const noexcept { return indexBuffer_; }
     [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept { return descriptorSet_; }
+    // S209 — the descriptor set registered for `textureId`, or VK_NULL_HANDLE if
+    // not registered.
+    [[nodiscard]] VkDescriptorSet texture_binding(std::uint32_t textureId) const noexcept;
+    [[nodiscard]] std::uint32_t   texture_binding_count() const noexcept { return static_cast<std::uint32_t>(textureBindings_.size()); }
     [[nodiscard]] std::uint32_t   item_count()  const noexcept { return itemCount_; }
     [[nodiscard]] std::uint32_t   batch_count() const noexcept { return static_cast<std::uint32_t>(batches_.size()); }
     [[nodiscard]] const std::vector<UiBatch>& batches() const noexcept { return batches_; }
@@ -337,11 +400,13 @@ private:
     VkDevice            device_ = VK_NULL_HANDLE;
     VkPhysicalDevice    physical_ = VK_NULL_HANDLE;
 
-    VkBuffer        vertexBuffer_  = VK_NULL_HANDLE;
-    VkDeviceMemory  vertexMemory_  = VK_NULL_HANDLE;
-    VkBuffer        indexBuffer_   = VK_NULL_HANDLE;
-    VkDeviceMemory  indexMemory_   = VK_NULL_HANDLE;
-    std::uint32_t   capacityItems_ = 0;   // current buffer capacity (in items)
+    // S209 — the real vertex/index buffer owner is the RetainedBufferPool (the
+    // device-backed generations). These handle caches alias its ACTIVE generation
+    // so record_draw + the accessors bind the live buffers without re-querying the
+    // pool every call. The S206-era raw buffer/memory members are REPLACED by the
+    // pool (the grow path now RETIRES instead of freeing — the S209 lifetime).
+    VkBuffer vertexBuffer_ = VK_NULL_HANDLE;  // == pool_->active().vertex
+    VkBuffer indexBuffer_  = VK_NULL_HANDLE;  // == pool_->active().index
 
     VkDescriptorPool descriptorPool_ = VK_NULL_HANDLE;
     VkDescriptorSet  descriptorSet_  = VK_NULL_HANDLE;
@@ -357,6 +422,17 @@ private:
     std::vector<DrawItem> items_;     // COMPACTED (non-degenerate) items
     std::vector<UiBatch>  batches_;   // from batch_plan(items_)
     std::uint32_t         itemCount_ = 0;
+
+    // S209 — the fence-aware retired-buffer pool (owns the vertex/index buffer
+    // generations; a grow retires, recycle() frees once the in-flight fence
+    // signals). It owns the REAL buffers; the scene's vertexBuffer_/indexBuffer_
+    // handle caches (above) alias its ACTIVE generation.
+
+    std::unique_ptr<detail::RetainedBufferPool> pool_;
+
+    // S209 — per-texture descriptor sets (by textureId) bound at record on a
+    // texture change (cheap descriptor rebind, never a pipeline rebind).
+    std::vector<std::pair<std::uint32_t, VkDescriptorSet>> textureBindings_;
 };
 
 } // namespace vaml::vulkan::ui

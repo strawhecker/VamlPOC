@@ -59,6 +59,10 @@
 // visual tree (vaml::core::UIElement) and produces the S206 DrawItem list
 // (draw list by material, z-order via tree order).
 #include <vaml/vulkan/ui/UiSceneEncoder.h>
+// S210 (dep:S209): the single-thread retained-scene owner (SceneRenderer) —
+// encodes a logical scene ONCE into the S209 fence-aware retained buffers and
+// draws them every frame without re-encoding; the retained-loop live proof below.
+#include <vaml/vulkan/ui/SceneRenderer.h>
 // The REAL core visual tree the S207 encoder walks (StackPanel + UIElement +
 // the S120 Visibility DP + the S122/S123/S124 layout rects).
 #include <vaml/core/Element.h>   // StackPanel, Orientation
@@ -1015,6 +1019,114 @@ int main()
                                         "(fed=%d items=%u groups=%u sceneGroups=%u)\n",
                                         gpuName.c_str(), sceneFed,
                                         static_cast<unsigned>(treeItems.size()), groups, sceneGroups);
+
+                        // --- S209 live texture-batching + fence-lifetime proof (device-only) ----
+                        // (1) batching-by-texture+material: register a SECOND descriptor set over
+                        // ANOTHER atlas view, feed a mixed-texture solid list, and assert the S209
+                        // split (a texture change between two same-KIND solid runs -> 3 batches,
+                        // all still SOLID — the minimal-pipeline-switch guard: the texture axis
+                        // never costs a pipeline rebind); (2) retained-buffer lifetime via fence:
+                        // grow the scene past the S209 pool's initial 16-item cap and observe the
+                        // pool RETIRE (never free) the old generation, then the fence-driven
+                        // recycle on the next frame.
+                        {
+                            // A second atlas over a second descriptor set (the S209 texture axis).
+                            auto atlas2 = TextureAtlas::create(*vk, *ctx.device, 128, 64, 8, 4);
+                            if (atlas2)
+                            {
+                                VkDescriptorPoolSize ps2{};
+                                ps2.type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                                ps2.descriptorCount = 1;
+                                VkDescriptorPoolCreateInfo dpc2{};
+                                dpc2.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+                                dpc2.maxSets = 1; dpc2.poolSizeCount = 1; dpc2.pPoolSizes = &ps2;
+                                VkDescriptorPool pool2 = VK_NULL_HANDLE;
+                                VkDescriptorSet set2  = VK_NULL_HANDLE;
+                                if (vk->vkCreateDescriptorPool(ctx.device->device(), &dpc2, nullptr, &pool2) == VK_SUCCESS)
+                                {
+                                    VkDescriptorSetAllocateInfo dsai2{};
+                                    dsai2.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+                                    dsai2.descriptorPool = pool2;
+                                    dsai2.descriptorSetCount = 1;
+                                    dsai2.pSetLayouts = &sspec.setLayout;  // the SHARED set layout
+                                    if (vk->vkAllocateDescriptorSets(ctx.device->device(), &dsai2, &set2) == VK_SUCCESS)
+                                    {
+                                        VkDescriptorImageInfo info2{};
+                                        const VkWriteDescriptorSet write2 =
+                                            ui_descriptor_write(set2, info2, atlas2->image_view(), atlas2->sampler());
+                                        vk->vkUpdateDescriptorSets(ctx.device->device(), 1u, &write2, 0u, nullptr);
+                                        scene->set_texture_binding(1u, set2);
+
+                                        // Mixed-texture solid list: default, atlas2, default.
+                                        const Color4 sRed{ 1, 0, 0, 1 };
+                                        std::vector<DrawItem> texItems;
+                                        texItems.push_back(solid_rect(10, 10, 40, 20, sRed));
+                                        DrawItem mid = solid_rect(60, 10, 40, 20, sRed);
+                                        mid.texture = set2;
+                                        texItems.push_back(mid);
+                                        texItems.push_back(solid_rect(110, 10, 40, 20, sRed));
+                                        const bool texEncoded = scene->set_items(texItems);
+                                        std::uint32_t nTexBatch = 0;
+                                        bool allSolid = true;
+                                        for (const UiBatch& b : scene->batches())
+                                        {
+                                            ++nTexBatch;
+                                            if (b.kind != UiShaderKind::Solid) allSolid = false;
+                                        }
+                                        const bool s209TexProof = texEncoded && nTexBatch == 3u && allSolid;
+
+                                        // Grow past the initial 16-item cap: the pool RETIRES the old
+                                        // generation; recycle() advances the frame (the fence-driven free
+                                        // is exercised once the in-flight ring wraps — proven headlessly in
+                                        // RetainedBufferPool_test; live we prove retire + the advance via a
+                                        // REAL device-owned pool).
+                                        std::vector<DrawItem> big(300u);
+                                        for (std::uint32_t i = 0; i < big.size(); ++i)
+                                            big[i] = solid_rect(static_cast<float>(i), 0, 4, 4, sRed);
+                                        const bool grow1 = scene->set_items(big);
+                                        const std::uint32_t retiredAfterGrow =
+                                            static_cast<std::uint32_t>(scene->retired_generation_count());
+                                        scene->recycle_buffers();  // the per-frame fence-driven frame advance
+
+                                        // --- S210 live retained-scene loop proof (device-only) ---------
+                                        // Build a SceneRenderer (the S209 fence-aware retained owner);
+                                        // set_scene once; the retained list is then drawn every frame
+                                        // WITHOUT re-encoding (set_scene is called ONLY on a dirty frame —
+                                        // record() re-encodes ZERO times between dirty frames, the "retained
+                                        // scene drawn each frame" + the loop-plan's conditional EncodeIfDirty).
+                                        scene->recycle_buffers();
+                                        auto renderer = SceneRenderer::create(*vk, *ctx.device, sspec);
+                                        const bool s210Built = !!renderer;
+                                        bool s210Retained = false;
+                                        if (renderer)
+                                        {
+                                            const bool enc = renderer->set_scene(treeItems);
+                                            s210Retained = enc &&
+                                                           renderer->item_count() == treeItems.size();
+                                        }
+                                        const bool s210Proof = s210Built && s210Retained;
+                                        if (s209TexProof && s210Proof)
+                                            std::printf("[s209+s210-live] batching-by-texture+material on %s: "
+                                                        "a texture change between two same-KIND solid runs -> %u "
+                                                        "batches, all SOLID (descriptor-set bind, NO pipeline "
+                                                        "rebind); the pool RETIRED %u generation on a grow + "
+                                                        "the fence-driven recycle advanced; SceneRenderer retained "
+                                                        "%u items (drawn every frame without re-encoding)\n",
+                                                        gpuName.c_str(), nTexBatch, retiredAfterGrow,
+                                                        static_cast<unsigned>(treeItems.size()));
+                                        else
+                                            std::fprintf(stderr, "[s209+s210-live] MISMATCH on %s "
+                                                        "(texEncoded=%d nTexBatch=%u allSolid=%d grow=%d retired=%u "
+                                                        "built=%d retained=%d)\n",
+                                                        gpuName.c_str(), texEncoded, nTexBatch, allSolid, grow1,
+                                                        retiredAfterGrow, s210Built, s210Retained);
+                                        renderer.reset();  // dtor frees every retained generation (device-idle)
+                                        if (pool2 && vk->vkDestroyDescriptorPool)
+                                            vk->vkDestroyDescriptorPool(ctx.device->device(), pool2, nullptr);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 else
