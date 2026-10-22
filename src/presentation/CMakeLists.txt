@@ -19,6 +19,12 @@
 vaml_add_library(presentation
     src/Presenter.cpp
     src/CompositionEngine.cpp
+    # S212 (dep:S211) — the MERGE-POINT vertical-slice render host: composes the
+    # S207/S208 scene encoder + the S211 postbox + the S210 retained SceneRenderer
+    # + the S173 Presenter behind ONE public surface ("UI declared in VAML renders
+    # to window via the full S5 path"). The host owns the CPU/merge logic headlessly
+    # (create) + the device-backed integration (create_device, [both apps, not CI]).
+    src/VamlRenderer.cpp
     src/version.cpp
 )
 

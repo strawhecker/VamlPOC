@@ -189,6 +189,10 @@ add_executable(vaml-presentation-tests
     PresentationTestMain.cpp
     Presenter_test.cpp
     Composition_test.cpp
+    # S212 (dep:S211) — the MERGE POINT: the first real vertical slice (headless
+    # Rail 1) through the vaml::presentation::VamlRenderer host — VAML disk ->
+    # VamlReader::Load -> UIElement root -> arrange -> encode -> publish/consume.
+    VamlRenderer_vertical_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)

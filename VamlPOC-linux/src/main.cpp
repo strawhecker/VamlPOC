@@ -78,6 +78,10 @@
 // the acquire/present handles — that is the S173 "app DECLARES; the framework
 // owns loop/composition/recovery" contract.
 #include <vaml/presentation/Presenter.h>
+#include <vaml/presentation/VamlRenderer.h>
+// S212 (the MERGE POINT's disk -> tree path): the REAL VamlReader::Load the
+// vertical slice uses to turn declared VAML text into the live core tree.
+#include <vaml/core/VamlReader.h>
 #include <vaml/composition/CompositionEngine.h>
 
 #include <vulkan/vulkan.h>
@@ -1167,6 +1171,65 @@ int main()
                                                             "(built=%d consumed=%d)\n",
                                                             gpuName.c_str(), s211Built, s211Consumed);
                                             r2.reset();
+                                        }
+
+                                        // --- S212 live vertical-slice proof (device-only) ---------
+                                        // THE MERGE POINT: a VAML-DECLARED tree renders through the FULL
+                                        // S5 path via the vaml::presentation::VamlRenderer HOST. The
+                                        // CPU/merge half (VamlReader::Load -> UIElement root -> arrange ->
+                                        // encode -> postbox) is proven here on a real driver, and the
+                                        // device-backed re-encode (set_scene) feeds a REAL SceneRenderer's
+                                        // retained buffers. The presented window frame is the display-
+                                        // backed manual step ([both apps, not CI]).
+                                        {
+                                            // VAML text -> live core tree (the S091/S092 reader).
+                                            vaml::VamlReader reader;
+                                            std::unique_ptr<vaml::DependencyObject> root =
+                                                reader.Load("<StackPanel xmlns:x="
+                                                            "\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+                                                            "x:Name=\"root\" />");
+                                            auto* uiRoot =
+                                                dynamic_cast<vaml::UIElement*>(root.get());
+
+                                            // The vertical-slice host (the merge's ONE public surface).
+                                            auto host = vaml::presentation::VamlRenderer::create();
+                                            const bool s212Host = !!host;
+                                            bool s212Merge = false;
+                                            std::uint32_t s212Encoded = 0;
+                                            if (host && uiRoot)
+                                            {
+                                                (void)host->set_root(uiRoot);
+                                                host->set_frame_size(800.0f, 600.0f);
+                                                const std::uint64_t v1 = host->invalidate();  // arrange+encode+publish
+                                                // The merge's CPU encoder over the arranged tree (the
+                                                // VamlReader-loaded single-panel root -> ONE solid fill).
+                                                std::vector<DrawItem> arranged;
+                                                vaml::presentation::encode_visual_slice(
+                                                    *uiRoot, vaml::presentation::default_visual_of(), arranged);
+                                                s212Encoded = static_cast<std::uint32_t>(arranged.size());
+                                                // Drive the encoded snapshot into a real SceneRenderer's
+                                                // retained buffers via set_scene (the DrawBody's
+                                                // ConsumeMarshalled -> EncodeIfDirty feeds set_scene).
+                                                auto sliceScene = SceneRenderer::create(*vk, *ctx.device, sspec);
+                                                bool s212Reencoded = false;
+                                                if (sliceScene)
+                                                {
+                                                    s212Reencoded = sliceScene->set_scene(arranged) &&
+                                                                    sliceScene->item_count() == arranged.size();
+                                                }
+                                                s212Merge = v1 == 1u && s212Reencoded;
+                                            }
+                                            const bool s212Proof = s212Host && s212Merge && s212Encoded == 1u;
+                                            if (s212Proof)
+                                                std::printf("[s212-live] vertical slice on %s: VAML text -> "
+                                                            "VamlReader::Load -> UIElement root -> arrange -> "
+                                                            "encode(%u) -> retained set_scene via the VamlRenderer "
+                                                            "host (the MERGE POINT, first real vertical slice)\n",
+                                                            gpuName.c_str(), s212Encoded);
+                                            else
+                                                std::fprintf(stderr, "[s212-live] vertical slice MISMATCH on %s "
+                                                            "(host=%d merge=%d encoded=%u)\n",
+                                                            gpuName.c_str(), s212Host, s212Merge, s212Encoded);
                                         }
                                         if (pool2 && vk->vkDestroyDescriptorPool)
                                             vk->vkDestroyDescriptorPool(ctx.device->device(), pool2, nullptr);
