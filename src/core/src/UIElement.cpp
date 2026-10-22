@@ -7,9 +7,11 @@
 // first UIElement construction registers both DPs into the global
 // DependencyProperty table once, idempotently.
 //
-// The transform-owner + layout slots are SENTINEL-ONLY (see UIElement.h) —
-// no member, no fabricated geometry type; each is resolved at its named
-// sprint (S208 / S122).
+// The layout slot is RESOLVED BY S122 (Geometry.h/LayoutSlot.h real geometry +
+// DesiredSize/final_rect/Margin/alignment DPs). The transform-owner is
+// RESOLVED BY S208 (the Transform.h Matrix2D affine value type as the REAL
+// UIElement RenderTransform DP, performed by the vulkan encoder; the S120
+// transform-owner sentinel is removed there — see UIElement.h + Transform.h).
 //
 // S142 (dep:S141): the pimpl is COLLAPSED. UIElement's layout data (children,
 // desired size, final rect, dirty flags) now lives directly as inline members,
@@ -60,6 +62,17 @@ void register_uielement_properties()
     (void)DependencyProperty::Register(
         "Margin", ValueType::Thickness, "UIElement",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+
+    // RenderTransform (S208): default identity, NOT inherited, validated finite.
+    // A Matrix2D with any NaN/Inf element is REJECTED at Set (the renderer never
+    // sees non-finite geometry). Set triggers InvalidateArrange (see accessor).
+    (void)DependencyProperty::Register(
+        "RenderTransform", ValueType::Matrix2D, "UIElement",
+        std::move(PropertyMetadata::WithDefault(Value::Matrix2D(vaml::Matrix2D::identity()),
+                                                PropertyFlags::None))
+            .with_validate([](const Value& v) {
+                return is_transform_valid(v.get<vaml::Matrix2D>());
+            }));
 
     // HorizontalAlignment / VerticalAlignment: default Stretch(0), NOT
     // inherited, stored via the Int32 value path (enum rides Int32, the same
@@ -118,6 +131,29 @@ VAML_CORE_EXPORT
 double UIElement::opacity() const
 {
     return Get(PropertyId::of("Opacity")).get<double>();
+}
+
+// --- S208 RenderTransform (the S120 transform-owner resolution) ---------------
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_render_transform(const vaml::Matrix2D& value)
+{
+    // A non-finite matrix is REJECTED by the DP validate (never stored). Set
+    // triggers InvalidateArrange: a render transform is a visual change the
+    // encoder re-emits, so the arrange-dirty flag (plus its ancestor chain)
+    // marks the element for a fresh encode pass.
+    const SetResult r = Set(PropertyId::of("RenderTransform"), Value::Matrix2D(value));
+    if (r == SetResult::APPLIED)
+    {
+        InvalidateArrange();
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+vaml::Matrix2D UIElement::render_transform() const
+{
+    return Get(PropertyId::of("RenderTransform")).get<vaml::Matrix2D>();
 }
 
 // --- S122 layout slot (RESOLVED BY S122) ------------------------------------

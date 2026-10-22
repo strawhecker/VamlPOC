@@ -26,9 +26,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S207 (dep:S206) — Sprint 5/6 — Scene→command-buffer encoder: walk the REAL core visual tree (vaml::core::UIElement) → S206 DrawItem list; draw list by material, z-order via tree order (UiSceneEncoder + encode_visual_tree: depth-first pre-order walk = z-order via tree order; skip rules None/Collapsed/degenerate each leave the subtree walking; MaterialKind/classify_element [vulkan-side default → None, the S400/S364 seam]/ElementVisual/MaterialGroupCount [== UiScene::batch_count]/VisualWalkStep + the REAL PUBLIC vaml-core edge; UiSceneEncoder_test 8 cases)
-- Next step to do     : S208 (dep:S207) — Sprint 5/6 — the encoder HONORS Opacity + Clip + RenderTransform and composes the per-element Model → UiPushConstants.mvp (the UIElement transform-owner sentinel resolves here)
-- PENDING work        : none (S200 + S201 + S202 + S202_1 + S203 + S204 + S205 + S205_1 + S206 + S207 fully complete, both CI lanes green from first principles; the Sprint 5/6 surviving state is in the `## SPRINT 5 — SURVIVOR` block below + session-context.md)
+- Last completed step : S208 (dep:S207) — Sprint 5/6 — Encoder honors Opacity + Clip + RenderTransform (draw grouping); each element's transform composes the draw Model matrix into the MVP (Matrix2D affine value type + UIElement RenderTransform DP [the S120 transform-owner sentinel RESOLVED]; effective_opacity folded into item alpha; per-element Model CPU-folded into quad vertices in append_ui_item; Clip via per-batch dynamic scissor = the S124 render slot; backward-compatible batching; Transform_render_test 11 cases + UiSceneEncoder_transform_test 6 cases)
+- Next step to do     : S209 (dep:S208) — Sprint 5/6 — GPU batching by texture+material; minimal pipeline switches; retired-buffer lifetime via fence
+- PENDING work        : none (S200 + S201 + S202 + S202_1 + S203 + S204 + S205 + S205_1 + S206 + S207 + S208 fully complete, both CI lanes green from first principles; the Sprint 5/6 surviving state is in the `## SPRINT 5 — SURVIVOR` block below + session-context.md)
   **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap Ã¢â‚¬â€ DOCS-ONLY (no build, per the
   S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
   principles). (1) RELOCATE: Sprint 3.5 (S140Ã¢â‚¬â€œS147) is consolidated into the `## SPRINT 3.5 Ã¢â‚¬â€ SURVIVOR`
@@ -58,7 +58,7 @@
   by its declaring step. Active: vulkan → RESOLVED at S161 (Sprint 4), toolsÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S287, built-in element seeds (S087,
   in `vaml/core/Element.h`) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ButtonÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S401, TextÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S400, TextBoxÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S402,
   CheckBoxÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S404, SliderÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S403, ScrollViewerÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S405, WindowÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢S440; VamlReader event hooks (S092,
-  `vaml/core/VamlReader.h`) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ S322; UIElement transform-owner (S120, `vaml/core/UIElement.h`) ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ S208.
+  `vaml/core/VamlReader.h`) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â S322.
   RESOLVED: Color + Thickness (S089 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â their real parsing
   semantics now live on the types via parse_color/parse_thickness); StackPanel (S129 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â real panel);
   Grid (S131 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â real panel: row/col definitions + Absolute/Auto/Star resolution + attached
@@ -66,7 +66,9 @@
   measure/arrange); WrapPanel (S134 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â REAL panel: UIElement-derived, WrapDirection DP default
   Horizontal, flow/wrap/align; a NEW element, not a seed); Canvas (S136 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â REAL panel:
   UIElement-derived, attached Canvas.Left/Canvas.Top DPs (Double, default NaN = "not set"),
-  absolute-position measure/arrange; a NEW element, not a seed).
+  absolute-position measure/arrange; a NEW element, not a seed); **UIElement transform-owner (S120) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
+  RESOLVED at S208** (the S208 Transform.h Matrix2D affine value type + the RenderTransform DP +
+  the encoder CPU-fold honors the model/transform; sentinel removed at S208).
 - **NO-GAP GUARANTEE**: no feature/symbol left for silent backfill; every MINIMAL REAL has an
   explicit resolution authored at the same step that delivers real content.
 - **NO LAZY LLM SYNDROME**: default posture is to reason the opposite of lazy; MINIMAL REAL is

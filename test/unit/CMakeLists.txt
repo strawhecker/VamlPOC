@@ -61,6 +61,7 @@ add_executable(vaml-core-tests
     Grid_stretch_test.cpp
     WrapPanel_test.cpp
     Canvas_test.cpp
+    Transform_render_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
     VamlReader_test.cpp
@@ -142,6 +143,7 @@ add_executable(vaml-vulkan-tests
     MonochromeTint_test.cpp
     UiScene_test.cpp
     UiSceneEncoder_test.cpp
+    UiSceneEncoder_transform_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

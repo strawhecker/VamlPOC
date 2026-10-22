@@ -10,6 +10,7 @@
 #include <vaml/vulkan/Pipeline.h>  // viewport_scissor (the S165 dynamic viewport+scissor seam)
 #include <vaml/vulkan/quad/QuadPipeline.h>  // quad::ui_projection + is_srgb_format
 
+#include <algorithm>
 #include <cstring>
 
 namespace vaml::vulkan::ui {
@@ -99,6 +100,11 @@ UiBatchKey ui_batch_key(const DrawItem& item) noexcept
         key.params = { 0.0f, 0.0f, 0.0f, 0.0f };  // solid_style
         break;
     }
+    // S208 Clip: a distinct scissor (or clip-active-vs-inactive) is part of the
+    // batch-equality key -> a draw boundary.
+    key.clipActive = item.clipActive;
+    key.clipX = item.clipX; key.clipY = item.clipY;
+    key.clipW = item.clipW; key.clipH = item.clipH;
     return key;
 }
 
@@ -127,19 +133,46 @@ void append_ui_item(std::vector<quad::QuadVertex>& out, const DrawItem& item) no
 {
     if (ui_item_degenerate(item))
         return;
+
+    // Choose the UV sub-rect (glyph atlas sub-rect for Text; full atlas for
+    // Solid/Border, which do not sample).
+    float u0 = 0.0f, v0 = 0.0f, u1 = 1.0f, v1 = 1.0f;
     if (item.kind == DrawItemKind::TextGlyph)
     {
-        quad::append_quad(out, item.x, item.y, item.w, item.h,
-                          item.u0, item.v0, item.u1, item.v1,
-                          item.r, item.g, item.b, item.a);
+        u0 = item.u0; v0 = item.v0; u1 = item.u1; v1 = item.v1;
     }
-    else
+
+    // S208 per-element Model: CPU-fold `item.model` into the four quad vertex
+    // positions BEFORE the S200 MVP projection (the per-element Model composes
+    // into the MVP). An IDENTITY model is the no-op fast path (today's rect
+    // geometry + batching are unchanged — backward compatible), so we only pay
+    // the fold when the element actually carries a transform.
+    if (is_transform_identity(item.model))
     {
-        // Solid/border fill the whole atlas UV (they do not sample).
         quad::append_quad(out, item.x, item.y, item.w, item.h,
-                          0.0f, 0.0f, 1.0f, 1.0f,
+                          u0, v0, u1, v1,
                           item.r, item.g, item.b, item.a);
+        return;
     }
+
+    // Affine path: emit 4 explicitly-transformed unit-quad corners.
+    struct P { float u, v; };
+    constexpr P kPos[4] = { {0.0f,0.0f}, {1.0f,0.0f}, {1.0f,1.0f}, {0.0f,1.0f} };
+    std::array<quad::QuadVertex, 4> quad;
+    for (std::size_t i = 0; i < 4; ++i)
+    {
+        const float px = item.x + item.w * kPos[i].u;
+        const float py = item.y + item.h * kPos[i].v;
+        float ox = 0.0f, oy = 0.0f;
+        transform_point(item.model, px, py, ox, oy);
+        quad::QuadVertex v;
+        v.x = ox; v.y = oy;
+        v.u = u0 + (u1 - u0) * kPos[i].u;
+        v.v = v0 + (v1 - v0) * kPos[i].v;
+        v.r = item.r; v.g = item.g; v.b = item.b; v.a = item.a;
+        quad[i] = v;
+    }
+    out.insert(out.end(), quad.begin(), quad.end());
 }
 
 std::vector<UiBatch>
@@ -160,7 +193,9 @@ batch_plan(std::span<const DrawItem> items) noexcept
 
         const UiBatchKey key = ui_batch_key(item);
         if (haveCur && key.kind == cur.kind && key.color == cur.color &&
-            key.params == cur.params)
+            key.params == cur.params &&
+            key.clipActive == cur.clipActive && key.clipX == cur.clipX &&
+            key.clipY == cur.clipY && key.clipW == cur.clipW && key.clipH == cur.clipH)
         {
             // Extend the current batch (contiguous same-key run).
             ++batches.back().count;
@@ -171,6 +206,11 @@ batch_plan(std::span<const DrawItem> items) noexcept
             b.kind  = draw_kind_to_shader(item.kind);
             b.first = compacted;
             b.count = 1;
+            // S208: carry the run's clip (scissor) state so record can set a
+            // per-batch scissor for a clipped batch.
+            b.clipActive = key.clipActive;
+            b.clipX = key.clipX; b.clipY = key.clipY;
+            b.clipW = key.clipW; b.clipH = key.clipH;
             batches.push_back(b);
             cur = key;
             haveCur = true;
@@ -415,14 +455,21 @@ bool UiScene::record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale)
     if (!cmd || !loader_ || !device_ || batches_.empty())
         return false;
 
-    // Once-per-frame: viewport/scissor + the SHARED descriptor set + buffers.
+    // Once-per-frame: viewport + the SHARED descriptor set + buffers. The
+    // scissor is set per batch below (full-extent default; S208 clipped batches
+    // override it with their own mapped scissor).
     const auto vs = viewport_scissor(extent_);
     loader_->vkCmdSetViewport(cmd, 0, 1, &vs.viewport);
-    loader_->vkCmdSetScissor(cmd, 0, 1, &vs.scissor);
     loader_->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_,
                                      0u, 1u, &descriptorSet_, 0u, nullptr);
     loader_->vkCmdBindVertexBuffers(cmd, 0u, 1u, &vertexBuffer_, nullptr);
     loader_->vkCmdBindIndexBuffer(cmd, indexBuffer_, 0u, VK_INDEX_TYPE_UINT16);
+
+    // The CURRENT scissor for the batch being recorded. Starts at the full
+    // extent; a clipActive batch sets its mapped scissor and restores the full
+    // extent after (so the next unclipped batch draws to the whole frame).
+    VkRect2D currentScissor = vs.scissor;
+    loader_->vkCmdSetScissor(cmd, 0, 1, &currentScissor);
 
     // The per-batch record (the stored batch_plan from the last set_items):
     // bind the batch's kind pipeline (rebind ONLY on a kind change), push one
@@ -440,6 +487,37 @@ bool UiScene::record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale)
             loader_->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
             lastKind = b.kind;
             firstBatch = false;
+        }
+
+        // S208 Clip: a clipped batch sets its OWN dynamic scissor (the element's
+        // clip rect in logical px mapped to frame px via uiScale); restore the
+        // full-extent scissor for the next unclipped batch.
+        if (b.clipActive)
+        {
+            VkRect2D cs{};
+            // Logical-px -> frame-px: the logical viewport spans
+            // [0, extent/uiScale] -> [0, extent] px, so framePx = logical*uiScale.
+            cs.offset = { static_cast<std::int32_t>(b.clipX * uiScale),
+                          static_cast<std::int32_t>(b.clipY * uiScale) };
+            const std::int32_t cw = static_cast<std::int32_t>(b.clipW * uiScale);
+            const std::int32_t ch = static_cast<std::int32_t>(b.clipH * uiScale);
+            // Clamp to the framebuffer extent (never exceed it, never negative).
+            cs.extent = {
+                static_cast<std::uint32_t>(std::max(0, std::min(cw, static_cast<std::int32_t>(extent_.width)))),
+                static_cast<std::uint32_t>(std::max(0, std::min(ch, static_cast<std::int32_t>(extent_.height)))),
+            };
+            loader_->vkCmdSetScissor(cmd, 0, 1, &cs);
+            currentScissor = cs;
+        }
+        else if (currentScissor.offset.x != vs.scissor.offset.x ||
+                 currentScissor.offset.y != vs.scissor.offset.y ||
+                 currentScissor.extent.width != vs.scissor.extent.width ||
+                 currentScissor.extent.height != vs.scissor.extent.height)
+        {
+            // Restore the full-extent scissor for an unclipped batch after a
+            // clipped one (a clip set the scissor to a sub-rect).
+            currentScissor = vs.scissor;
+            loader_->vkCmdSetScissor(cmd, 0, 1, &currentScissor);
         }
 
         // The S205 shared 128-byte UiPushConstants (mvp -> the 0 offset; uiAndPad.x

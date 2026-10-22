@@ -15,6 +15,7 @@
 
 #include "vaml/core/Color.h"
 #include "vaml/core/Thickness.h"
+#include "vaml/core/Transform.h"
 #include "vaml/core/export.h"
 #include <cstdint>
 #include <stdexcept>
@@ -24,7 +25,9 @@
 namespace vaml {
 
 // Discriminator tags — values follow the roadmap order exactly.
-// Underlying type is uint8_t (11 tags, room to grow).
+// Underlying type is uint8_t (12 tags, room to grow). Matrix2D is APPENDED
+// (S208 additive — enum-stable: existing tags keep their ordinal, so S030's
+// stored/round-tripped values and the S034 value-path DPs are unaffected).
 enum class ValueType : std::uint8_t
 {
     Null = 0,
@@ -38,6 +41,7 @@ enum class ValueType : std::uint8_t
     Thickness,
     BrushId,
     UntypedPtr,
+    Matrix2D,   // S208: the REAL per-element affine transform (RenderTransform)
 };
 
 // Thrown by Value::get<T>() when T is not a valid payload type for the tag.
@@ -80,6 +84,8 @@ template <> struct ValueTypeOf<vaml::Color>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Color; } };
 template <> struct ValueTypeOf<vaml::Thickness>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Thickness; } };
+template <> struct ValueTypeOf<vaml::Matrix2D>
+{ static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Matrix2D; } };
 template <> struct ValueTypeOf<void*>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::UntypedPtr; } };
 
@@ -96,6 +102,7 @@ public:
     [[nodiscard]] static Value String(std::string v) { return Value(ValueType::String, std::move(v)); }
     [[nodiscard]] static Value Color(vaml::Color v) noexcept { return Value(ValueType::Color, v); }
     [[nodiscard]] static Value Thickness(vaml::Thickness v) noexcept { return Value(ValueType::Thickness, v); }
+    [[nodiscard]] static Value Matrix2D(vaml::Matrix2D v) noexcept { return Value(ValueType::Matrix2D, v); }
     // BrushId stores a scalar id (int32 payload) under a dedicated tag. No
     // named registry exists yet (S9 resources / S200+ renderer give ids
     // meaning); S030 stores the id and lets callers retrieve it via
@@ -152,6 +159,7 @@ private:
         std::string     asString;
         vaml::Color     asColor;
         vaml::Thickness asThickness;
+        vaml::Matrix2D  asMatrix2D; // S208 RenderTransform
         void*           asPtr; // UntypedPtr
     } storage_;
 
@@ -211,6 +219,9 @@ template <>
 
 template <>
 [[nodiscard]] inline vaml::Thickness Value::read<vaml::Thickness>() const { return storage_.asThickness; }
+
+template <>
+[[nodiscard]] inline vaml::Matrix2D Value::read<vaml::Matrix2D>() const { return storage_.asMatrix2D; }
 
 template <>
 [[nodiscard]] inline void* Value::read<void*>() const { return storage_.asPtr; }

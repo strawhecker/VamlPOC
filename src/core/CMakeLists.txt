@@ -29,6 +29,7 @@ vaml_add_library(core
     src/ValueConverter.cpp
     src/Color.cpp
     src/Thickness.cpp
+    src/Transform.cpp
     src/LayoutSlot.cpp
     src/LayoutManager.cpp
 )

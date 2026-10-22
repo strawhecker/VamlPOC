@@ -24,6 +24,54 @@ MaterialKind classify_element(const vaml::UIElement& /*element*/) noexcept
     return MaterialKind::None;
 }
 
+// S208 effective opacity — the S208 Opacity seam, honored at the renderer. The
+// element's RESOLVED opacity() IS the on-render alpha: Opacity is registered
+// with PropertyFlags::Inherits (S120), so the S040/S041 inheritance cascade
+// ALREADY propagates an ancestor's opacity into a descendant that does NOT set
+// a local override (a parent at 0.5 fades its whole subtree to 0.5 via the
+// legal `local ?? inherited ?? default` resolution). Multiplying a chain of
+// opacity() values here would DOUBLE-COUNT the inherited cascade (an ancestor's
+// value appears both as its own factor AND as the inherited value inside each
+// descendant's opacity()) — so effective_opacity delegates to the resolved DP
+// value, the single honest number the renderer multiplies into the item alpha.
+// A child's OWN local set shadows the inherited ancestor value (0.8 under a 0.5
+// parent renders at 0.8 — local-wins inheritance semantics, WPF-faithful). Pure
+// + headless-testable; the encoder folds the result into the item alpha.
+double effective_opacity(const vaml::UIElement& element) noexcept
+{
+    return element.opacity();
+}
+
+namespace {
+// S208: marks an emitted DrawItem with the element's render state — the per-
+// element Model (RenderTransform) + the Clip. The MODEL is always folded in
+// (identity is the no-op fast path, so unchanged batching). The CLIP is marked
+// active ONLY when a non-identity Model could push content outside the slot
+// (a rotated/scaled/translated element overflowing its S124 render slot is
+// culled by a dynamic scissor to final_rect). An identity-transform element
+// already fits its final_rect exactly, so clipActive stays false — the
+// existing S206/S207 batching is preserved (backward compatible).
+void apply_element_render_state(const vaml::UIElement& element, DrawItem& item) noexcept
+{
+    item.model = element.render_transform();
+    const bool transformed = !is_transform_identity(item.model);
+    if (transformed)
+    {
+        // Clip the transformed content to the S124 render slot (final_rect):
+        // a rotated/scaled quad that overflows its slot is exactly culled here.
+        const vaml::Rect fr = element.final_rect();
+        if (fr.width > 0.0f && fr.height > 0.0f)
+        {
+            item.clipActive = true;
+            item.clipX = fr.x;
+            item.clipY = fr.y;
+            item.clipW = fr.width;
+            item.clipH = fr.height;
+        }
+    }
+}
+} // namespace
+
 DrawItemKind material_to_draw_kind(MaterialKind kind) noexcept
 {
     switch (kind)
@@ -39,6 +87,12 @@ DrawItemKind material_to_draw_kind(MaterialKind kind) noexcept
 
 std::uint32_t MaterialGroupCount(std::span<const DrawItem> items) noexcept
 {
+    // S208 note: this counts CONTIGUOUS same-MATERIAL runs (the S207 "draw list
+    // by material" proof). batch_plan additionally splits a same-material run on
+    // a Clip boundary (a batch sets ONE scissor), so for a clipped list
+    // MaterialGroupCount <= batch_count. The S208 grouping tests assert this
+    // relationship directly (the scene batch count is the authoritative draw
+    // count; MaterialGroupCount is the material-run lower bound).
     std::uint32_t groups = 0u;
     DrawItemKind last = DrawItemKind::SolidRect;
     bool haveLast = false;
@@ -82,7 +136,7 @@ void encode_visual_tree(const vaml::UIElement& root,
     root.walk([&](vaml::UIElement& element) {
         // Classify -> ElementVisual via the caller's `visualOf` callback (the
         // material authority seam; real controls replace it at S400/S364).
-        const ElementVisual visual = visualOf(element);
+        ElementVisual visual = visualOf(element);
 
         // Skip rules (visual_walk_steps order):
         //   1. SkipNone: None material -> contribute nothing (subtree still walks)
@@ -94,6 +148,17 @@ void encode_visual_tree(const vaml::UIElement& root,
         //   3. SkipDegenerate: zero/negative extent -> no draw (subtree walks)
         if (ui_item_degenerate(visual.item))
             return;
+
+        // S208 Opacity: fold the element's EFFECTIVE opacity (the ancestor-chain
+        // product) into the item alpha. A zero-opacity element keeps alpha 0
+        // (no visible draw) but its subtree still walked above. The folded alpha
+        // feeds ui_batch_key's color, so distinct alphas -> distinct batches.
+        visual.item.a *= static_cast<float>(effective_opacity(element));
+
+        // S208 RenderTransform + Clip: fold the per-element Model into the item
+        // and (for a transformed element) mark the clip to the S124 render slot.
+        apply_element_render_state(element, visual.item);
+
         //   4. Append: the element contributes its draw (in tree/z-order).
         out.push_back(visual.item);
     });

@@ -6,16 +6,13 @@
 //   1. visibility  — a REAL registered dependency property (this step).
 //   2. opacity     — a REAL registered dependency property (this step),
 //      inherited so a parent's opacity cascades to descendants (S040/S041).
-//   3. transform owner slot — a MINIMAL REAL SENTINEL ONLY (comment-level;
-//      no member, no DP, no fabricated geometry type). UIElement is designated
-//      the transform OWNER. This is NOT lazy — NO-GAP is satisfied because the
-//      sentinel names an explicit, scheduled resolution step (S208, renamed
-//      to include RenderTransform) that introduces the real member/type and
-//      performs per-element transforms at the renderer. Deliberately deferred:
-//      no Transform/Matrix type exists in core, and no consumer exists until
-//      S208 — building a transform DP now would invent an API against zero
-//      consumers (heuristic: don't commit detailed rules before behavior is
-//      known). See docs/roadmap.md S208.
+//   3. transform owner — RESOLVED BY S208. The S120 transform-owner SENTINEL
+//      is REMOVED here per its resolution contract: UIElement now owns the REAL
+//      per-element transform member/type — the RenderTransform dependency
+//      property holding a vaml::Matrix2D (the S208 affine value type) — and
+//      S208's renderer performs it (the vulkan encoder CPU-folds each element's
+//      Model into the quad vertex positions). Resolution at the feature's own
+//      step, not a backfill (NO-GAP). See docs/roadmap.md S208.
 //   4. layout slot — RESOLVED BY S122. The real layout geometry (LayoutSlot /
 //      DesiredSize / final rect / Margin / alignment) is authored at S122,
 //      which owns it: UIElement exposes DesiredSize + final rect (S123/S124
@@ -68,6 +65,7 @@
 #include "vaml/core/Geometry.h"     // Size, Rect
 #include "vaml/core/LayoutSlot.h"   // HorizontalAlignment, VerticalAlignment
 #include "vaml/core/Thickness.h"    // Thickness (Margin DP)
+#include "vaml/core/Transform.h"    // Matrix2D (RenderTransform DP)
 
 #include <cstddef>
 #include <cstdint>
@@ -88,7 +86,6 @@ enum class Visibility : std::uint8_t
     Collapsed = 2, // neither rendered nor laid out
 };
 
-// [MINIMAL REAL] UIElement transform owner — RESOLVED BY S208 (Sprint 5, renamed to include RenderTransform). Do NOT extend silently; do NOT backfill.
 class VAML_CORE_EXPORT UIElement : public DependencyObject
 {
 public:
@@ -243,9 +240,24 @@ public:
     // --- Opacity (REAL DP; inherited, validated [0,1]) ------------------
     // Default 1.0. Inherited (cascades to descendants) + bounded [0,1]
     // (out-of-range Set is REJECTED, store unchanged). A parent's opacity
-    // flows to children; a child's own set wins locally. Consumed by S208.
+    // flows to children; a child's own set wins locally. The S208 encoder
+    // honors it via effective_opacity (the ancestor-chain product).
     [[nodiscard]] SetResult set_opacity(double value);
     [[nodiscard]] double opacity() const;
+
+    // --- RenderTransform (REAL DP; the S208 Resolution) --------------
+    // The per-element 2D affine model matrix (default identity), NOT inherited
+    // (each element owns its own, like Margin). WPF-faithful: FrameworkElement
+    // renders at its layout slot (final_rect) and maps its content through this
+    // transform; S208's encoder CPU-folds it into the quad vertex positions
+    // BEFORE the S200 MVP projection (the per-element Model composes into the
+    // MVP) and clips overflow to final_rect via a dynamic scissor. A NON-FINITE
+    // matrix (NaN/Inf, e.g. from a bad rotate/scale) is REJECTED at Set
+    // (is_transform_valid() validate — the renderer never sees NaN/Inf
+    // geometry). Set triggers InvalidateArrange() (a visual change → the
+    // encoder re-emits).
+    [[nodiscard]] SetResult set_render_transform(const vaml::Matrix2D& value);
+    [[nodiscard]] vaml::Matrix2D render_transform() const;
 
     // --- Visual children (S121: create/attach/detach + parent traversal) ----
     // A parent OWNS its children (std::unique_ptr). Attaching a child ALSO
@@ -326,6 +338,9 @@ private:
     vaml::Rect final_rect_     = {};                        // S122/S124 final rect (Arrange writes)
     bool       measure_dirty_  = true;                      // S126 layout-dirty flag (measure axis)
     bool       arrange_dirty_  = true;                      // S126 layout-dirty flag (arrange axis)
+    // RenderTransform lives in the DP store (the S034/S043 effective-value
+    // machinery), NOT as a second inline member — no extra member beyond the
+    // S122/S126 state above.
 };
 
 } // namespace vaml

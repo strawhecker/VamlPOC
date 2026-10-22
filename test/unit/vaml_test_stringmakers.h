@@ -21,6 +21,7 @@
 #include "vaml/core/DependencyObject.h" // SetResult
 #include "vaml/core/PropertyId.h"       // PropertyId
 #include "vaml/core/PropertyKey.h"      // PropertyKey
+#include "vaml/core/Transform.h"        // Matrix2D (S208)
 #include "vaml/core/Value.h"            // Value, ValueType
 
 #include <ostream>
@@ -59,6 +60,12 @@ inline std::ostream& operator<<(std::ostream& os, Thickness const& t)
     return os << "Insets(" << t.left << "," << t.top << "," << t.right << "," << t.bottom << ")";
 }
 
+inline std::ostream& operator<<(std::ostream& os, Matrix2D const& m)
+{
+    return os << "M(" << m.m11 << "," << m.m12 << "," << m.m21 << ","
+              << m.m22 << "|" << m.dx << "," << m.dy << ")";
+}
+
 inline std::ostream& operator<<(std::ostream& os, ValueType t)
 {
     switch (t)
@@ -74,6 +81,7 @@ inline std::ostream& operator<<(std::ostream& os, ValueType t)
         case ValueType::Thickness: return os << "Thickness";
         case ValueType::BrushId:   return os << "BrushId";
         case ValueType::UntypedPtr:return os << "UntypedPtr";
+        case ValueType::Matrix2D:  return os << "Matrix2D";
     }
     return os << "Unknown";
 }
@@ -94,6 +102,7 @@ inline std::ostream& operator<<(std::ostream& os, Value const& v)
         case ValueType::Thickness:  os << v.get<Thickness>();                 break;
         case ValueType::BrushId:    os << v.get<std::int32_t>();              break;
         case ValueType::UntypedPtr: os << v.get<void*>();                     break;
+        case ValueType::Matrix2D:   os << v.get<Matrix2D>();                  break;
     }
     return os << ">";
 }
@@ -145,6 +154,7 @@ inline const char* vaml_value_type_name(vaml::ValueType t)
         case vaml::ValueType::Thickness: return "Thickness";
         case vaml::ValueType::BrushId:   return "BrushId";
         case vaml::ValueType::UntypedPtr:return "UntypedPtr";
+        case vaml::ValueType::Matrix2D:  return "Matrix2D";
     }
     return "Unknown";
 }
@@ -172,6 +182,7 @@ struct StringMaker<vaml::Value>
             case vaml::ValueType::Thickness:  os << "Thickness";                    break;
             case vaml::ValueType::BrushId:    os << v.get<std::int32_t>();          break;
             case vaml::ValueType::UntypedPtr: os << v.get<void*>();                 break;
+            case vaml::ValueType::Matrix2D:   os << v.get<vaml::Matrix2D>();        break;
         }
         os << ">";
         return os.str().c_str(); // doctest::String(const char*)

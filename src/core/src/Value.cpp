@@ -28,6 +28,7 @@ const char* type_name(ValueType t) noexcept
         case ValueType::Thickness:  return "Thickness";
         case ValueType::BrushId:    return "BrushId";
         case ValueType::UntypedPtr: return "UntypedPtr";
+        case ValueType::Matrix2D:   return "Matrix2D";
     }
     return "<invalid>";
 }
@@ -49,6 +50,7 @@ void Value::copy_union(Value::Storage& dst, const Value::Storage& src, ValueType
         case ValueType::String:     new (&dst) std::string(src.asString); break;
         case ValueType::Color:      new (&dst) vaml::Color(src.asColor); break;
         case ValueType::Thickness:  new (&dst) vaml::Thickness(src.asThickness); break;
+        case ValueType::Matrix2D:   new (&dst) vaml::Matrix2D(src.asMatrix2D); break;
         case ValueType::BrushId:    new (&dst) std::int32_t(src.asInt32); break;
         case ValueType::UntypedPtr: new (&dst) void*(src.asPtr); break;
         case ValueType::Null:       break; // no union member
@@ -149,6 +151,7 @@ bool Value::operator==(const Value& other) const noexcept
         case ValueType::String:     return storage_.asString == other.storage_.asString;
         case ValueType::Color:      return storage_.asColor == other.storage_.asColor;
         case ValueType::Thickness:  return storage_.asThickness == other.storage_.asThickness;
+        case ValueType::Matrix2D:   return storage_.asMatrix2D == other.storage_.asMatrix2D;
         case ValueType::BrushId:    return storage_.asInt32 == other.storage_.asInt32;
         case ValueType::UntypedPtr: return storage_.asPtr == other.storage_.asPtr;
     }

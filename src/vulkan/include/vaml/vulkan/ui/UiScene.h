@@ -55,6 +55,8 @@
 #include <vaml/vulkan/ui/UiPipeline.h>
 #include <vaml/vulkan/quad/QuadVertex.h>
 
+#include <vaml/core/Transform.h>   // vaml::Matrix2D (S208 per-element Model)
+
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -90,12 +92,36 @@ enum class DrawItemKind
 //     samples + the straight-alpha color + aa (the S204 sdf_soft_alpha ramp
 //     half-width). UV varies PER GLYPH (vertex data), so contiguous glyphs of
 //     the same color+aa collapse into ONE batched draw.
+//
+// S208 (per-element Model + Clip): `model` is the element's Matrix2D render
+// transform (identity defaults to today's rect geometry). append_ui_item CPU-
+// FOLDS `model` into the four vertex positions BEFORE the S200 MVP projection
+// (producing the per-element Model∘MVP composition) — an IDENTITY model is the
+// no-op fast path, so existing S206/S207 geometry + batching is unchanged
+// (backward compatible). `clip` = the element's clip rect in logical px (the
+// S124 render slot / final_rect) mapped to frame px at record; `clipActive`
+// marks a non-default scissor that must force a draw boundary (see the S208
+// batch-split rule).
 struct DrawItem
 {
     DrawItemKind kind = DrawItemKind::SolidRect;
 
     float x = 0.0f, y = 0.0f;   // top-left in logical px
     float w = 0.0f, h = 0.0f;   // extent (logical px)
+
+    // S208: the per-element affine Model. Default identity (no transform). The
+    // encoder CPU-folds it into the vertex positions (Model∘MVP); it is PER-
+    // VERTEX data, so a transform change does NOT break a same-state batch.
+    vaml::Matrix2D model{};
+
+    // S208 Clip: when `clipActive`, the element's clip rect in LOGICAL px
+    // (== final_rect for a base element). record sets a dynamic scissor mapped
+    // to frame px for this item's batch. `clipActive` false = no scissor change
+    // (today's full-extent scissor) — identity-transform unclipped items keep
+    // the existing batching.
+    bool  clipActive = false;
+    float clipX = 0.0f, clipY = 0.0f;   // top-left of the clip rect (logical px)
+    float clipW = 0.0f, clipH = 0.0f;   // extent of the clip rect (logical px)
 
     // straight-alpha color (the S205 pc.color), shared by all three kinds.
     float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
@@ -147,6 +173,14 @@ struct UiBatchKey
     DrawItemKind kind = DrawItemKind::SolidRect;
     Color4       color{};
     Color4       params{};
+    // S208 Clip — part of the batch-equality key: a batch sets ONE dynamic
+    // scissor, so items that disagree on the clip rect can NOT share a draw.
+    // `clipActive` false (the identity/default) groups with anything else that
+    // is also unclipped; a non-default clip forces a draw boundary (same-color
+    // unclipped items never merge with a clipped one).
+    bool  clipActive = false;
+    float clipX = 0.0f, clipY = 0.0f;
+    float clipW = 0.0f, clipH = 0.0f;
 };
 VAML_VULKAN_EXPORT UiBatchKey ui_batch_key(const DrawItem& item) noexcept;
 
@@ -178,6 +212,14 @@ struct UiBatch
     UiShaderKind kind  = UiShaderKind::Solid;
     std::uint32_t first = 0;   // first compacted item index
     std::uint32_t count = 0;   // item count in this batch
+
+    // S208 Clip: the batch's ONE dynamic scissor (mapped to frame px at record).
+    // `clipActive` false = the full-extent scissor (the existing once-per-frame
+    // behavior); true = record sets a per-batch scissor from these logical-px
+    // bounds. Set by batch_plan from the run's representative UiBatchKey.
+    bool  clipActive = false;
+    float clipX = 0.0f, clipY = 0.0f;  // logical px
+    float clipW = 0.0f, clipH = 0.0f;  // logical px
 
     [[nodiscard]] std::uint32_t vertex_count() const noexcept { return ui_vertex_count(count); }
     [[nodiscard]] std::uint32_t index_count()  const noexcept { return ui_index_count(count); }

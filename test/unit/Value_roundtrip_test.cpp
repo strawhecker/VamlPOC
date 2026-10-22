@@ -16,11 +16,13 @@
 #include <vaml/assert/Shouldly.h>         // ShouldlyString / ShouldThrow (SHOULD seam, S036_1)
 
 #include "vaml/core/Value.h"
+#include "vaml/core/Transform.h"  // Matrix2D (S208 additive Value tag)
 
 #include <cstdint>
 #include <string>
 
 using vaml::Color;
+using vaml::Matrix2D;
 using vaml::Thickness;
 using vaml::Value;
 using vaml::ValueType;
@@ -93,6 +95,14 @@ TEST_CASE("S031 Value: Color/Thickness/BrushId/UntypedPtr round-trip through get
         const Value v = Value::Thickness(t);
         SHOULD(ShouldlyString(v.get<Thickness>()).ShouldBe(t));
         SHOULD(ShouldlyString(Value::Thickness(v.get<Thickness>())).ShouldBe(v));
+    }
+    // Matrix2D — the S208 per-element transform (additive tag).
+    {
+        const Matrix2D m = Matrix2D::translation(3.0f, -4.0f);
+        const Value v = Value::Matrix2D(m);
+        SHOULD(ShouldlyString(v.get<Matrix2D>()).ShouldBe(m));
+        SHOULD(ShouldlyString(Value::Matrix2D(v.get<Matrix2D>())).ShouldBe(v));
+        SHOULD(ShouldlyString(v.type()).ShouldBe(ValueType::Matrix2D));
     }
     // BrushId — int32 payload under a dedicated tag.
     {
