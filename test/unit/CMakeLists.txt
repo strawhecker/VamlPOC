@@ -69,6 +69,14 @@ add_executable(vaml-core-tests
     VamlReader_s093_test.cpp
     VamlReader_s094_test.cpp
     GoldenDocs_test.cpp
+    # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
+    # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
+    # the golden-fixture tests exercise the exact code the CLI runs (single
+    # source of truth across the apps + the test — ADR-021 consumer path,
+    # never a duplicate copy). Deterministic through load_text (pure seam) with
+    # a real temp-file I/O case through load_file.
+    ViewerLoadFile_test.cpp
+    ../../vaml_viewer/load_file.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
@@ -82,6 +90,7 @@ vaml_apply_compiler_policy(vaml-core-tests)
 target_include_directories(vaml-core-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/src  # test-only seam: S141 InternStore internal header
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../vaml_viewer    # S221: the viewer's load_file.h (the consumer seam's header)
 )
 target_include_directories(vaml-core-tests SYSTEM PRIVATE
     ${VAML_DEPS_DIR}
