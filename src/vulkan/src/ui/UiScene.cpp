@@ -388,7 +388,12 @@ bool UiScene::record_draw(VkCommandBuffer cmd, const Mat4& mvp, float uiScale)
     // on a texture change — a cheap descriptor rebind, never a pipeline rebind).
     const auto vs = viewport_scissor(extent_);
     loader_->vkCmdSetViewport(cmd, 0, 1, &vs.viewport);
-    loader_->vkCmdBindVertexBuffers(cmd, 0u, 1u, &vertexBuffer_, nullptr);
+    // pOffsets MUST be a non-null array (>= bindingCount) per the Vulkan spec —
+    // passing nullptr is UB and NVIDIA's driver AVs on it. This is the S209
+    // vertex-buffer bind path's first-ever LIVE exercise (S177 only clears, so a
+    // headless/offscreen test never touched it).
+    const VkDeviceSize vboOffset = 0u;
+    loader_->vkCmdBindVertexBuffers(cmd, 0u, 1u, &vertexBuffer_, &vboOffset);
     loader_->vkCmdBindIndexBuffer(cmd, indexBuffer_, 0u, VK_INDEX_TYPE_UINT16);
 
     // The CURRENT scissor for the batch being recorded. Starts at the full

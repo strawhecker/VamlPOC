@@ -129,6 +129,6 @@ TEST_CASE("S167_1 SwapchainStateBuilders default real-builder wiring is present"
 
     // Populated builders are NOT empty (the seam carries work).
     SwapchainStateBuilders b2;
-    b2.build = [](std::uint32_t, std::uint32_t) -> std::unique_ptr<ISwapchainGeneration> { return nullptr; };
+    b2.build = [](std::uint32_t, std::uint32_t, VkSwapchainKHR) -> std::unique_ptr<ISwapchainGeneration> { return nullptr; };
     CHECK(b2.build != nullptr);
 }

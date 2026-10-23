@@ -150,7 +150,7 @@ TEST_CASE("S168 SwapchainStateBuilders build seam is replaceable")
     CHECK(b.build == nullptr);
 
     SwapchainStateBuilders b2;
-    b2.build = [](std::uint32_t, std::uint32_t) -> std::unique_ptr<ISwapchainGeneration> {
+    b2.build = [](std::uint32_t, std::uint32_t, VkSwapchainKHR) -> std::unique_ptr<ISwapchainGeneration> {
         return nullptr;
     };
     CHECK(b2.build != nullptr);

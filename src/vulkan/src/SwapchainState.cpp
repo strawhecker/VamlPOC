@@ -137,13 +137,13 @@ SwapchainStateBuilders SwapchainStateBuilders::real(
     SwapchainStateBuilders b;
     const bool msaa = sampleCount != VK_SAMPLE_COUNT_1_BIT;
     b.build = [&loader, &device, &surface, renderPass, msaa, sampleCount](
-        std::uint32_t w, std::uint32_t h) -> std::unique_ptr<ISwapchainGeneration> {
+        std::uint32_t w, std::uint32_t h, VkSwapchainKHR oldSwapchain) -> std::unique_ptr<ISwapchainGeneration> {
         // Build the whole generation transactionally: swapchain (+ image views +
         // depth) -> S168 msaa target -> per-image framebuffers. ANY failure returns
         // nullptr (the stillborn generation); the partial temporaries are released
         // by RAII on this scope unwind. The caller (the machine) treats nullptr as
         // "stillborn — Gen N stays live".
-        auto sw = Swapchain::create(loader, device, surface, w, h);
+        auto sw = Swapchain::create(loader, device, surface, w, h, std::nullopt, oldSwapchain);
         if (!sw)
             return nullptr;
 
@@ -211,7 +211,8 @@ SwapchainStateMachine::create(SwapchainStateBuilders builders,
     // Build the WHOLE initial generation through the single S176 `build` seam. A
     // failed generation (any internal ICD failure) returns nullptr — the one
     // legitimate "no presentable generation": there is no Gen N to fall back to.
-    auto genN = m->builders_.build(framebufferWidth, framebufferHeight);
+    // Gen 0 is the FIRST swapchain for the surface -> no old handle to replace.
+    auto genN = m->builders_.build(framebufferWidth, framebufferHeight, VK_NULL_HANDLE);
     if (!genN)
         return nullptr;
 
@@ -235,7 +236,12 @@ bool SwapchainStateMachine::prepare_recreate(std::uint32_t w, std::uint32_t h)
     // Gen N fully live. The COMMIT only happens after the whole generation built.
     // (Any internal ICD failure — vkCreateSwapchainKHR / image-view / depth /
     // framebuffer / DEVICE_LOST — surfaces as nullptr from the S176 `build` seam.)
-    auto nextGen = builders_.build(w, h);
+    //
+    // Gen N+1 REPLACES Gen N on the same surface, so pass Gen N's live swapchain
+    // handle as `oldSwapchain` (vkCreateSwapchainKHR needs it to replace atomically
+    // — the S167_1 two-generation contract; see Swapchain::create). This is the
+    // lifetime/driver fix that ONLY the live soup-to-nuts proof could surface.
+    auto nextGen = builders_.build(w, h, genN_ ? genN_->handle() : VK_NULL_HANDLE);
     if (!nextGen)
     {
         // Stillborn N+1: Gen N stays live + presentable. Land Retryable (keep

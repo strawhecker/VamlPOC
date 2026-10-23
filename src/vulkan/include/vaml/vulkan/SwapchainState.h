@@ -159,6 +159,15 @@ struct VAML_VULKAN_EXPORT ISwapchainGeneration
 // `MockGeneration` that mimics a Vulkan ICD (failed vkCreateSwapchainKHR /
 // image-view / depth / framebuffer build / DEVICE_LOST) — the S176 Rail-1 seam.
 //
+// `oldSwapchain` is the CURRENT live swapchain handle when this build is a
+// REPLACEMENT (the S167_1 two-generation path: Gen N+1 is built while Gen N is
+// still live/presentable on the same surface). The real builder hands it to
+// vkCreateSwapchainKHR as `oldSwapchain` so the new swapchain REPLACES the old
+// atomically — required by the Vulkan spec + real drivers (NVIDIA faults with an
+// access violation if a second swapchain is created for a live surface without
+// it). It is VK_NULL_HANDLE for the initial Gen-0 build (the first swapchain for
+// the surface).
+//
 // NOTE (supersedes the pre-S176 buildSwapchain/buildMsaa/buildFramebuffers
 // granular hooks): the single `build` generation hook is the S176 seam. The mock
 // coaxes a failure at the exact internal stage it wants via its scripted
@@ -166,7 +175,7 @@ struct VAML_VULKAN_EXPORT ISwapchainGeneration
 // which is precisely the S176 contract (Gen N stays live, never submit N+1).
 struct VAML_VULKAN_EXPORT SwapchainStateBuilders
 {
-    std::function<std::unique_ptr<ISwapchainGeneration>(std::uint32_t w, std::uint32_t h)> build;
+    std::function<std::unique_ptr<ISwapchainGeneration>(std::uint32_t w, std::uint32_t h, VkSwapchainKHR oldSwapchain)> build;
 
     // The real builder: builds a `RealGeneration` (Swapchain::create + one
     // Framebuffer per image view vs the swapchain's depth view + S168

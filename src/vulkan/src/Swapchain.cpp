@@ -243,7 +243,8 @@ Swapchain::create(const VulkanLoader& loader,
                   const VulkanSurface& surface,
                   std::uint32_t framebufferWidth,
                   std::uint32_t framebufferHeight,
-                  std::optional<SwapchainConfig> configOpt)
+                  std::optional<SwapchainConfig> configOpt,
+                  VkSwapchainKHR oldSwapchain)
 {
     // The S164 swapchain entry points are required.
     if (!loader.has_swapchain_loader() || !device.device())
@@ -271,7 +272,7 @@ Swapchain::create(const VulkanLoader& loader,
     sw->physicalDevice_ = device.physical_device();
     sw->surface_        = &surface;
 
-    if (!sw->rebuild(cfg))
+    if (!sw->rebuild(cfg, oldSwapchain))
         return nullptr;
     return sw;
 }
@@ -284,7 +285,7 @@ Swapchain::create(const VulkanLoader& loader,
 // two-generation atomic model in SwapchainState.h builds Gen N+1 into fresh
 // temporaries and commits only on success — this rebuild() is retained solely
 // for the INITIAL create() (where there is no prior generation to preserve).
-bool Swapchain::rebuild(const SwapchainConfig& cfg)
+bool Swapchain::rebuild(const SwapchainConfig& cfg, VkSwapchainKHR oldSwapchain)
 {
     // Tear down the previous generation first (reverse order): depth ->
     // image views -> swapchain. On create() these are all null.
@@ -326,6 +327,14 @@ bool Swapchain::rebuild(const SwapchainConfig& cfg)
     sci.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     sci.presentMode      = cfg.presentMode;
     sci.clipped          = VK_TRUE;
+    // The S167_1 two-generation model builds Gen N+1 while Gen N is still the
+    // live/presentable swapchain for the same surface. Per the Vulkan spec +
+    // real-driver behavior (e.g. NVIDIA faults with an access violation), a
+    // REPLACEMENT swapchain MUST hand the still-live handle in `oldSwapchain`
+    // (vkCreateSwapchainKHR replaces it atomically). On the initial create()
+    // `oldSwapchain` is VK_NULL_HANDLE — creating the first swapchain for the
+    // surface (the widespread case), matching prior behavior.
+    sci.oldSwapchain = oldSwapchain;
 
     if (loader_->vkCreateSwapchainKHR(device_, &sci, nullptr, &swapchain_) != VK_SUCCESS)
         return false;

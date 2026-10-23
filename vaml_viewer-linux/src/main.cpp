@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     }
 
     const std::string path = argv[1];
-    const vaml::LoadResult result = vaml::load_file(path);
+    vaml::LoadResult result = vaml::load_file(path);   // NON-const: moved into ViewerApp::create below
 
     if (!result.ok)
     {

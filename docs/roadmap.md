@@ -812,7 +812,37 @@
       S175 live-host + dogfood role). Record the CONSUMER-APP PATTERN (an app uses ONLY the public surface;
       no internal headers) in an ADR. Scaffold only — zero feature code; builds clean both platforms.
 - S221 dep:S220  [DONE - Viewer CLI entry: `vaml_viewer <file.vaml>`; structured open -> `VamlReader::Load` -> live tree, or a TYPED error + non-zero exit on missing/unreadable/parse-error (never silent). A `load_file` seam keeps the entry path HEADLESS-ctestable against the S095 golden fixture. ADDED vaml_viewer/load_file.h (the SINGLE, permanent, platform-independent file->tree seam - `enum class FileLoadError { None, NoSuchFile, ReadError, ParseError }` + `struct LoadResult { bool ok; unique_ptr<DependencyObject> root; FileLoadError error; std::string detail; }` + `load_file(path)` [I/O -> read -> load_text] + `load_text(text)` [the PURE VamlReader::Load mapping]; REAL permanent entry-path code, NOT MINIMAL REAL, no sentinel) + ADDED vaml_viewer/load_file.cpp (read via <fstream> honestly distinguishing Missing vs NoRead; maps VamlReader's ENTIRE structured exception taxonomy - XmlScanException / XmlParseException / VamlReaderException / ElementResolutionException / ValueConversionException + any escaping std::exception - into a typed ParseError with detail = what(), never silent) + MOD vaml_viewer/main.cpp (thin argv->seam->exit-code glue: 0 loaded / 2 no-arg usage / 1 NoSuchFile+ReadError / 3 ParseError, always a stderr diagnostic on failure, never silent) + MOD vaml_viewer/vaml_viewer.vcxproj (+load_file.cpp ClCompile + load_file.h ClInclude) + MOD vaml_viewer-linux/CMakeLists.txt (+../vaml_viewer/load_file.cpp as the shared seam source + the seam's include dir) + MOD vaml_viewer-linux/src/main.cpp (mirror CLI/exit logic) + ADDED test/unit/ViewerLoadFile_test.cpp (7 TEST_CASEs / 33 asserts, headless S221-golden suite: registers S221-unique global DPs mirroring S095; load_text(golden) -> typed SUCCESS + converted values; load_text maps structured PARSE errors (unknown-property / malformed-value / unknown-type) to ParseError + non-empty detail; load_file(temp real golden file) -> I/O-path parity; load_file(missing) -> typed NoSuchFile + non-empty detail; load_file(malformed temp) -> ParseError, never silent) + MOD test/unit/CMakeLists.txt (+ViewerLoadFile_test.cpp + ../../vaml_viewer/load_file.cpp compiled INTO vaml-core-tests as the REAL ADR-021 consumer path + the vaml_viewer include dir, so the headless suite exercises the exact code the CLI runs - single source of truth, no drift) + ADDED build/verify_s221.cmd (msvc-debug configure+build warning-as-error clean + ctest 3/3 PASS + msbuild vaml_viewer Debug/x64 + LIVE CLI proofs: valid .vaml -> exit 0, no-arg -> 2, missing -> 1 + non-empty stderr, malformed -> 3 + non-empty stderr - the never-silent contract proven live). CONSUMER-APP PATTERN (ADR-021) maintained: the seam includes ONLY public <vaml/...> headers (never an internal header); load_file.h includes the public DependencyObject.h so its unique_ptr member is complete at every point of use. NO MINIMAL REAL introduced/resolved (the seam is REAL permanent code; rendering the loaded tree into a window is S222's named step - recorded, not silent; --help = S224; drag-drop = S223). BOTH CI LANES green from first principles: windows-msvc (build/verify_s221.cmd: msvc-debug warning-clean + ctest 3/3 + ViewerLoadFile 7/7 + viewer CLI probes 0/2/1/3) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: configure/build warning-clean + ctest 3/3 + ViewerLoadFile 7/7 + vaml_viewer-linux builds clean under clang 21.1.8 + the same CLI probes 0/2/1/3 with non-empty stderr). windows-clang-debug is NOT a lane (not built/tested/flagged).]  Viewer CLI entry: `vaml_viewer <file.vaml>`; structured open → `VamlReader::Load` → live tree, or a TYPED error + non-zero exit on missing/unreadable/parse-error (never silent). A `load_file` seam keeps the entry path HEADLESS-ctestable against the S095 golden fixture.
-- S222 dep:S221  MVP "soup-to-nuts" render: loaded tree → retained render path (S174 CompositionEngine +
+- S222 dep:S221  [DONE - MVP "soup-to-nuts" render LV, VIEWER GROWTH. The consumer-touch-ONLY-public-surface
+      host: ADDED vaml_viewer/app.{h,cpp} (the shared `ViewerApp` owner: GLFW window -> Loader -> Instance ->
+      Surface -> S163 best present-capable GPU -> S162 queue family -> S169 Device -> swapchain negotiate ->
+      S165 RenderPass -> S205 ui_vertex + the 3 UI fragment shaders -> the S205 shared-layout 3-pipeline
+      UiPipelineSpec (Solid/SDF/Border) -> S202 TextureAtlas -> S203 FontAtlas -> S204 SdfAtlas -> S206
+      UiScene::Spec -> the S212 create_device PRECONDITION gate -> `VamlRenderer::create_device` -> adopt the
+      loaded core tree + set_root + set_frame_size + PUBLISH via invalidate() -> run_loop) + the pure
+      decision seams (viewer_stack_steps LIFETIMES order / viewer_setup_ready / viewer_deadline_elapsed) so
+      the container is HEADLESS-ctestable. ADR-021 maintained: the host + tests compile the SAME app.cpp
+      with ONLY public <vaml/...> headers. LIVE-PROOF-FOUND real fixes (only a real window + NVIDIA driver
+      could surface them): (1) `app->loader_` is the OWNED FIRST-constructed/LAST-destroyed member referenced
+      throughout (NOT a local moved at the end) - the S173 swapchain builders capture &loader into the
+      Presenter, so a moved-from/dead loader AV'd the resize-time rebuild; (2) S167_1 two-generation
+      swapchain path now passes Gen N's live handle as `vkCreateSwapchainKHR::oldSwapchain` (the S176
+      `build` seam gained a VkSwapchainKHR param; Swapchain::create/rebuild thread it) - NVIDIA AV'd a second
+      swapchain created for a live surface without it (independently reproduced in S177's own isolation
+      probe); (3) `vkCmdBindVertexBuffers` passes a real pOffsets (nullptr is UB - NVIDIA AV) - the S209
+      vertex path's first live exercise; (4) run_loop request_resize only on an actual size change (not a
+      per-frame S167_1 recreation churn); (5) CLI/entry: NON-const LoadResult moved into create (a const
+      copy of the move-only type broke the LINUX/Windows apps - fixed in BOTH main.cpp). ADDED build/
+      verify_s222.cmd (msvc-debug warning-clean + ctest 3/3 incl. ViewerRenderPlan 6 headless cases +
+      vaml_viewer Debug/x64 + LIVE CLI proofs 0/2/1/3 never-silent + the LIVE soup-to-nuts S212_1 DEMO:
+      vaml_viewer opens a real window on the NVIDIA RTX A5000, the stack + create_device build, the loaded
+      tree arranges+encodes+publishes, the retained path records+presents >=1 frame, auto-closes clean ->
+      exit 0). BOTH CI LANES green from first principles: windows-msvc (build/verify_s222.cmd) + ubuntu-clang
+      (/mnt/hgfs/VamlPOC clang-debug: configure/build warning-clean + ctest 3/3 + vaml_viewer-linux clean
+      under clang 21.1.8). DEMONSTRATES S212_1 (the library's create_device present objective) IN THE REAL
+      WINDOW. Scope bounded (recorded, no backfill): file-watch reload = S222_1; pan/zoom + --help = S224;
+      drag-drop = S223; real control materials = S400+/S401 (the S207/S212 default visualOf classifier fills
+      each real panel at its final_rect; glyphs stay S400). windows-clang-debug NOT a lane (not built).]
+       MVP "soup-to-nuts" render: loaded tree → retained render path (S174 CompositionEngine +
       S173 Presenter + S207/S208 scene encoder + S210 SceneRenderer) → declared UI in a window. Consumer
       touches ONLY the public surface. (Structurally builds on S212's vertical slice.) DEMONSTRATES S212_1
       (the library's create_device present objective) in the real window. [VIEWER GROWTH: this sprint]

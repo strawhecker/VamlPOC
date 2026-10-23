@@ -162,13 +162,23 @@ public:
     // PlatformWindow/VulkanInstance/VulkanSurface::create. `loader`, the
     // instance (through `surface`), the `surface`, and `device` must outlive
     // the returned object.
+    //
+    // `oldSwapchain` is the CURRENT swapchain when this new swapchain REPLACES
+    // an existing live one on the same surface (the S167_1 two-generation
+    // model: Gen N+1 is built while Gen N is still presentable). Per the Vulkan
+    // spec + real-driver behavior (e.g. NVIDIA), a replacement swapchain MUST
+    // hand the still-live handle in `VkSwapchainCreateInfoKHR::oldSwapchain`
+    // (it replaces atomically) — otherwise creating it while another swapchain
+    // for the surface is alive faults. Pass VK_NULL_HANDLE to create the FIRST
+    // swapchain for a surface (the common gen-0 case).
     [[nodiscard]] static std::unique_ptr<Swapchain>
     create(const VulkanLoader& loader,
            const Device& device,
            const VulkanSurface& surface,
            std::uint32_t framebufferWidth,
            std::uint32_t framebufferHeight,
-           std::optional<SwapchainConfig> configOpt = std::nullopt);
+           std::optional<SwapchainConfig> configOpt = std::nullopt,
+           VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
 
     // Convenience: the negotiated parameters WITHOUT creating a swapchain.
     // Pure-ish — consumes the seams + the live surface queries. Exposed so a
@@ -214,8 +224,10 @@ private:
 
     // Internal: (re)builds the swapchain + image views + depth from `cfg` into
     // fresh members, destroying any existing members FIRST (reverse order:
-    // depth -> image views -> swapchain). Used by create().
-    bool rebuild(const SwapchainConfig& cfg);
+    // depth -> image views -> swapchain). Used by create(). `oldSwapchain`, when
+    // non-null, is handed to vkCreateSwapchainKHR so the new swapchain replaces
+    // it atomically (the S167_1 two-generation path).
+    bool rebuild(const SwapchainConfig& cfg, VkSwapchainKHR oldSwapchain);
 
     const VulkanLoader*    loader_         = nullptr;
     VkDevice               device_         = VK_NULL_HANDLE;  // BORROWED from the Device

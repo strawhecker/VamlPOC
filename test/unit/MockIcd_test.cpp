@@ -157,7 +157,7 @@ struct ScriptedIcd
     SwapchainStateBuilders builders()
     {
         SwapchainStateBuilders b;
-        b.build = [this](std::uint32_t w, std::uint32_t h) -> std::unique_ptr<ISwapchainGeneration> {
+        b.build = [this](std::uint32_t w, std::uint32_t h, VkSwapchainKHR /*oldSwapchain*/) -> std::unique_ptr<ISwapchainGeneration> {
             return make(w, h);
         };
         return b;

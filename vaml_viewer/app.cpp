@@ -113,42 +113,55 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
     try
     {
         // ---- Loader (first; borrows nothing) ----
+        // Constructed into the OWNED app->loader_ member (declared FIRST in the
+        // class, destroyed LAST) — NOT a local that gets moved away. The S173
+        // swapchain builders capture `&loader` into the Presenter (alive until
+        // the app closes); that reference MUST point at the permanent loader, or
+        // the first resize-time swapchain rebuild (a live tick) would call through
+        // a moved-from/dead loader (null function pointers -> AV). This NO-GAP
+        // lifetime fix is exactly what only the LIVE soup-to-nuts proof can catch.
+        app->loader_ = std::make_unique<vaml::vulkan::VulkanLoader>();
+
+        // ---- Window (GLFW; process-lifetime) ----
+        // The window's Config uses `int` (GLFW contract); config.width/height are
+        // uint32_t logical layout px -> narrow explicitly (never implicit narrowing,
+        // rejected under /WX).
         app->window_ = vaml::vulkan::PlatformWindow::create(
-            { config.title.c_str(), config.width, config.height }, {});
+            { config.title.c_str(),
+              static_cast<int>(config.width),
+              static_cast<int>(config.height) },
+            {});
         if (!app->window_)
             return nullptr;
-
-        std::unique_ptr<vaml::vulkan::VulkanLoader> loader =
-            std::make_unique<vaml::vulkan::VulkanLoader>();
 
         // ---- Instance ----
         vaml::vulkan::VulkanInstance::Config icfg;
         icfg.enableValidation = true;   // a Debug build => validation layers ON
-        app->instance_ = vaml::vulkan::VulkanInstance::create(*loader, icfg);
+        app->instance_ = vaml::vulkan::VulkanInstance::create(*app->loader_, icfg);
         if (!app->instance_)
             return nullptr;
 
         // ---- Surface ----
-        app->surface_ = vaml::vulkan::VulkanSurface::create(*loader, *app->instance_, *app->window_);
+        app->surface_ = vaml::vulkan::VulkanSurface::create(*app->loader_, *app->instance_, *app->window_);
         if (!app->surface_)
             return nullptr;
 
         // ---- Best present-capable GPU (S163) ----
         auto best = vaml::vulkan::gpu::select_best_gpu(
-            *loader, *app->instance_, app->surface_.get(),
+            *app->loader_, *app->instance_, app->surface_.get(),
             vaml::vulkan::gpu::preferred_gpu_env_name());
         if (!best || best->best.device == VK_NULL_HANDLE)
             return nullptr;
 
         // ---- Graphics+present queue family (S162) ----
         std::uint32_t famCount = 0;
-        loader->vkGetPhysicalDeviceQueueFamilyProperties(best->best.device, &famCount, nullptr);
+        app->loader_->vkGetPhysicalDeviceQueueFamilyProperties(best->best.device, &famCount, nullptr);
         std::vector<VkQueueFamilyProperties> fams(famCount);
-        loader->vkGetPhysicalDeviceQueueFamilyProperties(best->best.device, &famCount, fams.data());
+        app->loader_->vkGetPhysicalDeviceQueueFamilyProperties(best->best.device, &famCount, fams.data());
         vaml::vulkan::PresentSupportFn present = [&](std::uint32_t i) {
             VkBool32 s = VK_FALSE;
-            return loader->vkGetPhysicalDeviceSurfaceSupportKHR(best->best.device, i,
-                                                                app->surface_->surface(), &s) == VK_SUCCESS &&
+            return app->loader_->vkGetPhysicalDeviceSurfaceSupportKHR(best->best.device, i,
+                                                                      app->surface_->surface(), &s) == VK_SUCCESS &&
                    s == VK_TRUE;
         };
         auto fam = vaml::vulkan::select_queue_family(fams.data(), famCount, present);
@@ -156,30 +169,30 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
             return nullptr;
 
         // ---- Device (S169) ----
-        app->device_ = vaml::vulkan::Device::create(*loader, best->best, *fam);
+        app->device_ = vaml::vulkan::Device::create(*app->loader_, best->best, *fam);
         if (!app->device_)
             return nullptr;
 
         // ---- Negotiate the swapchain to learn the color + depth formats ----
         auto scCfg = vaml::vulkan::Swapchain::negotiate(
-            *loader, best->best.device, *app->surface_, config.width, config.height);
+            *app->loader_, best->best.device, *app->surface_, config.width, config.height);
         const VkFormat colorFormat = scCfg ? scCfg->surfaceFormat.format : VK_FORMAT_B8G8R8A8_SRGB;
         const std::optional<VkFormat> depth = scCfg ? scCfg->depthFormat : std::nullopt;
 
         // ---- RenderPass (S165): color (+depth) at the negotiated formats ----
         app->renderPass_ = vaml::vulkan::RenderPass::create(
-            *loader, *app->device_, colorFormat, depth, VK_SAMPLE_COUNT_1_BIT);
+            *app->loader_, *app->device_, colorFormat, depth, VK_SAMPLE_COUNT_1_BIT);
         if (!app->renderPass_)
             return nullptr;
 
         // ---- S205 shader modules (the shared ui_vertex + the 3 UI fragments) ----
-        app->uiVertex_ = vaml::vulkan::ShaderModule::create(*loader, *app->device_,
+        app->uiVertex_ = vaml::vulkan::ShaderModule::create(*app->loader_, *app->device_,
                                                             vaml::vulkan::ui_vertex_spirv());
-        app->sdfFrag_ = vaml::vulkan::ShaderModule::create(*loader, *app->device_,
+        app->sdfFrag_ = vaml::vulkan::ShaderModule::create(*app->loader_, *app->device_,
                                                            vaml::vulkan::sdf_text_fragment_spirv());
-        app->solidFrag_ = vaml::vulkan::ShaderModule::create(*loader, *app->device_,
-                                                             vaml::vulkan::solid_color_fragment_spirv());
-        app->borderFrag_ = vaml::vulkan::ShaderModule::create(*loader, *app->device_,
+        app->solidFrag_ = vaml::vulkan::ShaderModule::create(*app->loader_, *app->device_,
+                                                              vaml::vulkan::solid_color_fragment_spirv());
+        app->borderFrag_ = vaml::vulkan::ShaderModule::create(*app->loader_, *app->device_,
                                                               vaml::vulkan::border_fragment_spirv());
         if (!app->uiVertex_ || !app->sdfFrag_ || !app->solidFrag_ || !app->borderFrag_)
             return nullptr;
@@ -199,7 +212,7 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
         // three in the UiScene::Spec).
         plSpec.fragmentModule = app->solidFrag_->shader_module();
         app->solidPipeline_ = vaml::vulkan::ui::UiPipeline::create(
-            *loader, *app->device_, plSpec, vaml::vulkan::ui::UiShaderKind::Solid);
+            *app->loader_, *app->device_, plSpec, vaml::vulkan::ui::UiShaderKind::Solid);
         if (!app->solidPipeline_)
             return nullptr;
         app->sharedLayout_     = app->solidPipeline_->pipeline_layout();
@@ -207,13 +220,13 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
 
         plSpec.fragmentModule = app->sdfFrag_->shader_module();
         app->sdfPipeline_ = vaml::vulkan::ui::UiPipeline::create(
-            *loader, *app->device_, plSpec, vaml::vulkan::ui::UiShaderKind::SdfText);
+            *app->loader_, *app->device_, plSpec, vaml::vulkan::ui::UiShaderKind::SdfText);
         if (!app->sdfPipeline_)
             return nullptr;
 
         plSpec.fragmentModule = app->borderFrag_->shader_module();
         app->borderPipeline_ = vaml::vulkan::ui::UiPipeline::create(
-            *loader, *app->device_, plSpec, vaml::vulkan::ui::UiShaderKind::Border);
+            *app->loader_, *app->device_, plSpec, vaml::vulkan::ui::UiShaderKind::Border);
         if (!app->borderPipeline_)
             return nullptr;
 
@@ -221,7 +234,7 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
         // 4096 % 16 == 0 && 2048 % 8 == 0 -> the S202 exact-grid contract. >= 95
         // tiles fills every printable-ASCII glyph (S203 FontAtlas requirement).
         app->atlas_ = vaml::vulkan::quad::TextureAtlas::create(
-            *loader, *app->device_, 4096u, 2048u, 16u, 8u);
+            *app->loader_, *app->device_, 4096u, 2048u, 16u, 8u);
         if (!app->atlas_)
             return nullptr;
 
@@ -249,8 +262,8 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
         sceneSpec.inFlightCount  = 3;   // the S166 ring depth (the S209 pool)
 
         // ---- The S212 create_device PRECONDITION gate ----
-        if (!viewer_setup_ready(loader->has_swapchain_loader(),
-                                loader->has_command_loader(),
+        if (!viewer_setup_ready(app->loader_->has_swapchain_loader(),
+                                app->loader_->has_command_loader(),
                                 app->renderPass_->render_pass(),
                                 colorFormat,
                                 app->atlas_->image_view(),
@@ -259,9 +272,9 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
             return nullptr;
         }
 
-        // ---- The VamlRenderer (S212) — the LAST owner (declared last, borrowed everything) ----
+        // ---- VamlRenderer (S212) — the LAST owner (declared last, borrowed everything) ----
         vaml::presentation::VamlRendererDeviceOptions hostOpts;
-        hostOpts.loader     = loader.get();
+        hostOpts.loader     = app->loader_.get();
         hostOpts.device     = app->device_.get();
         hostOpts.surface    = app->surface_.get();
         hostOpts.renderPass = app->renderPass_->render_pass();
@@ -287,10 +300,17 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
         app->renderer_->set_frame_size(static_cast<float>(config.width),
                                        static_cast<float>(config.height));
 
-        // The loader is owned for the app's lifetime (declared FIRST, destroyed LAST —
-        // it must outlive the renderer + every borrowed handle).
-        app->loader_ = std::move(loader);
+        // PUBLISH the initial declaration: arrange + encode + publish the loaded
+        // tree into the retained render path NOW (not lazily on the first frame).
+        // Without this, the first run_loop tick finds no scene to record
+        // (recorded=false), tick() returns nullopt WITHOUT submitting/presenting
+        // or advancing its frame slot, and the NEXT tick blocks/crashes waiting
+        // on a fence the never-submitted frame left unsignaled. This is the
+        // NO-GAP soy-to-nuts step ONLY a live render can prove.
+        app->renderer_->invalidate();
 
+        // The loader member is owned for the app's lifetime (declared FIRST,
+        // destroyed LAST — it outlives the renderer + every borrowed handle).
         return app;
     }
     catch (const std::exception&)
@@ -307,25 +327,52 @@ int ViewerApp::run_loop()
     // The deterministic headful auto-close for the local gate: when
     // VAML_VIEWER_AUTO_CLOSE_MS is set, the loop closes after the elapsed time
     // (so [both apps, not CI] live demo is scriptable deterministically).
-    const char* autoClose = std::getenv("VAML_VIEWER_AUTO_CLOSE_MS");
+    // Used by both MSVC (the S163 secure-variant precedent via _dupenv_s) and
+    // clang/POSIX (std::getenv — C4996 is an MSVC-only deprecation, so no guard
+    // is needed on the Linux CI lane).
     std::uint64_t deadlineMs = 0;
+#if defined(_MSC_VER)
+    char* envBuf = nullptr;
+    std::size_t envLen = 0;
+    const char* autoClose = nullptr;
+    if (_dupenv_s(&envBuf, &envLen, "VAML_VIEWER_AUTO_CLOSE_MS") == 0 && envBuf)
+        autoClose = envBuf;
     if (autoClose)
         deadlineMs = static_cast<std::uint64_t>(std::strtoull(autoClose, nullptr, 10));
+    if (envBuf)
+        std::free(envBuf);
+#else
+    const char* autoClose = std::getenv("VAML_VIEWER_AUTO_CLOSE_MS");
+    if (autoClose)
+        deadlineMs = static_cast<std::uint64_t>(std::strtoull(autoClose, nullptr, 10));
+#endif
     const auto loopStart = std::chrono::steady_clock::now();
 
     // The change-driven loop: poll the window events, then tick the host. The
     // first frame is invalidated (the initial arrange+encode+publish).
+    // The change-driven loop: poll the window events, then tick the host. The
+    // first frame is invalidated (the initial arrange+encode+publish).
+    // lastResizeW/H track the last size forwarded to request_resize so a resize
+    // is requested ONLY on an actual change (never a spurious per-frame rebuild —
+    // each request_resize queues a full S167_1 swapchain recreation).
+    std::uint32_t lastResizeW = 0u, lastResizeH = 0u;
     while (!window_->should_close())
     {
         window_->poll_events();
 
         // Resize: forward the window's current framebuffer size as a logical frame
         // (S213 DPI derives the scale from it). The Presenter handles the swapchain
-        // recreation transactionally (S167_1).
+        // recreation transactionally (S167_1). Request only on a genuine change.
         int fbw = 0, fbh = 0;
         window_->get_framebuffer_size(&fbw, &fbh);
-        if (fbw > 0 && fbh > 0)
+        if (fbw > 0 && fbh > 0 &&
+            (static_cast<std::uint32_t>(fbw) != lastResizeW ||
+             static_cast<std::uint32_t>(fbh) != lastResizeH))
+        {
             renderer_->request_resize(static_cast<std::uint32_t>(fbw), static_cast<std::uint32_t>(fbh));
+            lastResizeW = static_cast<std::uint32_t>(fbw);
+            lastResizeH = static_cast<std::uint32_t>(fbh);
+        }
 
         // The change-driven gate: render (the first frame is always a change;
         // subsequent frames tick for the retained re-render + consume-ahead).
