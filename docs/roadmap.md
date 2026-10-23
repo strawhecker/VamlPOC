@@ -790,7 +790,24 @@
 > later sprints, not a one-shot demo. Because so little is in place yet, the initial sprint is very limited.
 > Token range S220–S239 reserves headroom for viewer-growth steps discovered mid-execution (roadmap gap
 > convention); do NOT append growth here until later sprints land.
-- S220 dep:S215  Repo restructure + viewer scaffold: DELETE `VamlPOC/` + `VamlPOC-linux/`; ADD `vaml_viewer/`
+- S220 dep:S215  [DONE - Repo restructure + viewer scaffold: DELETED `VamlPOC/` + `VamlPOC-linux/` (the two
+      throwaway harnesses; all their real features already live in the library surface, and neither was
+      `add_subdirectory`'d into the top-level CMake, so the library build is unaffected). ADDED
+      `vaml_viewer/` (Windows VS project: vaml_viewer.vcxproj Debug/Release x64, v145, /W4 /WX
+      /permissive- /EHsc /std:c++20, /MTd+/MT matching the msvc-debug static libs, PUBLIC include roots
+      only, links vaml-presentation/vulkan/core + glfw3, Console subsystem + vaml_viewer.slnx +
+      main.cpp = a MINIMAL version-print consumer scaffold, zero feature code) + `vaml_viewer-linux/`
+      (Linux CMake: standalone project mirroring the deleted VamlPOC-linux structure, C++20 strict clang
+      bar, links the clang-debug static libs vaml-presentation -> vaml-vulkan -> vaml-core + pkg-config
+      GLFW/Vulkan + dl, public roots only; src/main.cpp = the same version-print consumer scaffold).
+      ADDED build/verify_s220.cmd (msvc-debug configure+build warning-as-error clean + ctest 3/3 PASS +
+      msbuild vaml_viewer.vcxproj Debug/x64 clean). RECORDED the CONSUMER-APP PATTERN (an app uses ONLY
+      the public surface - public include roots only, no internal headers, own main(), sits above the
+      ADR-011 facade) as ADR-021 in docs/adr/ADR-LOG.md. NO MINIMAL REAL introduced/resolved. The
+      emptied VamlPOC/.vs IDE cache is git-ignored + transient (held open by the IDE; swept on session
+      close); the pre-existing stray root .txt logs are out of scope (left untouched). Historical
+      build/verify_s201..s213_1.cmd remain as archived per-step records (not re-run); verify_s220.cmd is
+      the current green.]  Repo restructure + viewer scaffold: DELETE `VamlPOC/` + `VamlPOC-linux/`; ADD `vaml_viewer/`
       (Windows, VS project) + `vaml_viewer-linux/` (Linux, CMake) as the single official consumer app (the
       S175 live-host + dogfood role). Record the CONSUMER-APP PATTERN (an app uses ONLY the public surface;
       no internal headers) in an ADR. Scaffold only — zero feature code; builds clean both platforms.

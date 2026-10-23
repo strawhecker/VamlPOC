@@ -285,4 +285,54 @@
   created). Any future lock (e.g. S620 async layout) requires the same human-architect approval gate
   (ADR-018).
 
+## ADR-021 — CONSUMER-APP PATTERN (S220)
+- Status: ACCEPTED (recorded at S220)
+- Context: Sprint 5a (S220) deletes the two throwaway POC harnesses (`VamlPOC/`,
+  `VamlPOC-linux/`) and replaces them with `vaml_viewer/` (Windows) +
+  `vaml_viewer-linux/` (Linux) as the SINGLE official consumer app — the S175
+  live-host + dogfood role. Until now every consumer harness (the POCs) fought
+  the temptation to reach from a demo app INTO a library's private `.cpp`
+  implementation instead of consuming the public surface. With the viewer
+  becoming a long-lived, Sprint-5a+ growth surface (CLI, reload, pan/zoom,
+  render), the boundary between "the app" and "the library" must be a recorded,
+  enforceable contract — not an informal habit.
+- Decision (the pattern, stated explicitly and binding):
+  - **A consumer app uses ONLY the public surface of the VAML libraries.** It
+    includes ONLY from the public include roots — `src/core/include`,
+    `src/vulkan/include`, `src/presentation/include` — i.e. headers under
+    `include/vaml/<lib>/...`. It MUST NOT include an internal implementation
+    header (`src/<lib>/src/...`) and MUST NOT reach into a library's private
+    symbols or its `vaml::detail` space.
+  - **The app links the BUILT libraries** (static archives / import libs, or CMake
+    targets whose interfaces are PUBLIC). It does not compile library `.cpp`
+    files, and it does not re-implement library internals.
+  - **The app owns its own `main()`** and its own composition of library objects.
+    It does not depend on a library-owned `main`/entry and it does not use a
+    mock-ICD/backdoor seam to "test around" a real surface. (The headless
+    testing harness lives in the library's own test suite, NOT in the app.)
+  - **The app sits ABOVE the library facade.** It consumes the same public
+    Category-1 surface a third-party customer would (vaml-core's version API
+    today; vaml-vulkan / vaml-presentation public surfaces from S222 on). This
+    preserves the layering + include-surface rule of ADR-011 and the ADR-003
+    facade.
+- Consequences:
+  - **Feeds every Sprint 5a+ viewer-growth token.** S221 (CLI entry), S222
+    ("soup-to-nuts" render via `vaml::presentation::VamlRenderer`), S224
+    (pan/zoom), S256/S293/S329_1/S369/S409_1, and the S225 refactor gate all
+    operate under this rule: the viewer CONSUMES, it never reaches in.
+  - **The S225 REFACTOR GATE(S5a) adds a verifiable criterion** (recorded in the
+    roadmap): "consumer touches ONLY the public surface" — auditable by grep for
+    any `#include` of an internal `src/<lib>/src` header from `vaml_viewer/` /
+    `vaml_viewer-linux/`.
+  - **The viewer is the legitimated dogfood vehicle.** Because it consumes ONLY
+    the public surface, a green viewer build is genuine evidence the public API
+    is sufficient (the S175 dogfood goal) — not evidence of private-header
+    leakage.
+  - **The deleted POCs are not referenced by the library build** (confirmed at
+    S220: no `add_subdirectory`), so removing them cannot break the library; the
+    historical `build/verify_s201.cmd … verify_s213_1.cmd` scripts that built the
+    POCs remain as archived per-step verification records (each documented that
+    step's state when the POC existed) and are not re-run; S220 ships its own
+    `build/verify_s220.cmd` as the current green.
+
 ## END OF ADR LOG (seed)
