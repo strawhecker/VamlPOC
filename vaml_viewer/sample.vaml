@@ -1,0 +1,11 @@
+<!--
+  vaml_viewer sample document (S222) — the live "soup-to-nuts" demo.
+  A real StackPanel tree whose panels render as solid fills at their arranged
+  final_rects via the S212 default visualOf classifier (the honest first slice
+  of the declared layout — real control materials land at S400/S401).
+  A Button build-in seed is included (resolves at S401). The root StackPanel is
+  a UIElement (re-based at S129), so it is renderable today.
+-->
+<StackPanel Margin="8" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Button/>
+</StackPanel>

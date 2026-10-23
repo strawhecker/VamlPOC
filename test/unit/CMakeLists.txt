@@ -212,12 +212,24 @@ add_executable(vaml-presentation-tests
     # canvas_projection, dpi_render_plan, logical_to_physical crisp invariant) + the
     # S213_1 dpiScale input (last_framebuffer_scale). Headless, no Vulkan runtime.
     Dpi_test.cpp
+    # S222 (dep:S221) — the "soup-to-nuts" viewer render-PLAN seam, headless:
+    # the pure S222 wiring contract (viewer_stack_steps = the LIFETIMES build
+    # order with VamlRenderer last / viewer_setup_ready = the S173+S200+S206
+    # precondition gate / viewer_deadline_elapsed = the auto-close pure seam /
+    # ViewerApp move-only RAII). Compiles the ACTUAL shared host source
+    # (vaml_viewer/app.cpp) into the test target so the headless suite exercises
+    # the exact code both apps run (single source of truth, ADR-021 consumer).
+    # The LIVE create()/run_loop() (window + Vulkan stack + create_device) is
+    # [both apps, not CI] — the DISPLAY proof, verified live on this box.
+    ViewerRenderPlan_test.cpp
+    ../../vaml_viewer/app.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
 
 target_include_directories(vaml-presentation-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/presentation/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../vaml_viewer   # S222: the shared host's header (app.h)
 )
 target_include_directories(vaml-presentation-tests SYSTEM PRIVATE
     ${VAML_DEPS_DIR}

@@ -60,13 +60,14 @@ set(VAML_PRESENTATION_LIB      "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug
 add_executable(vaml-viewer-linux
     src/main.cpp
     ../vaml_viewer/load_file.cpp   # S221: the shared HEADLESS-ctestable file->tree seam (single source of truth)
+    ../vaml_viewer/app.cpp         # S222: the shared "soup-to-nuts" render host (single source of truth)
 )
 
 target_include_directories(vaml-viewer-linux PRIVATE
     ${VAML_CORE_INCLUDE}
     ${VAML_VULKAN_INCLUDE}
     ${VAML_PRESENTATION_INCLUDE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../vaml_viewer   # load_file.h (the seam's own header)
+    ${CMAKE_CURRENT_SOURCE_DIR}/../vaml_viewer   # load_file.h + app.h (the shared hosts' headers)
 )
 
 target_link_libraries(vaml-viewer-linux PRIVATE
