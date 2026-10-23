@@ -26,9 +26,9 @@
   static CompositionRoot, RoutedEvent). No Prism-style runtime modularity. [ADR-008]
 
 ## CHECKPOINT ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DO NOT EDIT BY HAND (agents regenerate)
-- Last completed step : S222_1 (dep:S222) — Sprint 5a — FILE-WATCH LIVE RELOAD (the viewer's PERMANENT visual-feedback vehicle), VERIFIED from first principles BOTH CI lanes + LIVE this session. ADDED vaml_viewer/file_watch.{h,cpp} (mtime-poll + NOTIFY seam: FileStamp/kNoStamp/FileEvent{Unchanged,Changed,Appeared,Disappeared}/FileViewEntry + the PURE headless decision table file_view_state_transition + stamp_to_millis + the no-throw I/O seams file_mtime/view_file + the real RAII FileWatcher with begin/poll/re-arm + the on_event notify hook) + vaml_viewer/live_reload.{h,cpp} (the "edit → reload → same tree" coordinator: pure reload_action table + the real LiveReload owning a FileWatcher + calling the S221 vaml::load_file on Reload + the on_reloaded/on_reload_error/on_file_disappeared/on_file_restored seams). MOD vaml_viewer/app.{h,cpp} (ViewerAppConfig.filePath — the OPT-IN; empty ⇒ S222 behavior unchanged; non-empty ⇒ LiveReload armed + run_loop polls it; on_reloaded re-runs the WHOLE S5 path with ZERO imperative tree-building via apply_reload → adopt → set_root → set_frame_size → invalidate; load failure keeps last-good + reports stderr, never silent) + MOD both main.cpp (CLI path → filePath, live reload by default) + MOD vaml_viewer.vcxproj/vaml_viewer-linux/CMakeLists.txt (+file_watch.cpp+live_reload.cpp). ADDED FileWatch_test.cpp + LiveReload_test.cpp (vaml-core-tests, incl. the GOLDEN edit→reload→same tree + the reload_action table + the real-file lifecycle) + ViewerReloadPlan_test.cpp (vaml-presentation-tests) + build/verify_s222_1.cmd. BOTH CI LANES green from first principles: windows-msvc (build/verify_s222_1.cmd: msvc-debug warning-clean + ctest 3/3 PASS + vaml_viewer build + CLI proofs 0/2/1/3 + LIVE file-watch reload demo close=0 on the NVIDIA RTX A5000) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: build warnings==0 + ctest 3/3 PASS + vaml_viewer-linux clean under clang 21.1.8). TEST-ROBUSTNESS: the watcher tests sleep >2s for the mtime bump (the VM lane runs on the HGFS shared folder ~2s granularity vs ~100ns native — 2200ms covers both lanes). No MINIMAL REAL introduced/resolved; ADR-018 ZERO new locks (single-threaded UI-thread poll); NO-GAP: the early hot-reload loop — S825 matures it (not re-does it). [VIEWER GROWTH: reload]
-- Next step to do     : S223 (dep:S222_1) — Sprint 5a — Drag-and-drop entry: `PlatformWindow` (S160) gains a FILE-DROP callback (GLFW drop path, Win32 + X11); viewer reopens the dropped `.vaml`; drop-dispatch → reopen handler seam is headless-testable.
-- PENDING work        : none (S222_1 fully complete + LIVE-proven — the file-watch live reload re-renders the declared tree on a file mtime change in a real window on this box + both CI lanes green from first principles; the viewer's PERMANENT visual-feedback vehicle now demonstrates the whole S5 path re-run with ZERO imperative tree-building)
+- Last completed step : S223 (dep:S222_1) — Sprint 5a — DRAG-AND-DROP ENTRY, VERIFIED from first principles BOTH CI lanes + LIVE this session. ADDED `WindowCallbacks.on_drop` + the pure free `dispatch_drop` seam + a `glfwDrop` trampoline + `glfwSetDropCallback` registration in `PlatformWindow.{h,cpp}` (the S160 extension — GLFW's single drop callback transparently covers Win32 + X11, exactly like the resize/key/mouse/scroll hooks; no per-OS drop code). ADDED vaml_viewer/drop_reopen.h (the PURE drop-decision seams: `is_vaml_drop` case-insensitive `.vaml` extension guard — a dropped non-`.vaml` is NEVER reopened/rendered — + `drop_choice` dispatch selection, mirroring the S222_1 `reload_action` split). MOD vaml_viewer/app.{h,cpp} — `ViewerApp::reopen` is a THIN PUBLIC WRAPPER over the S222_1 `apply_reload` (the whole-S5-path re-adoption machinery) = the SINGLE SHARED reopen handler for BOTH drop-reopen and file-watch reload (no drift); the on_drop callback is wired at window-creation time into a pending-drop slot (`pendingDrop_`) drained in `run_loop()` after poll_events → `load_file` → `reopen` (ADR-018: single UI thread, no locks; `pendingDropApplied_` guards against re-applying the same drop each frame; a drop that fails to load reports to stderr + keeps the last-good tree, never blank). ADDED PlatformWindow S223 drop cases (vaml-vulkan-tests: empty-hook no-op + exact count/paths single + multi-file + no-cross-fire) + test/unit/ViewerDropPlan_test.cpp (vaml-core-tests: the pure drop-decision seams + the reopen-through-the-shared-handler contract) + MOD vaml_viewer.vcxproj (+drop_reopen.h ClInclude) + ADDED build/verify_s223.cmd. BOTH CI LANES green from first principles: windows-msvc (build/verify_s223.cmd: msvc-debug warning-clean + ctest 3/3 PASS incl. the S160 PlatformWindow drop cases + ViewerDropPlan + vaml_viewer Debug/x64 clean + CLI proofs 0/1 never-silent + the LIVE file-drop REOPEN demo close=0 on the NVIDIA RTX A5000 — the viewer opens on a temp .vaml, a second .vaml reopens through ViewerApp::reopen → the S222_1 apply_reload whole-S5-path machinery, clean auto-close) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: build warnings==0 + ctest 3/3 PASS + vaml_viewer-linux builds clean under clang 21.1.8). No MINIMAL REAL introduced/resolved (the drop seams are REAL permanent code; the reopen handler is the S222_1 machinery — one reopen path, no drift); ADR-018 ZERO new locks (drop callback fires inside poll_events() on the UI thread; the pending slot drains on that same thread); NO-GAP: S323/S324 routed-event + hit-test layer onto the input hooks, NOT the drop path (drop is independent). [VIEWER GROWTH: drag-drop entry]
+- Next step to do     : S224 (dep:S223) — Sprint 5a — Boot/window polish + RENDERED-VIEW PAN & ZOOM: title = loaded filename, `--help` usage, teardown-order-clean + ASan no-leak (S170 discipline). Reload-in-place on a second drop when feasible (no restart). The rendered view supports PAN (drag) + ZOOM (wheel) — exercising the S208 RenderTransform + the S213 DPI/framebuffer-scale surface. [VIEWER GROWTH: pan/zoom]
+- PENDING work        : none (S223 fully complete + LIVE-proven — the drag-and-drop entry reopens the dropped `.vaml` through the S222_1 apply_reload reopen machinery in a real window on this box + both CI lanes green from first principles)
   **State**: S147 (dep:S146) is the Sprint-3.5 SURVIVOR + checkpoint wrap Ã¢â‚¬â€ DOCS-ONLY (no build, per the
   S009/S049/S097/S139 precedent; both CI lanes were verified green + ASan no-leak at S146 from first
   principles). (1) RELOCATE: Sprint 3.5 (S140Ã¢â‚¬â€œS147) is consolidated into the `## SPRINT 3.5 Ã¢â‚¬â€ SURVIVOR`
@@ -1898,8 +1898,43 @@ superseded by S142 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the pimpl is removed, 
   (the seams are REAL permanent code, the early hot-reload loop, kept-and-extended). ADR-018: ZERO new locks
   (single-threaded, driven off the viewer's UI thread in run_loop()). NO-GAP: the early hot-reload loop — S825
   MATURES it (async reload + tooling integration), it does NOT re-do it. [VIEWER GROWTH: reload]
-- **NEXT = S223** (dep:S222_1 — Drag-and-drop entry: PlatformWindow FILE-DROP callback, Win32 + X11; drop →
-  reopen `.vaml`; drop-dispatch → reopen handler seam headless-testable).
+- **S223 (dep:S222_1) — DRAG-AND-DROP ENTRY — DONE + LIVE-PROVEN (this session).** `PlatformWindow` (S160) gains a
+  FILE-DROP callback; the viewer reopens the dropped `.vaml`; the drop-dispatch → reopen-handler seam is
+  HEADLESS-testable (the S222_1 `reload_action` split precedent, this time on the drop axis).
+  (1) LIBRARY (S160 extended): MOD src/vulkan/include/vaml/vulkan/PlatformWindow.h + src/vulkan/src/
+  PlatformWindow.cpp — `WindowCallbacks.on_drop` (GLFW's drop signature `(int count, const char* const* paths)`)
+  + the pure free `dispatch_drop` seam (empty-hook silent no-op, mirrors dispatch_resize/key/mouse/scroll)
+  + a `glfwDrop` trampoline + `glfwSetDropCallback` registration in create(). GLFW's SINGLE drop callback
+  transparently covers BOTH Win32 + X11 (GLFW owns OS coupling) — no per-OS drop code, exactly like the S160
+  resize/key/mouse/scroll hooks. (2) VIEWER PURE SEAMS: ADDED vaml_viewer/drop_reopen.h — `is_vaml_drop`
+  (case-INSENSITIVE `.vaml` extension guard — a dropped non-`.vaml` is NEVER reopened/rendered) + `drop_choice`
+  (dispatch selection: pick the FIRST `.vaml` path from a GLFW drop payload, nullopt = drop ignored), the
+  S222_1 `reload_action`-style split (pure table in the viewer seam; real handler in the app). (3) VIEWER
+  REOPEN HANDLER: MOD vaml_viewer/app.{h,cpp} — `ViewerApp::reopen(unique_ptr<DependencyObject>)` is a THIN
+  PUBLIC WRAPPER over the S222_1 `apply_reload` (re-adopt → set_root → set_frame_size → invalidate = the whole
+  S5 path, ZERO imperative tree-building) = the SINGLE SHARED reopen handler for BOTH drop-reopen AND file-watch
+  reload (no drift). The on_drop callback is wired at window-creation time (the S160 WindowCallbacks are owned
+  at create()) into a pending-drop slot (`pendingDrop_`); run_loop() drains it after poll_events() each frame →
+  `vaml::load_file(path)` → `reopen`. ADR-018: ZERO new locks (GLFW fires the drop callback inside poll_events()
+  on the UI thread; the slot drains on that same thread); `pendingDropApplied_` guards against re-applying the
+  same drop each frame, re-arming only on a NEW drop; a dropped `.vaml` that fails to load reports to stderr +
+  KEEPS the last-good tree (never a blank window). (4) TESTS (headless): MOD test/unit/PlatformWindow_test.cpp
+  (vaml-vulkan-tests — the S160 drop surface: empty-hook no-op + exact count/paths single + multi-file +
+  no-cross-fire) + ADDED test/unit/ViewerDropPlan_test.cpp (vaml-core-tests — the PURE drop-decision seams +
+  the "a dropped .vaml reopens through the SHARED reopen handler (apply_reload)" contract). (5) BUILD: MOD
+  vaml_viewer.vcxproj (+drop_reopen.h ClInclude) + ADDED build/verify_s223.cmd. BOTH CI LANES green from first
+  principles: windows-msvc (build/verify_s223.cmd: msvc-debug warning-clean + ctest 3/3 PASS incl. the S160
+  PlatformWindow drop cases + ViewerDropPlan + vaml_viewer Debug/x64 clean + CLI proofs 0/1 never-silent + the
+  LIVE file-drop REOPEN demo close=0 on the NVIDIA RTX A5000 — viewer opens on a temp .vaml, a second .vaml
+  reopens through ViewerApp::reopen → the S222_1 apply_reload whole-S5-path machinery, clean auto-close) +
+  ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: build warnings==0 + ctest 3/3 PASS + vaml_viewer-linux builds
+  clean under clang 21.1.8). No MINIMAL REAL introduced/resolved (the drop seams are REAL permanent code,
+  kept-and-extended; the reopen handler is the S222_1 machinery — ONE reopen path, no drift). NO-GAP recorded
+  (not silent): the S323/S324 routed-event + hit-test path layers onto the input hooks, NOT the drop path
+  (drop is independent). Reload-in-place on a second drop + pan/zoom + --help = S224. [VIEWER GROWTH: drag-drop entry]
+- **NEXT = S224** (dep:S223 — Boot/window polish + RENDERED-VIEW PAN & ZOOM: title = loaded filename, `--help`
+  usage, teardown-order-clean + ASan no-leak; reload-in-place on a second drop when feasible; pan (drag) +
+  zoom (wheel) exercising the S208 RenderTransform + the S213 DPI/framebuffer-scale surface).
 
 ## SPRINT 4C — SURVIVOR  (the consolidated surviving state a fresh LLM must assume — S176..S179, closed at S179)
 - [x] S176..S179 — Sprint 4C (three-lane testing harness, codification) SURVIVOR + checkpoint advance to S200 - DONE
