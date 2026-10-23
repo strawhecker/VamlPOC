@@ -854,9 +854,49 @@
       (no restart). The rendered view supports PAN (drag) + ZOOM (wheel) — exercising the S208 RenderTransform
       + the S213 DPI/framebuffer-scale surface (viewer chrome harnesses library work, not editor chrome).
       [VIEWER GROWTH: pan/zoom]
-- S225 dep:S224  REFACTOR GATE(S5a): POC removal left zero dead code; viewer + lib green BOTH CI lanes +
+- S225 dep:S224  [DONE — VERIFIED from first principles both CI lanes + both platforms + ASan this session.
+      REFACTOR GATE(S5a): POC removal left zero dead code. (1) DEAD-SURFACE AUDIT (grep STUB/TODO/FIXME/XXX/
+      backfill/scaffold across src/core, src/vulkan, src/presentation, vaml_viewer, test/) — the ONLY hits are
+      the sanctioned affirmative statements (NOT MINIMAL REAL / NOT a STUB / not a backfill / NO-GAP) + the
+      forward-resolvable MINIMAL REAL sentinels (tools→S287; Element Button→S401, Text→S400, TextBox→S402,
+      CheckBox→S404, Slider→S403, ScrollViewer→S405, Window→S440; VamlReader event hooks→S322) — ZERO unaudited
+      dead code, every seed searchable + contractually-bound to a resolution step (NO-GAP / NO-LAZY-LLM).
+      (2) DELETED the committed POC-era debris the S220 restructure left untouched (traced, POC-era, referenced
+      by NOTHING — grep across docs + verify .cmd + CMake proved zero references; git history preserves them,
+      deletion reversible): the extension-less root diagnostics `exit` `non-zero` `reopen` `usage` `watch` +
+      the root diagnostic logs `s177cap.txt` `s177final.txt` `s177o.txt` `s177out.txt` `s177se.txt`
+      `s177so.txt` `s177_diag.txt` `build_tmp_out.txt` `verify_s211_log.txt` + the empty leftover solution
+      `VamlPOC/VamlPOC.slnx` (`<Solution />` — the POC dir is already gone, only this committed file survived;
+      the dir's residue is only a git-ignored IDE `.vs` cache, transient, held by the IDE). (3) No dangling POC
+      references (grep VamlPOC/, VamlPOC-linux, VulkanLoader.h in viewer/src/docs = zero in live code — the
+      viewer consumes ONLY the public library surface, ADR-021). (4) HEADLESS FILE→TREE SEAM covered in CI on
+      both lanes against the golden fixture — `ViewerLoadFile_test.cpp` (S221, compiled into vaml-core-tests with
+      the REAL load_file.cpp) + `LiveReload_test.cpp` (S222_1, edit→reload→same-tree against real temp files,
+      compiled into vaml-core-tests) + the viewer-boundary ViewerReloadPlan/ViewerDropPlan/ViewerCli/
+      ViewerViewState/ViewerPanZoom seam suites — the gate CERTIFIES this obligation already met; no new test
+      authored (verify, not re-author). (5) BOTH CI LANES green from first principles (NOT assumed from S224):
+      windows-msvc (build/verify_s224.cmd: msvc-debug configure + build warning-as-error CLEAN + ctest 3/3 PASS
+      incl. ViewerCli/ViewerViewState/ViewerPanZoom + vaml_viewer Debug/x64 clean + CLI proofs 0/2/1/0
+      never-silent + LIVE pan/zoom window close=0 + LIVE second-drop reopen no-restart close=0 on the NVIDIA
+      RTX A5000) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug on Ubuntu 26.04 VM: build warnings==0 + ctest
+      3/3 PASS + vaml_viewer-linux builds clean under clang 21.1.8 against the fresh libs). (6) ASan no-leak
+      (build/verify_s170_asan.cmd, re-run from first principles WITH the deletions): msvc-asan zero ASan errors +
+      clang-asan ASan + LSan ZERO LEAKS. windows-clang-debug is NOT a lane (not built/tested/flagged). No
+      MINIMAL REAL introduced/resolved (the gate sweeps dead code; all seeds already resolved-bound).]
+      REFACTOR GATE(S5a): POC removal left zero dead code; viewer + lib green BOTH CI lanes +
       both platforms; CI covers the viewer's file→tree seam headlessly (golden fixture); ASan no-leak.
-- S226 dep:S225  SURVIVOR + checkpoint advance. Document how vaml_viewer grows as later sprints land:
+- S226 dep:S225  [DONE — SURVIVOR + checkpoint advance, docs-only wrap (no build — both lanes already green from
+      S225, verified from first principles). progress.md Sprint 5a survivor block consolidated through S225 +
+      the VIEWER-GROWTH MECHANISM documented (how vaml_viewer grows as later sprints land — per-sprint token +
+      completion gate + marker, see roadmap conventions): controls → S400+; MVVM/binding → S6 (S256);
+      styles/templates → S9 (S369); compiled `.vbaml` → S7 (S293); live-reload → S222_1 + S825 mature;
+      pan/zoom → S224. RESERVED S227–S239 for viewer-growth steps discovered mid-execution (gap-headroom
+      convention). CHECKPOINT advanced: last = S226, next = S240 (Sprint 6 first token, dep:S226 — the gapless
+      dependency chain S240 dep:S226 is already recorded below; matches every prior wrap precedent S009→S030,
+      S049→S080, S097→S120, S139→S140, S147→S160, S172→S200, S179→S200, S215→S220). PENDING none. Guard-rail
+      MINIMAL REAL carried forward unchanged (tools→S287; element seeds→S401/S400/S402/S403/S404/S405/S440;
+      event hooks→S322). No build/test (docs-only wrap per the survivor precedent).]
+      SURVIVOR + checkpoint advance. Document how vaml_viewer grows as later sprints land:
       VIEWER-GROWTH MECHANISM (per-sprint token + completion gate + marker, see roadmap conventions):
       controls → S400+; MVVM/binding → S6 (S256); styles/templates → S9 (S369); compiled `.vbaml` → S7
       (S293); live-reload → S222_1 + S825 mature; pan/zoom → S224.
