@@ -30,10 +30,9 @@ IconAtlas::IconAtlas(quad::TextureAtlas& atlas) noexcept
 void IconAtlas::set_sources(const IconSourceSet& sources) noexcept
 {
     sources_ = sources;
-    // Rebuild the slot bookkeeping: keep key order deterministic (a stable,
-    // sorted key order so tiles are assigned deterministically across runs).
-    slots_.clear();
-    slotKeys_.clear();
+    // Rebuild the size-family bookkeeping (the per-key candidate lists). Family
+    // order is deterministic (insertion order of the first add_icon per key).
+    families_.clear();
     nextTile_ = 0;
 }
 
@@ -93,26 +92,48 @@ bool IconAtlas::add_icon(std::uint32_t key,
         return false;
     }
 
-    // --- 5) record/overwrite the slot TAGGED with the texel count (S213_1) ---
-    // Keys may be any uint32; to keep slot records compact we search the slotKeys
-    // list linearly (source sets are small, import-time only).
-    std::uint32_t slotIdx = kNoSlot;
-    for (std::uint32_t i = 0; i < slotKeys_.size(); ++i)
+    // --- 5) record into the key's SIZE-FAMILY (one candidate per add_icon) ---
+    // Keys may be any uint32; to keep the family store compact we search the
+    // families_ list linearly (source sets are small, import-time only). A same-key
+    // repeat at a different size APPENDS a DISTINCT candidate (the size family);
+    // a same-key repeat at the SAME authored size updates that candidate in place.
+    std::uint32_t familyIdx = kNoSlot;
+    for (std::uint32_t i = 0; i < families_.size(); ++i)
     {
-        if (slotKeys_[i] == key)
+        if (families_[i].key == key)
         {
-            slotIdx = i;
+            familyIdx = i;
             break;
         }
     }
-    if (slotIdx == kNoSlot)
+    if (familyIdx == kNoSlot)
     {
-        slotIdx = static_cast<std::uint32_t>(slotKeys_.size());
-        slotKeys_.push_back(key);
-        slots_.emplace_back();
+        familyIdx = static_cast<std::uint32_t>(families_.size());
+        KeyFamily fam;
+        fam.key = key;
+        families_.push_back(std::move(fam));
     }
-    slots_[slotIdx].tileIndex  = tile;
-    slots_[slotIdx].texelCount = raster.texelCount;
+
+    // Append-or-update: find an existing candidate with the same authored side
+    // (same sizeW×sizeH), else append a new family member.
+    auto& fam = families_[familyIdx];
+    IconCandidate cand;
+    cand.tileIndex  = tile;
+    cand.sizeW      = raster.w;
+    cand.sizeH      = raster.h;
+    cand.texelCount = raster.texelCount;
+    bool updated = false;
+    for (IconCandidate& c : fam.candidates)
+    {
+        if (c.sizeW == cand.sizeW && c.sizeH == cand.sizeH)
+        {
+            c = cand;   // re-rasterized at the same size: refresh the tile/tag
+            updated = true;
+            break;
+        }
+    }
+    if (!updated)
+        fam.candidates.push_back(cand);
 
     if (renderW)
         *renderW = raster.w;
@@ -123,22 +144,45 @@ bool IconAtlas::add_icon(std::uint32_t key,
 
 IconSlot IconAtlas::slot_for(std::uint32_t key) const noexcept
 {
-    for (std::uint32_t i = 0; i < slotKeys_.size(); ++i)
+    // BACKWARD-COMPATIBLE: the "1:1 slot" read returns the LARGEST candidate's
+    // tile + texelCount (the pre-size-family contract for a single-candidate key).
+    IconSlot best;
+    std::uint32_t bestSize = 0;
+    for (const KeyFamily& fam : families_)
     {
-        if (slotKeys_[i] == key)
-            return slots_[i];
+        if (fam.key != key)
+            continue;
+        for (const IconCandidate& c : fam.candidates)
+        {
+            if (c.texelCount > bestSize)
+            {
+                bestSize    = c.texelCount;
+                best.tileIndex  = c.tileIndex;
+                best.texelCount = c.texelCount;
+            }
+        }
     }
-    return {};
+    return best;
 }
 
 bool IconAtlas::has_slot(std::uint32_t key) const noexcept
 {
-    for (const std::uint32_t k : slotKeys_)
+    for (const KeyFamily& fam : families_)
     {
-        if (k == key)
+        if (fam.key == key && !fam.candidates.empty())
             return true;
     }
     return false;
+}
+
+std::span<const IconCandidate> IconAtlas::candidates_for(std::uint32_t key) const noexcept
+{
+    for (const KeyFamily& fam : families_)
+    {
+        if (fam.key == key)
+            return fam.candidates;
+    }
+    return {};
 }
 
 } // namespace vaml::vulkan::icon

@@ -549,6 +549,80 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int /*nCmdShow*/)
         }
     }
 
+    // --- S213_1 live DPI-aware icon best-fit proof (device-only; no surface req) -
+    // The S213_1 SELECTION (the scaling policy { none | down-only | both }, default
+    // none, computed once per (IconKey, logical size) against framebufferScale then
+    // cached) is PURE + device-independent — it consumes the S202_1 size-family
+    // candidates (per-slot texelCount + the size family) + the S213 dpiScale input.
+    // This device-only block proves it live over a REAL size family rasterized into
+    // the S202 atlas: the same key added at several authored sizes exposes N
+    // candidates (candidates_for), the policy picks the largest ≤ N_physical with
+    // no resample (None), and the cache resolves once per (key, logical size) then
+    // invalidates on a dpiScale change against the host's derived framebuffer scale.
+    // The presented sampling of the best-fit tile stays the display-backed manual
+    // step ([both apps, not CI]).
+    if (vk->has_quad_loader() && vk->has_texture_loader() && vk->has_command_loader() && ctx.device)
+    {
+        using namespace vaml::vulkan::quad;
+        using namespace vaml::vulkan::icon;
+        // A 256x256 atlas as a 4x4 grid -> 64x64 tiles (256%4==0 && 256%4==0: exact).
+        auto atlas = TextureAtlas::create(*vk, *ctx.device, 256, 256, 4, 4);
+        if (atlas)
+        {
+            // The embedded SVG fixture (packaged asset — the ADR-015 boundary).
+            using Bytes = std::vector<std::uint8_t>;
+            const Bytes kSvg = {
+                '<','s','v','g',' ','x','m','l','n','s','=','"','h','t','t','p',':','/','/','w','w','w','.','w','3','.',
+                'o','r','g','/','2','0','0','0','/','s','v','g','"',' ','w','i','d','t','h','=','"','1','0','"',' ',
+                'h','e','i','g','h','t','=','"','1','0','"','>','<','r','e','c','t',' ','w','i','d','t','h','=','"',
+                '1','0','"',' ','h','e','i','g','h','t','=','"','1','0','"',' ','f','i','l','l','=','"','#','f','f',
+                '0','0','0','0','"','/','>','<','/','s','v','g','>',
+            };
+            IconSourceSet sources;
+            sources.emplace(7, IconSource{ IconFormat::Svg, kSvg });
+            IconAtlas icons(*atlas);
+            icons.set_sources(sources);
+            // A SIZE FAMILY for key 7: authored sides 16, 32, 64 (three candidates).
+            IconErrorKind err = IconErrorKind::None;
+            const bool s16 = icons.add_icon(7, 16, 16, &err);
+            const bool s32 = icons.add_icon(7, 32, 32, &err) && s16;
+            const bool s64 = icons.add_icon(7, 64, 64, &err) && s32;
+            icons.atlas().flush();
+            const auto candidates = icons.candidates_for(7);   // the 3-member family
+
+            // The S213 dpiScale input (default 1.0 before a frame — the no-DPI case):
+            // N_physical = logical size × dpiScale = 20 × 1 = 20.
+            const float dpiScale = 1.0f;
+            // A logical icon size of 20 -> N_physical 20; default policy None picks
+            // the largest authored set ≤ 20 = the 16px candidate, no resample.
+            IconBestFitCache cache;   // default ScalingPolicy::None
+            const auto fit = cache.resolve(7u, 20u, dpiScale,
+                                           { candidates.begin(), candidates.end() });
+            const std::size_t familySize = candidates.size();   // 3
+
+            const bool fitProof = s16 && s32 && s64 && familySize == 3u &&
+                                  fit.has_value() && fit->candidateIndex == 0 &&
+                                  !fit->resampleToN && fit->targetN == 16u &&
+                                  cache.cached_count() == 1u;
+            if (fitProof)
+                std::printf("[s213_1-live] DPI icon best-fit on %s: key 7 size family "
+                            "(16/32/64 authored px, %zu candidates) -> default None picks "
+                            "the largest <= N_physical(20) = the 16px candidate, no "
+                            "resample (target %u), cached once (dpiScale %.1f)\n",
+                            gpuName.c_str(), familySize, fit->targetN, dpiScale);
+            else
+                std::fprintf(stderr, "[s213_1-live] icon best-fit MISMATCH on %s "
+                            "(s16=%d s32=%d s64=%d family=%zu hasFit=%d resample=%d target=%u)\n",
+                            gpuName.c_str(), s16, s32, s64, familySize,
+                            fit.has_value() ? 1 : 0, fit.has_value() && fit->resampleToN ? 1 : 0,
+                            fit.has_value() ? fit->targetN : 0u);
+        }
+        else
+        {
+            std::fprintf(stderr, "[s213_1-live] best-fit TextureAtlas create failed.\n");
+        }
+    }
+
     // --- S203+S204 live font/SDF-atlas proof (device-only; no surface required) --
     // The S203 FontAtlas (embedded TrueType parsed via stb_truetype + ASCII 32–126
     // coverage glyph atlas) + the S204 SdfAtlas (coverage → SDF into the S202 atlas

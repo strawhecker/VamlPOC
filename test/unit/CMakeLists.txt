@@ -137,6 +137,11 @@ add_executable(vaml-vulkan-tests
     QuadScene_test.cpp
     TextureAtlas_test.cpp
     IconPipeline_test.cpp
+    # S213_1 (dep:S213) — the DPI-aware icon best-fit SELECTION: the scaling policy
+    # { none | down-only | both }, default none, computed once per (IconKey, logical
+    # size) against framebufferScale then cached. Headless Rail 1 (select_best_fit /
+    # physical_n_for / the cache invalidation contract).
+    IconBestFit_test.cpp
     FontAtlas_test.cpp
     SdfAtlas_test.cpp
     UiPipeline_test.cpp

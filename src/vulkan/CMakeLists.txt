@@ -35,6 +35,11 @@ vaml_add_library(vulkan
     # count for S213_1 best-fit.
     src/icon/IconPipeline.cpp
     src/icon/IconAtlas.cpp
+    # S213_1 — the DPI-aware icon best-fit SELECTION (per ADR-015): the scaling
+    # policy { none | down-only | both }, default none, computed ONCE per
+    # (IconKey, logical size) against framebufferScale then cached. Consumes the
+    # S202_1 size-family candidates + the S213 dpiScale input.
+    src/icon/IconBestFit.cpp
     # The single-TU implementation defines (STB_IMAGE_IMPLEMENTATION,
     # NANOSVG_IMPLEMENTATION + NANOSVGRAST_IMPLEMENTATION) live in these files,
     # exactly once per process (the VMA single-TU precedent).
