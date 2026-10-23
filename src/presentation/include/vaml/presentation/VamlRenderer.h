@@ -55,12 +55,14 @@
 // (destroyed in reverse build order on host destruction).
 
 #include <vaml/presentation/Presenter.h>        // Presenter, PresenterOptions
+#include <vaml/presentation/dpi.h>              // S213: dpi::RenderPlan (the composed view surface)
 #include <vaml/vulkan/ui/UiScene.h>             // DrawItem, UiScene::Spec
 #include <vaml/vulkan/ui/UiSceneEncoder.h>      // ElementVisual, encode_visual_tree
 #include <vaml/vulkan/ui/SceneRenderer.h>       // SceneRenderer (the retained owner)
 #include <vaml/vulkan/ui/MarshalledScene.h>     // MarshalledScene (the postbox)
 
 #include <vaml/core/UIElement.h>                // vaml::UIElement (the core visual tree)
+#include <vaml/core/Transform.h>                // S208: vaml::Matrix2D (the rendered-view pan/zoom type)
 
 #include <cstdint>
 #include <functional>
@@ -118,6 +120,30 @@ const std::vector<vaml::vulkan::ui::RenderLoopStep>& render_loop_steps() noexcep
 // (EncodeIfDirty); an unchanged frame does NOT re-encode. Pure + headless.
 VAML_PRESENTATION_EXPORT bool should_reencode(bool dirty) noexcept;
 VAML_PRESENTATION_EXPORT bool should_consume(bool hasNewer) noexcept;
+
+// The S224 rendered-view PAN & ZOOM surface — THE S208/S213 HARNEESSING PURE SEAM.
+//
+// Composes the S208 `view` Matrix2D (the S224 viewer-level VIEW TRANSFORM — pan +
+// zoom authored by the viewer, reused from vaml::core Transform.h) into the S213
+// `dpi::RenderPlan` mvp so the ENTIRE retained scene pans/zooms together at the
+// MVP level. `plan.mvp` is the S213 logical-canvas -> NDC projection; a
+// 2D-affine `view` (translation ∘ scaling, in logical px) left-multiplies it:
+//   mvp' = To4x4(view) · mvp
+// so a logical content point is first mapped by the 2D view then projected —
+// the standard "view ∘ model/projection" composition. `plan.uiScale` is LEFT
+// UNTOUCHED (the DERIVED physical/logical DPI scale, S213's crisp invariant), so
+// the composed view stays DPI-crisp AND the S208 clip scissor (which maps logical
+// -> frame px via uiScale) stays ALIGNED with the scaled geometry. Because the
+// view lives in the mvp and every element model stays identity (S212's default
+// visualOf), ALL emitted elements pan/zoom together (multi-panel correct, no
+// per-element injection) and only the ROOT clip (the full window) remains — which
+// is correct under any view mvp (overflow is naturally framebuffer-culled).
+//
+// Pure + headless-testable (no Vulkan runtime) — the same S213 discipline. Seeing
+// the view transform exercised on the S208 type + the S213 render-plan surface is
+// exactly the S224 "viewer chrome harnesses library work" contract.
+VAML_PRESENTATION_EXPORT void
+compose_view_into_render_plan(const vaml::Matrix2D& view, dpi::RenderPlan& plan) noexcept;
 
 // The S173 presenter-lifetime gate is REUSED (already declared in Presenter.h:
 // presenter_lifetimes_ok); the host applies it in create_device. Not re-authored.
@@ -191,6 +217,19 @@ public:
     // The arrange/frame size (logical px) — the final_rect slot for the root's
     // Arrange. The app sets it to the window's backing size.
     void set_frame_size(float width, float height) noexcept;
+    // S224 — the RENDERED-VIEW PAN & ZOOM surface: sets the viewer-level VIEW
+    // TRANSFORM (the S208 Matrix2D the S224 viewer authors — translation ∘ scale).
+    // It is composed into the S213 dpi::RenderPlan mvp at the next record_draw via
+    // `compose_view_into_render_plan`, so the WHOLE retained scene pans/zooms
+    // together at the MVP level (no per-element injection, no model mutation —
+    // redraw-only, the retained buffers re-record unchanged). `invalidate()` is NOT
+    // required (the scene/producer tree is unchanged); the render side is marked
+    // dirty so the NEXT present re-records with the new view. Identity (the
+    // default) is the no-op. Pure decision surface; headless-observable via
+    // `view_transform()`.
+    void set_view_transform(const vaml::Matrix2D& view) noexcept;
+    // Reads back the currently composed view transform (identity by default).
+    [[nodiscard]] const vaml::Matrix2D& view_transform() const noexcept { return view_; }
     // Overrides the material authority seam (default_visual_of() by default). Real
     // control materials replace it in place at S400/S364 — never a core virtual.
     void set_visual_of(VisualOf visualOf);
@@ -261,6 +300,9 @@ private:
     bool dirty_ = false;
     // S213 — the derived framebuffer scale of the last record_draw (1.0 before any).
     float lastFramebufferScale_ = 1.0f;
+    // S224 — the rendered-view VIEW TRANSFORM (pan/zoom) composed into the S213
+    // render plan mvp at record. Identity by default (no view transform).
+    vaml::Matrix2D view_{};
 
     // The live composition state (null in the headless create() path).
     std::unique_ptr<vaml::vulkan::ui::SceneRenderer> sceneRenderer_;

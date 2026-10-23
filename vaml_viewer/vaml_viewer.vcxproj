@@ -113,6 +113,8 @@
     <ClInclude Include="drop_reopen.h" />
     <ClInclude Include="file_watch.h" />
     <ClInclude Include="live_reload.h" />
+    <ClInclude Include="cli.h" />
+    <ClInclude Include="view_transform.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

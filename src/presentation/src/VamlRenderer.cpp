@@ -17,9 +17,63 @@
 #include <vaml/vulkan/CommandBuffer.h>      // describe_command_buffer_begin, build_render_pass_begin
 #include <vaml/vulkan/ui/MarshalledScene.h> // has_newer / consume_latest
 
+#include <array>
 #include <utility>
 
 namespace vaml::presentation {
+
+// ---------------------------------------------------------------------------
+// Pure decision seams + the CPU core
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Lifts the S208 2D-affine Matrix2D (layout px) into a 4x4 COLUMN-MAJOR matrix
+// (the ui::Mat4 std::array<float,16> the render plan mvp uses). The 2x3 affine
+//   | m11 m12  0  dx |
+//   | m21 m22  0  dy |
+//   |  0   0   1  0  |
+//   |  0   0   0  1  |
+// maps the column vector (x,y,0,1); the w column is identity.
+vaml::vulkan::ui::Mat4 lift_affine_to_mat4(const vaml::Matrix2D& m) noexcept
+{
+    vaml::vulkan::ui::Mat4 out{};
+    out[0]  = m.m11; out[1] = m.m21; out[2] = 0.0f; out[3] = 0.0f;   // col 0
+    out[4]  = m.m12; out[5] = m.m22; out[6] = 0.0f; out[7] = 0.0f;   // col 1
+    out[8]  = 0.0f;  out[9] = 0.0f;  out[10]= 1.0f; out[11]= 0.0f;   // col 2
+    out[12] = m.dx;  out[13] = m.dy; out[14] = 0.0f; out[15]= 1.0f;  // col 3 (translation + w)
+    return out;
+}
+
+// Column-major 4x4 product  C = A·B  (the ui::Mat4 convention: element [r + 4*c]).
+vaml::vulkan::ui::Mat4 mat4_mul(const vaml::vulkan::ui::Mat4& a,
+                                const vaml::vulkan::ui::Mat4& b) noexcept
+{
+    vaml::vulkan::ui::Mat4 c{};
+    for (std::size_t cIdx = 0; cIdx < 4; ++cIdx)
+    {
+        for (std::size_t r = 0; r < 4; ++r)
+        {
+            float sum = 0.0f;
+            for (std::size_t k = 0; k < 4; ++k)
+                sum += a[r + 4 * k] * b[k + 4 * cIdx];
+            c[r + 4 * cIdx] = sum;
+        }
+    }
+    return c;
+}
+
+} // namespace
+
+void compose_view_into_render_plan(const vaml::Matrix2D& view, dpi::RenderPlan& plan) noexcept
+{
+    // mvp' = To4x4(view) · mvp — the S224 rendered-view pan/zoom folded into the
+    // S213 logical-canvas projection. The S213 uiScale (the DERIVED physical/
+    // logical DPI scale) is LEFT UNTOUCHED, preserving the crisp invariant + the
+    // S208 clip-scissor alignment. An identity view is the no-op (To4x4(identity)
+    // · mvp == mvp).
+    plan.mvp = mat4_mul(lift_affine_to_mat4(view), plan.mvp);
+}
 
 // ---------------------------------------------------------------------------
 // Pure decision seams + the CPU core
@@ -148,6 +202,17 @@ void VamlRenderer::set_frame_size(float width, float height) noexcept
     frameH_ = height;
 }
 
+void VamlRenderer::set_view_transform(const vaml::Matrix2D& view) noexcept
+{
+    view_ = view;
+    // The scene/producer tree is UNCHANGED (no re-encode — the retained buffers
+    // are untouched). The view composes into the S213 plan mvp at the NEXT
+    // record_draw (see record_draw below), so a present re-records the retained
+    // scene with the new view mvp. The viewer's change-driven loop ticks with
+    // invalidated=true every iteration, so the next present picks this up — no
+    // invalidate()/re-encode required.
+}
+
 void VamlRenderer::set_visual_of(VisualOf visualOf)
 {
     visualOf_ = std::move(visualOf);
@@ -243,7 +308,14 @@ bool VamlRenderer::record_draw(vaml::presentation::Presenter& self,
     // no-arg `record(cmd)` (which used extent/uiScale 1, ignoring the DPI gap).
     const dpi::RenderPlan plan = dpi::dpi_render_plan(
         extent.width, extent.height, frameW_, frameH_);
-    const bool recorded = sceneRenderer_->record(cmd, plan.mvp, plan.uiScale);
+    // S224 — RENDERED-VIEW PAN & ZOOM: compose the viewer-level view transform
+    // (the S208 Matrix2D set via set_view_transform) into the S213 render-plan mvp
+    // so the WHOLE retained scene pans/zooms together at the MVP level. The S213
+    // uiScale (the derived DPI scale) is untouched — the DPI crisp invariant + the
+    // S208 clip-scissor alignment hold under any view mvp.
+    dpi::RenderPlan viewPlan = plan;
+    compose_view_into_render_plan(view_, viewPlan);
+    const bool recorded = sceneRenderer_->record(cmd, viewPlan.mvp, viewPlan.uiScale);
     lastFramebufferScale_ = plan.uiScale;   // S213 observability + the S213_1 dpiScale input
     if (recorded)
         sceneRenderer_->recycle(VK_NULL_HANDLE);

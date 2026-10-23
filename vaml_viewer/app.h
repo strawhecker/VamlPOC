@@ -46,6 +46,7 @@
 
 #include "load_file.h"    // vaml::LoadResult (the S221 seam; owns the borrowed tree)
 #include "live_reload.h"  // vaml::viewer::LiveReload (S222_1 — the file-watch reload coordinator)
+#include "view_transform.h"  // S224: vaml::viewer::ViewState + the pan/zoom seams (pure)
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -194,6 +195,22 @@ public:
     // Headless-observable state (for the test + the CLI summary).
     [[nodiscard]] bool created() const noexcept { return renderer_ != nullptr; }
     [[nodiscard]] const vaml::presentation::VamlRenderer* renderer() const noexcept { return renderer_.get(); }
+    // S224 — the RENDERED-VIEW PAN & ZOOM seam (the rendered VIEW, not editor chrome):
+    // the viewer keeps the S224 ViewState (pan/zoom/live) + a small number of input
+    // hooks the app's window callbacks call. They fold the S224 math into the S208
+    // Matrix2D and push it into the S213 render surface via renderer_->set_view_transform.
+    // Headless-observable so the pan/zoom model is testable WITHOUT a window/runtime.
+    [[nodiscard]] const ViewState& view_state() const noexcept { return view_; }
+    // Mouse button hook (S160 dispatch_mouse_button → routed into the window's
+    // callbacks); (x, y) is the button event position in logical viewport px.
+    // Button == GLFW_MOUSE_BUTTON_LEFT; down=true begins a drag (arming pan),
+    // down=false ends it. The chain is: button-down captures the drag origin +
+    // arming; mouse-move with button held pans; the wheel zooms about the cursor.
+    void on_mouse_button_drag(double x, double y, bool buttonLeftDown);
+    // Mouse move (S160 dispatch_mouse_move): pans when a left-button drag is armed.
+    void on_mouse_drag(double x, double y);
+    // Scroll wheel (S160 dispatch_scroll): zooms about the current cursor (x, y).
+    void on_scroll_zoom(double x, double y, double yoffset);
 
 private:
     ViewerApp();
@@ -249,12 +266,28 @@ private:
     std::optional<std::string> pendingDrop_;
     bool pendingDropApplied_ = false;
 
+    // S224 — the RENDERED-VIEW PAN & ZOOM state (rendered view, not editor chrome).
+    // The VIEW MODEL + input bookkeeping. All single-threaded on the UI thread
+    // (ADR-018 — the pan/zoom hooks fire inside poll_events() / the loop; no locks).
+    ViewState view_;                 // the live pan/zoom parameters (pure seam)
+    bool dragArmed_ = false;         // a left-button drag is in progress (pans on move)
+    double dragLastX_ = 0.0;         // the last mouse x (logical px) during a drag
+    double dragLastY_ = 0.0;         // the last mouse y (logical px) during a drag
+    double cursorX_ = 0.0;           // the last reported cursor x (logical px)
+    double cursorY_ = 0.0;           // the last reported cursor y (logical px)
+
     // S222_1: applies a freshly Loaded tree to the retained renderer — the whole S5
     // path re-runs with ZERO imperative tree-building: adopt the new root (the object
     // does not move, so the UIElement pointer stays valid), set_root + set_frame_size,
     // then invalidate() to arrange + encode + publish (the exact S222 producer path,
     // re-invoked — NOT hand-built). Returns false if the new root is not a UIElement.
     bool apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot);
+
+    // S224 — pushes the current ViewState (as the S208 Matrix2D) into the S213
+    // render surface (renderer_->set_view_transform). Called by the pan/zoom input
+    // hooks after folding a delta/zoom. The host's record_draw composes it into the
+    // plan mvp next present — redraw-only, no re-encode.
+    void push_view_transform();
 };
 
 } // namespace vaml::viewer

@@ -26,9 +26,11 @@
 // never reaches into a library's private implementation.
 
 #include "load_file.h"
-#include "app.h"   // the S222 shared viewer render host
+#include "app.h"      // the S222 shared viewer render host
+#include "cli.h"      // S224: cli_action / cli_usage (the PURE --help entry seam)
 
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>   // std::move
@@ -43,19 +45,36 @@ int render_init_failed(const std::string& path)
     return 4;
 }
 
-int usage()
+// S224 — the usage exit-code contract: --help/-h prints cli_usage() to STDOUT and
+// returns 0; the no-arg case prints a terse note + the usage to STDERR and returns 2.
+int usage_noarg()
 {
-    std::fprintf(stderr, "usage: vaml_viewer <file.vaml>\n");
+    std::fprintf(stderr, "%s\n", vaml::viewer::cli_usage());
     return 2;
+}
+
+int help_stdout()
+{
+    std::printf("%s", vaml::viewer::cli_usage());
+    return 0;
 }
 
 } // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc < 2)
+    // S224 — the --help / no-arg CLI gate (the PURE seam, headless-testable). Help
+    // wins over a positional whenever --help/-h appears; a missing argument -> the
+    // usage on STDERR + exit 2 (the S221 never-silent contract).
+    switch (vaml::viewer::cli_action(argc, argv))
     {
-        return usage();
+    case vaml::viewer::CliAction::Help:
+        return help_stdout();
+    case vaml::viewer::CliAction::NoArg:
+        return usage_noarg();
+    case vaml::viewer::CliAction::Run:
+    default:
+        break;   // fall through to the launch below
     }
 
     const std::string path = argv[1];
@@ -85,7 +104,8 @@ int main(int argc, char** argv)
     // ViewerApp builds the window + Vulkan stack + VamlRenderer::create_device
     // and adopts the loaded tree. On ANY build failure -> exit 4 (never silent).
     vaml::viewer::ViewerAppConfig config;
-    config.title    = "VAML Viewer - " + path;
+    // S224 — title = the loaded FILENAME (basename), the "title = loaded filename" polish.
+    config.title    = "VAML Viewer - " + vaml::viewer::loaded_filename(path);
     config.filePath = path;   // S222_1: arm the file-watch live reload on the opened .vaml
     auto app = vaml::viewer::ViewerApp::create(config, std::move(result));
     if (!app)

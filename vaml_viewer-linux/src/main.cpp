@@ -20,8 +20,10 @@
 
 #include "load_file.h"
 #include "app.h"
+#include "cli.h"   // S224: cli_action / cli_usage (the PURE --help entry seam)
 
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <utility>   // std::move
 
@@ -34,19 +36,34 @@ int render_init_failed(const std::string& path)
     return 4;
 }
 
-int usage()
+// S224 — the usage exit-code contract (mirrors Windows): --help/-h -> stdout, 0;
+// no-arg -> stderr, 2.
+int usage_noarg()
 {
-    std::fprintf(stderr, "usage: vaml_viewer <file.vaml>\n");
+    std::fprintf(stderr, "%s\n", vaml::viewer::cli_usage());
     return 2;
+}
+
+int help_stdout()
+{
+    std::printf("%s", vaml::viewer::cli_usage());
+    return 0;
 }
 
 } // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc < 2)
+    // S224 — the --help / no-arg CLI gate (the PURE seam, headless-testable).
+    switch (vaml::viewer::cli_action(argc, argv))
     {
-        return usage();
+    case vaml::viewer::CliAction::Help:
+        return help_stdout();
+    case vaml::viewer::CliAction::NoArg:
+        return usage_noarg();
+    case vaml::viewer::CliAction::Run:
+    default:
+        break;   // fall through to the launch below
     }
 
     const std::string path = argv[1];
@@ -71,7 +88,8 @@ int main(int argc, char** argv)
     }
 
     vaml::viewer::ViewerAppConfig config;
-    config.title    = "VAML Viewer - " + path;
+    // S224 — title = the loaded FILENAME (basename), the "title = loaded filename" polish.
+    config.title    = "VAML Viewer - " + vaml::viewer::loaded_filename(path);
     config.filePath = path;   // S222_1: arm the file-watch live reload on the opened .vaml
     auto app = vaml::viewer::ViewerApp::create(config, std::move(result));
     if (!app)

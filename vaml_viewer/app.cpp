@@ -18,6 +18,7 @@
 #include <vaml/vulkan/ui/SceneRenderer.h>   // ui::SceneRenderer alias (S210)
 
 #include <chrono>
+#include <cmath>       // S224: std::exp (the wheel->zoom factor)
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -143,6 +144,25 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
                     app->pendingDrop_ = std::move(*chosen);
                     app->pendingDropApplied_ = false;
                 }
+            };
+        // S224 — RENDERED-VIEW PAN & ZOOM: route the S160 mouse hooks into the
+        // viewer's ViewState (the rendered VIEW, not editor chrome). mouse-move
+        // pans when the left button is held (a drag); mouse-button arms/disarms the
+        // drag (only the LEFT button pans); scroll zooms about the cursor. All
+        // single-threaded on the UI thread (ADR-018 — inside poll_events()).
+        winCallbacks.on_mouse_button =
+            [app = app.get()](int button, int action, int /*mods*/) {
+                // GLFW_MOUSE_BUTTON_LEFT == 0; GLFW_PRESS == 1, GLFW_RELEASE == 0.
+                if (button == 0)
+                    app->on_mouse_button_drag(app->cursorX_, app->cursorY_, action == 1);
+            };
+        winCallbacks.on_mouse_move =
+            [app = app.get()](double x, double y) {
+                app->on_mouse_drag(x, y);
+            };
+        winCallbacks.on_scroll =
+            [app = app.get()](double /*xoffset*/, double yoffset) {
+                app->on_scroll_zoom(app->cursorX_, app->cursorY_, yoffset);
             };
 
         app->window_ = vaml::vulkan::PlatformWindow::create(
@@ -405,6 +425,62 @@ bool ViewerApp::apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot)
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// S224 — RENDERED-VIEW PAN & ZOOM input hooks (the rendered VIEW, not editor chrome)
+// ---------------------------------------------------------------------------
+
+void ViewerApp::on_mouse_button_drag(double x, double y, bool buttonLeftDown)
+{
+    cursorX_ = x;
+    cursorY_ = y;
+    // A left-button DOWN arms the drag (pan on subsequent move); a left-button UP
+    // (or any other button) disarms it. Pan is continuous (nothing latches beyond
+    // the drag), so a re-armed drag starts from the CURRENT cursor each time.
+    dragArmed_ = buttonLeftDown;
+    dragLastX_ = x;
+    dragLastY_ = y;
+}
+
+void ViewerApp::on_mouse_drag(double x, double y)
+{
+    cursorX_ = x;
+    cursorY_ = y;
+    if (!dragArmed_)
+        return;
+    // PAN (drag): accumulate the cursor delta (logical px) into the view. +Y is
+    // DOWN (screen space, matching the S123/S124 top-left layout). The pan is
+    // continuous across moves — each move folds (dx, dy) onto the accumulated view.
+    const double dx = x - dragLastX_;
+    const double dy = y - dragLastY_;
+    dragLastX_ = x;
+    dragLastY_ = y;
+    apply_pan(view_, dx, dy);
+    push_view_transform();
+}
+
+void ViewerApp::on_scroll_zoom(double x, double y, double yoffset)
+{
+    cursorX_ = x;
+    cursorY_ = y;
+    // ZOOM (wheel): zoom about the CURSOR so the content under the pointer stays
+    // put (anchor-preserving, clamped [kMinZoom, kMaxZoom]). The wheel delta is a
+    // small signed step; a gentle exponential maps a line to a bounded factor so
+    // a single notch (typically ±1) does not teleport the zoom.
+    const double factor = std::exp(yoffset * 0.15);
+    zoom_about(view_, x, y, factor);
+    push_view_transform();
+}
+
+void ViewerApp::push_view_transform()
+{
+    if (!renderer_)
+        return;   // headless create() path — nothing to push (state is still observed)
+    // Fold the S224 ViewState into the S208 Matrix2D and hand it to the S213
+    // render surface (composed into the plan mvp at the next present). Redraw-only,
+    // NOT a re-encode (the scene content is unchanged).
+    renderer_->set_view_transform(to_matrix(view_));
+}
+
 int ViewerApp::run_loop()
 {
     if (!renderer_ || !window_)
@@ -434,8 +510,34 @@ int ViewerApp::run_loop()
 #endif
     const auto loopStart = std::chrono::steady_clock::now();
 
-    // The change-driven loop: poll the window events, then tick the host. The
-    // first frame is invalidated (the initial arrange+encode+publish).
+    // S224 — the deterministic LIVE rendered-view pan/zoom exercise for the local
+    // gate: when VAML_VIEWER_VIEW_DEMO_MS is set, the run_loop programmatically
+    // pans + zooms the rendered view (the S208 Matrix2D fold through the viewer's
+    // ViewState -> renderer_->set_view_transform) so the composed view mvp path is
+    // exercised on a REAL driver, not just the headless ctest math. It requests
+    // a pan + a zoom about a cursor, then keeps the view for the demo duration
+    // (auto-close teardown still runs after, exit 0). Deterministic + scriptable.
+    std::uint64_t viewDemoMs = 0;
+    {
+        const char* viewDemoE = nullptr;
+#if defined(_MSC_VER)
+        char* viewEnvBuf = nullptr;
+        std::size_t viewEnvLen = 0;
+        if (_dupenv_s(&viewEnvBuf, &viewEnvLen, "VAML_VIEWER_VIEW_DEMO_MS") == 0 && viewEnvBuf)
+            viewDemoE = viewEnvBuf;
+#else
+        viewDemoE = std::getenv("VAML_VIEWER_VIEW_DEMO_MS");
+#endif
+        if (viewDemoE)
+            viewDemoMs = static_cast<std::uint64_t>(std::strtoull(viewDemoE, nullptr, 10));
+#if defined(_MSC_VER)
+        if (viewEnvBuf)
+            std::free(viewEnvBuf);
+#endif
+    }
+    bool viewDemoApplied = false;
+    const auto viewDemoStart = std::chrono::steady_clock::now();
+
     // The change-driven loop: poll the window events, then tick the host. The
     // first frame is invalidated (the initial arrange+encode+publish).
     // lastResizeW/H track the last size forwarded to request_resize so a resize
@@ -499,6 +601,20 @@ int ViewerApp::run_loop()
                 std::fprintf(stderr, "vaml_viewer: dropped '%s' failed to load: %s (keeping the last-good tree)\n",
                              path.c_str(), dropped.detail.c_str());
             }
+        }
+
+        // S224 — the LIVE rendered-view pan/zoom exercise: apply the programmatic
+        // view once (early in the loop) so the composed view mvp path is proven on
+        // a real driver. Drag (pan) via apply_pan on the state, zoom via
+        // zoom_about about the window center, then push the fold into the host.
+        if (viewDemoMs > 0u && !viewDemoApplied &&
+            viewer_deadline_elapsed(viewDemoStart, 1u))
+        {
+            viewDemoApplied = true;
+            apply_pan(view_, 60.0, 40.0);                        // pan down-right
+            zoom_about(view_, static_cast<double>(cfg_.width) / 2.0,
+                       static_cast<double>(cfg_.height) / 2.0, 1.5);   // zoom about center
+            push_view_transform();                               // -> set_view_transform
         }
 
         // The deadline (VAML_VIEWER_AUTO_CLOSE_MS): once elapsed, close the window.

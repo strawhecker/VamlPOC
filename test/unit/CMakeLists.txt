@@ -93,6 +93,13 @@ add_executable(vaml-core-tests
     # vaml_viewer include path, ADR-021 single source of truth). The reopen
     # HANDLER is the S222_1 apply_reload machinery (golden in LiveReload_test).
     ViewerDropPlan_test.cpp
+    # S224 (dep:S223) — the viewer CLI `--help` ENTRY seam (vaml_viewer/cli.h,
+    # the PURE cli_action/cli_usage decision layer) + the RENDERED-VIEW PAN & ZOOM
+    # view model (vaml_viewer/view_transform.h, the PURE ViewState seams folding
+    # the S208 Matrix2D). Both header-only, compiled from the vaml_viewer include
+    # path (ADR-021 single source of truth) — headless, no window/runtime.
+    ViewerCli_test.cpp
+    ViewerViewState_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
@@ -248,6 +255,12 @@ add_executable(vaml-presentation-tests
     ViewerReloadPlan_test.cpp
     ../../vaml_viewer/file_watch.cpp
     ../../vaml_viewer/live_reload.cpp
+    # S224 (dep:S223) — the RENDERED-VIEW PAN & ZOOM at the LIBRARY surface: the
+    # pure `compose_view_into_render_plan` seam (S208 Matrix2D -> S213 RenderPlan
+    # mvp, DPI uiScale untouched) + the host's set_view_transform/view_transform
+    # (headless-observable via the S212 create() path). Links vaml-presentation,
+    # so the S208 transform compose into the S213 render-plan surface is proven.
+    ViewerPanZoom_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
