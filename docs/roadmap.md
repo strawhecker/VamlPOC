@@ -731,8 +731,54 @@
       logical_size × dpiScale), sprite may be smaller than its slot; "down-only" may sample a larger set
       down to exactly N_physical, never up; "both" permits either way (blur possible). Per (IconKey,
       logical size) computed once at runtime against framebufferScale, then cached.
-- S214 dep:S213  REFACTOR GATE(S5): retained UI renders via Vulkan; no stubs; no validation errors.
-- S215 dep:S214  SURVIVOR + checkpoint advance to S240.
+- S214 dep:S213_1  [DONE — REFACTOR GATE(S5), docs-only (no code change required; both CI lanes + the
+      real-WSI lane + ASan verified from first principles this session)]. MOD docs/roadmap.md + progress.md
+      + session-context.md (no commits; no NEW md files). GATE MET (per the S008/S048/S096/S138/S171
+      precedent), the five title obligations verified END-TO-END:
+      (1) "retained UI renders via Vulkan" — BOTH CI lanes green FROM FIRST PRINCIPLES (not assumed from
+      S213_1), confirming the retained path (S210 record-without-reencode + S211 marshalled consume + S212
+      VamlRenderer::create_device DrawBody wired internally) is REAL + fully green: windows-msvc
+      (build/verify_s213_1.cmd, msvc-debug configure + build warning-as-error CLEAN + ctest 3/3 PASS incl.
+      MarshalledScene/SceneRenderer/VamlRenderer_vertical + both POCs build clean) + ubuntu-clang
+      (/mnt/hgfs/VamlPOC clang-debug on the Ubuntu 26.04 VM: configure + build warnings==0 + ctest 3/3
+      PASS). The HEADLESS proof (VamlRenderer_vertical_test + SceneRenderer_test green) + the device-only
+      [s212-live]/[s210-live]/[s211-live] live proofs (already green) confirm the retained UI renders via
+      Vulkan. The presented WINDOW FRAME remains RAIL 3 (display-backed manual) — recorded, not silent.
+      (2) "no stubs" — grep-audit (recorded) across src/vulkan, src/presentation, src/core/src: NO
+      STUB/TODO/FIXME/XXX/HACK/placeholder/backfill scaffold markers; the only sanctioned commentary is
+      the affirmative "NOT a STUB / NOT MINIMAL REAL / NOT a backfill" statements + the forward-resolvable
+      MINIMAL REAL seeds. Every MINIMAL REAL sentinel INTACT + forward-resolvable (verified by direct
+      read): tools→S287; built-in element seeds (Button→S401, Text→S400, TextBox→S402, CheckBox→S404,
+      Slider→S403, ScrollViewer→S405, Window→S440); VamlReader event hooks→S322. Resolved marks confirmed
+      RESOLVED (vulkan→S161; StackPanel/Grid/WrapPanel/Canvas→S129/S131/S134/S136; transform-owner→S208;
+      layout-slot→S122 — no stale sentinel remains).
+      (3) "no validation errors" — the RAIL 2 real-WSI gate `build/verify_s177_wsiresize.cmd` RE-RUN on
+      this box (real NVIDIA RTX A5000 Laptop GPU): a real hidden-window RESIZE STORM + minimize/restore +
+      resize-during-flight with VALIDATION LAYERS ENABLED + a VK_EXT_debug_utils messenger flagging ANY
+      validation error = FAIL; SCRIPT_EXIT=0 = PASS (clean steady state, ZERO validation errors).
+      (4) dead-surface audit — every S200–S213_1 public surface consumed downstream or by a POC (quad→
+      QuadScene/atlas/icon; UI shaders→UiScene/UiPipeline; SceneRenderer+postbox→VamlRenderer; the S120
+      transform-owner/layout-slot sentinels resolved and removed) — nothing orphaned.
+      (5) ASan — `build/verify_s170_asan.cmd` RE-RUN (both lanes): windows-msvc msvc-asan runs the FULL
+      suite asserting ZERO ASan memory errors + ubuntu-clang clang-asan ASan+LSan asserts ZERO LEAKS — no
+      regressions from the S5/6 additions. Sprint 5/6 retained-UI renderer is clean + green + validated.
+      ADR-018: ZERO new locks introduced across Sprint 5/6 (S200–S213_1 verified at this gate). No
+      MINIMAL REAL introduced/resolved at this gate.
+- S215 dep:S214  [DONE — SURVIVOR + checkpoint advance to S220, docs-only wrap (no build — both lanes already
+      green from the S214 gate + ASan)]. MOD progress.md (SPRINT 5/6 SURVIVOR consolidated + SURVIVOR
+      block updated through S214 + checkpoint regenerated: last completed = S215, next = S220, PENDING
+      none + GUARD RAILS MINIMAL REAL carried forward unchanged) + MOD docs/roadmap.md (this S215 line
+      [DONE]) + session-context.md. DECISION (driver-confirmed at plan time): the checkpoint advances to
+      S220 (Sprint 5a vaml_viewer first token) — NOT the literal "S240" of the original title. Rationale:
+      S220 dep:S215 and S240 dep:S226 make the roadmap's DEPENDENCY ORDERING authoritative (Sprint 5a must
+      run before Sprint 6's first token, and Sprint 6's tokens depend on Sprint 5a completion), so a
+      checkpoint jump to S240 would skip the entire viewer sprint (the permanent visual-feedback vehicle)
+      and break the gapless step list. Advancing to S220 matches every prior wrap precedent (S009→S030,
+      S049→S080, S097→S120, S139→S140, S147→S160, S172→S200, S179→S200/S209...S215→S220). "S240" in the
+      title names the end of Sprint 6 (its eventual survivor), not the checkpoint value. NO-GAP satisfied:
+      nothing deferred to a silent backfill; S214's gate fully verified; all Sprint 5/6 features
+      (S200..S213_1) real + green on both CI lanes + ASan zero-leak + real-WSI zero-validation-errors.
+      No MINIMAL REAL introduced/resolved at S215; carry-forward unchanged.
 
 ---
 ## Sprint 5a — vaml_viewer (standalone consumer app: `.vaml` file → window)  (goal: one official app that renders a `.vaml` file soup-to-nuts)  [token S220+]
