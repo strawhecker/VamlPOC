@@ -309,6 +309,37 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
         // NO-GAP soy-to-nuts step ONLY a live render can prove.
         app->renderer_->invalidate();
 
+        // ---- S222_1: arm the OPTIONAL file-watch live reload ----
+        // When config.filePath is non-empty, the host re-renders the declared tree
+        // on a file mtime change. The reload re-runs the whole S5 path (re-adopt ->
+        // set_root -> set_frame_size -> invalidate -> retained record/present) with
+        // ZERO imperative tree-building. On a load failure the app KEEPS the
+        // last-good tree + reports to stderr (never silent). S222 behavior is
+        // unchanged when filePath is empty (no watcher is built).
+        if (!config.filePath.empty())
+        {
+            app->reloader_ = std::make_unique<vaml::viewer::LiveReload>(config.filePath);
+            app->reloader_->on_reloaded(
+                [app = app.get()](std::unique_ptr<vaml::DependencyObject> newRoot) {
+                    if (!app->apply_reload(std::move(newRoot)))
+                    {
+                        std::fprintf(stderr,
+                                     "vaml_viewer: reload produced a non-UIElement root; keeping the last-good tree\n");
+                    }
+                });
+            app->reloader_->on_reload_error(
+                [path = config.filePath](const std::string& detail) {
+                    std::fprintf(stderr, "vaml_viewer: reload error for '%s': %s (keeping the last-good tree)\n",
+                                 path.c_str(), detail.c_str());
+                });
+            app->reloader_->on_file_disappeared(
+                [path = config.filePath]() {
+                    std::fprintf(stderr, "vaml_viewer: '%s' disappeared; keeping the last-good tree rendering\n",
+                                 path.c_str());
+                });
+            app->reloader_->begin();
+        }
+
         // The loader member is owned for the app's lifetime (declared FIRST,
         // destroyed LAST — it outlives the renderer + every borrowed handle).
         return app;
@@ -317,6 +348,31 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
     {
         return nullptr;   // any throw (e.g. loader not found) -> no-throw create
     }
+}
+
+bool ViewerApp::apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot)
+{
+    if (!newRoot)
+        return false;
+    auto* uiRoot = dynamic_cast<vaml::UIElement*>(newRoot.get());
+    if (!uiRoot)
+        return false;   // not a UIElement -> cannot render; the app keeps the last-good tree
+
+    // ADOPT the new tree (unique_ptr move preserves the object, so `uiRoot` stays
+    // valid — the object does not move). The host BORROWS the root; rooting it here
+    // keeps it alive for the app's lifetime, and the OLD tree is released below.
+    root_ = std::move(newRoot);
+
+    if (!renderer_)
+        return true;   // no host (headless create() path) — the adoption is enough
+    if (!renderer_->set_root(uiRoot))
+        return false;
+    renderer_->set_frame_size(static_cast<float>(cfg_.width), static_cast<float>(cfg_.height));
+    // The whole S5 path re-runs: arrange + encode + publish (the S222 producer path,
+    // re-invoked — NOT hand-built). The retained renderer records + presents the
+    // re-declared tree; the swapchain/presenter/device are NOT recreated.
+    (void)renderer_->invalidate();
+    return true;
 }
 
 int ViewerApp::run_loop()
@@ -377,6 +433,15 @@ int ViewerApp::run_loop()
         // The change-driven gate: render (the first frame is always a change;
         // subsequent frames tick for the retained re-render + consume-ahead).
         (void)tick_host(*renderer_, /*invalidated=*/true, /*tickDue=*/true);
+
+        // S222_1: poll the file-watch live reload (only when armed — config.filePath
+        // was non-empty). A Changed/Appeared event re-runs the whole S5 path
+        // (apply_reload -> set_root -> set_frame_size -> invalidate); the retained
+        // renderer records + presents the re-declared tree. A load failure keeps
+        // the last-good tree + reports to stderr (never silent). Idle polls are the
+        // KeepLast no-op. No new locks (ADR-018): single-threaded, UI thread.
+        if (reloader_)
+            (void)reloader_->check();
 
         // The deadline (VAML_VIEWER_AUTO_CLOSE_MS): once elapsed, close the window.
         if (autoClose && viewer_deadline_elapsed(loopStart, deadlineMs))

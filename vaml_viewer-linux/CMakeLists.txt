@@ -61,6 +61,8 @@ add_executable(vaml-viewer-linux
     src/main.cpp
     ../vaml_viewer/load_file.cpp   # S221: the shared HEADLESS-ctestable file->tree seam (single source of truth)
     ../vaml_viewer/app.cpp         # S222: the shared "soup-to-nuts" render host (single source of truth)
+    ../vaml_viewer/file_watch.cpp  # S222_1: the shared file-watch mtime-poll + notify seam
+    ../vaml_viewer/live_reload.cpp # S222_1: the shared live-reload coordinator
 )
 
 target_include_directories(vaml-viewer-linux PRIVATE

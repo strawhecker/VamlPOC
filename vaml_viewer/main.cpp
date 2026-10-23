@@ -85,6 +85,8 @@ int main(int argc, char** argv)
     // ViewerApp builds the window + Vulkan stack + VamlRenderer::create_device
     // and adopts the loaded tree. On ANY build failure -> exit 4 (never silent).
     vaml::viewer::ViewerAppConfig config;
+    config.title    = "VAML Viewer - " + path;
+    config.filePath = path;   // S222_1: arm the file-watch live reload on the opened .vaml
     auto app = vaml::viewer::ViewerApp::create(config, std::move(result));
     if (!app)
         return render_init_failed(path);

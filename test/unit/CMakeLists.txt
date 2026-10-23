@@ -77,6 +77,16 @@ add_executable(vaml-core-tests
     # a real temp-file I/O case through load_file.
     ViewerLoadFile_test.cpp
     ../../vaml_viewer/load_file.cpp
+    # S222_1 (dep:S222) — file-watch LIVE RELOAD headless suites. Compiles the ACTUAL
+    # seam sources (vaml_viewer/file_watch.cpp + vaml_viewer/live_reload.cpp) into the
+    # test target so the golden-fixture tests exercise the exact code both apps run
+    # (single source of truth, ADR-021 consumer). FileWatch_test proves the pure
+    # decision table + the real-file lifecycle; LiveReload_test is the GOLDEN proof
+    # (edit → reload → same tree) + the reload_action table.
+    FileWatch_test.cpp
+    LiveReload_test.cpp
+    ../../vaml_viewer/file_watch.cpp
+    ../../vaml_viewer/live_reload.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.
@@ -223,6 +233,15 @@ add_executable(vaml-presentation-tests
     # [both apps, not CI] — the DISPLAY proof, verified live on this box.
     ViewerRenderPlan_test.cpp
     ../../vaml_viewer/app.cpp
+    ../../vaml_viewer/load_file.cpp  # S221 seam (live_reload.cpp below calls vaml::load_file)
+    # S222_1 (dep:S222) — the viewer LIVE-RELOAD plan seam + the reload coordinator
+    # sources. Compiles the ACTUAL shared host sources (app.cpp + the file-watch +
+    # live-reload seams) into the presentation test target so the headless suite
+    # exercises the exact code both apps run (ADR-021, single source of truth).
+    # The goldens (edit → reload → same tree) live in vaml-core-tests.
+    ViewerReloadPlan_test.cpp
+    ../../vaml_viewer/file_watch.cpp
+    ../../vaml_viewer/live_reload.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)

@@ -44,7 +44,8 @@
 
 #pragma once
 
-#include "load_file.h"   // vaml::LoadResult (the S221 seam; owns the borrowed tree)
+#include "load_file.h"    // vaml::LoadResult (the S221 seam; owns the borrowed tree)
+#include "live_reload.h"  // vaml::viewer::LiveReload (S222_1 — the file-watch reload coordinator)
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -144,6 +145,11 @@ struct ViewerAppConfig
     std::string title  = "VAML Viewer";
     std::uint32_t width  = 900;   // logical layout px (set_frame_size)
     std::uint32_t height = 600;
+    // S222_1 (file-watch live reload): when NON-EMPTY, the host arms a LiveReload
+    // on this file path and re-renders the declared tree on a change (the whole S5
+    // path re-runs with ZERO imperative tree-building). When EMPTY (the default) the
+    // host behaves exactly as S222 (no watcher, no behavior change).
+    std::string filePath;
 };
 
 // The REAL owner: builds the whole Vulkan stack + the VamlRenderer behind one
@@ -217,7 +223,19 @@ private:
     // The HOST (declared last => destroyed FIRST). Borrows every live handle above.
     std::unique_ptr<vaml::presentation::VamlRenderer> renderer_;
 
+    // S222_1: the OPTIONAL file-watch reloader (built ONLY when config.filePath is
+    // non-empty). Declared after renderer_ so it is destroyed before the host that
+    // borrows the tree it re-adopts. The reloaded tree is handed to apply_reload_.
+    std::unique_ptr<vaml::viewer::LiveReload> reloader_;
+
     ViewerAppConfig cfg_;
+
+    // S222_1: applies a freshly Loaded tree to the retained renderer — the whole S5
+    // path re-runs with ZERO imperative tree-building: adopt the new root (the object
+    // does not move, so the UIElement pointer stays valid), set_root + set_frame_size,
+    // then invalidate() to arrange + encode + publish (the exact S222 producer path,
+    // re-invoked — NOT hand-built). Returns false if the new root is not a UIElement.
+    bool apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot);
 };
 
 } // namespace vaml::viewer
