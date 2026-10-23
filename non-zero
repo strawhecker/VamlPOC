@@ -1,1 +1,1 @@
-=== CLI live proof: malformed .vaml - exit 3, stderr, never silent ===
+=== CLI live proof: missing file - exit 1, stderr (never silent) ===

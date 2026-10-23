@@ -110,6 +110,7 @@
   <ItemGroup>
     <ClInclude Include="load_file.h" />
     <ClInclude Include="app.h" />
+    <ClInclude Include="drop_reopen.h" />
     <ClInclude Include="file_watch.h" />
     <ClInclude Include="live_reload.h" />
   </ItemGroup>

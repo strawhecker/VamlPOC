@@ -20,6 +20,9 @@
 
 #include <GLFW/glfw3.h>  // GLFW_* constants referenced by the callback surface
 
+#include <string>
+#include <vector>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest/doctest.h"
 
@@ -34,6 +37,7 @@ TEST_CASE("S160 WindowCallbacks default-constructs empty (no-op safe)")
     CHECK(!cb.on_mouse_move);
     CHECK(!cb.on_mouse_button);
     CHECK(!cb.on_scroll);
+    CHECK(!cb.on_drop);
 }
 
 TEST_CASE("S160 dispatch seams are silent no-ops on empty hooks")
@@ -46,6 +50,8 @@ TEST_CASE("S160 dispatch seams are silent no-ops on empty hooks")
     dispatch_mouse_move(cb, 10.0, 20.0);
     dispatch_mouse_button(cb, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, 0);
     dispatch_scroll(cb, 1.0, 2.0);
+    // S223: an empty on_drop is a silent no-op — drops ignored until a hook is set.
+    dispatch_drop(cb, 1, nullptr);
 
     CHECK(true);  // reached without incident
 }
@@ -129,4 +135,83 @@ TEST_CASE("S160 dispatch seams fire only their own hook")
 
     CHECK(resizeFires == 1);
     CHECK(keyFires == 1);
+}
+
+// ===========================================================================
+// S223 (dep:S222_1) — drag-and-drop FILE-DROP callback surface.
+// The GLFW drop path (glfwSetDropCallback -> glfwDrop trampoline -> dispatch_drop)
+// covers BOTH Win32 + X11. Headless here: dispatch_drop is a pure free seam like
+// the S160 siblings — fed synthetic count/path payloads, never a live window.
+// ===========================================================================
+
+TEST_CASE("S223 dispatch_drop is a silent no-op on an empty hook / null payload")
+{
+    WindowCallbacks cb;  // empty on_drop
+    const char* p0 = "C:/a.vaml";
+    const char* paths[] = { p0 };
+
+    dispatch_drop(cb, 1, paths);   // empty hook -> silent no-op
+    dispatch_drop(cb, 0, paths);   // count 0 -> silent no-op
+    dispatch_drop(cb, 1, nullptr); // null path array -> silent no-op
+
+    CHECK(true);  // reached without incident
+}
+
+TEST_CASE("S223 dispatch_drop forwards exact count + paths (single-file drop)")
+{
+    WindowCallbacks cb;
+    int gotCount = -1;
+    std::vector<std::string> got;
+    cb.on_drop = [&](int count, const char* const* paths) {
+        gotCount = count;
+        got.clear();
+        for (int i = 0; i < count; ++i)
+            got.emplace_back(paths[i]);
+    };
+
+    const char* p0 = "C:/scenes/scene_one.vaml";
+    const char* paths[] = { p0 };
+    dispatch_drop(cb, 1, paths);
+
+    CHECK(gotCount == 1);
+    REQUIRE(got.size() == 1u);
+    CHECK(got[0] == std::string("C:/scenes/scene_one.vaml"));
+}
+
+TEST_CASE("S223 dispatch_drop forwards a MULTI-file drop intact")
+{
+    WindowCallbacks cb;
+    std::vector<std::string> got;
+    cb.on_drop = [&](int count, const char* const* paths) {
+        got.clear();
+        for (int i = 0; i < count; ++i)
+            got.emplace_back(paths[i]);
+    };
+
+    const char* p0 = "/home/robert/a.vaml";
+    const char* p1 = "/home/robert/b.vaml";
+    const char* p2 = "/mnt/hgfs/notes.txt";
+    const char* paths[] = { p0, p1, p2 };
+    dispatch_drop(cb, 3, paths);
+
+    REQUIRE(got.size() == 3u);
+    CHECK(got[0] == std::string("/home/robert/a.vaml"));
+    CHECK(got[1] == std::string("/home/robert/b.vaml"));
+    CHECK(got[2] == std::string("/mnt/hgfs/notes.txt"));
+}
+
+TEST_CASE("S223 dispatch_drop does not cross-fire other hooks")
+{
+    WindowCallbacks cb;
+    int resizeFires = 0, dropFires = 0;
+    cb.on_resize = [&](int, int) { ++resizeFires; };
+    cb.on_drop   = [&](int, const char* const*) { ++dropFires; };
+
+    const char* p0 = "drop.vaml";
+    const char* paths[] = { p0 };
+    dispatch_resize(cb, 10, 10);
+    dispatch_drop(cb, 1, paths);
+
+    CHECK(resizeFires == 1);
+    CHECK(dropFires == 1);
 }

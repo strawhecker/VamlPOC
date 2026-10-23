@@ -54,6 +54,13 @@ struct WindowCallbacks
 
     // Scroll wheel offset (horizontal/vertical).
     std::function<void(double xoffset, double yoffset)> on_scroll;
+
+    // FILE-DROP (S223): GLFW's drag-and-drop event — Windows Explorer / X11 file
+    // manager dropping one or more files onto the window. `count` absolute UTF-8
+    // paths follow (paths[0]..paths[count-1]); the viewer reopens the dropped
+    // `.vaml`. GLFW's single drop callback transparently covers BOTH backends
+    // (Win32 + X11), exactly like the resize/key/mouse/scroll hooks above.
+    std::function<void(int count, const char* const* paths)> on_drop;
 };
 
 // The S160 dispatch seams: pure function-style forwarders that invoke the
@@ -66,6 +73,7 @@ void dispatch_key(WindowCallbacks& cb, int key, int scancode, int action, int mo
 void dispatch_mouse_move(WindowCallbacks& cb, double x, double y);
 void dispatch_mouse_button(WindowCallbacks& cb, int button, int action, int mods);
 void dispatch_scroll(WindowCallbacks& cb, double xoffset, double yoffset);
+void dispatch_drop(WindowCallbacks& cb, int count, const char* const* paths);
 
 // A real GLFW-backed platform window (S160). Win32 on Windows, X11 on Linux.
 class PlatformWindow

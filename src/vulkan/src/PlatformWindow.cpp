@@ -58,6 +58,12 @@ void dispatch_scroll(WindowCallbacks& cb, double xoffset, double yoffset)
         cb.on_scroll(xoffset, yoffset);
 }
 
+void dispatch_drop(WindowCallbacks& cb, int count, const char* const* paths)
+{
+    if (cb.on_drop && count > 0 && paths)
+        cb.on_drop(count, paths);
+}
+
 // ---- GLFW callback trampolines ---------------------------------------------
 
 namespace {
@@ -96,6 +102,12 @@ void glfwScroll(GLFWwindow* window, double xo, double yo)
 {
     if (auto* cb = callbacksOf(window))
         dispatch_scroll(*cb, xo, yo);
+}
+
+void glfwDrop(GLFWwindow* window, int count, const char** paths)
+{
+    if (auto* cb = callbacksOf(window))
+        dispatch_drop(*cb, count, paths);
 }
 
 } // namespace
@@ -143,6 +155,7 @@ std::unique_ptr<PlatformWindow> PlatformWindow::create(Config config, WindowCall
     glfwSetCursorPosCallback(self->impl_->window, &glfwCursor);
     glfwSetMouseButtonCallback(self->impl_->window, &glfwMouseButton);
     glfwSetScrollCallback(self->impl_->window, &glfwScroll);
+    glfwSetDropCallback(self->impl_->window, &glfwDrop);
 
     return self;
 }

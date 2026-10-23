@@ -87,6 +87,12 @@ add_executable(vaml-core-tests
     LiveReload_test.cpp
     ../../vaml_viewer/file_watch.cpp
     ../../vaml_viewer/live_reload.cpp
+    # S223 (dep:S222_1) — drag-and-drop → reopen DECISION seams (vaml_viewer/
+    # drop_reopen.h, the PURE drop-dispatch half — is_vaml_drop + drop_choice).
+    # Header-only like live_reload.h's reload_action table (compiled from the
+    # vaml_viewer include path, ADR-021 single source of truth). The reopen
+    # HANDLER is the S222_1 apply_reload machinery (golden in LiveReload_test).
+    ViewerDropPlan_test.cpp
 )
 
 # The test target is held to the same strict compile bar as the libraries.

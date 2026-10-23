@@ -8,6 +8,7 @@
 // the NO-GAP + the S222 scope.
 
 #include "app.h"
+#include "drop_reopen.h"  // S223: is_vaml_drop / drop_choice (the pure drop-decision seams)
 
 #include <vaml/core/UIElement.h>        // vaml::UIElement (the REAL visual tree root)
 #include <vaml/vulkan/VulkanSurface.h>
@@ -126,11 +127,29 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
         // The window's Config uses `int` (GLFW contract); config.width/height are
         // uint32_t logical layout px -> narrow explicitly (never implicit narrowing,
         // rejected under /WX).
+        // S223: the FILE-DROP callback is installed at window-creation time (the
+        // S160 WindowCallbacks are owned by PlatformWindow at create()). The GLFW
+        // drop path (glfwSetDropCallback; covers Win32 + X11) forwards here onto
+        // the app's pending-drop slot. A drop with NO `.vaml` (drop_choice ->
+        // nullopt) is silently ignored via the pure seam. No new locks (ADR-018):
+        // GLFW fires this on the UI thread inside poll_events(), and run_loop()
+        // drains the slot on that same thread.
+        vaml::vulkan::WindowCallbacks winCallbacks;
+        winCallbacks.on_drop =
+            [app = app.get()](int count, const char* const* paths) {
+                auto chosen = vaml::viewer::drop_choice(count, paths);
+                if (chosen)
+                {
+                    app->pendingDrop_ = std::move(*chosen);
+                    app->pendingDropApplied_ = false;
+                }
+            };
+
         app->window_ = vaml::vulkan::PlatformWindow::create(
             { config.title.c_str(),
               static_cast<int>(config.width),
               static_cast<int>(config.height) },
-            {});
+            std::move(winCallbacks));
         if (!app->window_)
             return nullptr;
 
@@ -350,6 +369,17 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
     }
 }
 
+bool ViewerApp::reopen(std::unique_ptr<vaml::DependencyObject> newRoot)
+{
+    // S223: the SINGLE reopen HANDLER — a thin public wrapper over apply_reload so
+    // drop-reopen and file-watch reload share ONE reopen path (no drift). A dropped
+    // `.vaml` therefore reopens exactly like the S222_1 "edit → reload → same tree"
+    // path re-runs: re-adopt + set_root + set_frame_size + invalidate (whole S5 path,
+    // ZERO imperative tree-building). Returns false (last-good KEPT) on a null /
+    // non-UIElement root — never a blank or garbage render.
+    return apply_reload(std::move(newRoot));
+}
+
 bool ViewerApp::apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot)
 {
     if (!newRoot)
@@ -442,6 +472,34 @@ int ViewerApp::run_loop()
         // KeepLast no-op. No new locks (ADR-018): single-threaded, UI thread.
         if (reloader_)
             (void)reloader_->check();
+
+        // S223 drag-and-drop: drain a pending `.vaml` drop. A drop stores the chosen
+        // path (pendingDrop_); on the THIS-frame drain we load_file + reopen (the
+        // whole S5 path re-runs via reopen -> apply_reload). A load failure / a
+        // dropped non-renderable path reports to stderr and KEEPS the last-good tree
+        // (never blank). pendingDropApplied_ guards against re-applying the same drop
+        // on every frame — it re-arms only when a NEW drop lands (create()'s hook
+        // clears it). Single-threaded, UI thread (ADR-018).
+        if (pendingDrop_ && !pendingDropApplied_)
+        {
+            pendingDropApplied_ = true;   // latch: apply this drop exactly once
+            const std::string path = *pendingDrop_;
+            vaml::LoadResult dropped = vaml::load_file(path);
+            if (dropped.ok && dropped.root)
+            {
+                if (!reopen(std::move(dropped.root)))
+                {
+                    std::fprintf(stderr,
+                                 "vaml_viewer: dropped '%s' produced a non-UIElement root; keeping the last-good tree\n",
+                                 path.c_str());
+                }
+            }
+            else
+            {
+                std::fprintf(stderr, "vaml_viewer: dropped '%s' failed to load: %s (keeping the last-good tree)\n",
+                             path.c_str(), dropped.detail.c_str());
+            }
+        }
 
         // The deadline (VAML_VIEWER_AUTO_CLOSE_MS): once elapsed, close the window.
         if (autoClose && viewer_deadline_elapsed(loopStart, deadlineMs))

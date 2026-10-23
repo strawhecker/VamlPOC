@@ -67,6 +67,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -182,6 +183,14 @@ public:
     // gate). Returns 0 on a clean close. Never throws out of the window.
     int run_loop();
 
+    // S223 REOPEN seam — a thin public wrapper over apply_reload: adopts a
+    // freshly-loaded `newRoot` and re-runs the whole S5 path (the S222_1 reopen
+    // machinery: set_root + set_frame_size + invalidate). This is the SINGLE
+    // reopen HANDLER shared by BOTH drop-reopen and file-watch reload (no
+    // drift). Returns false if `newRoot` is null/not a UIElement (the app keeps
+    // its last-good tree — never a blank/garbage render).
+    [[nodiscard]] bool reopen(std::unique_ptr<vaml::DependencyObject> newRoot);
+
     // Headless-observable state (for the test + the CLI summary).
     [[nodiscard]] bool created() const noexcept { return renderer_ != nullptr; }
     [[nodiscard]] const vaml::presentation::VamlRenderer* renderer() const noexcept { return renderer_.get(); }
@@ -229,6 +238,16 @@ private:
     std::unique_ptr<vaml::viewer::LiveReload> reloader_;
 
     ViewerAppConfig cfg_;
+
+    // S223: the pending FILE-DROP slot. The GLFW on_drop callback (registered in
+    // create()) stores the chosen `.vaml` path here (a DROP sets it, never clears);
+    // run_loop() drains it AFTER a poll_events() tick and reopens the file. This is
+    // the single cross-thread-free handoff (ADR-018: all on the UI thread — GLFW
+    // fires the drop callback inside poll_events()). `pendingDropApplied_` tracks
+    // whether the CURRENT pending drop was already reopened this loop, so a drop
+    // can't be reapplied on every frame.
+    std::optional<std::string> pendingDrop_;
+    bool pendingDropApplied_ = false;
 
     // S222_1: applies a freshly Loaded tree to the retained renderer — the whole S5
     // path re-runs with ZERO imperative tree-building: adopt the new root (the object
