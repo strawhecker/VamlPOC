@@ -8,7 +8,8 @@
 > - The `x:Class` code-behind owner: a view and an `InitializeComponent` in one trench coat
 
 **Evidence:** S142 (properties/PropertyChanged), S241, S246 (binding), S252 (commands/RelayCommand),
-S242 (converters), S322 (event wiring), ADR-006 (static CompositionRoot). Every class snippet is a full TU
+S242 (converters), S322 (event wiring), S250 (static app-owned composition), S250_1 (binding channel
+accessors), S251 (app-constructed VM with injected service). Every class snippet is a full TU
 compiled in CI (S951).
 
 ---
@@ -140,14 +141,20 @@ Two questions you now answer explicitly:
 
 **Q1 — Who owns this object, and for how long?**
 
-VAML wires dependencies in a **static CompositionRoot** (ADR-006), not a runtime container. You hand objects
-to the root once, at startup:
+VAML ships **no composition type** (S250): no library `CompositionRoot`, no runtime container, no
+ViewModelLocator, no pub/sub. Composition is **static and app-owned** — *you* author the construction
+(plain constructors + your wiring) and hand objects around once, at startup. VAML only *documents* the
+pattern; it never injects for you:
 
 ```cpp
-// your composition root, built in main (ADR-006)
-auto vm  = std::make_unique<product_view_model>();
-auto win = std::make_unique<my_main_window>(vm.get());   // window OBSERVES vm
+// your composition, authored in main (S250 app-owned, plain constructors)
+auto svc = std::make_unique<product_service>();            // the injected service
+auto vm  = std::make_unique<product_view_model>(*svc);     // its VM takes the service
+auto win = std::make_unique<my_main_window>(vm.get());     // window OBSERVES vm
 ```
+
+This is the "**engineer wires, we bind**" contract (S251): you build the VM with its service via a plain
+constructor — no container, no magic — and VAML binds one-way/two-way to that VM (S242/S243/S244).
 
 The rules, short and brutal:
 

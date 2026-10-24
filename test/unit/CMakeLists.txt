@@ -221,6 +221,40 @@ add_executable(vaml-core-tests
     # Value store. NO runtime DI, NO reflection — plain C++ templates. ADR-018
     # zero locks. [VIEWER GROWTH: consumed at S256.]
     PropertyBindable_test.cpp
+    # S250 (dep:S247_1) — STATIC APP-OWNED COMPOSITION (docs + audit; the lib
+    # ships NO DI). Audit (grep-refactor-gate) proves the library ships NO
+    # CompositionRoot type, NO runtime container, NO ViewModelLocator, NO
+    # pub/sub anywhere in src/core/include, src/vulkan/include,
+    # src/presentation/include — only the documented pattern exists. The docs
+    # (docs/adr/ADR-LOG.md ADR-006/ADR-008 + docs/guide/03-mvvm-core.md §3.4)
+    # are revised in place to state plainly: the library ships NO composition
+    # type; the engineer authors their own VM/repository/command construction
+    # via PLAIN CONSTRUCTORS + their wiring; the lib only DOCUMENTS the pattern.
+    # SRP: docs-only (no code changes). NO-GAP: S250_1 (accessors) + S251
+    # (app-constructed VM tests) prove the pattern at the binding level.
+    # S250_1 (dep:S250) — ONE CHANNEL, TWO CONSUMERS (ADR-016) via a PLAIN
+    # ACCESSOR on EACH layer, NOT a library DI slot: the VM-layer accessor
+    # (vaml/mvvm/diagnostics.h: vaml::mvvm::binding_diagnostics /
+    # set_binding_diagnostics / binding_policy_default) + the view/control-layer
+    # accessor (vaml/core/BindingAccess.h: vaml::view_binding_diagnostics /
+    # set_view_binding_diagnostics / view_binding_policy_default), BOTH
+    # forwarding to the SAME core channel (BindingDiagnostics.cpp's atomic
+    # current sink) — one sink, two consumers. The accessors are pure forwards;
+    # zero state, zero injection, zero new locks (ADR-018). BindingAccess_test
+    # proves identity (VM accessor == view accessor), emission through both
+    # directions, policy-default agreement (Fallback) + the not-a-DI-slot
+    # forward-only contract. Pure value-domain — registers no property names.
+    BindingAccess_test.cpp
+    # S251 (dep:S250) — APP-CONSTRUCTED VM-WITH-INJECTED-SERVICE tests: the app
+    # authors its OWN VM (real vaml::ObservableObject + PROPERTY_BINDABLE) and
+    # passes its OWN service in via PLAIN CONSTRUCTOR WIRING (no library
+    # container, no CompositionRoot) — then VAML binds ONE-WAY (S243 live) and
+    # TWO-WAY (S244 write-back) to that VM, and a RelayCommand invoked from the
+    # VM calls the INJECTED service + its resulting property change auto-pushes
+    # through a one-way binding to a real DependencyObject target. Proves the
+    # S250 "engineer wires, we bind" headline. Registers S251-unique object-scoped
+    # DPs. ADR-018 zero locks.
+    VmAgnosticInjection_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single

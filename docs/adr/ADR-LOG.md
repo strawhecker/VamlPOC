@@ -62,14 +62,21 @@
 ## ADR-007 — Build environment: Windows 11 + VS 2026 (MSVC) and/or CMake on Windows/Linux (Clang); CMake canonical
 - Status: ACCEPTED (seed)
 
-## ADR-008 — MVVM: VAML ships its OWN lightweight MVVM layer (ObservableObject, RelayCommand, Messenger,
-##         static CompositionRoot, RoutedEvent) loosely modeled on MVVMLight/CommunityToolkit MVVM
-- Status: ACCEPTED (seed)
+## ADR-008 — MVVM: VAML ships its OWN lightweight MVVM layer (ObservableObject, RelayCommand, RoutedEvent);
+##         NO library composition type, NO Messenger, NO DI container — the engineer authors the composition
+- Status: ACCEPTED (seed; REVISED at S250 to strike the now-retracted CompositionRoot + Messenger)
 - Context: Developers want MVVM niceties without C#/XAML. Prism-style runtime modularity is high-risk in C++
   (no reflection, static-link IP model).
-- Decision: Ship the ViewModel-friendly 80% (ObservableObject, RelayCommand, Messenger, static
-  CompositionRoot, RoutedEvent). Prism-style runtime modularity + region navigation: OUT for v1 (per ADR-017 this is v2-as-v1).
-- Consequences: The v1 app itself is an MVVM app (bootstrap the hard binding/event pieces early).
+- Decision: Ship the ViewModel-friendly 80% (ObservableObject, RelayCommand, RoutedEvent). The library ships
+  NO composition type — NO library CompositionRoot, NO runtime container, NO ViewModelLocator/DI/pub-sub
+  (S250: the Messenger step + its tests were REMOVED at S248/S249; pub/sub is not VAML's domain to impose).
+  App composition is STATIC APP-OWNED (S250): the engineer authors their own VM/repository/command
+  construction with plain constructors + their wiring; the only dynamic-from-markup mechanism is the ELEMENT
+  FACTORY REGISTRY (ADR-006) needed for UI composition. The library only DOCUMENTS the pattern. Prism-style
+  runtime modularity + region navigation: OUT for v1 (per ADR-017 this is v2-as-v1).
+- Consequences: The v1 app itself is an MVVM app (bootstrap the hard binding/event pieces early). No generic
+  setter injection from markup. The diagnostics channel + binding policy are reached by a PLAIN ACCESSOR on
+  each layer (S250_1, ADR-016: one channel, two consumers), never through a library DI slot.
 
 ## ADR-009 — Tests: doctest framework + adapted (ported) Shouldly-style fluent assertion DSL, MSPST-decoupled
 - Status: ACCEPTED (seed)

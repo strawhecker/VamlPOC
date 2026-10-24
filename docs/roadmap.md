@@ -951,16 +951,54 @@
 - [Items S248 (Messenger) + S249 (Messenger tests) REMOVED — pub/sub is NOT VAML's domain to impose; the
   engineer wires their own looely-coupled bus if they choose, we do not offer/own one. Part-1 decision,
   recorded not silent.]
-- S250 dep:S247_1  STATIC APP-OWNED COMPOSITION (no library DI): the engineer authors their OWN
+- S250 dep:S247_1  [DONE — S250 STATIC APP-OWNED COMPOSITION (no library DI): the engineer authors their OWN
       VM/repository/command construction (plain constructors, their wiring) — NO library CompositionRoot type,
       NO runtime container, NO ViewModelLocator/DI/pub-sub from us. The lib only DOCUMENTS the pattern.
-      [Sounding the identical Part-1/onboarding decision, now at the binding level.]
-- S250_1 dep:S250  IBindingDiagnostics sink + BindingPolicy reachable directly from BOTH the VM layer and the
-      view/control layer (V vs VM = one channel, two consumers; per ADR-016) — reached by a PLAIN ACCESSOR on
-      each layer, NOT via any library CompositionRoot/DI slot.
-- S251 dep:S250  App-constructed VM-with-injected-service tests: the app passes its service into the VM via
-      plain constructor wiring (no library container), binding one-way/two-way to it — proves the "engineer
-      wires, we bind" pattern.
+      [Sounding the identical Part-1/onboarding decision, now at the binding level.] MOD docs/adr/ADR-LOG.md
+      (ADR-006 + ADR-008 striker: "VAML ships its OWN static CompositionRoot and Messenger" -> the library
+      ships NO composition type; the engineer authors plain-constructor wiring; only the pattern is
+      documented; ADR-016 one-channel restated) + MOD docs/guide/03-mvvm-core.md §3.4 (Q1 "Who owns this
+      object?" grounded in the actually-shipped surface — ObservableObject + PROPERTY_BINDABLE/set_property,
+      RelayCommand, BindingExpression — plain-constructor wiring, no library container, the "engineer wires,
+      we bind" contract) + MOD docs/roadmap.md + session-context.md. SRP: docs+audit-only, zero code changes.
+      AUDIT (grep-refactor-gate): findstr across src/core/include + src/vulkan/include + src/presentation/include
+      + src/**/*.cpp for CompositionRoot/ViewModelLocator/Messenger/ISubscribe/Subscribe/Publish/Container/
+      IServiceProvider -> ZERO matches — the library ships NO DI surface. S250_1 + S251 prove the pattern at
+      the binding level. NO MINIMAL REAL introduced. No NEW md files (docs edited in place).
+- S250_1 dep:S250  [DONE — ONE CHANNEL, TWO CONSUMERS (ADR-016) via a PLAIN ACCESSOR on EACH layer, NOT a
+      library DI slot. ADDED src/core/include/vaml/core/BindingAccess.h (the VIEW/control-layer accessor:
+      vaml::view_binding_diagnostics() / vaml::set_view_binding_diagnostics(IBindingDiagnostics&) /
+      vaml::view_binding_policy_default() — pure inline forwards to the SAME core channel, kept OUT of
+      DependencyObject.h to avoid the BindingDiagnostics->PropertyPath include cycle; a control author
+      includes this header, DP base untouched) + ADDED src/core/include/vaml/mvvm/diagnostics.h (the VM-layer
+      accessor: vaml::mvvm::vm_binding_diagnostics() / vaml::set_vm_binding_diagnostics(...) /
+      vaml::mvvm::binding_policy_default() — vm_/view_ prefix symmetry mirrors the view accessor + avoids the
+      ADL collision with the identically-shaped core vaml::binding_diagnostics()/vaml::set_binding_diagnostics();
+      header-only, compiled into vaml-core) + ADDED test/unit/BindingAccess_test.cpp (6 TEST_CASEs) + MOD
+      test/unit/CMakeLists.txt (+BindingAccess_test.cpp) + ADDED build/verify_s250.cmd + MOD docs/roadmap.md
+      + session-context.md. Both accessors FORWARD to the SAME core atomic sink (BindingDiagnostics.cpp
+      current_sink) — installing through either is observable through both: identity (VM accessor == view
+      accessor), emission through both directions, policy-default agreement (BindingPolicy::Fallback on both)
+      + the not-a-DI-slot forward-only contract (zero state, zero injection). ADR-016 (one channel, two
+      consumers) proven at the accessor level; ADR-018: ZERO new locks (pure forwards to the existing atomic).
+      NO MINIMAL REAL introduced (both headers are REAL permanent Cat-1, forward-consumed by S252/S253 markup
+      {Binding} + S256 viewer growth). NO-GAP: records the consumption obligation.
+- S251 dep:S250  [DONE — APP-CONSTRUCTED VM-WITH-INJECTED-SERVICE tests (the "engineer wires, we bind"
+      proof at the binding level). ADDED test/unit/VmAgnosticInjection_test.cpp (4 TEST_CASEs) + MOD
+      test/unit/CMakeLists.txt (+VmAgnosticInjection_test.cpp) + MOD docs/roadmap.md + session-context.md (no
+      NEW md files). The app authors its OWN VM (a real vaml::ObservableObject with PROPERTY_BINDABLE members)
+      + its OWN service (a plain S251DemoService struct); the VM takes the service BY REFERENCE through a
+      PLAIN CONSTRUCTOR (S251ViewModel(S251DemoService&)) — NO library container, NO CompositionRoot, NO
+      resolve/register/ViewModelLocator. VAML then binds ONE-WAY (S243 live: service-driven set_Name auto-
+      pushes to a real DependencyObject target DP) and TWO-WAY (S244 write-back: a target edit reaches back
+      to the VM store, verified through vm.Get), and a RelayCommand invoked from the VM calls the INJECTED
+      service (the service counts + records the call) whose resulting set_Name change auto-pushes through a
+      one-way binding to the target. Suite map: (1) one-way live push to a real DP target; (2) two-way target
+      edit -> VM write-back; (3) command -> injected service -> bindable prop -> live one-way target;
+      (4) no-library-composition: the ONLY construction path is "construct service, construct VM with
+      &service", nothing registered/resolved. Registers S251-unique object-scoped DPs. ADR-018: ZERO new
+      locks. NO MINIMAL REAL introduced. NO-GAP: S252 ({Binding} markup) builds on this app-constructed VM
+      pattern.
 - S252 dep:S251  Markup {Binding} resolved in VamlReader (deferred extension now bound): <Text Text="{Binding Title}"/>.
 - S253 dep:S252  Command via {Binding DoIt}; one/two-way markup binding end-to-end.
 - S254 dep:S253  REFACTOR GATE(S6): full MVVM works in v1, all modes + converters, diagnostics wired, no stubs.
