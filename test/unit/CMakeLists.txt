@@ -69,6 +69,14 @@ add_executable(vaml-core-tests
     VamlReader_s093_test.cpp
     VamlReader_s094_test.cpp
     GoldenDocs_test.cpp
+    # S240 (dep:S226) — PropertyPath parser + evaluator (dot-path; indexers;
+    # null-safe; errors reported). The Class A syntax suite (valid dot/indexer/
+    # mixed paths + every syntax error as a typed PropertyPathException naming
+    # the offending fragment + try_parse never-throws) + the Class B evaluator
+    # suite (test-local indexable host for the indexer axis, real DependencyObjects
+    # via the default reader for the property/null-safe/missing/not-readable
+    # axis). Registers S240-unique property names.
+    PropertyPath_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
