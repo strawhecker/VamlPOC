@@ -467,6 +467,20 @@ private:
         std::string_view name,
         const std::vector<std::pair<DependencyObject*, Value>>& before);
 
+    // S041 §2.5 (S244 completion): fires THIS object's own registration-ordered
+    // add_property_changed subscribers for an actually-applied real change to
+    // `name` (oldEffective -> newEffective). Called from BOTH the on-affine
+    // Set() apply and the pending-drain apply (ProcessPendingChanges). This is
+    // the object's SELF-change observation seam — the S041 header has always
+    // documented it ("handlers fire on an on-affine Set that produced a real
+    // change") but the implementation only ever fired the descendant-push
+    // path; S244's target->source write-back needs the self-change seam (a
+    // TextBox edit landing on the target DP fires the binding's write-back).
+    // Copy-before-invoke (a handler that (un)subscribes mid-fire is safe) —
+    // same discipline as ProcessNotificationQueue.
+    void fire_self_subscribers(
+        std::string_view name, const Value& oldEffective, const Value& newEffective);
+
     // Recursive scope walker used by collect_descendant_effectives(): walks
     // `this`'s inheritance-scope, capturing each descendant with its current
     // effective value (recursing into each child's scope). A descendant is

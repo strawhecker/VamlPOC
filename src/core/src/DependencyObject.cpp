@@ -552,6 +552,18 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // S035 pipeline step 4: store.
     entry->local = coerced;
 
+    // S041 §2.5 (S244 completion): fire THIS object's own registration-ordered
+    // add_property_changed subscribers for this on-affine real change. The
+    // header contract has always documented this ("handlers fire on an
+    // on-affine Set that produced a real change"), but the implementation only
+    // ever fired the descendant-push path (ProcessNotificationQueue). S041's
+    // descendant-push suites never exercised the self-fire because they only
+    // drove pushed/queued changes — S244's target->source write-back needs the
+    // self-change seam (a TextBox edit landing on the target DP fires the
+    // binding's write-back). Copy-before-invoke (a handler that (un)subscribes
+    // mid-fire is safe) — same discipline as ProcessNotificationQueue.
+    fire_self_subscribers(name, currentEffective, coerced);
+
     // S041 §2.4: propagate the real change to inheriting descendants (S040's
     // recorded obligation, delivered here, NOT silent).
     if (inherits)
@@ -657,6 +669,11 @@ void DependencyObject::ProcessPendingChanges()
         md.notifyChanged(currentEffective, coerced);
         entry->local = coerced;
 
+        // S041 §2.5 (S244 completion): fire THIS object's own registration-
+        // ordered subscribers on an applied queued change, exactly like an
+        // on-affine one.
+        fire_self_subscribers(name, currentEffective, coerced);
+
         // S041 §2.4: propagate the applied queued change to inheriting descendants
         // exactly like an on-affine one.
         if (inherits)
@@ -719,6 +736,32 @@ void DependencyObject::remove_property_changed(PropertyChangedToken token)
                 handlers.erase(it);
                 return;
             }
+        }
+    }
+}
+
+void DependencyObject::fire_self_subscribers(
+    std::string_view name, const Value& oldEffective, const Value& newEffective)
+{
+    // S041 §2.5 (S244 completion): fire THIS object's own registration-ordered
+    // subscribers on an actually-applied real change. The key is the canonical
+    // interned view (content-equal to the add_property_changed key). The
+    // handle vector is COPIED before invoking so a handler that (un)subscribes
+    // mid-fire does not invalidate iteration (registration ORDER preserved for
+    // the captured snapshot) — the exact discipline ProcessNotificationQueue
+    // uses for pushed changes.
+    const auto it = subs_.find(vaml::intern(name));
+    if (it == subs_.end())
+    {
+        return; // nobody subscribed to this property
+    }
+    const std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>> snapshot = it->second;
+    for (const auto& [token, handler] : snapshot)
+    {
+        (void)token;
+        if (handler)
+        {
+            handler(PropertyId::of(name), oldEffective, newEffective);
         }
     }
 }

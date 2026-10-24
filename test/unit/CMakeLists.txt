@@ -140,6 +140,28 @@ add_executable(vaml-core-tests
     # SetTargetFailed emission (live only), SetTargetFailed != fallback (a target rejection
     # is never masked by a bound fallback), lifetime/dtor unsubscribe, and move re-arm.
     BindingOneWay_test.cpp
+    # S244 (dep:S243) — BindingExpression live TWO-WAY (feed-back: target→source).
+    # The TARGET→SOURCE WRITE-BACK — a TwoWay binding arms a per-property
+    # subscription on the TARGET DependencyObject (S041 add_property_changed keyed
+    # on targetProp_; the "target changed" signal = a TextBox edit landing on the
+    # target DP) and, on a real target change, writes the target's value BACK to
+    # the source VM (the "TextBox edit → VM updates" headline). The FORWARD wire is
+    # the EXACT S243 shared layer now armed for TwoWay too. RESOLVES S242's
+    # convertBack seam (reverse converter wire target→source) + binds the S240_1
+    # WriteBackRejected FORWARD ARM (a live two-way write-back that is rejected —
+    # failed convertBack / no source / no source key — emits
+    # BindingReasonCode::WriteBackRejected, Class B, never a throw). LOOP-SAFETY by
+    # the real-change discipline (a source→target→write-back→source cycle is
+    # BOUNDED, no reentrancy flags — NO-LAZY-LLM). Registers S244-unique object-scoped
+    # DPs on real DependencyObject targets + real ObservableObject sources. Covers
+    # initial push APPLIED + both wires armed, live forward (S243 reuse), the
+    # HEADLINE target-edit→source, convertBack (forward String→Int32 + target edit
+    # convertBack'd→source), bounded echo/cycle, stability (edit to equal source:
+    # no re-trigger), WriteBackRejected (failed convertBack / no source), WriteBackRejected
+    # != SetTargetFailed (never conflated), OneWay parity (forward only),
+    # OneTime inert, no-converter round-trip, lifetime/dtor, and move re-arm (both
+    # wires).
+    BindingTwoWay_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single

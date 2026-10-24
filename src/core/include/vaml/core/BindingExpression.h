@@ -49,6 +49,42 @@
 // binding must not outlive its source ObservableObject (raw
 // ObservableObject*).
 //
+// S244 OWNS (this step, dep:S243): the TARGET->SOURCE write-back direction of
+// a TwoWay binding. The forward (source->target) wire is the EXACT S243 layer,
+// now armed for BOTH OneWay and TwoWay (the shared wire, no duplication); the
+// reverse direction is a SECOND, additive subscription on the TARGET
+// DependencyObject (S041 add_property_changed keyed on targetProp_) — the
+// "target changed" signal, which models a TextBox edit landing on the target
+// DP. On a real target change, `transfer_write_back()` reads the target's
+// current value, runs the `convertBack` reverse-converter wire (S242 declared
+// convertBack an empty seam; S244 RESOLVES it — NO-GAP, in place), and writes
+// it back to the source via the FIRST PATH SEGMENT's key. A rejection (no
+// source, no leading key, or a failed convertBack) emits
+// BindingReasonCode::WriteBackRejected (the S240_1 `[fwd->S244]` arm, Class B,
+// observation never control-flow per ADR-016 — never a throw). Loop-safety is
+// TWO-fold, matching the authoritative WPF primitive (BindingExpressionBase:
+// NeedsUpdate + IsInTransfer):
+//   (a) the real-change discipline ALREADY established (S241 source Set fires
+//       only on a real change; S035 target Set returns NO_CHANGE on an equal
+//       push) — a write-back to an equal source and a forward push to an equal
+//       target both terminate, and
+//   (b) the `transferring_` IsInTransfer-equivalent guard — the WHOLE forward
+//       source->target transfer (first push AND live re-push) runs with
+//       `transferring_` set, and while it is set a target change is NOT written
+//       back to the source. This closes the non-injective-converter round-trip
+//       that (a) alone cannot (a forward push that lands on the target with a
+//       value different from the user's typed value would otherwise write back).
+//       A source->target->write-back->source cycle is therefore BOUNDED
+//       (proven by a bounded-cycle test).
+// The write-back subscription is RAII-bound (dtor unsubscribes both; move re-arms
+// both onto the new `this`). Emission is gated to the LIVE TwoWay write-back
+// path exactly as S243 gated SetTargetFailed to the live one-way path: the
+// caller-driven first push and the OneWay/OneTime paths emit NOTHING for the
+// write-back arm. `WriteBackRejected != SetTargetFailed` (rejected write-back
+// vs rejected forward Set are distinct, tested). Caller lifetime contract
+// UNCHANGED (a binding must not outlive its source ObservableObject or target
+// DependencyObject).
+//
 // The two deliberately-split responsibility classes (S240 split, carried):
 //   - Class A (StaticAuthoring): the binding TEXT is wrong. `create` fails fast:
 //     it emits a MalformedPath/EmptyPath diagnostic and returns nullptr — it
@@ -236,7 +272,14 @@ public:
     // --- Live one-way subscription introspection (S243) --------------------
     // True when this expression currently holds a live one-way subscription on
     // its source (OneWay mode + a valid source). OneTime never subscribes.
+    // S244 broadens the arm to TwoWay too (TwoWay reuses this forward wire).
     [[nodiscard]] bool live_subscribed() const noexcept { return subscribed_; }
+
+    // --- Live write-back introspection (S244) ------------------------------
+    // True when this TwoWay expression currently holds a live target->source
+    // write-back subscription (TwoWay mode + a valid target + a keyable path).
+    // OneWay/OneTime never write back.
+    [[nodiscard]] bool live_writeback() const noexcept { return writeback_; }
 
     // --- Introspection -----------------------------------------------------
     [[nodiscard]] std::uint64_t binding_id() const noexcept { return bindingId_; }
@@ -274,6 +317,25 @@ private:
     // one-way path so S242's OneTime no-emission tests stay green.
     void transfer_one_way();
 
+    // --- S244 two-way write-back layer -------------------------------------
+    // Arms a per-property subscription on the TARGET DependencyObject
+    // (S041 add_property_changed keyed on targetProp_) — the "target changed"
+    // signal (a TextBox edit landing on the target DP). On a real target
+    // change the handler runs transfer_write_back(). Idempotent; no-op when
+    // the mode is not TwoWay, when already armed, when there is no target or
+    // no keyable path. Never throws.
+    void arm_writeback();
+    // Removes the write-back subscription (no-op when not armed). Idempotent.
+    void unsubscribe_writeback();
+    // The target->source write-back body (see the class header comment): reads
+    // the target value, runs convertBack (S244 wire), writes back to the
+    // source. Emits WriteBackRejected on a rejection (Class B, never throws).
+    void transfer_write_back();
+    // Emits BindingReasonCode::WriteBackRejected (the S240_1 forward arm,
+    // Class B) with the given detail. Gated to the live TwoWay write-back
+    // path — the caller-driven first push and OneWay/OneTime never reach here.
+    void emit_write_back_rejected(const std::string& detail);
+
     std::uint64_t bindingId_ = 0;
     BindingMode mode_ = BindingMode::OneTime;
     BindingPolicy policy_ = BindingPolicy::Fallback;
@@ -294,6 +356,22 @@ private:
     // never-subscribed expression; token is meaningless then.
     bool subscribed_ = false;
     ObservableObject::PropertyChangedToken liveToken_ = 0;
+
+    // S244 two-way write-back state. `targetToken_` is valid only while
+    // `writeback_`; a moved-from / destroyed expression never fires a dangling
+    // `this` (move re-arms, dtor unsubscribes). Default token meaningless for a
+    // never-armed expression.
+    bool writeback_ = false;
+    DependencyObject::PropertyChangedToken targetToken_ = 0;
+
+    // S244 IsInTransfer-equivalent guard (the authoritative WPF primitive):
+    // true while a forward source->target transfer is in flight (set in
+    // TransferSourceToTarget, cleared at scope exit). While true, a target
+    // change is suppressed from writing back to the source. This closes the
+    // non-injective-converter round-trip gap that the real-change discipline
+    // alone cannot (a forward push landing on the target with a value different
+    // from what the user typed). Not copied on move (moved-from is inert).
+    bool transferring_ = false;
 };
 
 } // namespace vaml

@@ -5,10 +5,15 @@
 // applies the converter, applies the fallback on a Class B outcome or converter
 // failure, then pushes to the target DP.
 //
-// S243 (this step, dep:S242) adds the LIVE ONE-WAY source->target subscription
-// + the SetTargetFailed emission (the S240_1 forward arm). Live subscription
-// (two-way = S244) builds on the same first push; the Strict policy arm
-// (S242_1) is REAL. See BindingExpression.h for the full contract.
+// S243 (dep:S242) added the LIVE ONE-WAY source->target subscription + the
+// SetTargetFailed emission (the S240_1 forward arm).
+//
+// S244 (this step, dep:S243) adds the TARGET->SOURCE WRITE-BACK of a TwoWay
+// binding + the convertBack reverse wire + the WriteBackRejected emission (the
+// S240_1 forward arm): the forward (source->target) wire is now armed for BOTH
+// OneWay and TwoWay (shared S243 layer), and a TwoWay target-change (a TextBox
+// edit landing on the target DP) writes the target value back to the source.
+// See BindingExpression.h for the full contract.
 
 #include "vaml/core/BindingExpression.h"
 
@@ -91,22 +96,36 @@ BindingExpression::BindingExpression(BindingExpression&& other) noexcept
       targetType_(std::move(other.targetType_)),
       path_(std::move(other.path_)),
       subscribed_(other.subscribed_),
-      liveToken_(other.liveToken_)
+      liveToken_(other.liveToken_),
+      writeback_(other.writeback_),
+      targetToken_(other.targetToken_)
 {
-    // Transfer the live one-way subscription onto THIS instance so a moved
-    // one-way binding stays live. The handler captures `this`, so it must point
-    // at the moved-to object, never the dangling moved-from: remove the old
-    // (moved-from-capturing) token from the UNCHANGED source, then re-arm a new
-    // token capturing `this`. Mark the moved-from inert so its dtor does not
-    // double-remove.
+    // Transfer the live subscriptions onto THIS instance so a moved binding
+    // stays live. Each handler captures `this`, so it must point at the
+    // moved-to object, never the dangling moved-from: remove the old
+    // (moved-from-capturing) tokens from the UNCHANGED source/target, then
+    // re-arm new tokens capturing `this`. Mark the moved-from inert so its dtor
+    // does not double-remove.
     other.subscribed_ = false;
     other.liveToken_  = 0;
+    other.writeback_  = false;
+    other.targetToken_= 0;
+
+    std::string_view forwardKey{};
     if (subscribed_ && source_ != nullptr)
     {
+        forwardKey = first_segment_name(path_);
         source_->remove_property_changed(liveToken_);
         liveToken_ = source_->add_property_changed(
-            PropertyId::of(first_segment_name(path_)),
+            PropertyId::of(forwardKey),
             [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+    }
+    if (writeback_ && target_ != nullptr)
+    {
+        target_->remove_property_changed(targetToken_);
+        targetToken_ = target_->add_property_changed(
+            PropertyId::of(targetProp_),
+            [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
     }
 }
 
@@ -132,8 +151,12 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
     path_         = std::move(other.path_);
     subscribed_   = other.subscribed_;
     liveToken_    = other.liveToken_;
+    writeback_    = other.writeback_;
+    targetToken_  = other.targetToken_;
     other.subscribed_ = false;
     other.liveToken_  = 0;
+    other.writeback_  = false;
+    other.targetToken_= 0;
     if (subscribed_ && source_ != nullptr)
     {
         source_->remove_property_changed(liveToken_);
@@ -141,12 +164,20 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
             PropertyId::of(first_segment_name(path_)),
             [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
     }
+    if (writeback_ && target_ != nullptr)
+    {
+        target_->remove_property_changed(targetToken_);
+        targetToken_ = target_->add_property_changed(
+            PropertyId::of(targetProp_),
+            [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
+    }
     return *this;
 }
 
 BindingExpression::~BindingExpression()
 {
-    unsubscribe();
+    unsubscribe();        // S243 forward wire
+    unsubscribe_writeback(); // S244 reverse wire
 }
 
 namespace {
@@ -220,7 +251,8 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
     e->sourceType_  = spec.sourceType;
     e->targetType_  = spec.targetType;
     e->path_        = std::move(path);
-    e->arm_subscription();
+    e->arm_subscription();   // S243 forward wire (OneWay OR TwoWay in S244)
+    e->arm_writeback();      // S244 reverse wire (TwoWay only)
     return e;
 }
 
@@ -239,10 +271,10 @@ void BindingExpression::unsubscribe()
 
 void BindingExpression::arm_subscription()
 {
-    // Only OneWay arms a LIVE subscription. OneTime never subscribes; TwoWay's
-    // forward wire is the same source-side subscription (armed by S244), so
-    // S243 arms OneWay only (S244 reuses this layer and adds write-back).
-    if (mode_ != BindingMode::OneWay)
+    // S243 armed OneWay only. S244 broadens the arm to TwoWay too: TwoWay's
+    // FORWARD (source->target) wire is the exact S243 layer, reused unchanged
+    // (the shared wire — no duplication). OneTime never subscribes.
+    if (mode_ != BindingMode::OneWay && mode_ != BindingMode::TwoWay)
     {
         return;
     }
@@ -284,6 +316,152 @@ void BindingExpression::transfer_one_way()
     d.sourceType = sourceType_;
     d.targetType = targetType_;
     d.converter  = converterName_;
+    d.timestamp  = std::chrono::system_clock::now();
+    binding_diagnostics().emit(d);
+}
+
+void BindingExpression::unsubscribe_writeback()
+{
+    if (writeback_ && target_ != nullptr)
+    {
+        // Idempotent, global token-based: removing an already-removed/unknown
+        // token is a no-op (S041), so this is safe even if the token was
+        // superseded by a move.
+        target_->remove_property_changed(targetToken_);
+    }
+    writeback_   = false;
+    targetToken_ = 0;
+}
+
+void BindingExpression::arm_writeback()
+{
+    // Only TwoWay arms a target->source WRITE-BACK. OneWay/OneTime never write
+    // back (their writes are one direction only). The FORWARD wire for TwoWay
+    // is armed separately by arm_subscription (the shared S243 layer).
+    if (mode_ != BindingMode::TwoWay)
+    {
+        return;
+    }
+    if (writeback_)
+    {
+        return; // already armed (idempotent)
+    }
+    if (target_ == nullptr || targetProp_.empty())
+    {
+        return; // no target property to observe (nothing to write back from)
+    }
+    // No leading source key -> a write-back would have nowhere to land; the
+    // arm still holds (the key check is the write-back path's, not the arm's)
+    // so the introspection reflects "armed to observe the target".
+    targetToken_ = target_->add_property_changed(
+        PropertyId::of(targetProp_),
+        [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
+    writeback_ = true;
+}
+
+void BindingExpression::transfer_write_back()
+{
+    // The S244 TARGET->SOURCE write-back body. Runs when the target DP fires a
+    // REAL change (a TextBox edit landing on the target DP). Class B: a
+    // rejection is emitted (WriteBackRejected), NEVER thrown — the target value
+    // is not written to the source on a rejection.
+    //
+    // Loop-safety (the forward direction): writing back to a source that
+    // already HOLDS the value makes ObservableObject::Set return false (the
+    // real-change discipline, S241) -> no source signal -> the forward wire
+    // does not re-fire. And a forward push via TransferValue stays under the
+    // `transferring_` guard, so a target change raised WHILE the write-back is
+    // landing cannot echo back. Both legs are BOUNDED (proven by a
+    // bounded-cycle test).
+
+    // IsInTransfer-equivalent guard: while a forward source->target transfer
+    // is in flight, a target change is NOT written back (authoritative WPF
+    // primitive — suppresses the non-injective round-trip, e.g. a forward push
+    // that lands on the target with a value different from the user's typed
+    // value). Suppressed here, never emitted, never stored.
+    if (transferring_)
+    {
+        return;
+    }
+
+    // 1. Read the target's current value.
+    Value value = Value::Null();
+    if (target_ == nullptr || targetProp_.empty())
+    {
+        emit_write_back_rejected("no target");
+        return;
+    }
+    try
+    {
+        value = target_->Get(PropertyId::of(targetProp_));
+    }
+    catch (const PropertyNotFound&)
+    {
+        emit_write_back_rejected("target property not found");
+        return;
+    }
+
+    // 2. Reverse converter wire (S244 resolves S242's convertBack seam).
+    if (converter_.convertBack)
+    {
+        BindingConversion conv;
+        try
+        {
+            conv = converter_.convertBack(value);
+        }
+        catch (const std::exception& ex)
+        {
+            conv.ok = false;
+            conv.detail = ex.what();
+        }
+        if (!conv.ok)
+        {
+            emit_write_back_rejected(conv.detail);
+            return; // target value NOT written to source
+        }
+        value = conv.value;
+    }
+
+    // 3. Write back to the source via the FIRST PATH SEGMENT's key (a
+    //    scalar-led VM path; multi-hop write-back re-observation is a
+    //    S252/S244+ concern, recorded not silent).
+    if (source_ == nullptr)
+    {
+        emit_write_back_rejected("no source to write back to");
+        return;
+    }
+    const std::string_view key = first_segment_name(path_);
+    if (key.empty())
+    {
+        emit_write_back_rejected("no source key (indexer/empty path)");
+        return;
+    }
+    try
+    {
+        (void)source_->Set(PropertyId::of(key), value);
+    }
+    catch (const ValueTypeMismatch&)
+    {
+        emit_write_back_rejected("value type mismatch on write-back");
+    }
+}
+
+void BindingExpression::emit_write_back_rejected(const std::string& detail)
+{
+    // The S240_1 WriteBackRejected FORWARD ARM, bound here (Class B,
+    // observation never control-flow per ADR-016 — never a throw). This is
+    // gated to the LIVE TwoWay write-back path: the caller-driven first push
+    // and the OneWay/OneTime paths never reach here.
+    BindingDiagnostic d;
+    d.bindingId  = bindingId_;
+    d.sourcePath = sourcePath_;
+    d.targetProp = targetProp_;
+    d.direction  = to_binding_direction(mode_);
+    d.reasonCode = BindingReasonCode::WriteBackRejected;
+    d.sourceType = sourceType_;
+    d.targetType = targetType_;
+    d.converter  = converterName_;
+    d.detail     = detail;
     d.timestamp  = std::chrono::system_clock::now();
     binding_diagnostics().emit(d);
 }
@@ -353,6 +531,17 @@ TransferResult BindingExpression::apply_to_target(const Value& value)
 
 TransferResult BindingExpression::TransferSourceToTarget()
 {
+    // S244 IsInTransfer-equivalent guard: the WHOLE forward transfer (first
+    // push AND live re-push) runs under `transferring_`, so a target change
+    // raised DURING the forward apply cannot write back to the source (the
+    // authoritative WPF primitive; closes the non-injective round-trip gap).
+    struct TransferGuard
+    {
+        bool& flag;
+        explicit TransferGuard(bool& f) : flag(f) { flag = true; }
+        ~TransferGuard() { flag = false; }
+    } guard(transferring_);
+
     // --- Resolve the source (S240 evaluator over the S241 reader) ----------
     PropertyRead read;
     {
