@@ -210,6 +210,17 @@ add_executable(vaml-core-tests
     # flips CanExecute + a subscribed handler observes via NotifyCanExecuteChanged).
     # Pure value-domain — registers no property names. ADR-018 zero locks.
     RelayCommand_test.cpp
+    # S247_1 (dep:S247) — Bindable-property convenience layer (vaml/mvvm):
+    # PROPERTY_BINDABLE(type, Name) + the vaml::mvvm::set_property free template
+    # over the S240/S241 core. Verifies the macro's typed backing field + getter/
+    # setter, the REAL-change contract (same-value set -> false, no store write,
+    # no signal), the genuine S241 PropertyChanged (id, old, new) firing with the
+    # right id, independence of multiple bindable props, reader parity through
+    # observable_object_reader + the S240 evaluator, direct (non-macro)
+    # set_property usage, and Color/Thickness round-trip through the bounded
+    # Value store. NO runtime DI, NO reflection — plain C++ templates. ADR-018
+    # zero locks. [VIEWER GROWTH: consumed at S256.]
+    PropertyBindable_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
