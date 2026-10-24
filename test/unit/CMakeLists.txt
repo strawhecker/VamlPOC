@@ -196,6 +196,20 @@ add_executable(vaml-core-tests
     # TransferResult + target). ADR-016 + ADR-018 honored. NO-GAP: no new
     # forward contracts (S246 RelayCommand is the next chain link).
     BindingFailure_test.cpp
+    # S247 (dep:S246) — RelayCommand TESTS. Verifies the S247 title against the
+    # REAL vaml::RelayCommand through the REAL vaml::ICommand interface where it
+    # matters: invoke (Execute), CanExecute, CanExecuteChanged — full, no stub.
+    # Covers the execute-only always-executable default, a predicate governing
+    # CanExecute per parameter, Execute invoking the action with the exact
+    # parameter Value, subscribe -> NotifyCanExecuteChanged fires once, multiple
+    # subscribers fire in REGISTRATION order, remove removes one + the remainder
+    # fire + re-add appends, distinct monotonic tokens, zero-subscriber safe
+    # no-op, side-effect-free CanExecute (fires nothing), a Value::Null()
+    # parameter, the MOVE-ONLY transfer contract (post-move fires, moved-from
+    # inert, move-assign re-arms), and the re-query contract (a captured flag
+    # flips CanExecute + a subscribed handler observes via NotifyCanExecuteChanged).
+    # Pure value-domain — registers no property names. ADR-018 zero locks.
+    RelayCommand_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single

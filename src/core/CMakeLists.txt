@@ -36,6 +36,7 @@ vaml_add_library(core
     src/BindingDiagnostics.cpp
     src/ObservableObject.cpp
     src/BindingExpression.cpp
+    src/RelayCommand.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()
