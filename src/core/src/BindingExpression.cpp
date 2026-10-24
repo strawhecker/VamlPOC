@@ -3,9 +3,12 @@
 // wire, the Class B fallback, and the first source->target transfer. The
 // transfer runs the S240 evaluator over the S241 ObservableObject reader,
 // applies the converter, applies the fallback on a Class B outcome or converter
-// failure, then pushes to the target DP. Live subscription (S243 one-way, S244
-// two-way) is a forward step (NO-GAP, recorded); the Strict policy arm (S242_1)
-// is REAL here. See BindingExpression.h for the full contract.
+// failure, then pushes to the target DP.
+//
+// S243 (this step, dep:S242) adds the LIVE ONE-WAY source->target subscription
+// + the SetTargetFailed emission (the S240_1 forward arm). Live subscription
+// (two-way = S244) builds on the same first push; the Strict policy arm
+// (S242_1) is REAL. See BindingExpression.h for the full contract.
 
 #include "vaml/core/BindingExpression.h"
 
@@ -34,6 +37,25 @@ std::string policy_what(PropertyPathError kind, const std::string& path)
     return std::string("BindingPolicyException (Strict): ") + kindName + " in '" + path + "'";
 }
 
+// The leading path segment's property name — the key the live one-way
+// subscription is armed on (a scalar-led VM path; multi-hop re-observation is
+// a S252/S244+ concern, recorded not silent). Returns the empty view when the
+// first segment is an indexer (a subscription is then NOT armed — see
+// arm_subscription).
+std::string_view first_segment_name(const PropertyPath& path)
+{
+    if (path.segment_count() == 0)
+    {
+        return {};
+    }
+    const auto& seg = path.segments().front();
+    if (seg.kind != PropertySegmentKind::Property)
+    {
+        return {};
+    }
+    return seg.name;
+}
+
 } // namespace
 
 BindingPolicyException::BindingPolicyException(PropertyPathError kind, std::string path)
@@ -54,9 +76,78 @@ BindingDirection to_binding_direction(BindingMode mode) noexcept
     return BindingDirection::OneTime;
 }
 
-BindingExpression::BindingExpression(BindingExpression&&) noexcept = default;
-BindingExpression& BindingExpression::operator=(BindingExpression&&) noexcept = default;
-BindingExpression::~BindingExpression() = default;
+BindingExpression::BindingExpression(BindingExpression&& other) noexcept
+    : bindingId_(other.bindingId_),
+      mode_(other.mode_),
+      policy_(other.policy_),
+      source_(other.source_),
+      target_(other.target_),
+      sourcePath_(std::move(other.sourcePath_)),
+      targetProp_(std::move(other.targetProp_)),
+      converter_(std::move(other.converter_)),
+      converterName_(std::move(other.converterName_)),
+      fallback_(std::move(other.fallback_)),
+      sourceType_(std::move(other.sourceType_)),
+      targetType_(std::move(other.targetType_)),
+      path_(std::move(other.path_)),
+      subscribed_(other.subscribed_),
+      liveToken_(other.liveToken_)
+{
+    // Transfer the live one-way subscription onto THIS instance so a moved
+    // one-way binding stays live. The handler captures `this`, so it must point
+    // at the moved-to object, never the dangling moved-from: remove the old
+    // (moved-from-capturing) token from the UNCHANGED source, then re-arm a new
+    // token capturing `this`. Mark the moved-from inert so its dtor does not
+    // double-remove.
+    other.subscribed_ = false;
+    other.liveToken_  = 0;
+    if (subscribed_ && source_ != nullptr)
+    {
+        source_->remove_property_changed(liveToken_);
+        liveToken_ = source_->add_property_changed(
+            PropertyId::of(first_segment_name(path_)),
+            [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+    }
+}
+
+BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexcept
+{
+    if (this == &other)
+    {
+        return *this;
+    }
+    unsubscribe();
+    bindingId_    = other.bindingId_;
+    mode_         = other.mode_;
+    policy_       = other.policy_;
+    source_       = other.source_;
+    target_       = other.target_;
+    sourcePath_   = std::move(other.sourcePath_);
+    targetProp_   = std::move(other.targetProp_);
+    converter_    = std::move(other.converter_);
+    converterName_= std::move(other.converterName_);
+    fallback_     = std::move(other.fallback_);
+    sourceType_   = std::move(other.sourceType_);
+    targetType_   = std::move(other.targetType_);
+    path_         = std::move(other.path_);
+    subscribed_   = other.subscribed_;
+    liveToken_    = other.liveToken_;
+    other.subscribed_ = false;
+    other.liveToken_  = 0;
+    if (subscribed_ && source_ != nullptr)
+    {
+        source_->remove_property_changed(liveToken_);
+        liveToken_ = source_->add_property_changed(
+            PropertyId::of(first_segment_name(path_)),
+            [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+    }
+    return *this;
+}
+
+BindingExpression::~BindingExpression()
+{
+    unsubscribe();
+}
 
 namespace {
 
@@ -129,7 +220,72 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
     e->sourceType_  = spec.sourceType;
     e->targetType_  = spec.targetType;
     e->path_        = std::move(path);
+    e->arm_subscription();
     return e;
+}
+
+void BindingExpression::unsubscribe()
+{
+    if (subscribed_ && source_ != nullptr)
+    {
+        // Idempotent, global token-based: removing an already-removed/unknown
+        // token is a no-op (S241), so this is safe even if the token was
+        // superseded by a move.
+        source_->remove_property_changed(liveToken_);
+    }
+    subscribed_ = false;
+    liveToken_  = 0;
+}
+
+void BindingExpression::arm_subscription()
+{
+    // Only OneWay arms a LIVE subscription. OneTime never subscribes; TwoWay's
+    // forward wire is the same source-side subscription (armed by S244), so
+    // S243 arms OneWay only (S244 reuses this layer and adds write-back).
+    if (mode_ != BindingMode::OneWay)
+    {
+        return;
+    }
+    if (subscribed_)
+    {
+        return; // already armed (idempotent)
+    }
+    if (source_ == nullptr)
+    {
+        return; // no observable source to subscribe to (Class B NotReadable path)
+    }
+    const std::string_view leading = first_segment_name(path_);
+    if (leading.empty())
+    {
+        return; // empty path or indexer-led: nothing to key the subscription on
+    }
+    liveToken_ = source_->add_property_changed(
+        PropertyId::of(leading),
+        [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+    subscribed_ = true;
+}
+
+void BindingExpression::transfer_one_way()
+{
+    // The S243 live re-push: run the exact S242 pipeline; the SetTargetFailed
+    // emission is S243's arm (gated to the live one-way path so S242's OneTime
+    // no-emission tests stay green). Class B / target rejection never throws.
+    const TransferResult r = TransferSourceToTarget();
+    if (r != TransferResult::TargetRejected)
+    {
+        return;
+    }
+    BindingDiagnostic d;
+    d.bindingId  = bindingId_;
+    d.sourcePath = sourcePath_;
+    d.targetProp = targetProp_;
+    d.direction  = to_binding_direction(mode_);
+    d.reasonCode = BindingReasonCode::SetTargetFailed;
+    d.sourceType = sourceType_;
+    d.targetType = targetType_;
+    d.converter  = converterName_;
+    d.timestamp  = std::chrono::system_clock::now();
+    binding_diagnostics().emit(d);
 }
 
 bool BindingExpression::apply_fallback()

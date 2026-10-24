@@ -13,14 +13,41 @@
 // no deferred backfill; the expression, mode, converter and fallback pipeline
 // are complete and headless-testable on delivery).
 //
-// S242 OWNS (this step): the mode type, the expression config, the initial
-// source->target transfer (the OneTime resolve + the first push OneWay/TwoWay
-// build on), the converter-Convert wire, the Class B fallback application, and
-// the emission of ConverterFailed + FallbackApplied (plus the S240 resolve
-// arms). S242 deliberately does NOT emit SetTargetFailed (that is S243's arm,
-// tagged in BindingDiagnostics.h) and does NOT implement live subscriptions
-// (S243 one-way, S244 two-way) or Strict policy (S242_1). NO-GAP — all recorded
-// forward, never a silent backfill.
+// S242 OWNS: the mode type, the expression config, the initial source->target
+// transfer (the OneTime resolve + the first push OneWay/TwoWay build on), the
+// converter-Convert wire, the Class B fallback application, and the emission of
+// ConverterFailed + FallbackApplied (plus the S240 resolve arms). S242
+// deliberately does NOT emit SetTargetFailed and does NOT implement live
+// subscriptions or Strict policy.
+//
+// S243 OWNS (this step, dep:S242): the LIVE ONE-WAY source->target
+// subscription — a OneWay expression arms a per-property subscription onto the
+// source ObservableObject (keyed on the FIRST PATH SEGMENT's property name) via
+// S241 add_property_changed; on a source change the handler re-runs the exact
+// S242 pipeline (TransferSourceToTarget: re-resolve -> re-convert ->
+// re-apply-fallback -> re-push to the target DP). S243 also owns the S240_1
+// SetTargetFailed FORWARD ARM (tagged `[fwd->S243]` in BindingDiagnostics.h):
+// a one-way transfer whose target Set is rejected emits
+// BindingReasonCode::SetTargetFailed (Class B, observation never control-flow
+// per ADR-016). The subscription is RAII-bound to the expression — the dtor
+// removes it and the move ctor/assign re-arm it onto the new `this` so a moved
+// one-way binding stays live and a moved-from never fires a dangling this. The
+// caller-driven first push (TransferSourceToTarget) is UNCHANGED — `create`
+// does not change that shape, and the initial push does not emit (the emission
+// is gated to the live one-way re-push, so S242's OneTime no-emission tests
+// stay green). DP invalidation coalescing is realized from the real-change
+// discipline already established (S241 source Set fires only on a real change;
+// S035 target Set returns NO_CHANGE on an equal push) — a burst of source
+// writes coalesces to the distinct effective writes only.
+//
+// NO-GAP — all recorded forward, never a silent backfill: TwoWay (S244)
+// consumes this source-side subscription layer as its shared forward wire and
+// adds the target->source write-back separately; {Binding} markup (S252)
+// resolves onto this expression; multi-hop path re-observation is a
+// S252/S244+ concern (S243 subscribes to the leading segment, documented not
+// silent). The caller lifetime contract (unchanged from S242, documented): a
+// binding must not outlive its source ObservableObject (raw
+// ObservableObject*).
 //
 // The two deliberately-split responsibility classes (S240 split, carried):
 //   - Class A (StaticAuthoring): the binding TEXT is wrong. `create` fails fast:
@@ -133,7 +160,7 @@ struct VAML_CORE_EXPORT BindingConverter
 // (or a defensive degenerate path); `ConverterFailed` is a failed converter with
 // NO fallback; `FallbackApplied` means a Class B resolve / converter failure was
 // recovered by the bound fallback value; `TargetRejected` means the target Set
-// was refused / wrong-typed (no SetTargetFailed emission — that arm is S243's).
+// was refused / wrong-typed.
 enum class TransferResult
 {
     Applied,
@@ -200,10 +227,16 @@ public:
 
     // Runs the S242 first-transfer pipeline (source resolve -> converter ->
     // fallback -> target Set) and returns the TransferResult. Safe to call
-    // repeatedly (OneTime re-resolves on demand; live re-push is S243/S244).
-    // Never throws on a Class B outcome or a target rejection (those map to
-    // TransferResult + diagnostics).
+    // repeatedly (OneTime re-resolves on demand; the live one-way re-push is
+    // S243). Never throws on a Class B outcome or a target rejection (those
+    // map to TransferResult + diagnostics). The OneTime path does NOT emit
+    // SetTargetFailed (S243's arm is gated to the live one-way re-push).
     [[nodiscard]] TransferResult TransferSourceToTarget();
+
+    // --- Live one-way subscription introspection (S243) --------------------
+    // True when this expression currently holds a live one-way subscription on
+    // its source (OneWay mode + a valid source). OneTime never subscribes.
+    [[nodiscard]] bool live_subscribed() const noexcept { return subscribed_; }
 
     // --- Introspection -----------------------------------------------------
     [[nodiscard]] std::uint64_t binding_id() const noexcept { return bindingId_; }
@@ -222,9 +255,24 @@ private:
     // outcome or a converter failure.
     bool apply_fallback();
     // Pushes `value` to the target DP, mapping the Set outcome to a
-    // TransferResult. A wrong-typed / refused Set -> TargetRejected (the
-    // SetTargetFailed emission is S243's arm, NOT emitted here).
+    // TransferResult. A wrong-typed / refused Set -> TargetRejected.
     [[nodiscard]] TransferResult apply_to_target(const Value& value);
+
+    // The S243 live-subscription arm (OneWay mode). Arms a per-property
+    // subscription onto source_ keyed on the FIRST PATH SEGMENT's property
+    // name (S241 add_property_changed); on a real source change the handler
+    // re-runs TransferSourceToTarget() and — only for the OneWay path — emits
+    // a SetTargetFailed diagnostic when that transfer is TargetRejected (the
+    // S240_1 forward arm, bound here). Idempotent: arming when already
+    // subscribed is a no-op. Never throws.
+    void arm_subscription();
+    // Removes the live subscription (no-op when not subscribed). Idempotent.
+    void unsubscribe();
+    // The shared S243 re-push body used by the live handler: runs
+    // TransferSourceToTarget() and emits SetTargetFailed (once, Class B) when
+    // the transfer was rejected — the emission is S243's, gated to the live
+    // one-way path so S242's OneTime no-emission tests stay green.
+    void transfer_one_way();
 
     std::uint64_t bindingId_ = 0;
     BindingMode mode_ = BindingMode::OneTime;
@@ -239,6 +287,13 @@ private:
     std::string sourceType_;
     std::string targetType_;
     PropertyPath path_;
+
+    // S243 live-subscription state. `liveToken_` is valid only while
+    // `subscribed_`; a moved-from / destroyed expression never fires a dangling
+    // `this` (move re-arms, dtor unsubscribes). Default-constructed value for a
+    // never-subscribed expression; token is meaningless then.
+    bool subscribed_ = false;
+    ObservableObject::PropertyChangedToken liveToken_ = 0;
 };
 
 } // namespace vaml

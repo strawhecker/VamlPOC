@@ -123,6 +123,23 @@ add_executable(vaml-core-tests
     # ConverterFailed NEVER throw under Strict — TransferResult + exact reason codes),
     # and Strict + valid path -> normal Applied transfer.
     BindingPolicy_test.cpp
+    # S243 (dep:S242) — BindingExpression live ONE-WAY. The live one-way source→target
+    # subscription (source ObservableObject per-property subscription keyed on the FIRST
+    # PATH SEGMENT, armed at create for OneWay; on a real source change the exact S242
+    # pipeline re-runs and re-pushes) + the S240_1 SetTargetFailed FORWARD ARM (a live
+    # one-way re-push whose target Set is rejected emits BindingReasonCode::SetTargetFailed
+    # once, Class B observation never control-flow per ADR-016; the caller-driven first
+    # push and the OneTime path emit NOTHING — S242 parity preserved) + DP invalidation
+    # COALESCING proven from the real-change discipline (S241 source Set fires only on a
+    # real change; S035 target Set returns NO_CHANGE on an equal push): an interleaved
+    # A,A,B,B,C burst yields EXACTLY 3 target writes. Registers S243-unique object-scoped
+    # DPs; counts target changed-callbacks + subscription-invocation effects. Covers OneWay
+    # initial APPLIED push, LIVE auto-re-push, distinct burst 1->2->3, source-side + 
+    # target-side coalescing, mode introspection (armed only for OneWay; OneTime none),
+    # OneTime unchanged (no auto-update), converter re-run live, fallback + live restore,
+    # SetTargetFailed emission (live only), SetTargetFailed != fallback (a target rejection
+    # is never masked by a bound fallback), lifetime/dtor unsubscribe, and move re-arm.
+    BindingOneWay_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
