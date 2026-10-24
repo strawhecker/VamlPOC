@@ -1,0 +1,3 @@
+usage:
+  vamlcc <in.vaml> <out.vbaml>
+  vamlcc --embed <in.vbaml> <out.h> <out.cpp> [symbol]

@@ -184,4 +184,35 @@ struct VAML_TOOLS_EXPORT CompileResult
 // Pure and testable headlessly (ADR-021 — vaml-tools-tests drives it directly).
 [[nodiscard]] VAML_TOOLS_EXPORT int run_vamlcc(const std::vector<std::string>& args);
 
+// ---------------------------------------------------------------------------
+// S287 (dep:S286) — the EMBED generator (vamlcc --embed). Turns an already
+// compiled .vbaml byte stream into a generated C++ header + source pair that
+// declares and defines:
+//
+//     namespace vaml::tools { std::span<const std::uint8_t>
+//     compiled_vbaml_<symbolName>() noexcept; }
+//
+// returning a `std::span<const std::uint8_t>` over the .vbaml bytes embedded
+// in the source (authoring a std::array/raw byte literal). The release app
+// compiles the generated sources so the .vbaml ships INSIDE the exe (the
+// single-exe path, feeds S289/S484) — an EMBEDDED twin of the SIDE-CAR .vbaml
+// the vaml_compile_vaml() custom command also produces (S287).
+//
+// `symbolName` is sanitized to a valid C++ identifier fragment (empty → the
+// symbol is compiled_vbaml). Writes <headerPath> (a .h with the declaration +
+// the <span> include) and <sourcePath> (a .cpp with the byte array + the
+// definition) and returns true. On any I/O failure returns false (nothing is
+// reported to stderr here — the CLI writes the diagnostic). Deterministic
+// output for identical inputs. HEADLESS-TESTABLE via vaml-tools-tests
+// (ADR-021) without touching the filesystem if desired — see the embed tests.
+[[nodiscard]] VAML_TOOLS_EXPORT bool write_embed(const std::string& headerPath,
+                                                 const std::string& sourcePath,
+                                                 const std::string& symbolName,
+                                                 const std::vector<std::uint8_t>& bytes);
+
+// S287: sanitizes `raw` into a valid C++ identifier fragment for the embed
+// symbol suffix (kept: [A-Za-z0-9_]; anything else collapses to '_'). Empty
+// result is allowed (the caller falls back to the plain compiled_vbaml name).
+[[nodiscard]] VAML_TOOLS_EXPORT std::string sanitize_embed_symbol(std::string_view raw);
+
 } // namespace vaml::tools

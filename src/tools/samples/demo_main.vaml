@@ -1,0 +1,17 @@
+<!-- S287 (dep:S286) — Demo VAML compiled at build time by the
+     vaml_compile_vaml() CMake custom command into (a) the .vbaml sidecar and
+     (b) the EMBEDDED C++ twin via `vamlcc --embed`. The S287 test loads the
+     sidecar through the S285 VBamlReader and asserts it == the embedded span.
+
+     The demo binds {Binding} to the REAL built-in `Opacity` DP (UIElement) —
+     which the S280 compiler registers the moment the StackPanel is constructed
+     (register_builtin_elements + per-element construction) — so the standalone
+     vamlcc build (which registers NO S287-unique DPs) compiles the file cleanly.
+     The {Binding OpacityPrompt} is ROOTLESS so the S280_1 validator defers it
+     (dynamic, S826_1) — never a compile error. S287Content/S287Width are plain
+     literal props the S287 test registers before Load (S039). -->
+<Window x:Name="root" x:Class="Demo.MainWindow">
+    <StackPanel x:Name="panel" Opacity="{Binding OpacityPrompt}">
+        <Button x:Name="goSearch" S287Content="Search" S287Width="200"/>
+    </StackPanel>
+</Window>

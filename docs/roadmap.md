@@ -1040,21 +1040,77 @@ Growth tokens by sprint:
 
 ---
 ## Sprint 7 — VBAML compiler (BAML analogue; FIRST full pipeline)  (goal: text→vbaml→tree)  [token S280+]
-- S280 dep:S255  vamlcc CLI skeleton: read .vaml → write compiled form; parses via S2 scanner + tables.
-- S280_1 dep:S280  Static binding validation in vamlcc (per ADR-016): each binding path is validated against
+- S280 dep:S255  [DONE — the vamlcc compiler block (S280..S283) is fully implemented + test-wired + re-CERTIFIED
+      from first principles BOTH CI lanes at Step 0 of S284 (windows-msvc 4/4 warning-as-error clean +
+      ubuntu-clang warnings==0 + ctest 4/4 incl. vaml-tools-tests). vamlcc CLI skeleton: read .vaml → write
+      compiled form; parses via S2 scanner + tables.]  vamlcc CLI skeleton: read .vaml → write compiled form; parses via S2 scanner + tables.
+- S280_1 dep:S280  [DONE — static binding validation (ADR-016) + the compiler block certified (see S280).]
+      Static binding validation in vamlcc (per ADR-016): each binding path is validated against
       its statically-declared root type via the property registry (S032–S039). Typo / wrong hop type →
       compile-time error with source line/col. Roots that are truly runtime-typed (object/dynamic DataContext,
       untyped template item) are NOT validated here — they defer to bind-time Class A (S242_1) and count
       toward the coverage ratio (S826_1). [compile-time is the rule; dynamic root is the documented,
       Strict-excludable escape hatch]
-- S281 dep:S280  Binary record set: versioned schema (element-id/type-token/prop-token/event-token/resource-token/string-table).
-- S282 dep:S281  Serializer round-trips a sample tree to bytes and decode-back equal (byte-identical).
-- S283 dep:S282  Parser → record-emit (reuse scanner/factory/value tables; no stubs).
-- S284 dep:S283  Goldens: a full VAML file compiles to a .vbaml with correct token stream.
-- S285 dep:S284  Runtime VBamlReader: bytes → DependencyObject tree (InitializeComponent-style).
-- S286 dep:S285  Reader instantiates via factory registry, sets props, attaches deferred events (S8).
-- S287 dep:S286  vamlcc integrated in CMake: custom command per .vaml → .vbaml embedded or sidecar. [RESOLVES S003 tools MINIMAL REAL marker → extend version marker into real tooling surface + remove its sentinel tag]
-- S288 dep:S287  Dual-path parity harness: runtime-parsed vs compiled trees behaviorally identical (asserted).
+- S281 dep:S280  [DONE — versioned binary record set (S281 schema) + the compiler block certified (see S280).]
+      Binary record set: versioned schema (element-id/type-token/prop-token/event-token/resource-token/string-table).
+- S282 dep:S281  [DONE — serializer round-trips byte-identical + the compiler block certified (see S280).]
+      Serializer round-trips a sample tree to bytes and decode-back equal (byte-identical).
+- S283 dep:S282  [DONE — parser → record-emit (no stubs) + the compiler block certified (see S280).]
+      Parser → record-emit (reuse scanner/factory/value tables; no stubs).
+- S284 dep:S283  [DONE — NEW test/unit/Vamlc_s284_test.cpp (7 TEST_CASEs) in vaml-tools-tests. The formal
+      GOLDEN gate over compile_to_bytes(): a full-feature .vaml compiles to a .vbaml whose TOKEN STREAM is
+      asserted DECODED FROM REAL BYTES — magic 0x76424D4C + version 1; decode_schema reconstructs the
+      type/prop/event/resource tables + string table; element-id section (count + per-element records in
+      document order + child edges); attribute FLAG byte (isExtension/isBinding) + binding path + target-prop
+      token; string-table CONTENT-DEDUP (every distinct string once, referenced by VarU32 index only, no
+      by-value duplication); the event table carries Click/Changed, resource table Brush/Color; the S282
+      re-proof on the golden (decode(encode(prog,schema)) structurally-equal + re-encode BYTE-IDENTICAL);
+      positive/negative controls (clean-minimal compiles; bad magic → VbamlMalformedBuffer). TEST-ONLY —
+      zero product symbols. Both CI lanes green from first principles.]  Goldens: a full VAML file compiles to a .vbaml with correct token stream.
+- S285 dep:S284  [DONE — NEW product symbols: src/tools/include/vaml/tools/VBamlReader.h + src/tools/src/VBamlReader.cpp,
+      NEW test/unit/VBamlReader_s285_test.cpp in vaml-tools-tests. The compiled-path "S7 reader" (lives in
+      vaml-tools — core cannot depend on tools — NOT MINIMAL REAL, it is the permanent runtime reader):
+      Load(bytes) decodes (S282) + builds a LIVE DependencyObject tree InitializeComponent-style — instantiates
+      via ElementFactoryRegistry::global().create(typeToken) (S087), sets literal props (non-binding/
+      non-extension, x:-directives excluded) via DependencyProperty::TryGet (S043 attached-aware) +
+      ValueConverterRegistry convert + Set, parent-links (set_parent S039/S041), reader-owned retained_ for
+      non-root nodes in POST-ORDER (children before parent — mirrors VamlReader::retained_objects), returns the
+      root. Structured errors: VBamlException{VBamlError::None/MalformedBuffer/UnknownType/UnknownProperty/
+      MalformedValue} + element id + detail. Verified BOTH CI lanes green from first principles.]  Runtime VBamlReader: bytes → DependencyObject tree (InitializeComponent-style).
+- S286 dep:S285  [DONE — extended VBamlReader + NEW test/unit/VBamlReader_s286_test.cpp. The full compiled-path
+      deferred surface (mirrors S092/S094): x:Name/x:Class/x:Key registries (named()/names()/name_count(),
+      root_class(), DuplicateName on duplicate x:Name, ClassOnNonRoot on x:Class at depth!=0); {Binding}
+      DeferredExtensions recorded verbatim (target/key/source, NOT set/resolved — release consumer / S252
+      analogue, NO-GAP); event attach via register_event(name) → VBamlDeferredEventHandler{target,eventName,
+      handlerName} (never a property set / unknown-property throw; resolved to a real routed handler by S322);
+      per-Load clearing (event registrations survive — reader-level config). Verified BOTH lanes green.]  Reader instantiates via factory registry, sets props, attaches deferred events (S8).
+- S287 dep:S286  [DONE — RESOLVES S003 tools MINIMAL REAL marker. NEW: reusable CMake function
+      vaml_compile_vaml() (src/tools/CMakeLists.txt) wrapping add_custom_command per .vaml → .vbaml (the
+      OUTPUT sidecar) + an optional --embed second command emitting an embedded C++ pair; both commands run the
+      ACTUAL built vamlcc via $<TARGET_FILE:vamlcc> (cross-platform — bare `vamlcc` failed on Linux). NEW
+      `vamlcc --embed <in.vbaml> <out.h> <out.cpp> [symbol]` mode + vaml::tools::write_embed() +
+      sanitize_embed_symbol() (Vamlc.h/Vamlc.cpp/vamlcc_main.cpp) emitting
+      vaml::tools::compiled_vbaml_<symbol>() -> std::span<const uint8_t>. NEW demo src/tools/samples/demo_main.vaml
+      wired through vaml_compile_vaml() into a .vbaml sidecar + embedded .h/.cpp at build time, COMPILED as a
+      real source by the S287 test (ADR-021 single source of truth) — NEW test/unit/Vamlc_s287_test.cpp (5
+      cases: embed generator units, embedded span == sidecar bytes, sidecar loads through the S285 reader,
+      tools version marker real). Marker: version.h `[MINIMAL REAL] tools — RESOLVED BY S287` sentinel tag
+      REMOVED; the real vaml::tools::version()/Version/tools_name() symbol KEPT + EXTENDED as the version of
+      the now-real tooling library. Verified BOTH CI lanes green from first principles.]  vamlcc integrated in CMake: custom command per .vaml → .vbaml embedded or sidecar. [RESOLVES S003 tools MINIMAL REAL marker → extend version marker into real tooling surface + remove its sentinel tag]
+- S288 dep:S287  [DONE — NEW product symbols: src/tools/include/vaml/tools/parity/DualPathParity.h + src/tools/src/parity/
+      DualPathParity.cpp (the dual-path parity comparator, test-support), NEW test/unit/VBamlReader_s288_parity_test.cpp.
+      Drives the SAME VAML source through BOTH real readers and asserts behavioral identity per axis: root type;
+      retained count + document order + resolved types; parent chain (presence/ancestry shape — NOT object identity:
+      the two readers build DISTINCT objects by design); x:Name registry (names + mapped-object types in registration
+      order); deferred {Binding} extensions (count, target type, key, source verbatim); deferred event handlers
+      (count, target type, eventName, handlerName); literal-prop CONVERTED values incl. attached dotted keys
+      (compare_dual_path_props). Proven on the S284 golden + a focused control; the comparator is honest (the report
+      type cannot false-green). Release-consumer contract confirmed: S7 compiled path = the release reader (single
+      source of truth), S2 text path = the dev tool — PARITY, not duplication. Both CI lanes green from first
+      principles.]  Dual-path parity harness: runtime-parsed vs compiled trees behaviorally identical (asserted).
+- Sprint 7 (S280..S288) COMPLETE: the VBAML compiler pipeline (text -> vamlcc -> .vbaml -> VBamlReader -> tree) is
+      end-to-end GREEN on both CI lanes. The S003 tools MINIMAL REAL marker resolved at S287. Session-checkpoint
+      regenerated to Sprint 8 (next: S289).
 - S289 dep:S288  Pack/identity: x:Class name mapping; embedded resource lookup; release uses compiled only.
 - S290 dep:S289  Refactor-gated dual path: S2 reader = dev tool, S7 reader = release.
 - S291 dep:S290  REFACTOR GATE(S7): FULL text→vbaml→tree pipeline, parity proven, no stubs.

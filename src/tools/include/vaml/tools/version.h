@@ -1,9 +1,11 @@
 #pragma once
 // VAML tools library version identity.
-// [MINIMAL REAL] tools — RESOLVED BY S287 (Sprint 7: vamlcc compiler tooling).
-// A strategic seed (NOT lazy LLM): gives vaml-tools a real, linkable, permanent
-// public symbol so the artifact model is observable NOW, extended — not deleted —
-// when the real tooling lands at S287. Do NOT extend silently; do NOT backfill.
+// RESOLVED BY S287 (Sprint 7): the S003 MINIMAL REAL tools marker is now the
+// REAL tooling surface — the vamlcc compiler, the .vbaml schema + serializer,
+// the VBamlReader, and the vaml_compile_vaml() CMake integration live in this
+// library. The version symbol is KEPT + EXTENDED (never deleted) as the version
+// of the now-real tooling library. S003/S287 recorded in roadmap + progress.
+// No sentinel tag remains (grep-audited — see S287).
 
 #include <string_view>
 
@@ -22,6 +24,8 @@ struct Version
 // Returns the compile-time version of vaml-tools.
 [[nodiscard]] constexpr Version version() noexcept
 {
+    // Extended at S287 (real tooling): minor bumped to 1.0 as the tooling
+    // surface landed. Consumers use this to report the vaml-tools version.
     return Version{0, 1, 0};
 }
 

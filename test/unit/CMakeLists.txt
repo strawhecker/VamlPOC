@@ -369,7 +369,66 @@ add_executable(vaml-tools-tests
     VbamlSchema_s281_test.cpp
     VbamlSerializer_s282_test.cpp
     Vamlc_s283_test.cpp
+    # S284 (dep:S283) — GOLDENS: a full VAML file compiles to a .vbaml with a
+    # correct token stream. TEST-ONLY golden gate over compile_to_bytes() — the
+    # produced token stream asserted DECODED FROM REAL BYTES (magic/version,
+    # schema tables, element-id records in document order, attribute
+    # flag/extension/binding/target-prop bits, string-table dedup) + the S282
+    # byte-identity + decode-equality re-proof on the golden + positive/negative
+    # controls (clean-minimal compiles; bad magic -> VbamlMalformedBuffer).
+    Vamlc_s284_test.cpp
+    # S285 (dep:S284) — Runtime VBamlReader (vaml::tools): bytes -> DependencyObject
+    # tree (InitializeComponent-style). Compiles a golden .vaml to bytes then loads
+    # through the REAL compiled-path reader; asserts root type, retained count/order,
+    # parent chain, converted literal props (incl. attached dotted keys) + the S285
+    # error taxonomy (UnknownProperty/MalformedValue/MalformedBuffer, exported
+    # VBamlException element-id + detail).
+    VBamlReader_s285_test.cpp
+    # S286 (dep:S285) — Reader instantiates via factory registry, sets props,
+    # attaches deferred events (S8). The full compiled-path deferred surface:
+    # x:Name/x:Class/x:Key registries (DuplicateName/ClassOnNonRoot/root_class),
+    # {Binding} DeferredExtensions recorded verbatim (NOT set/resolved), event
+    # attach via register_event -> DeferredEventHandler (never unknown-property),
+    # per-Load clearing + error-taxonomy distinctness. Parity of the deferred
+    # api-shape with the S092 text reader is asserted structurally + behaviorally.
+    VBamlReader_s286_test.cpp
+    # S287 (dep:S286) — vamlcc integrated in CMake: custom command per .vaml ->
+    # .vbaml embedded or sidecar. RESOLVES the S003 tools MINIMAL REAL marker.
+    # Three proofs: (1) the embed generator units (write_embed + symbol
+    # sanitization), (2) the CMake-WIRED format — the demo .vaml is compiled at
+    # build time by vaml_compile_vaml() into BOTH a side-car .vbaml AND an
+    # embedded C++ pair whose generated .cpp is COMPILED here as a real source
+    # (VAML_S287_EMBED_CPP) so the test proves the embedded span == the sidecar
+    # bytes AND the sidecar loads through the S285 reader, (3) the tools version
+    # marker is now REAL tooling surface (S003 resolved; sentinel removed).
+    Vamlc_s287_test.cpp
+    # S288 (dep:S287) — Dual-path parity harness: runtime-parsed (S2 core
+    # VamlReader) vs compiled (S7 tools VBamlReader over vamlcc->.vbaml bytes)
+    # trees behaviorally identical (asserted). Drives BOTH real readers over the
+    # same VAML source and asserts the per-axis comparator (compare_dual_path +
+    # compare_dual_path_props) reports all green: root type, retained
+    # count/order/types, parent chain, x:Name registry, deferred {Binding}
+    # extensions, deferred event handlers, literal-prop converted values (incl.
+    # attached dotted keys). Proven on the S284 golden + a focused control; the
+    # harness is honest (no false-green). Release-consumer contract: S7 is the
+    # release path, S2 the dev tool — parity, not duplication.
+    VBamlReader_s288_parity_test.cpp
 )
+
+# Link the S287 test against the CMake-generated embed source (compiles the
+# ACTUAL generated code — ADR-021 single source of truth) + the sidecar path.
+# The generated .vbaml/.h/.cpp are produced by the vamlcc_demo_main custom
+# target; the test must DEPEND on it so the files exist before the test
+# compiles and includes the generated header.
+if(VAML_S287_EMBED_CPP AND VAML_S287_EMBED_HDR)
+    target_sources(vaml-tools-tests PRIVATE "${VAML_S287_EMBED_CPP}")
+    target_include_directories(vaml-tools-tests PRIVATE "${VAML_S287_EMBED_INC}")
+    target_compile_definitions(vaml-tools-tests PRIVATE
+        S287_DEMO_VBAML="${VAML_S287_EMBED_SIDECAR}"
+        S287_DEMO_EMBED_H="${VAML_S287_EMBED_HDR}"
+    )
+    add_dependencies(vaml-tools-tests vamlcc_demo_main)
+endif()
 
 vaml_apply_compiler_policy(vaml-tools-tests)
 
