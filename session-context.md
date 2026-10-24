@@ -1,7 +1,17 @@
 # VAML session-context (per-run state)
 
 ## last_command
-implementit — S252 -> S253 -> S254 -> S255 -> S256 (Sprint 6 close: markup {Binding} → Command → Refactor Gate → SURVIVOR/checkpoint → viewer growth). COMPLETED + VERIFIED from first principles BOTH CI lanes (windows-msvc + ubuntu-clang) + ASan/LSan zero-leak (S254).
+implementit — S280 → S280_1 → S281 → S282 → S283 (Sprint 7 opening block: vamlcc compiler). COMPLETED + VERIFIED from first principles BOTH CI lanes (windows-msvc + ubuntu-clang).
+- S280 vamlcc CLI skeleton: NEW src/tools/include/vaml/tools/Vamlc.h (CompiledProgram/ElementRecord/AttributeRecord — the shared in-memory compiled form; VamlcError taxonomy; VamlcException line/col; compile()/compile_text()/try_compile_file()/write_program_text()/compile_to_bytes()/run_vamlcc()) + src/tools/src/Vamlc.cpp. compile() reads .vaml -> parses via the S2 scanner (parse_vaml) + resolves against the S2 tables (ElementFactoryRegistry S087, ValueConverterRegistry S089, DependencyProperty/PropertyRegistry S032–S039); parse exceptions mapped to ParseFailed. NEW src/tools/vamlcc_main.cpp (the CLI shell; run_vamlcc -> exit 0/1/2/3). MOD src/tools/CMakeLists.txt (vaml-tools +new sources, +vamlcc executable, PRIVATE vaml-core link). NEW build/verify_s280.cmd.
+- S280_1 static binding validation (ADR-016, Q1=A): NEW src/tools/include/vaml/tools/BindingValidator.h + src/tools/src/BindingValidator.cpp — each {Binding Path} validated against its static root via the property registry (target-key typo -> UnknownTargetProperty; malformed path -> MalformedPath; element-rooted hop typo -> WrongHopType), fail-fast compile-time error with source line/col; DYNAMIC roots (VM ObservableObject data-context / untyped template item, e.g. "{Binding Title}") are NOT validated here — deferred to bind-time Class A (S242_1 Strict) + counted toward the coverage ratio (S826_1). WPF repo corroborates the split.
+- S281 binary record set: NEW src/tools/include/vaml/tools/vbaml/VbamlSchema.h + src/tools/src/vbaml/VbamlSchema.cpp — versioned schema (magic 'vBML' + version 1 + six sections: element-id / type-token / prop-token / event-token / resource-token / string-table); token tables enumerated INTO the string table; insertion-order + content-deduped internment (deterministic -> byte-identical). Schema OWNS its strings (flush-safe after builder destruction).
+- S282 serializer round-trip: NEW src/tools/include/vaml/tools/vbaml/VbamlSerializer.h + src/tools/src/vbaml/VbamlSerializer.cpp — Big-Endian + VarU32 wire format; encode/decode round-trips a sample tree byte-identical + structural-equal; VbamlMalformedBuffer on structural violation (bad magic/version/truncated/overlong/out-of-range).
+- S283 parser -> record-emit: MOD Vamlc.cpp compile() reuses scanner/factory/value/property tables (no stubs); compile_to_bytes() = parse -> record-emit -> S281/S282 binary.
+- NEW test/unit/vaml-tools-tests target (smoke_test.cpp doctest main + Vamlc_s280_test.cpp + Vamlc_s280_1_test.cpp + VbamlSchema_s281_test.cpp + VbamlSerializer_s282_test.cpp + Vamlc_s283_test.cpp) — 25 TEST_CASEs, 116 assertions.
+New + modified: Vamlc.{h,cpp}, vamlcc_main.cpp, BindingValidator.{h,cpp}, vbaml/VbamlSchema.{h,cpp}, vbaml/VbamlSerializer.{h,cpp}, src/tools/CMakeLists.txt, test/unit/CMakeLists.txt, 5 new test files, build/verify_s280.cmd, session-context. ProgramRecord refined IN PLACE (NO-GAP; tools marker -> S287; dynamic-root coverage -> S826_1).
+
+## plan_digest
+S280->S283 (Sprint 7 opening: vamlcc compiler in src/tools, dep:S255). S280: vamlcc CLI skeleton reads .vaml -> compiled form, parses via S2 scanner + resolves against S2 tables (factory/value/property); CLI shell + headless seam; typed exit codes. S280_1: static binding validation (ADR-016, Q1=A) — target-key typo / malformed path / element-rooted hop typo -> compile-time error with line/col via the property registry; dynamic (VM/untyped) roots deferred to bind-time Class A (S242_1) + counted for coverage (S826_1). S281: versioned binary record set (element-id / type-token / prop-token / event-token / resource-token / string-table), token tables enumerated into the string table. S282: serializer round-trips a sample tree to bytes and decodes back byte-identical + structural-equal. S283: parser -> record-emit (reuse scanner/factory/value tables; no stubs). Both CI lanes green from first principles.
 - S252 MARKUP {Binding} RESOLVED IN VamlReader (the S2 tag bound): NEW src/core/include/vaml/core/BindingMarkup.h + src/core/src/BindingMarkup.cpp (parse_markup_binding -> BindingMarkup { kind, path, mode, hasMode, malformed }; MarkupExtensionKind { None, Binding, Command } — parses {Binding Title} / {Binding Title, Mode=TwoWay} / {Command DoIt}; kind None for StaticResource/x:Null stays deferred S361; malformed sets malformed flag) + MOD src/core/include/vaml/core/VamlReader.h + src/core/src/VamlReader.cpp (VamlReaderError::MalformedBindingMarkup arm; VamlReader::set_data_context(ObservableObject*) + BindExtensions() — the S2-tag resolution building a live BindingExpression per {Binding} row against the data context + target DP, applying the S242 first transfer, reader-owned live_bindings() cleared per Load; policy from view_binding_policy_default, diagnostics through the S250_1 channel; malformed -> throws VamlReaderException(MalformedBindingMarkup)) + MOD src/core/CMakeLists.txt + NEW test/unit/BindingMarkup_test.cpp (15) + NEW test/unit/VamlReader_binding_test.cpp (9 incl. S253) + NEW build/verify_s252.cmd.
 - S253 COMMAND via {Command}: MOD VamlReader.{h,cpp} — register_command(name, ICommand*) (app-owned, non-owning, idempotent, NOT per-Load cleared) + ResolveCommand(name)->ICommand* (the S246 command surface); {Command} left deferred by BindExtensions then resolved; one/two-way markup end-to-end proven via VamlReader_binding_test.
 - S254 REFACTOR GATE (Sprint 6): full MVVM in v1 (all modes + converters + Fallback/Strict + diagnostics, no stubs); grep-audit clean; ASan clean on msvc-asan (871/871) + ASan+LSan zero-leak on clang-asan.
@@ -13,37 +23,31 @@ New + modified: BindingMarkup.{h,cpp}, VamlReader.{h,cpp}, CMakeLists (core+test
 S252->S256 (Sprint 6, markup binding end-to-end + viewer growth, dep:S251). S252: parse_markup_binding (BindingMarkup) + VamlReader::set_data_context + BindExtensions -> the S092 deferred {Binding} becomes a live binding (first transfer + live one-way; Mode=TwoWay arms write-back; malformed -> MalformedBindingMarkup throw; kind None stays deferred). S253: {Command} left deferred, resolved via register_command + ResolveCommand(ICommand), one/two-way markup end-to-end. S254: Refactor Gate — all modes + converters + policy + diagnostics, no stubs; ASan/LSan zero-leak. S255: SURVIVOR + checkpoint to S280. S256: viewer reload populates a VM (plain ctor, NO DI) + renders {Binding} via viewer_binding.h + bind_and_render (the visible dim). Both CI lanes green from first principles.
 
 ## files_touched
-- ADDED src/core/include/vaml/core/BindingMarkup.h + src/core/src/BindingMarkup.cpp (S252 markup parser; REAL permanent Cat-1)
-- MOD src/core/include/vaml/core/VamlReader.h (MalformedBindingMarkup arm; set_data_context/data_context/BindExtensions/live_bindings/register_command/ResolveCommand; members dataContext_/live_bindings_/commands_)
-- MOD src/core/src/VamlReader.cpp (BindExtensions impl; Load clears live_bindings_; register_command/ResolveCommand impl)
-- MOD src/core/CMakeLists.txt (+BindingMarkup.cpp)
-- ADDED test/unit/BindingMarkup_test.cpp (15 TEST_CASEs)
-- ADDED test/unit/VamlReader_binding_test.cpp (9 TEST_CASEs incl. S253)
-- ADDED test/unit/ViewerBindingPlan_test.cpp (5 TEST_CASEs, S256)
-- MOD test/unit/CMakeLists.txt (+the 3 new suites; S252/S256 comment blocks)
-- ADDED build/verify_s252.cmd (S252..S253 CI-lane verification, msvc-debug)
-- ADDED vaml_viewer/viewer_binding.h (S256 seam; header-only ADR-021 consumer path)
-- MOD vaml_viewer/app.h + vaml_viewer/app.cpp (bind_and_render; S256 integration on the S222_1 reload path; read_file_text helper)
-- MOD docs/roadmap.md (S252/S253/S254/S255/S256 marked [DONE] with digests)
+- ADDED src/tools/include/vaml/tools/Vamlc.h + src/tools/src/Vamlc.cpp (S280 compiler skeleton — shared CompiledProgram form, VamlcError/VamlcException, compile/compile_text/try_compile_file/write_program_text/compile_to_bytes/run_vamlcc)
+- ADDED src/tools/vamlcc_main.cpp (S280 CLI shell)
+- ADDED src/tools/include/vaml/tools/BindingValidator.h + src/tools/src/BindingValidator.cpp (S280_1 static binding validation)
+- ADDED src/tools/include/vaml/tools/vbaml/VbamlSchema.h + src/tools/src/vbaml/VbamlSchema.cpp (S281 versioned binary record-set schema)
+- ADDED src/tools/include/vaml/tools/vbaml/VbamlSerializer.h + src/tools/src/vbaml/VbamlSerializer.cpp (S282 byte-identical serializer/deserializer)
+- MOD src/tools/CMakeLists.txt (+Vamlc/BindingValidator/vbaml sources into vaml-tools; +vamlcc executable; vaml-core PRIVATE link)
+- MOD test/unit/CMakeLists.txt (+vaml-tools-tests target: smoke_test doctest main + Vamlc_s280 + Vamlc_s280_1 + VbamlSchema_s281 + VbamlSerializer_s282 + Vamlc_s283 suites)
+- ADDED test/unit/Vamlc_s280_test.cpp + Vamlc_s280_1_test.cpp + VbamlSchema_s281_test.cpp + VbamlSerializer_s282_test.cpp + Vamlc_s283_test.cpp (25 TEST_CASEs total)
+- ADDED build/verify_s280.cmd (S280..S283 CI-lane verification, msvc-debug)
 - MOD session-context.md (this file)
 - No NEW md files (operational files only, per protocol scope).
 
 ## build_status
-GREEN both CI lanes from first principles (S252..S256 gate):
-- windows-msvc: build/verify_s252.cmd (msvc-debug) — build warning-as-error (/WX) CLEAN + ctest 3/3 PASS. vaml-core-tests 876/876 (incl. BindingMarkup 15 + VamlReader_binding 9 + ViewerBindingPlan 5, all prior green) + vaml-vulkan-tests 211/211 + vaml-presentation-tests 39/39, 0 failed. CI note: full ASan build required --parallel 2 (environment memory pressure — MSVC C1060 under parallel ASan; the non-ASan lane unaffected).
-- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug (shared folder re-mounted via `sudo vmhgfs-fuse .host:/ /mnt/hgfs`) — configure clean + build warnings==0 + ctest 3/3 PASS (100% passed, 0 failed out of 3).
-- S254 ASan/LSan: msvc-asan vaml-core-tests 871/871 ASan-clean + clang-asan 100% passed zero-leak (detect_leaks=1).
+GREEN both CI lanes from first principles (S280..S283 gate):
+- windows-msvc: build/verify_s280.cmd (msvc-debug) — build warning-as-error (/WX) CLEAN + ctest 4/4 PASS (100% passed, 0 failed out of 4). vaml-tools-tests 25/25 (116 assertions) + vaml-core-tests Passed + vaml-vulkan-tests Passed + vaml-presentation-tests Passed, all prior suites green.
+- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug — configure clean + build warnings==0 + ctest 100% passed (incl. vaml-tools-tests). One clang-only warning-as-error (unused kind_i helper) fixed.
 windows-clang-debug is NOT a lane (pre-existing failure; not built/tested).
 
 ## next_step
-S280 (dep:S255; Sprint 7: UI/viewer + host rendering + app-shell) — per the S255 checkpoint advance. The Sprint 6 binding chain is complete + the viewer-growth obligation (S256) is delivered.
+S284 (per roadmap; Sprint 7 continues). The vamlcc compiler block (S280..S283) is complete; the tools MINIMAL REAL marker stays INTACT (resolved at S287, recorded NO-GAP); the parser -> record-emit pipe (S283) is live with no stubs.
 
 ## notes
-- S252 is the S2-tag resolution point (VamlReader_binding_test proves the S092-recorded {Binding} becomes a LIVE binding: first value lands on the target DP + a live one-way re-push + Mode=TwoWay write-back end-to-end through markup).
-- The reader data context is the S250/S251 app-constructed VM (NO DI); BindExtensions uses view_binding_policy_default (S250_1 Fallback) + the S250_1 diagnostics channel; ADR-018 zero locks.
-- S253 command registry is app-owned + non-owning; NOT per-Load cleared (survives the tree it is authored on, like register_event) — resolved via ResolveCommand (the S246 ICommand surface).
-- S256 reuses the REAL S120 Opacity DP as the visible binding target (the S208 encoder folds effective opacity into alpha) — the honest "you SEE data binding" proof absent real control materials (Text/Button -> S400/S401, recorded NO-GAP); the LIVE window proof remains [both apps, not CI] on this box + feeds S443.
-- Environment note: the ubuntu-clang shared folder (/mnt/hgfs) came un-mounted between S252 and S254 on the VM and was restored via `sudo vmhgfs-fuse .host:/ /mnt/hgfs -o allow_other -o uid=1000,gid=1000` (vmhgfs kernel module unavailable; FUSE path works).
-- NO MINIMAL REAL introduced/resolved (BindingMarkup + reader binding + command seam + viewer VM/plan are all REAL permanent Cat-1, forward-consumed by S400/S401/S443).
+- S280_1 implements ADR-016 (Q1=A, accepted): static binding validation via the property registry; dynamic roots (VM ObservableObject data-context / untyped template item) defer to bind-time Class A (S242_1) + count toward the coverage ratio (S826_1) — the documented, Strict-excludable escape hatch.
+- The compiled program (ProgramRecord / CompiledProgram) is refined IN PLACE across S280..S283 (NO-GAP, not silent): S280 emits the text form, S281/S282 formalize the binary schema + serializer, S283 wires the full pipe (no stubs).
+- Schema string-table ownership: Schema owns plain std::string (flush-safe after the builder is destroyed) — fixed mid-block.
+- ADR-018 zero locks (single-threaded compiler); ADR-021 headless tests (vaml-tools-tests links vaml-tools, never spawns an exe); ADR-011 tools stays CORE (no Vulkan).
 - No commits made (per standing directive unless 'commitit' is commanded).
 - No NEW md files created.

@@ -356,6 +356,43 @@ target_link_libraries(vaml-core-tests PRIVATE vaml-core)
 add_test(NAME vaml-core-tests COMMAND vaml-core-tests)
 
 # ============================================================================
+# vaml-tools-tests — S280 (dep:S255) headless tests of the vamlcc compiler.
+# Links the real vaml-tools library (which PRIVATE-links vaml-core), so the
+# S280→S283 suites exercise the S2 scanner + factory/value/property tables the
+# compiler parses and resolves against — single source of truth, ADR-021
+# consumer pattern, never a spawned subprocess in CI.
+# ============================================================================
+add_executable(vaml-tools-tests
+    smoke_test.cpp         # doctest main (DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN), same as vaml-core-tests
+    Vamlc_s280_test.cpp
+    Vamlc_s280_1_test.cpp
+    VbamlSchema_s281_test.cpp
+    VbamlSerializer_s282_test.cpp
+    Vamlc_s283_test.cpp
+)
+
+vaml_apply_compiler_policy(vaml-tools-tests)
+
+target_include_directories(vaml-tools-tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/core/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/tools/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../vaml_viewer  # S221 precedent: consumer seams
+)
+target_include_directories(vaml-tools-tests SYSTEM PRIVATE
+    ${VAML_DEPS_DIR}
+)
+
+if(MSVC)
+    target_compile_options(vaml-tools-tests PRIVATE /external:W0)
+else()
+    target_compile_options(vaml-tools-tests PRIVATE "-Wno-#warnings")
+endif()
+
+target_link_libraries(vaml-tools-tests PRIVATE vaml-tools)
+
+add_test(NAME vaml-tools-tests COMMAND vaml-tools-tests)
+
+# ============================================================================
 # vaml-vulkan-tests — S160+ headless tests of the vaml-vulkan surface.
 # Links the real vaml-vulkan library (which transitively exposes the vendored
 # GLFW include dir via vaml::glfw PUBLIC) so the S160 callback-surface tests can
