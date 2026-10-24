@@ -67,6 +67,39 @@ enum class BindingMode : std::uint8_t
     TwoWay  = 2,
 };
 
+// --- Policy ----------------------------------------------------------------
+// The Class A (bind-time) failure policy per ADR-016. `Fallback` (default) is
+// the S242-tested behavior: a Class A path error is emitted as a diagnostic and
+// create() returns nullptr (no bind, no throw — Class A never falls back).
+// `Strict` (S242_1) PROMOTES that same Class A path error to a BIND-TIME THROW:
+// create() emits the diagnostic (observation, ADR-016 — it is never the control
+// flow, the throw is) and then throws BindingPolicyException. Class B outcomes
+// (NullIntermediate / MissingProperty / NotReadable / ConverterFailed) NEVER
+// throw under either policy — they stay TransferResult + diagnostics (fallback
+// applies where present).
+enum class BindingPolicy : std::uint8_t
+{
+    Fallback = 0, // default; Class A -> emit + return nullptr (no bind, no throw)
+    Strict   = 1, // Class A -> emit + THROW BindingPolicyException (bind-time)
+};
+
+// The Strict-policy Class A throw. Carries kind() (the PropertyPathError) and
+// path() and names the authored path in what() — the structure-error convention
+// established by S082/S091/S094 (PropertyPathException). Strict means: no bind,
+// the author is told loudly at bind time instead of silently getting nullptr.
+class VAML_CORE_EXPORT BindingPolicyException : public std::logic_error
+{
+public:
+    BindingPolicyException(PropertyPathError kind, std::string path);
+
+    [[nodiscard]] PropertyPathError kind() const noexcept { return kind_; }
+    [[nodiscard]] const std::string& path() const noexcept { return path_; }
+
+private:
+    PropertyPathError kind_;
+    std::string       path_;
+};
+
 // Maps a BindingMode to the diagnostic-carrying BindingDirection (S240_1).
 [[nodiscard]] VAML_CORE_EXPORT BindingDirection to_binding_direction(BindingMode mode) noexcept;
 
@@ -117,8 +150,10 @@ enum class TransferResult
 // is the dot-path into it; `target` is the DependencyObject the value lands on;
 // `targetProp` is its registered property name; `mode` selects data-flow;
 // `converter` (optional) transforms the resolved value; `fallback` (optional)
-// is the Class B fallback value; sourceType/targetType feed diagnostics; a
-// `converterName` is carried into ConverterFailed/FallbackApplied diagnostics.
+// is the Class B fallback value; `policy` selects Class A bind-time behavior
+// (Fallback default: emit + nullptr; Strict: emit + throw); sourceType/
+// targetType feed diagnostics; a `converterName` is carried into
+// ConverterFailed/FallbackApplied diagnostics.
 struct VAML_CORE_EXPORT BindingExpressionSpec
 {
     ObservableObject* source = nullptr;
@@ -126,6 +161,7 @@ struct VAML_CORE_EXPORT BindingExpressionSpec
     DependencyObject* target = nullptr;
     std::string targetProp;
     BindingMode mode = BindingMode::OneTime;
+    BindingPolicy policy = BindingPolicy::Fallback;
     BindingConverter converter;
     std::string converterName;
     std::optional<Value> fallback;
@@ -153,8 +189,13 @@ public:
 
     // Parses spec.sourcePath (Class A gate). On success returns a NEW
     // expression (bindingId already consumed); on a Class A parse failure emits
-    // MalformedPath/EmptyPath and returns nullptr — NO bind, NO fallback (Class
-    // A never falls back). Never throws on a path error.
+    // MalformedPath/EmptyPath (observation, ADR-016) and then, per spec.policy:
+    //   - Fallback: returns nullptr — NO bind, NO fallback (Class A never
+    //     falls back; the S242 behavior).
+    //   - Strict: THROWS BindingPolicyException (bind-time throw) — the
+    //     S242_1 promotion.
+    // Class B outcomes are never reached here (create only parses; B is the
+    // transfer's concern), so create never throws for Class B under any policy.
     [[nodiscard]] static std::unique_ptr<BindingExpression> create(const BindingExpressionSpec& spec);
 
     // Runs the S242 first-transfer pipeline (source resolve -> converter ->
@@ -167,6 +208,7 @@ public:
     // --- Introspection -----------------------------------------------------
     [[nodiscard]] std::uint64_t binding_id() const noexcept { return bindingId_; }
     [[nodiscard]] BindingMode mode() const noexcept { return mode_; }
+    [[nodiscard]] BindingPolicy policy() const noexcept { return policy_; }
     [[nodiscard]] ObservableObject* source() const noexcept { return source_; }
     [[nodiscard]] DependencyObject* target() const noexcept { return target_; }
     [[nodiscard]] const std::string& source_path() const noexcept { return sourcePath_; }
@@ -186,6 +228,7 @@ private:
 
     std::uint64_t bindingId_ = 0;
     BindingMode mode_ = BindingMode::OneTime;
+    BindingPolicy policy_ = BindingPolicy::Fallback;
     ObservableObject* source_ = nullptr;
     DependencyObject* target_ = nullptr;
     std::string sourcePath_;

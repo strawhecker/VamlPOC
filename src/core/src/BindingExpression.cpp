@@ -4,12 +4,44 @@
 // transfer runs the S240 evaluator over the S241 ObservableObject reader,
 // applies the converter, applies the fallback on a Class B outcome or converter
 // failure, then pushes to the target DP. Live subscription (S243 one-way, S244
-// two-way) and Strict policy (S242_1) are forward steps (NO-GAP, recorded).
-// See BindingExpression.h for the full contract.
+// two-way) is a forward step (NO-GAP, recorded); the Strict policy arm (S242_1)
+// is REAL here. See BindingExpression.h for the full contract.
 
 #include "vaml/core/BindingExpression.h"
 
+#include <string>
+
 namespace vaml {
+
+namespace {
+
+// Human-readable "what" for a BindingPolicyException (the S082/S091/S094
+// structured-error convention: name the authored fragment in the message).
+std::string policy_what(PropertyPathError kind, const std::string& path)
+{
+    const char* kindName = nullptr;
+    switch (kind)
+    {
+    case PropertyPathError::Empty:               kindName = "empty property path"; break;
+    case PropertyPathError::TrailingDot:         kindName = "trailing dot"; break;
+    case PropertyPathError::ConsecutiveDot:      kindName = "consecutive dots"; break;
+    case PropertyPathError::UnterminatedIndexer: kindName = "unterminated indexer"; break;
+    case PropertyPathError::EmptyIndexer:        kindName = "empty indexer"; break;
+    case PropertyPathError::MalformedIndex:      kindName = "malformed index"; break;
+    case PropertyPathError::UnclosedQuote:       kindName = "unclosed quote"; break;
+    default:                                     kindName = "invalid property path"; break;
+    }
+    return std::string("BindingPolicyException (Strict): ") + kindName + " in '" + path + "'";
+}
+
+} // namespace
+
+BindingPolicyException::BindingPolicyException(PropertyPathError kind, std::string path)
+    : std::logic_error(policy_what(kind, path)),
+      kind_(kind),
+      path_(std::move(path))
+{
+}
 
 BindingDirection to_binding_direction(BindingMode mode) noexcept
 {
@@ -62,12 +94,23 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
     PropertyPathError parseErr = PropertyPathError::Empty;
     if (!PropertyPath::try_parse(spec.sourcePath, path, &parseErr))
     {
-        // Class A never falls back; no bind. The diagnostic tells the author.
+        // Class A never falls back; no bind. ALWAYS emit the diagnostic first
+        // (observation, ADR-016 — it is information, never the control flow),
+        // then apply the policy:
+        //   - Fallback: return nullptr (the S242 behavior).
+        //   - Strict: THROW BindingPolicyException (bind-time throw, S242_1).
+        // Class B is never reached here (create only parses), so create never
+        // throws for Class B under any policy.
         BindingDiagnostic d = diagnostic_from_path_error(
             next_binding_id(), spec.sourcePath, spec.targetProp,
             to_binding_direction(spec.mode), spec.sourceType, spec.targetType,
             parseErr, "BindingExpression::create rejected the path", {}, 0);
         binding_diagnostics().emit(d);
+
+        if (spec.policy == BindingPolicy::Strict)
+        {
+            throw BindingPolicyException(parseErr, spec.sourcePath);
+        }
         return nullptr;
     }
 
@@ -75,6 +118,7 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
     std::unique_ptr<BindingExpression> e(new BindingExpression());
     e->bindingId_   = next_binding_id();
     e->mode_        = spec.mode;
+    e->policy_      = spec.policy;
     e->source_      = spec.source;
     e->target_      = spec.target;
     e->sourcePath_  = spec.sourcePath;

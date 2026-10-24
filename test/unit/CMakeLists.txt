@@ -111,6 +111,18 @@ add_executable(vaml-core-tests
     # and exact reason codes per arm via a recording sink. NO-GAP forward contracts
     # to S243/S244 (live wires) + S242_1 (Strict) recorded, not silent.
     BindingExpression_test.cpp
+    # S242_1 (dep:S242) — BindingPolicy { Strict | Fallback } on BindingExpression.
+    # Strict promotes a Class A path error to a BIND-TIME THROW (BindingPolicyException,
+    # emit-then-throw per ADR-016); Class B NEVER throws under either policy (fallback +
+    # diagnostic only). Registers S242_1-unique object-scoped DPs. Covers the default
+    # Fallback policy (S242 parity: malformed path -> create nullptr, emitted, no throw),
+    # Strict + malformed path -> throws BindingPolicyException with matching kind() + path
+    # while the MalformedPath diagnostic is STILL emitted (observation is never the control
+    # flow), Strict + empty/whitespace -> EmptyPath-kinded throw, policy() carried through
+    # create, the ADR-016 headline (Class B MissingProperty/NullIntermediate/NotReadable/
+    # ConverterFailed NEVER throw under Strict — TransferResult + exact reason codes),
+    # and Strict + valid path -> normal Applied transfer.
+    BindingPolicy_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
