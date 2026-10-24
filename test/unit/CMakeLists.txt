@@ -162,6 +162,20 @@ add_executable(vaml-core-tests
     # OneTime inert, no-converter round-trip, lifetime/dtor, and move re-arm (both
     # wires).
     BindingTwoWay_test.cpp
+    # S245 (dep:S244) — BindingExpression EXPRESSION LIFECYCLE: detach on element
+    # destroy. The target DependencyObject's destruction notification (S245
+    # DependencyObject::add_destroyed) auto-DETACHES the binding before the
+    # element's memory is reclaimed; a detached binding writes NOTHING (a later
+    # source/target change emits BindingReasonCode::Detached — the S240_1
+    # forward arm, Class B, a SILENCED non-error — exactly once, never a
+    # dangling-target write); explicit Detach() is idempotent/no-throw/no-emission
+    # + unsubscribes both wires; OneWay/OneTime parity; Detached is Class B;
+    # move re-arms the destruction wire; dtor leaves no dangling callback.
+    # Registers S245-unique object-scoped DPs on real DependencyObject targets +
+    # real ObservableObject sources. NO-GAP: resolves the S240_1 Detached forward
+    # arm + the S243/S244 "S245 follows" hand-offs in place; S252 ({Binding}
+    # markup) builds on this.
+    BindingLifecycle_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single

@@ -98,7 +98,9 @@ BindingExpression::BindingExpression(BindingExpression&& other) noexcept
       subscribed_(other.subscribed_),
       liveToken_(other.liveToken_),
       writeback_(other.writeback_),
-      targetToken_(other.targetToken_)
+      targetToken_(other.targetToken_),
+      detached_(other.detached_),
+      detachedEmitted_(other.detachedEmitted_)
 {
     // Transfer the live subscriptions onto THIS instance so a moved binding
     // stays live. Each handler captures `this`, so it must point at the
@@ -110,23 +112,38 @@ BindingExpression::BindingExpression(BindingExpression&& other) noexcept
     other.liveToken_  = 0;
     other.writeback_  = false;
     other.targetToken_= 0;
+    other.detached_   = false;
+    other.detachedEmitted_ = false;
 
     std::string_view forwardKey{};
-    if (subscribed_ && source_ != nullptr)
+    if (!detached_)
     {
-        forwardKey = first_segment_name(path_);
-        source_->remove_property_changed(liveToken_);
-        liveToken_ = source_->add_property_changed(
-            PropertyId::of(forwardKey),
-            [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+        if (subscribed_ && source_ != nullptr)
+        {
+            forwardKey = first_segment_name(path_);
+            source_->remove_property_changed(liveToken_);
+            liveToken_ = source_->add_property_changed(
+                PropertyId::of(forwardKey),
+                [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+        }
+        if (writeback_ && target_ != nullptr)
+        {
+            target_->remove_property_changed(targetToken_);
+            targetToken_ = target_->add_property_changed(
+                PropertyId::of(targetProp_),
+                [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
+        }
+        // Re-arm the S245 destruction wire: a moved binding keeps auto-detaching
+        // when its target element is destroyed.
+        if (target_ != nullptr)
+        {
+            target_->remove_destroyed(other.destroyedToken_); // old (moved-from-capturing) token
+            destroyedToken_ = target_->add_destroyed([this]() { on_target_destroyed(); });
+            destroyedArmed_ = true;
+        }
     }
-    if (writeback_ && target_ != nullptr)
-    {
-        target_->remove_property_changed(targetToken_);
-        targetToken_ = target_->add_property_changed(
-            PropertyId::of(targetProp_),
-            [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
-    }
+    other.destroyedArmed_ = false;
+    other.destroyedToken_ = 0;
 }
 
 BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexcept
@@ -136,6 +153,8 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
         return *this;
     }
     unsubscribe();
+    unsubscribe_writeback();
+    unsubscribe_destroyed();
     bindingId_    = other.bindingId_;
     mode_         = other.mode_;
     policy_       = other.policy_;
@@ -153,24 +172,39 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
     liveToken_    = other.liveToken_;
     writeback_    = other.writeback_;
     targetToken_  = other.targetToken_;
+    detached_     = other.detached_;
+    detachedEmitted_ = other.detachedEmitted_;
     other.subscribed_ = false;
     other.liveToken_  = 0;
     other.writeback_  = false;
     other.targetToken_= 0;
-    if (subscribed_ && source_ != nullptr)
+    other.detached_   = false;
+    other.detachedEmitted_ = false;
+    if (!detached_)
     {
-        source_->remove_property_changed(liveToken_);
-        liveToken_ = source_->add_property_changed(
-            PropertyId::of(first_segment_name(path_)),
-            [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+        if (subscribed_ && source_ != nullptr)
+        {
+            source_->remove_property_changed(liveToken_);
+            liveToken_ = source_->add_property_changed(
+                PropertyId::of(first_segment_name(path_)),
+                [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
+        }
+        if (writeback_ && target_ != nullptr)
+        {
+            target_->remove_property_changed(targetToken_);
+            targetToken_ = target_->add_property_changed(
+                PropertyId::of(targetProp_),
+                [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
+        }
+        if (target_ != nullptr)
+        {
+            target_->remove_destroyed(other.destroyedToken_);
+            destroyedToken_ = target_->add_destroyed([this]() { on_target_destroyed(); });
+            destroyedArmed_ = true;
+        }
     }
-    if (writeback_ && target_ != nullptr)
-    {
-        target_->remove_property_changed(targetToken_);
-        targetToken_ = target_->add_property_changed(
-            PropertyId::of(targetProp_),
-            [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
-    }
+    other.destroyedArmed_ = false;
+    other.destroyedToken_ = 0;
     return *this;
 }
 
@@ -178,6 +212,7 @@ BindingExpression::~BindingExpression()
 {
     unsubscribe();        // S243 forward wire
     unsubscribe_writeback(); // S244 reverse wire
+    unsubscribe_destroyed(); // S245 destruction wire
 }
 
 namespace {
@@ -253,6 +288,7 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
     e->path_        = std::move(path);
     e->arm_subscription();   // S243 forward wire (OneWay OR TwoWay in S244)
     e->arm_writeback();      // S244 reverse wire (TwoWay only)
+    e->arm_destroyed();      // S245 destruction wire (detach on element destroy)
     return e;
 }
 
@@ -333,6 +369,81 @@ void BindingExpression::unsubscribe_writeback()
     targetToken_ = 0;
 }
 
+// --- S245 detach-on-element-destroy lifecycle ------------------------------
+
+void BindingExpression::arm_destroyed()
+{
+    // S245: whenever there is a target ELEMENT, subscribe to its destruction
+    // notification (DependencyObject::add_destroyed). Firing means the target is
+    // being destroyed — the binding detaches BEFORE the target's memory is
+    // reclaimed, so no later write can dereference a freed target. Idempotent;
+    // no-op when already armed, when there is no target, or when detached.
+    if (detached_ || destroyedArmed_ || target_ == nullptr)
+    {
+        return;
+    }
+    destroyedToken_ = target_->add_destroyed([this]() { on_target_destroyed(); });
+    destroyedArmed_ = true;
+}
+
+void BindingExpression::unsubscribe_destroyed()
+{
+    if (destroyedArmed_ && target_ != nullptr)
+    {
+        // Idempotent, global token-based (mirrors remove_property_changed).
+        target_->remove_destroyed(destroyedToken_);
+    }
+    destroyedArmed_ = false;
+    destroyedToken_ = 0;
+}
+
+void BindingExpression::on_target_destroyed()
+{
+    // The target ELEMENT is being destroyed (fired from its destructor, before
+    // member teardown). Detach so this binding never writes to a freed target.
+    // Detach() is idempotent, no-throw, and emits nothing (normal teardown).
+    Detach();
+}
+
+void BindingExpression::Detach()
+{
+    // Idempotent: a detached binding stays detached. Normal teardown — emits
+    // NOTHING here (the `Detached` lifecycle emission is gated to an ATTEMPTED
+    // WRITE on an already-detached binding, never to this call).
+    if (detached_)
+    {
+        return;
+    }
+    unsubscribe();          // S243 forward wire
+    unsubscribe_writeback(); // S244 reverse wire
+    unsubscribe_destroyed(); // S245 destruction wire
+    detached_ = true;
+}
+
+void BindingExpression::emit_detached()
+{
+    // The S240_1 `Detached` FORWARD ARM (Class B, a SILENCED non-error), bound
+    // here: emitted ONCE per binding when a write is attempted on an
+    // already-detached binding (report only so a subscribed sink can observe
+    // the lifecycle — never control-flow per ADR-016, never a throw).
+    if (detachedEmitted_)
+    {
+        return;
+    }
+    detachedEmitted_ = true;
+    BindingDiagnostic d;
+    d.bindingId  = bindingId_;
+    d.sourcePath = sourcePath_;
+    d.targetProp = targetProp_;
+    d.direction  = to_binding_direction(mode_);
+    d.reasonCode = BindingReasonCode::Detached;
+    d.sourceType = sourceType_;
+    d.targetType = targetType_;
+    d.converter  = converterName_;
+    d.timestamp  = std::chrono::system_clock::now();
+    binding_diagnostics().emit(d);
+}
+
 void BindingExpression::arm_writeback()
 {
     // Only TwoWay arms a target->source WRITE-BACK. OneWay/OneTime never write
@@ -381,6 +492,14 @@ void BindingExpression::transfer_write_back()
     // value). Suppressed here, never emitted, never stored.
     if (transferring_)
     {
+        return;
+    }
+
+    // S245: a DETACHED binding writes NOTHING to the source. Emit Detached
+    // (Class B, silenced non-error) ONCE and skip WITHOUT writing.
+    if (detached_)
+    {
+        emit_detached();
         return;
     }
 
@@ -531,6 +650,16 @@ TransferResult BindingExpression::apply_to_target(const Value& value)
 
 TransferResult BindingExpression::TransferSourceToTarget()
 {
+    // S245: a DETACHED binding writes NOTHING to the target (or source). Emit
+    // Detached (Class B, silenced non-error) ONCE and skip WITHOUT writing —
+    // never dereference a target that may already be destroyed. This guard runs
+    // BEFORE the transferring_ guard so a detached binding is fully inert.
+    if (detached_)
+    {
+        emit_detached();
+        return TransferResult::TargetRejected;
+    }
+
     // S244 IsInTransfer-equivalent guard: the WHOLE forward transfer (first
     // push AND live re-push) runs under `transferring_`, so a target change
     // raised DURING the forward apply cannot write back to the source (the

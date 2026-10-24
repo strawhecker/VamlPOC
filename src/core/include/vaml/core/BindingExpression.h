@@ -281,6 +281,22 @@ public:
     // OneWay/OneTime never write back.
     [[nodiscard]] bool live_writeback() const noexcept { return writeback_; }
 
+    // --- S245 detach lifecycle (detach on element destroy) -----------------
+    // True once the expression is DETACHED (see Detach()). A detached binding
+    // is inert: it writes NOTHING to the target or the source (guards in
+    // TransferSourceToTarget / transfer_write_back), has NO live subscriptions
+    // (all wires unsubscribed), and a subsequent source/target change emits the
+    // S240_1 `BindingReasonCode::Detached` diagnostic (Class B, a SILENCED
+    // non-error, ADR-016) ONCE so a subscribed sink can observe the lifecycle —
+    // it NEVER dereferences a destroyed target.
+    [[nodiscard]] bool detached() const noexcept { return detached_; }
+
+    // Detaches the binding: unsubscribes the forward (S243/S244 shared) + the
+    // write-back (S244) wires, marks the expression detached. Idempotent, never
+    // throws, emits NOTHING (normal teardown — the lifecycle emission is gated
+    // to an ATTEMPTED WRITE on an already-detached binding, not to this call).
+    void Detach();
+
     // --- Introspection -----------------------------------------------------
     [[nodiscard]] std::uint64_t binding_id() const noexcept { return bindingId_; }
     [[nodiscard]] BindingMode mode() const noexcept { return mode_; }
@@ -300,6 +316,26 @@ private:
     // Pushes `value` to the target DP, mapping the Set outcome to a
     // TransferResult. A wrong-typed / refused Set -> TargetRejected.
     [[nodiscard]] TransferResult apply_to_target(const Value& value);
+
+    // S245: emits BindingReasonCode::Detached (the S240_1 forward arm, Class B,
+    // a SILENCED non-error) once. Gated to an attempted WRITE on a detached
+    // binding (never at Detach(), never at create).
+    void emit_detached();
+
+    // S245: the destruction-lifecycle handler resolved from a target's
+    // DependencyObject::add_destroyed token. Firing means the target ELEMENT is
+    // being destroyed — the binding must detach BEFORE the target's memory is
+    // reclaimed so no later write dereferences a freed target.
+    void on_target_destroyed();
+
+    // S245: removes the target->destroyed subscription (no-op when not armed);
+    // re-arms it onto `this` after a move. Never throws.
+    void unsubscribe_destroyed();
+
+    // S245: arms the target->destroyed subscription (detach on element
+    // destroy). Idempotent; no-op when already armed, when there is no target,
+    // or when detached. Never throws.
+    void arm_destroyed();
 
     // The S243 live-subscription arm (OneWay mode). Arms a per-property
     // subscription onto source_ keyed on the FIRST PATH SEGMENT's property
@@ -372,6 +408,15 @@ private:
     // alone cannot (a forward push landing on the target with a value different
     // from what the user typed). Not copied on move (moved-from is inert).
     bool transferring_ = false;
+
+    // S245 lifecycle state. `detached_` marks an inert binding (see Detach()).
+    // `destroyedToken_` is valid only while `destroyedArmed_`; a moved-from /
+    // destroyed expression never fires a dangling `this` (move re-arms, dtor
+    // unsubscribes) and never holds a callback into a dead target.
+    bool detached_ = false;
+    bool destroyedArmed_ = false;
+    DependencyObject::DestroyedToken destroyedToken_ = 0;
+    bool detachedEmitted_ = false; // Detached emitted at most once
 };
 
 } // namespace vaml

@@ -305,6 +305,21 @@ public:
     // fire is the caller's concern (matches the metadata changed-cb contract).
     [[nodiscard]] PropertyChangedToken add_property_changed(PropertyId id, PropertyChangedHandler handler);
 
+    // --- S245 destruction lifecycle (the "element destroy" notification) ----
+    // A real destruction-lifecycle notification. `add_destroyed` registers a
+    // handler that fires ONCE in the destructor (copy-before-invoke, BEFORE any
+    // member teardown), in registration order; `remove_destroyed(token)` removes
+    // one (no-op for an unknown/expired token). This is the "element destroyed"
+    // signal a long-lived observer (e.g. a binding expression) listens to so it
+    // can detach cleanly before the object's memory is reclaimed — the S245
+    // "detach on element destroy" mechanism. Empty by default → zero cost unless
+    // subscribed. ADR-018: single-threaded affinity, no new locks (mirrors subs_).
+    using DestroyedHandler = std::function<void()>;
+    using DestroyedToken   = std::size_t;
+
+    [[nodiscard]] DestroyedToken add_destroyed(DestroyedHandler handler);
+    void remove_destroyed(DestroyedToken token);
+
     // Removes the handler identified by `token`. No-op for an unknown/expired
     // token. Removal is O(n) but preserves the registration order of what
     // remains.
@@ -467,6 +482,12 @@ private:
         std::string_view name,
         const std::vector<std::pair<DependencyObject*, Value>>& before);
 
+    // S245: fires THIS object's registered destruction handlers (copy-before-
+    // invoke, in registration order). Called at the START of the destructor,
+    // BEFORE any member teardown, so an observer can still safely consult the
+    // object's own value store / subscription state during the notification.
+    void fire_destroyed();
+
     // S041 §2.5 (S244 completion): fires THIS object's own registration-ordered
     // add_property_changed subscribers for an actually-applied real change to
     // `name` (oldEffective -> newEffective). Called from BOTH the on-affine
@@ -506,6 +527,11 @@ private:
     std::unordered_map<std::string_view,
         std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>>> subs_;
     PropertyChangedToken  next_sub_token_ = 1;
+
+    // S245 destruction-lifecycle subscribers (registration order). A monotonic
+    // token that is never reused; empty by default (zero cost unless subscribed).
+    std::vector<std::pair<DestroyedToken, DestroyedHandler>> destroyed_;
+    DestroyedToken next_destroyed_token_ = 1;
 
     // S041 §2.4 non-owning inheritance-scope (the inverse edge of parent_).
     std::vector<DependencyObject*> inheritance_scope_;

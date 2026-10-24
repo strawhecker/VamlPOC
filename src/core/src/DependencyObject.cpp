@@ -185,7 +185,20 @@ VAML_CORE_EXPORT
 DependencyObject::DependencyObject() = default;
 
 VAML_CORE_EXPORT
-DependencyObject::~DependencyObject() = default;
+DependencyObject::~DependencyObject()
+{
+    // S245: fire the destruction-lifecycle notification FIRST — before any
+    // member teardown disposes the store/subs — so an observer (e.g. a binding
+    // expression's "detach on element destroy" wire) can still read the
+    // object's own value store during the notification. Copy-before-invoke
+    // (a handler that (un)subscribes mid-fire is safe), same discipline as
+    // fire_self_subscribers/ProcessNotificationQueue. The handler vector is
+    // intentionally copied OUT of the moving-to-destruction object; the members
+    // are torn down after.
+    fire_destroyed();
+    // Members (store_, subs_, destroyed_, queue_, ...) are disposed here by the
+    // implicit member destructors.
+}
 
 // S142 + S143 move: the pimpl collapsed so the S037 pending mutex was a DIRECT
 // std::mutex member (non-movable) — S143 relocates that mutex INTO the ChangeQueue
@@ -200,10 +213,14 @@ DependencyObject::DependencyObject(DependencyObject&& other) noexcept
       parent_(other.parent_),
       subs_(std::move(other.subs_)),
       next_sub_token_(other.next_sub_token_),
+      destroyed_(std::move(other.destroyed_)),
+      next_destroyed_token_(other.next_destroyed_token_),
       inheritance_scope_(std::move(other.inheritance_scope_)),
       queue_(std::move(other.queue_))
 {
     other.parent_ = nullptr;
+    other.destroyed_.clear();
+    other.next_destroyed_token_ = 1;
 }
 
 VAML_CORE_EXPORT
@@ -218,9 +235,13 @@ DependencyObject& DependencyObject::operator=(DependencyObject&& other) noexcept
     parent_ = other.parent_;
     subs_ = std::move(other.subs_);
     next_sub_token_ = other.next_sub_token_;
+    destroyed_ = std::move(other.destroyed_);
+    next_destroyed_token_ = other.next_destroyed_token_;
     inheritance_scope_ = std::move(other.inheritance_scope_);
     queue_ = std::move(other.queue_);
     other.parent_ = nullptr;
+    other.destroyed_.clear();
+    other.next_destroyed_token_ = 1;
     return *this;
 }
 
@@ -736,6 +757,50 @@ void DependencyObject::remove_property_changed(PropertyChangedToken token)
                 handlers.erase(it);
                 return;
             }
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+DependencyObject::DestroyedToken DependencyObject::add_destroyed(DestroyedHandler handler)
+{
+    // Append in REGISTRATION ORDER; the token is a monotonically-increasing
+    // counter never reused, so an expired token can never alias a live one
+    // (mirrors add_property_changed/sub_ tokens). Single-threaded affinity,
+    // no lock (ADR-018).
+    const DestroyedToken token = next_destroyed_token_++;
+    destroyed_.emplace_back(token, std::move(handler));
+    return token;
+}
+
+VAML_CORE_EXPORT
+void DependencyObject::remove_destroyed(DestroyedToken token)
+{
+    // Removal is O(n) but preserves the registration order of what remains.
+    // No-op for an unknown/expired token (mirrors remove_property_changed).
+    for (auto it = destroyed_.begin(); it != destroyed_.end(); ++it)
+    {
+        if (it->first == token)
+        {
+            destroyed_.erase(it);
+            return;
+        }
+    }
+}
+
+void DependencyObject::fire_destroyed()
+{
+    // S245: fire the destruction handlers copy-before-invoke in registration
+    // order. A handler that (un)subscribes mid-fire is safe (the snapshot is
+    // already taken); an empty list is the no-cost default. Runs at the START
+    // of the destructor, BEFORE member teardown.
+    const std::vector<std::pair<DestroyedToken, DestroyedHandler>> snapshot = destroyed_;
+    for (const auto& [token, handler] : snapshot)
+    {
+        (void)token;
+        if (handler)
+        {
+            handler();
         }
     }
 }
