@@ -255,6 +255,20 @@ add_executable(vaml-core-tests
     # S250 "engineer wires, we bind" headline. Registers S251-unique object-scoped
     # DPs. ADR-018 zero locks.
     VmAgnosticInjection_test.cpp
+    # S252 (dep:S251) — BindingMarkup: the {Binding ...} / {Command ...} markup
+    # parser (the S2-tag resolution point). Pure value-domain — registers no
+    # property names. Covers the {Binding} path + Mode variants, {Command}, kind
+    # None (StaticResource/x:Null), and malformed -> structured malformed flag.
+    BindingMarkup_test.cpp
+    # S252 (dep:S251) + S253 (dep:S252) — VamlReader markup {Binding} resolution:
+    # BindExtensions resolves the deferred S2 tag into a LIVE BindingExpression
+    # against a data context (the app-constructed S250/S251 VM) + target DP,
+    # applying the first transfer + the live S243 one-way re-push; Mode=TwoWay
+    # arms the S244 write-back end-to-end; malformed {Binding} -> a Class A
+    # VamlReaderException(MalformedBindingMarkup); kind None (StaticResource)
+    # stays deferred. S253 {Command DoIt} is left deferred, then resolved +
+    # invocable via the reader's command registry + the S246 ICommand surface.
+    VamlReader_binding_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
@@ -279,6 +293,18 @@ add_executable(vaml-core-tests
     # vaml_viewer include path, ADR-021 single source of truth). The reopen
     # HANDLER is the S222_1 apply_reload machinery (golden in LiveReload_test).
     ViewerDropPlan_test.cpp
+    # S256 (dep:S253) — VIEWER-GROWTH: the reload populates a VM (plain ctor;
+    # NO DI) + renders `{Binding}` (the S240–S252 binding path visible at the
+    # viewer boundary). Headless through vaml_viewer/viewer_binding.h (the S256
+    # seam — the app-constructed VM + run_viewer_binding_plan, the ADR-021
+    # consumer path): proves the S250/S251 app-constructed VM (plain ctor +
+    # injected service), the pure bind-render decision table, the REAL plan
+    # runner resolving `{Binding Dim}` onto the target UIElement Opacity DP
+    # (the S242 first transfer — the visible dim the S208 encoder folds), and
+    # the S243 LIVE WIRE staying armed through the RETAINED reader (a later
+    # set_Dim re-pushes the bound Opacity). Registers no S256-unique DPs (binds
+    # onto the REAL UIElement Opacity DP, S120). ADR-018 zero locks.
+    ViewerBindingPlan_test.cpp
     # S224 (dep:S223) — the viewer CLI `--help` ENTRY seam (vaml_viewer/cli.h,
     # the PURE cli_action/cli_usage decision layer) + the RENDERED-VIEW PAN & ZOOM
     # view model (vaml_viewer/view_transform.h, the PURE ViewState seams folding

@@ -22,11 +22,31 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <functional>
 #include <optional>
+#include <sstream>
 #include <utility>
 
 namespace vaml::viewer {
+
+namespace {
+
+// S256 — reads a file's text for the binding-reload seam (run_viewer_binding_plan
+// consumes text, not a tree). Empty string on any read failure (the caller keeps
+// the last-good tree + reports; never blank). Plain ifstream RAII, no external
+// dependency (mirrors the load_file seam's FILE I/O precedent).
+std::string read_file_text(const std::string& path)
+{
+    std::ifstream in(path, std::ios::binary);
+    if (!in.is_open())
+        return std::string();
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return in.bad() ? std::string() : ss.str();
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Pure decision seams (headless-testable)
@@ -360,10 +380,18 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
             app->reloader_ = std::make_unique<vaml::viewer::LiveReload>(config.filePath);
             app->reloader_->on_reloaded(
                 [app = app.get()](std::unique_ptr<vaml::DependencyObject> newRoot) {
-                    if (!app->apply_reload(std::move(newRoot)))
+                    // S256 — the reload RE-BINDS the declared tree through the S256
+                    // seam (the app-constructed VM + retained reader + the S252
+                    // {Binding} resolution) so the bound Dim lands on the Opacity DP
+                    // the S208 encoder folds. The text is re-read from the watched
+                    // file (the S221 seam). On a bind failure the last-good tree is
+                    // kept + reported (never silent, never blank).
+                    std::string text = vaml::viewer::read_file_text(app->cfg_.filePath);
+                    if (text.empty() || !app->bind_and_render(text))
                     {
-                        std::fprintf(stderr,
-                                     "vaml_viewer: reload produced a non-UIElement root; keeping the last-good tree\n");
+                        // Fall back to the un-bound reopen (apply the freshly loaded
+                        // root) so a non-binding edit still re-renders as S222_1 did.
+                        (void)app->apply_reload(std::move(newRoot));
                     }
                 });
             app->reloader_->on_reload_error(
@@ -398,6 +426,38 @@ bool ViewerApp::reopen(std::unique_ptr<vaml::DependencyObject> newRoot)
     // ZERO imperative tree-building). Returns false (last-good KEPT) on a null /
     // non-UIElement root — never a blank or garbage render.
     return apply_reload(std::move(newRoot));
+}
+
+bool ViewerApp::bind_and_render(const std::string& text)
+{
+    // S256 — the live "you SEE data binding in the window" path: run the S256
+    // plan (app-constructed VM + retained reader + the S252 BindExtensions markup
+    // resolution). A clean bind ADOPTS the bound tree + re-runs the whole S5 path;
+    // a failure keeps the last-good tree + reports (never silent, never blank).
+    vaml::viewer::ViewerBindingPlanResult plan = vaml::viewer::run_viewer_binding_plan(text, 0.4);
+    if (!plan.ok || !plan.root)
+    {
+        std::fprintf(stderr, "vaml_viewer: reload bind failed: %s (keeping the last-good tree)\n",
+                     plan.detail.empty() ? "no root" : plan.detail.c_str());
+        return false;
+    }
+    // ADOPT the bound tree + retain the reader/VM (they keep the S243 live wire
+    // armed; a later VM change re-pushes the visible dim).
+    root_          = std::move(plan.root);
+    bindingVM_     = std::move(plan.vm);
+    bindingReader_ = std::move(plan.reader);
+
+    auto* uiRoot = dynamic_cast<vaml::UIElement*>(root_.get());
+    if (!uiRoot)
+        return false;
+    if (renderer_)
+    {
+        if (!renderer_->set_root(uiRoot))
+            return false;
+        renderer_->set_frame_size(static_cast<float>(cfg_.width), static_cast<float>(cfg_.height));
+        (void)renderer_->invalidate();   // the whole S5 path re-runs on the bound tree
+    }
+    return true;
 }
 
 bool ViewerApp::apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot)

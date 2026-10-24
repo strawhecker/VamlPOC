@@ -36,6 +36,7 @@ vaml_add_library(core
     src/BindingDiagnostics.cpp
     src/ObservableObject.cpp
     src/BindingExpression.cpp
+    src/BindingMarkup.cpp
     src/RelayCommand.cpp
 )
 

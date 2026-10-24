@@ -47,6 +47,7 @@
 #include "load_file.h"    // vaml::LoadResult (the S221 seam; owns the borrowed tree)
 #include "live_reload.h"  // vaml::viewer::LiveReload (S222_1 — the file-watch reload coordinator)
 #include "view_transform.h"  // S224: vaml::viewer::ViewState + the pan/zoom seams (pure)
+#include "viewer_binding.h"  // S256: ViewerDemoViewModel + run_viewer_binding_plan (the binding reload seam)
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -219,6 +220,15 @@ private:
     // is destroyed AFTER the host that borrows it.
     std::unique_ptr<vaml::DependencyObject> root_;
 
+    // S256 — the retained VIEWER BINDING state: the app-constructed VM + the
+    // retained reader that keeps the S252 live bindings (reader-owned, per-Load)
+    // armed across the reload path. The reload binds via the S256 seam
+    // (run_viewer_binding_plan) so a VM change re-pushes the visible dim through
+    // the S243 live wire. The VM is the S250 app-owned pattern (NO DI); the app
+    // owns it, the reader borrows it.
+    std::shared_ptr<vaml::viewer::ViewerDemoViewModel> bindingVM_;
+    std::unique_ptr<vaml::VamlReader> bindingReader_;   // S256: retained reader (keeps the live bindings)
+
     // ---- The S222 Vulkan stack (member order == reverse destruction) ----
     // Constructed in build order; destroyed in REVERSE (last-declared first).
     // The renderer_ (declared LAST) borrows the render pass + pipeline handles +
@@ -282,6 +292,16 @@ private:
     // then invalidate() to arrange + encode + publish (the exact S222 producer path,
     // re-invoked — NOT hand-built). Returns false if the new root is not a UIElement.
     bool apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot);
+
+    // S256: loads + BINDS the source `text` through the S256 seam
+    // (run_viewer_binding_plan — the app-constructed VM + retained reader + the
+    // S252 BindExtensions markup resolution) and, on a clean bind, ADOPTS the bound
+    // tree (root_/bindingVM_/bindingReader_) + re-runs the whole S5 path (set_root +
+    // set_frame_size + invalidate). Returns false (last-good KEPT, reported) on a
+    // load/bind failure — never silent, never a blank window. This is the live
+    // "you SEE data binding appear in the window" path: the bound `{Binding Dim}`
+    // lands on the target Opacity DP, which the S208 encoder folds into the alpha.
+    bool bind_and_render(const std::string& text);
 
     // S224 — pushes the current ViewState (as the S208 Matrix2D) into the S213
     // render surface (renderer_->set_view_transform). Called by the pan/zoom input

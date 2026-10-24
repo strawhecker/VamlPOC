@@ -30,8 +30,11 @@
 // reader error taxonomy; S092 introduces exactly the ONE genuinely-new reader
 // error it can produce: DuplicateName (validated by this step's tests).
 
+#include "vaml/core/BindingExpression.h" // BindingExpression (the S252 live binding)
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
 #include "vaml/core/DependencyProperty.h" // DependencyProperty (convertLiteral decl)
+#include "vaml/core/ICommand.h"        // ICommand (the S253 {Command} resolution target)
+#include "vaml/core/ObservableObject.h" // ObservableObject (the S252 data context / VM)
 #include "vaml/core/export.h"
 
 #include <cstddef>
@@ -73,7 +76,8 @@ enum class VamlReaderError
     None,          // no reader error
     UnknownProperty, // an attribute names a property with no global definition (S091)
     DuplicateName, // an x:Name was registered more than once in one Load (S092)
-    ClassOnNonRoot // an x:Class directive was authored on a NON-root element (S094)
+    ClassOnNonRoot, // an x:Class directive was authored on a NON-root element (S094)
+    MalformedBindingMarkup // a {Binding ...} / {Command ...} source with bad inner syntax (S252)
 };
 
 // S091: the reader error — names the offending attribute key. what() renders
@@ -186,6 +190,71 @@ public:
     [[nodiscard]] const std::vector<DeferredExtension>& deferred_extensions() const noexcept;
 
     // ------------------------------------------------------------------
+    // S252 — markup {Binding} resolution (the S2 tag now bound). REAL +
+    // permanent core surface (NOT MINIMAL REAL — resolves the S092-recorded
+    // "S2 tag: resolved by S252" hand-off at the feature's own step).
+    // ------------------------------------------------------------------
+
+    // Supplies the app-constructed ViewModel (an ObservableObject — the S250
+    // app-owned composition pattern) that markup {Binding <path>} resolves
+    // against. NO DI / NO container: the app owns the VM and sets it here
+    // before BindExtensions(). Persists across calls until changed/cleared.
+    // Binding to a non-ObservableObject data context is a Class B NotReadable
+    // runtime outcome (never a silent no-op).
+    void set_data_context(ObservableObject* vm) noexcept { dataContext_ = vm; }
+
+    // The current data context (nullptr when the app has not set one).
+    [[nodiscard]] ObservableObject* data_context() const noexcept { return dataContext_; }
+
+    // RESOLVES every recorded deferred {Binding <path>[, Mode=...]} extension
+    // into a LIVE BindingExpression (S242/S243/S244) against the current data
+    // context + the target object/property the extension was authored on. The
+    // bindings are reader-owned (RAII) and cleared at the start of each Load
+    // (per-Load live scope, same as the other S092 registries). Returns the
+    // number judged to be THIS layer's extension rows: bound {Binding} rows.
+    //
+    // Outcomes (see the BindingMarkup grammar):
+    //   - kind Binding + well-formed -> bind + count as bound.
+    //   - kind Binding + MALFORMED    -> throws VamlReaderException(
+    //     MalformedBindingMarkup) naming source + target key (Class A authoring
+    //     error, NEVER silently left deferred).
+    //   - kind Command                -> left deferred (S253); NOT counted, NOT
+    //     an error.
+    //   - kind None (StaticResource, ...) -> left deferred (S361); NOT counted.
+    //
+    // WPF-faithful default mode is OneWay; `Mode=` overrides it. Diagnostics
+    // route through the S250_1 channel (vaml::view_binding_diagnostics /
+    // vaml::set_view_binding_diagnostics — app opt-in, never a DI slot). The
+    // policy comes from vaml::view_binding_policy_default() (Fallback).
+    [[nodiscard]] std::size_t BindExtensions();
+
+    // The reader-owned live bindings created by BindExtensions() — includes a
+    // stable "object identity" (the live VM) + source path + target key so the
+    // S253/S256 consumers (and tests) can introspect what was bound.
+    [[nodiscard]] const std::vector<std::unique_ptr<BindingExpression>>&
+    live_bindings() const noexcept { return live_bindings_; }
+
+    // ------------------------------------------------------------------
+    // S253 — {Command} markup resolution (the S252 command surface). REAL +
+    // permanent core surface (NOT MINIMAL REAL — the S2-tag {Command} arm).
+    // ------------------------------------------------------------------
+
+    // Resolves ONE {Command <name>} markup extension (left deferred by
+    // S252's BindExtensions) against the data context: it looks the command
+    // up BY NAME among the VM's owned ICommand entries. Returns a non-owning
+    // pointer to the command, or nullptr if no such command is registered.
+    // Used by the app/test to invoke a markup-declared command; the live
+    // ICommand interface (S246) is the S253 command surface.
+    [[nodiscard]] ICommand* ResolveCommand(std::string_view name);
+
+    // Registers an app-owned command (the S250 app-owned composition pattern)
+    // that markup {Command <name>} can resolve. The app author constructs the
+    // RelayCommand + registers it here; the reader stores a NON-OWNING pointer
+    // (the app owns the command's lifetime). Idempotent for a repeated name
+    // (the first registration wins). Cleared at the start of each Load.
+    void register_command(std::string_view name, ICommand* command) noexcept;
+
+    // ------------------------------------------------------------------
     // S092 Strand C — event hooks (MINIMAL REAL; resolved by S322, Sprint 8).
     // ------------------------------------------------------------------
     // [MINIMAL REAL] VamlReader event hooks — RESOLVED BY S322 (Sprint 8).
@@ -230,6 +299,17 @@ private:
     // S092 Strand C — registered event names + deferred event handlers.
     std::vector<std::string> event_names_;
     std::vector<DeferredEventHandler> deferred_event_handlers_;
+
+    // S252 — the data context (the app-constructed VM, non-owning) + the
+    // reader-owned live bindings Created by BindExtensions(). Cleared at the
+    // start of each Load (per-Load live scope).
+    ObservableObject* dataContext_ = nullptr;
+    std::vector<std::unique_ptr<BindingExpression>> live_bindings_;
+
+    // S253 — the {Command <name>} registry: (name, non-owning ICommand*).
+    // App-owned, configured before Load (like register_event), NOT per-Load
+    // cleared — a command registration survives the tree it is authored on.
+    std::vector<std::pair<std::string, ICommand*>> commands_;
 };
 
 } // namespace vaml

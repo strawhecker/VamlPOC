@@ -6,6 +6,8 @@
 
 #include "vaml/core/VamlReader.h"
 
+#include "vaml/core/BindingAccess.h"           // S250_1: view_binding_diagnostics + view_binding_policy_default
+#include "vaml/core/BindingMarkup.h"           // S252: parse_markup_binding
 #include "vaml/core/DependencyProperty.h"      // DependencyProperty
 #include "vaml/core/Element.h"                 // register_builtin_elements
 #include "vaml/core/ElementResolver.h"         // resolve_element + exception
@@ -254,6 +256,7 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     root_class_.clear();
     deferred_extensions_.clear();
     deferred_event_handlers_.clear();
+    live_bindings_.clear(); // S252: per-Load live binding scope (RAII detach)
 
     // S144: reserve the per-Load vectors from the parsed tree's known size
     // (no reallocation churn while building).
@@ -301,6 +304,102 @@ const std::vector<DeferredExtension>&
 VamlReader::deferred_extensions() const noexcept
 {
     return deferred_extensions_;
+}
+
+// ------------------------------------------------------------------ S252 — markup {Binding}
+VAML_CORE_EXPORT
+std::size_t VamlReader::BindExtensions()
+{
+    std::size_t bound = 0;
+
+    for (const DeferredExtension& ext : deferred_extensions_)
+    {
+        // Parse the S2-tag source ("{Binding Title}" / "{Binding Title, Mode=TwoWay}"
+        // / "{Command DoIt}" / "{StaticResource X}").
+        const BindingMarkup markup = parse_markup_binding(ext.source);
+
+        // kind None (StaticResource / x:Null / a bare-naming extension) -> NOT this
+        // layer's extension; left deferred (S361). Not an error, not counted.
+        if (markup.kind == MarkupExtensionKind::None)
+        {
+            continue;
+        }
+
+        // kind Command -> S253 resolves it (a command registry). Left deferred,
+        // not an error, not counted (recorded NO-GAP at S252 -> S253).
+        if (markup.kind == MarkupExtensionKind::Command)
+        {
+            continue;
+        }
+
+        // kind Binding. A malformed {Binding ...} source is a Class A AUTHORING
+        // error — reported loudly, never silently left deferred.
+        if (markup.malformed || markup.path.empty())
+        {
+            throw VamlReaderException(
+                VamlReaderError::MalformedBindingMarkup, std::string(ext.key),
+                "malformed {Binding} markup on property '" + std::string(ext.key) +
+                    "': source '" + std::string(ext.source) + "'");
+        }
+
+        // Build the binding spec against the data context (the app-constructed
+        // VM). The target is the object the extension was authored on
+        // (ext.target); an unregistered target property is a Class B runtime
+        // outcome (SetTargetFailed on the push), not a reader error here.
+        BindingExpressionSpec spec;
+        spec.source     = dataContext_;
+        spec.sourcePath = std::string(markup.path); // Binding path
+        spec.target     = const_cast<DependencyObject*>(ext.target);
+        spec.targetProp = std::string(ext.key);
+        spec.policy     = vaml::view_binding_policy_default();   // Fallback (S250_1)
+        // WPF-faithful: {Binding} without Mode= is OneWay; Mode= overrides.
+        spec.mode = markup.hasMode
+                        ? (markup.mode == "TwoWay"   ? BindingMode::TwoWay
+                           : markup.mode == "OneTime" ? BindingMode::OneTime
+                                                       : BindingMode::OneWay)
+                        : BindingMode::OneWay;
+        spec.sourceType = "ObservableObject"; // the VM data context type (diagnostic metadata)
+
+        auto expr = BindingExpression::create(spec);
+        if (expr)
+        {
+            // Apply the FIRST transfer so the bound value lands on the target now
+            // (the S242 first-push — the S2 tag resolved).
+            (void)expr->TransferSourceToTarget();
+            live_bindings_.push_back(std::move(expr));
+            ++bound;
+        }
+    }
+
+    return bound;
+}
+
+// ------------------------------------------------------------------ S253 — {Command}
+VAML_CORE_EXPORT
+void VamlReader::register_command(std::string_view name, ICommand* command) noexcept
+{
+    // Idempotent: a repeated name keeps the FIRST registration (the app owns
+    // the command; the reader stores a non-owning pointer). No throw.
+    if (command == nullptr || name.empty())
+        return;
+    const auto it = std::find_if(commands_.begin(), commands_.end(),
+                                 [&](const std::pair<std::string, ICommand*>& c) {
+                                     return c.first == name;
+                                 });
+    if (it == commands_.end())
+    {
+        commands_.emplace_back(std::string(name), command);
+    }
+}
+
+VAML_CORE_EXPORT
+ICommand* VamlReader::ResolveCommand(std::string_view name)
+{
+    const auto it = std::find_if(commands_.begin(), commands_.end(),
+                                 [&](const std::pair<std::string, ICommand*>& c) {
+                                     return c.first == name;
+                                 });
+    return it == commands_.end() ? nullptr : it->second;
 }
 
 // ------------------------------------------------------------------ S092 Strand C
