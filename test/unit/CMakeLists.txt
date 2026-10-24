@@ -77,6 +77,17 @@ add_executable(vaml-core-tests
     # via the default reader for the property/null-safe/missing/not-readable
     # axis). Registers S240-unique property names.
     PropertyPath_test.cpp
+    # S240_1 (dep:S240) — BindingDiagnostics: the record + IBindingDiagnostics
+    # sink. Class A/B tagging authority (binding_class_of, exhaustive over all
+    # 11 reason codes), the two factories (diagnostic_from_property_read maps
+    # MissingProperty/NullIntermediate/NotReadable -> Class B; the degenerate
+    # empty-path -> EmptyPath Class A; diagnostic_from_path_error maps a
+    # PropertyPathError -> MalformedPath/EmptyPath Class A), the NO-OP default
+    # sink (emit is a safe no-op) and the opt-in/recurrent set_binding_diagnostics
+    # (a recording sink receives emission through binding_diagnostics().emit;
+    # set returns the previous sink; restore default -> no-op again). Pure
+    # value-domain — registers no property names.
+    BindingDiagnostics_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
