@@ -176,6 +176,26 @@ add_executable(vaml-core-tests
     # arm + the S243/S244 "S245 follows" hand-offs in place; S252 ({Binding}
     # markup) builds on this.
     BindingLifecycle_test.cpp
+    # S245_1 (dep:S245) — BINDING-FAILURE test suite: the harness SUBSCRIBES to
+    # the sink and asserts the EXACT reasonCode per Class (not just fallback
+    # values); detach/lifecycle (S245) is a Class-B-tagged, silenced non-error;
+    # Diagnostics ≠ control-flow (the subscriber gets info, never control).
+    # TEST-ONLY consolidation (the S040/S042/S044/S125/S128/S130/S133/S135/S137
+    # precedent): exercises EVERY failure arm of the real binding engine through
+    # the REAL BindingExpression on the REAL S241 reader + S240 evaluator + S240_1
+    # sink, asserted by exact reasonCode sequences recorded by a subscribing
+    # RecordingSink. Covers Class A malformed/empty -> create nullptr + exactly
+    # [MalformedPath]/[EmptyPath] (StaticAuthoring, no fallback), Class A Strict
+    # (emit-then-throw, emit never the control flow), Class B MissingProperty with/
+    # without fallback -> exactly [MissingProperty] ([FallbackApplied]), Class B
+    # NullIntermediate/NotReadable/ConverterFailed (+ fallback) -> exact codes,
+    # Class B live OneWay SetTargetFailed (first push silent, S242/S243 parity),
+    # Class B live TwoWay WriteBackRejected (source untouched), HEADLINE detach/
+    # lifecycle -> [Detached] once + Class B + never throws, and the
+    # diagnostics≠control-flow proof (NO-OP vs recording sink -> identical
+    # TransferResult + target). ADR-016 + ADR-018 honored. NO-GAP: no new
+    # forward contracts (S246 RelayCommand is the next chain link).
+    BindingFailure_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
