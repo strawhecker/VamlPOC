@@ -88,6 +88,15 @@ add_executable(vaml-core-tests
     # set returns the previous sink; restore default -> no-op again). Pure
     # value-domain — registers no property names.
     BindingDiagnostics_test.cpp
+    # S241 (dep:S240) — ObservableObject: Set() + typed PropertyChanged signal
+    # (INotifyPropertyChanged-analogue). Set/Get round-trip (String/Int32/Bool),
+    # real-change-only firing (same value -> no signal), broadcast vs per-property
+    # subscriptions + registration order + remove/re-add, has() distinguishing
+    # null-valued-present from absent, and the S240 observable_object_reader()
+    # through evaluate_property_path (present resolves, final-null ok=true,
+    # absent -> MissingProperty, non-final-null -> NullIntermediate, Index ->
+    # NotReadable, non-ObservableObject root -> NotReadable). ADR-018: zero locks.
+    ObservableObject_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
