@@ -97,6 +97,20 @@ add_executable(vaml-core-tests
     # absent -> MissingProperty, non-final-null -> NullIntermediate, Index ->
     # NotReadable, non-ObservableObject root -> NotReadable). ADR-018: zero locks.
     ObservableObject_test.cpp
+    # S242 (dep:S241) — BindingExpression: source/target, mode one/one-time/two-way,
+    # converter, fallback value, and the first transfer. Registers S242-unique
+    # object-scoped DPs on real DependencyObject targets + reads real
+    # ObservableObject sources through the S241 reader + S240 evaluator. Covers
+    # OneTime initial APPLIED transfer + resolve-once (no live re-push — that is
+    # S243/S244), mode()/to_binding_direction, Class B fallback on MissingProperty/
+    # NullIntermediate/NotReadable, no-fallback -> ResolveFailed with target
+    # untouched, converter String->Int32 APPLIED, converter failure -> ConverterFailed
+    # + fallback -> FallbackApplied, Class A malformed/empty path -> create nullptr
+    # (emitted, NO fallback applied), NoChange, wrong-typed -> TargetRejected (the
+    # SetTargetFailed emission is S243's — NOT emitted here), monotonic bindingId,
+    # and exact reason codes per arm via a recording sink. NO-GAP forward contracts
+    # to S243/S244 (live wires) + S242_1 (Strict) recorded, not silent.
+    BindingExpression_test.cpp
     # S221 (dep:S220) — headless suite over the viewer's load_file seam. Compiles
     # the ACTUAL seam source (vaml_viewer/load_file.cpp) into the test target so
     # the golden-fixture tests exercise the exact code the CLI runs (single
