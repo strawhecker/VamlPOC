@@ -305,6 +305,12 @@ add_executable(vaml-core-tests
     # set_Dim re-pushes the bound Opacity). Registers no S256-unique DPs (binds
     # onto the REAL UIElement Opacity DP, S120). ADR-018 zero locks.
     ViewerBindingPlan_test.cpp
+    # S329_1 (dep:S323) — VIEWER-GROWTH INTERACTIVE: a click on a rendered element
+    # -> a routed ClickEvent (S320/S321) -> the markup handler (S322) -> the VM ->
+    # the live binding repaints. Proves "input works in the live viewer" headlessly
+    # through vaml_viewer/viewer_interactive.h (the ADR-021 consumer path; the
+    # S256 precedent). Registers no S329_1-unique DPs. ADR-018 zero locks.
+    ViewerInteractivePlan_test.cpp
     # S224 (dep:S223) — the viewer CLI `--help` ENTRY seam (vaml_viewer/cli.h,
     # the PURE cli_action/cli_usage decision layer) + the RENDERED-VIEW PAN & ZOOM
     # view model (vaml_viewer/view_transform.h, the PURE ViewState seams folding
@@ -312,6 +318,24 @@ add_executable(vaml-core-tests
     # path (ADR-021 single source of truth) — headless, no window/runtime.
     ViewerCli_test.cpp
     ViewerViewState_test.cpp
+    # S320+S321 (dep:S292/S320) — Signal<T> + RoutedEvent primitive + the routed-
+    # event engine (bubbling + tunneling + handled over the REAL parent chain).
+    RoutedEvent_test.cpp
+    # S322 (dep:S321) — markup event wiring: Click="OnClick" -> handler on the
+    # x:Class owner via the S322 class-owner registry + the S320/S321 engine.
+    VamlReader_event_test.cpp
+    # S323 (dep:S322) — hit-testing (deepest/topmost/z/clip/visibility) + the
+    # InputMarshaller (input -> routed events; the S160 resolution point).
+    S323_Input_test.cpp
+    # S324 (dep:S323) — a click hit-tests a real element and raises a bubbling
+    # routed event with the correct source: the formal end-to-end gate.
+    S324_ClickFlow_test.cpp
+    # S325 (dep:S324) — keyboard focus + routed key events (bubble): the
+    # Focusable DP, FocusManager tab-order + RaiseKeyRouted.
+    S325_Focus_test.cpp
+    # S326/S327 (Dispatcher/Task/async) are DEFERRED to Sprint 11a (the
+    # multithreaded-UI construction) — NOT tested in Sprint 8 (single-threaded).
+    # NO S326/S327 test TUs are present in this target.
 )
 
 # The test target is held to the same strict compile bar as the libraries.

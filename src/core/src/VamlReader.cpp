@@ -7,6 +7,7 @@
 #include "vaml/core/VamlReader.h"
 
 #include "vaml/core/BindingAccess.h"           // S250_1: view_binding_diagnostics + view_binding_policy_default
+#include "vaml/core/BindingDiagnostics.h"      // S322: emitting shared binding-diagnostics notes
 #include "vaml/core/BindingMarkup.h"           // S252: parse_markup_binding
 #include "vaml/core/DependencyProperty.h"      // DependencyProperty
 #include "vaml/core/Element.h"                 // register_builtin_elements
@@ -14,6 +15,7 @@
 #include "vaml/core/Intern.h"                  // S140/S144: interned string_view keys for the x:Name registry
 #include "vaml/core/ParsedElement.h"           // ParsedElement/ParsedAttribute + parse_vaml
 #include "vaml/core/PropertyId.h"              // PropertyId
+#include "vaml/core/UIElement.h"               // S322: add_routed_handler target
 #include "vaml/core/ValueConverter.h"          // ValueConverterRegistry + register_builtin_converters
 #include "vaml/core/XmlScanner.h"              // XmlDirectiveType
 
@@ -418,6 +420,118 @@ const std::vector<DeferredEventHandler>&
 VamlReader::deferred_event_handlers() const noexcept
 {
     return deferred_event_handlers_;
+}
+
+// ------------------------------------------------------------------ S322 — markup event wiring
+VAML_CORE_EXPORT
+void VamlReader::bind_class_handler(std::string_view handlerName,
+                                    RoutedEventHandler handler)
+{
+    if (handlerName.empty() || !handler)
+    {
+        return;
+    }
+    // Idempotent: first registration wins (app-owned config, like register_command).
+    const auto it = std::find_if(class_handlers_.begin(), class_handlers_.end(),
+                                 [&](const std::pair<std::string, RoutedEventHandler>& h) {
+                                     return h.first == handlerName;
+                                 });
+    if (it == class_handlers_.end())
+    {
+        class_handlers_.emplace_back(std::string(handlerName), std::move(handler));
+    }
+}
+
+VAML_CORE_EXPORT
+std::size_t VamlReader::BindEvents()
+{
+    std::size_t wired = 0;
+
+    for (const DeferredEventHandler& rec : deferred_event_handlers_)
+    {
+        // 1) Map the authored event name -> a registered RoutedEvent. An
+        //    UNREGISTERED event name is NOT wired and is reported through the
+        //    S250_1 binding-diagnostics channel (one channel, two consumers) —
+        //    never silent. The event must be registered (register_event plus a
+        //    matching RoutedEvent static).
+        const RoutedEvent* event = nullptr;
+        {
+            // Resolve by scanning the S320 registry content keys via the
+            // RoutedEvent statics we own. A markup event name maps to a real
+            // event by interned-name lookup against the known bubbling set
+            // (ClickEvent / KeyDownEvent / KeyUpEvent); unknown -> report.
+            if (rec.eventName == "Click")
+            {
+                event = &ClickEvent();
+            }
+            else if (rec.eventName == "KeyDown")
+            {
+                event = &KeyDownEvent();
+            }
+            else if (rec.eventName == "KeyUp")
+            {
+                event = &KeyUpEvent();
+            }
+        }
+
+        if (event == nullptr)
+        {
+            // Unknown event name — an authoring-style note via the shared
+            // diagnostics channel (S250_1 / ADR-016), never silent. Not a
+            // throw (a future event may not yet be registered); reported.
+            BindingDiagnostic diag;
+            diag.targetProp = std::string(rec.eventName);
+            diag.reasonCode = BindingReasonCode::SetTargetFailed; // a wiring-failure note
+            diag.sourcePath = std::string(rec.handlerName);
+            diag.direction  = BindingDirection::OneWay;
+            diag.detail     = "bind_event: unknown routed event name '" +
+                              std::string(rec.eventName) + "' (event must be registered)";
+            vaml::binding_diagnostics().emit(diag);
+            continue;
+        }
+
+        // 2) Resolve the handler by (class, handlerName) from the S322 class
+        //    owner registry. A handlerName with NO registered handler is a
+        //    Class A authoring error — fail LOUD (structured VamlReaderException
+        //    naming the class + handler), never silent.
+        const auto hit = std::find_if(class_handlers_.begin(), class_handlers_.end(),
+                                      [&](const std::pair<std::string, RoutedEventHandler>& h) {
+                                          return h.first == rec.handlerName;
+                                      });
+        if (hit == class_handlers_.end())
+        {
+            throw VamlReaderException(
+                VamlReaderError::NoEventHandler, std::string(rec.handlerName),
+                "no registered handler '" + std::string(rec.handlerName) +
+                    "' for '" + (root_class_.empty() ? std::string("<root>") : root_class_) +
+                    "' on event '" + std::string(rec.eventName) + "'");
+        }
+
+        // 3) Attach the live routed handler on the element the markup was
+        //    authored on (the S092 record's target) — the S321 surface. The
+        //    handler stays live for this Load (per-Load scope); the class-owner
+        //    registration persists.
+        auto* element = dynamic_cast<UIElement*>(const_cast<DependencyObject*>(rec.target));
+        if (element == nullptr)
+        {
+            // The event was authored on a non-UIElement object — cannot hold a
+            // routed handler. Report via the diagnostics channel (never silent).
+            BindingDiagnostic diag;
+            diag.targetProp = std::string(rec.eventName);
+            diag.reasonCode = BindingReasonCode::SetTargetFailed;
+            diag.sourcePath = std::string(rec.handlerName);
+            diag.direction  = BindingDirection::OneWay;
+            diag.detail     = "bind_event: target is not a UIElement; cannot wire event '" +
+                              std::string(rec.eventName) + "'";
+            vaml::binding_diagnostics().emit(diag);
+            continue;
+        }
+
+        (void)element->add_routed_handler(*event, hit->second);
+        ++wired;
+    }
+
+    return wired;
 }
 
 VAML_CORE_EXPORT

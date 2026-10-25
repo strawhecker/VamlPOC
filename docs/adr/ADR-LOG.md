@@ -87,13 +87,20 @@
 - Consequences: Same fluent syntax the team likes; no VS-only lock-in; Linux CI works; stack stays debuggable.
 
 ## ADR-010 — Async: Task/Executor continuation model, NOT compiler coroutine keywords
-- Status: ACCEPTED (seed)
+- Status: ACCEPTED (seed); RE-POINTED at Sprint-8 review to **Sprint 11a** (the Dispatcher + co_async +
+  InvokeAsync multithreaded-UI construction). The `Task<T>`/`Executor` continuation model + co_async/
+  co_await facade is now delivered at Sprint 11a's own step (S451–S453), NOT in Sprint 8 — Sprint 8 is
+  single-threaded + single-instance + zero-new-lock (the Dispatcher/Task skeleton originally started in
+  Sprint 8 was DEFERRED there; no shipped code depends on it).
 - Context: C# async/await requires keywords; C++20 coroutines need compiler keyword support (MSVC has it, but
   the model we want is continuation-based and unifies with thread marshalling).
 - Decision: Build a minimal `Task<T>` + `Executor` with `.then()` chaining, continuation scheduling, and
-  cancellation. Coroutine sugar, if ever added, is an optional facade over this same machinery.
+  cancellation. Coroutine sugar (co_async/co_await), delivered at Sprint 11a, is an optional facade over this
+  same machinery. The app MAY inject its own dispatcher/executor via the S450 `IAsyncDispatcher` replaceable
+  seam ("we do not force uses that use their own async runtime to use ours").
 - Consequences: `co_await` is not required at the core; async unifies with the render/UI thread ring; a
-  future coroutine layer can be layered on.
+  future coroutine layer can be layered on. FIRST Task usage lands at Sprint 11a. (Sprint 8's original
+  "first Task usage in S326" no longer applies — S326/S327 are deferred to 11a.)
 
 ## ADR-011 — Layer rule: `src/core` NEVER depends on Vulkan/GLFW; only `src/vulkan` may
 - Status: ACCEPTED (enforced by CMake from S001)

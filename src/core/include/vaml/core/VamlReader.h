@@ -56,6 +56,7 @@
 #include "vaml/core/DependencyProperty.h" // DependencyProperty (convertLiteral decl)
 #include "vaml/core/ICommand.h"        // ICommand (the S253 {Command} resolution target)
 #include "vaml/core/ObservableObject.h" // ObservableObject (the S252 data context / VM)
+#include "vaml/core/RoutedEvent.h"     // RoutedEvent / RoutedEventHandler (S322 event wiring)
 #include "vaml/core/export.h"
 
 #include <cstddef>
@@ -98,7 +99,8 @@ enum class VamlReaderError
     UnknownProperty, // an attribute names a property with no global definition (S091)
     DuplicateName, // an x:Name was registered more than once in one Load (S092)
     ClassOnNonRoot, // an x:Class directive was authored on a NON-root element (S094)
-    MalformedBindingMarkup // a {Binding ...} / {Command ...} source with bad inner syntax (S252)
+    MalformedBindingMarkup, // a {Binding ...} / {Command ...} source with bad inner syntax (S252)
+    NoEventHandler // a markup event's handlerName has no registered class-owner handler (S322)
 };
 
 // S091: the reader error — names the offending attribute key. what() renders
@@ -143,8 +145,9 @@ struct DeferredExtension
 // the object the event was authored on, `eventName` the registered event name
 // (e.g. "Click"), and `handlerName` the authored handler name (e.g. "OnClick").
 // S322 resolves each record against the x:Class owner registry to wire the real
-// routed event handler (S320 RoutedEvent primitive). MINIMAL REAL seed —
-// resolved by S322; Do NOT extend silently.
+// routed event handler (S320 RoutedEvent primitive). RESOLVED at S322: this was
+// the S092 MINIMAL REAL event-hook seed, KEPT + EXTENDED into the real surface
+// that feeds BindEvents(). Do NOT backfill; do NOT revert to a stub.
 struct DeferredEventHandler
 {
     const DependencyObject* target = nullptr;
@@ -276,22 +279,57 @@ public:
     void register_command(std::string_view name, ICommand* command) noexcept;
 
     // ------------------------------------------------------------------
-    // S092 Strand C — event hooks (MINIMAL REAL; resolved by S322, Sprint 8).
+    // S092 Strand C + S322 — event hooks. RESOLVED by S322 (Sprint 8): the
+    // S092 MINIMAL REAL event-hook seed (register_event + deferred-event
+    // records) is now the REAL surface feeding the S322 class-owner registry
+    // + BindEvents. The sentinel is REMOVED at this step (NO-GAP); the seed is
+    // kept + extended, never backfilled.
     // ------------------------------------------------------------------
-    // [MINIMAL REAL] VamlReader event hooks — RESOLVED BY S322 (Sprint 8).
-    // Do NOT extend silently; do NOT backfill.
 
     // Declares that `eventName` is an EVENT, not a property. An attribute whose
     // key exactly matches a registered event name is routed to a deferred-event
     // record in build() (never a property set / unknown-property throw). The
-    // host (future x:Class owner / control type, via CompositionRoot later)
-    // calls this before Load. Idempotent.
+    // host (the app / future control type) calls this before Load. Idempotent.
     void register_event(std::string_view eventName);
 
     // The deferred event handlers recorded by the most recent Load, document
-    // order. MINIMAL REAL seed — consumed/resolved by S322.
+    // order. Consumed by BindEvents() (S322).
     [[nodiscard]] const std::vector<DeferredEventHandler>&
     deferred_event_handlers() const noexcept;
+
+    // ------------------------------------------------------------------
+    // S322 — markup event wiring: Click="OnClick" -> handler on x:Class owner
+    // (real routed-event binding on the S320/S321 engine).
+    // ------------------------------------------------------------------
+
+    // Registers a named class-owner HANDLER for a markup event. The x:Class
+    // decomposes as: the sheet's root x:Class name is "this" (root_class_);
+    // every handler is registered under (handlerName) for that class. The app
+    // (ADR-006 app-owned composition, NO DI) calls this BEFORE BindEvents()
+    // so markup `Click="OnClick"` resolves to a real RoutedEventHandler.
+    // Idempotent (first-wins); a repeat with the same handlerName is a no-op.
+    void bind_class_handler(std::string_view handlerName, RoutedEventHandler handler);
+
+    // RESOLVES every deferred_event_handlers() record into a LIVE routed
+    // handler on the loaded tree, via the S320 RoutedEvent registry + the
+    // S321 UIElement routed-handler surface. Called AFTER BindExtensions()
+    // (the reader has the deferred records from the most recent Load).
+    //
+    //   - eventName -> a registered RoutedEvent (ClickEvent/KeyDownEvent/...);
+    //     an UNKNOWN event name is NOT bound and reported via the S250_1
+    //     binding-diagnostics channel (never silent — the event must be
+    //     registered; a structured NoEventHandler-class note names it).
+    //   - handlerName -> a (class, handlerName) registered RoutedEventHandler;
+    //     an UNREGISTERED handlerName throws VamlReaderException(
+    //     NoEventHandler) naming the class + handler (Class A authoring, fail
+    //     loud, never silent).
+    //   - attaches target->add_routed_handler(event, handler) on the element
+    //     the markup was authored on (the S092 record's target).
+    //
+    // The wired handlers are per-Load (cleared at the next Load's start);
+    // the class-owner handler REGISTRATIONS survive (app-owned config, like
+    // register_command). Returns the number of wired records.
+    [[nodiscard]] std::size_t BindEvents();
 
 private:
     // Recursive build (the algorithm in the header comment). Returns the owned
@@ -320,6 +358,11 @@ private:
     // S092 Strand C — registered event names + deferred event handlers.
     std::vector<std::string> event_names_;
     std::vector<DeferredEventHandler> deferred_event_handlers_;
+
+    // S322 — the class-owner handler registry: (handlerName, RoutedEventHandler)
+    // for the root class. App-owned config (ADR-006, NO DI); non-owning
+    // std::function copy (the app's handler is copy-stored); survives Loads.
+    std::vector<std::pair<std::string, RoutedEventHandler>> class_handlers_;
 
     // S252 — the data context (the app-constructed VM, non-owning) + the
     // reader-owned live bindings Created by BindExtensions(). Cleared at the

@@ -1,57 +1,51 @@
 # VAML session-context (per-run state)
 
 ## last_command
-implementit — SPRINT 7 CLOSED (S289 -> S290 -> S291 -> S293 -> S292) COMPLETE. The VBAML pipeline (text -> vamlcc -> .vbaml -> VBamlReader -> tree) is end-to-end GREEN on BOTH CI lanes AND demonstrated LIVE in the viewer's compiled path. S289 (pack/identity: PackUri + ResourcePack + the compiled-only InitializeComponentFrom + x:Class owner mapping, "release uses compiled only") + S290 (dual-path contract: S2=dev / S7=release, documented + grep-gated) + S291 (REFACTOR GATE(S7): full pipeline parity, no stubs) + S293 (VIEWER-GROWTH compiled path: viewer opens a compiled .vbaml via the runtime VBamlReader; reload recompiles .vaml->.vbaml then reopens) all DONE from first principles, closed by the S292 SURVIVOR (checkpoint advanced to S320, Sprint 8).
+implementit COMPLETE — SPRINT 8 CLOSED (S320 -> S321 -> S322 -> S323 -> S324 -> S325 -> S328 -> S329_1 -> S329) on the RE-SCOPED single-threaded plan. The routed-event + input chain is end-to-end GREEN on BOTH CI lanes. S326 (Dispatcher/Task) + S327 (async continuation -> VM -> binding) are DEFERRED to the NEW Sprint 11a (per the architect's re-scope decision this session) — their in-tree Dispatcher/Task/async code was PULLED so Sprint 8 is demonstrably single-threaded, single-instance, ZERO new locks.
+
+## RE-SCOPE (architect decision, Sprint-8 plan review)
+- Sprint 8 = single-threaded, single-instance, ZERO new locks ONLY (the "single-threaded smell" reasoning: the Dispatcher/async is a separate, larger parallel-threaded-UI sprint, not a Sprint-8 add-on).
+- S326/S327 DEFERRED -> NEW Sprint 11a (roadmap S450–S459): IAsyncDispatcher REPLACEABLE seam (apps may inject their own — "we do not force uses that use their own async runtime to use ours"), Task<T>/Executor (ADR-010), co_async/co_await coroutines, InvokeAsync, async->VM->binding no-races, multi-instance-per-thread + one shared input pump, thread-pool-as-UI one-at-a-time. The deferral is a named resolution, NOT silent backfill (NO-GAP). ADR-010 re-pointed to 11a; ADR-018 reaffirmed for Sprint 8 as ZERO new locks.
+- PULLED on re-scope: src/core/src/Dispatcher.cpp, src/core/include/vaml/core/Dispatcher.h, src/core/include/vaml/core/Task.h, test/unit/S326_Dispatcher_test.cpp, test/unit/S327_AsyncBinding_test.cpp + their CMake entries. No references remain (grep clean).
+- The user asked a deep architecture Q (how the lib knows a UI thread / async without a provided runtime / app-injectable container + InvokeAsync); the conclusion matches the deferral design and is recorded in the 11a roadmap header + plan.
 
 ## plan_digest
-Sprint 7 CLOSE-OUT (S289 -> S290 -> S291 -> S293 -> S292, execution order; the S293 growth token before the S292 survivor).
-- S289 (pack/identity): NEW src/tools/include/vaml/tools/Pack.h + src/tools/src/Pack.cpp (vaml::tools::pack: PackUri + parse_pack_uri + the AUTHORITY RULE + ResourcePack the EMBEDDED-RESOURCE LOOKUP + resolve_pack_uri) + NEW VBamlReader surface (SetOwner/owner() + InitializeComponent + InitializeComponentFrom THE COMPILED-ONLY RELEASE ENTRY (owner, ResourcePack&, packUri) — never text + register_class/is_registered_class the x:Class owner mapping + new VBamlError::OwnerClassMismatch). Resolves the S092/S286 "x:Class -> owner binding deferred" NO-GAP. "release uses compiled only" enforced by signature; S444 app-shell = the named release consumer (recorded not silent). NEW test/unit/Pack_s289_test.cpp (15 cases).
-- S290 (dual-path): DUAL-PATH CONTRACT blocks in vaml/core/VamlReader.h + vaml/tools/VBamlReader.h: S2 = DEV TOOL, S7 = RELEASE; the compiled path is text-free by construction (grep audit: VBamlReader.cpp + Pack.cpp have ZERO text-reader/vamlcc calls). Split enforced at LINKAGE (no ReaderRole enum = dead surface). Docs in roadmap + progress only.
-- S291 (REFACTOR GATE(S7)): both lanes rebuilt + ctest 4/4 from first principles; S288 parity re-run; grep-audit no stubs; S003 tools sentinel confirmed resolved (removed at S287); dead-surface audit (every S7 symbol consumed); ASan no-leak; no MINIMAL REAL introduced/resolved at the gate.
-- S293 (VIEWER-GROWTH compiled path): NEW vaml_viewer/compiled_open.h (CompiledOpenResult + load_compiled_bytes + compile_to_vbaml + load_compiled_file — in-process vamlcc, ADR-021) + MOD app.{h,cpp} (create_impl shared stack-builder + create_compiled + the compiled S222_1 reload recompiles-then-reopens keeping last-good) + MOD cli.h (--compiled + cli_wants_compiled) + both main.cpp (compiled dispatch) + the viewer (Windows vcxproj + Linux CMakeLists) gains the vaml-tools link. Compile capture via vaml_viewer-linux on the VM. NEW tests ViewerCompiledOpen_s293_test.cpp (7) + ViewerCompiledPlan_s293_test.cpp.
-- S292 (SURVIVOR + checkpoint to S320): docs-only wrap; Sprint 7 SURVIVOR + VIEWER-GROWTH table S7->S293 DONE + checkpoint regenerated (last=S292, next=S320) + guard rails (tools RESOLVED at S287) + ADR-018 reaffirmed (zero new locks) + roadmap S289/S290/S291/S293/S292 [DONE].
+Sprint 8 delivered (single-threaded, zero-lock), each green on windows-msvc + ubuntu-clang:
+- S320 (dep:S292): Signal<T> (token/reentrancy-safe add-remove, copy-before-invoke) + RoutedEvent primitive + RouteEventDirection registry (Click/KeyDown/KeyUp statics).
+- S321 (dep:S320): UIElement routed-handler surface + RaiseEvent (bubble source->root, tunnel root->source, handled stops both; source/originalSource).
+- S322 (dep:S321): markup Click="OnClick" -> live handler via the class-owner registry (bind_class_handler + BindEvents); RESOLVES the S092 event-hook MINIMAL REAL seed (sentinel removed, kept+extended); NoEventHandler arm.
+- S323 (dep:S322): UIElement::HitTestAt (deepest/topmost/reverse-z/clip/visibility) + InputMarshaller (input->routed; single-threaded, NO Dispatcher).
+- S324 (dep:S323): ClickFlow gate (a click hit-tests a real element + raises a bubbling Click with the correct source; empty-space raises nothing; handled stops the climb).
+- S325 (dep:S324): Focusable DP + FocusManager (pre-order tab-order, MoveFocusNext/Previous, RaiseKeyRouted bubbling KeyDown/KeyUp on the focused element).
+- S328 (dep:S325): REFACTOR GATE(S8) — single-threaded, single-instance, ZERO new locks; deferred Dispatcher/Task pulled; S092 sentinel resolved; both CI lanes green.
+- S329_1 (dep:S323): VIEWER-GROWTH INTERACTIVE — vaml_viewer/viewer_interactive.h (the S329_1 plan seam, ADR-021) + ViewerInteractivePlan_test.cpp: a click on a rendered element -> routed ClickEvent -> the markup handler (S322) -> the VM -> the live binding repaints. [VIEWER GROWTH: input works in the live viewer; single-threaded]
+- S329 (dep:S328): SURVIVOR + checkpoint advance to S360.
 
 ## files_touched
-- ADDED src/tools/include/vaml/tools/VBamlReader.h + src/tools/src/VBamlReader.cpp (S285)
-- ADDED src/tools/include/vaml/tools/parity/DualPathParity.h + src/tools/src/parity/DualPathParity.cpp (S288)
-- MOD src/tools/include/vaml/tools/Vamlc.h + src/tools/src/Vamlc.cpp (S287 embed: write_embed + sanitize_embed_symbol)
-- MOD src/tools/vamlcc_main.cpp (S287 --embed mode)
-- MOD src/tools/include/vaml/tools/version.h + src/tools/src/version.cpp (S287 tools-marker RESOLVED: sentinel removed, symbol extended)
-- MOD src/tools/CMakeLists.txt (S287 vaml_compile_vaml() + demo wiring + S285/S288 sources; S288 export vars)
-- ADDED src/tools/samples/demo_main.vaml (S287 demo)
-- MOD test/unit/CMakeLists.txt (+Vamlc_s284 +VBamlReader_s285 +VBamlReader_s286 +Vamlc_s287 +VBamlReader_s288_parity; links the generated embed .cpp)
-- ADDED test/unit/Vamlc_s284_test.cpp + VBamlReader_s285_test.cpp + VBamlReader_s286_test.cpp + Vamlc_s287_test.cpp + VBamlReader_s288_parity_test.cpp
-- ADDED build/verify_s284.cmd (S284..S288 gate) — verify_s288.cmd consolidated gate
-- MOD docs/roadmap.md (S284..S288 [DONE] + Sprint 7 complete marker)
-- MOD progress.md (checkpoint -> S289/Sprint 8)
-- MOD session-context.md (this file)
-- No NEW md files (operational files only, per protocol scope).
-- ADDED src/tools/include/vaml/tools/Pack.h + src/tools/src/Pack.cpp (S289) + MOD src/tools/CMakeLists.txt (+Pack.cpp)
-- MOD src/tools/include/vaml/tools/VBamlReader.h + src/tools/src/VBamlReader.cpp (S289: SetOwner + InitializeComponent + InitializeComponentFrom + register_class/is_registered_class + OwnerClassMismatch; S290 dual-path contract doc)
-- MOD src/core/include/vaml/core/VamlReader.h (S290 dual-path contract doc)
-- ADDED vaml_viewer/compiled_open.h (S293) + MOD vaml_viewer/app.{h,cpp} (create_impl/create_compiled + compiled reload) + MOD vaml_viewer/cli.h (--compiled/cli_wants_compiled) + MOD vaml_viewer/main.cpp + vaml_viewer-linux/src/main.cpp (compiled dispatch) + MOD vaml_viewer/vaml_viewer.vcxproj + vaml_viewer-linux/CMakeLists.txt (vaml-tools link)
-- ADDED test/unit/Pack_s289_test.cpp + ViewerCompiledOpen_s293_test.cpp + ViewerCompiledPlan_s293_test.cpp; MOD test/unit/CMakeLists.txt (all three + the presentation-tests tools link/include)
-- ADDED build/verify_s289.cmd (the S289..S291 consolidated windows-msvc gate incl. the viewer build)
-- MOD docs/roadmap.md (S289/S290/S291/S293/S292 [DONE] + Sprint 7 (S280..S293) complete marker + tools marker RESOLVED at S287)
-- MOD progress.md (Sprint 7 SURVIVOR + checkpoint -> S320/Sprint 8)
-- MOD session-context.md (this file)
+- NEW src/core/include/vaml/core/Signal.h, RoutedEvent.h, InputMarshaller.h, FocusManager.h
+- NEW src/core/src/RoutedEvent.cpp, InputMarshaller.cpp, FocusManager.cpp
+- MOD src/core/include/vaml/core/UIElement.h (+routed-handler surface, HitTestAt, Focusable), src/core/src/UIElement.cpp (routed engine + hit-test + focusable)
+- MOD src/core/include/vaml/core/VamlReader.h + src/core/src/VamlReader.cpp (S322 bind_class_handler + BindEvents + NoEventHandler)
+- MOD src/core/CMakeLists.txt (Removed Dispatcher.cpp; added RoutedEvent/InputMarshaller/FocusManager)
+- NEW src/core/include/vaml/mvvm/property_bindable.h (unchanged)
+- NEW test/unit/RoutedEvent_test.cpp, VamlReader_event_test.cpp, S323_Input_test.cpp, S324_ClickFlow_test.cpp, S325_Focus_test.cpp, ViewerInteractivePlan_test.cpp + MOD test/unit/CMakeLists.txt (Removed S326/S327 test TUs)
+- NEW vaml_viewer/viewer_interactive.h (S329_1 seam)
+- DELETED (re-scope pull): src/core/src/Dispatcher.cpp, src/core/include/vaml/core/Dispatcher.h, src/core/include/vaml/core/Task.h, test/unit/S326_Dispatcher_test.cpp, test/unit/S327_AsyncBinding_test.cpp
+- MOD docs/roadmap.md (Sprint 8 re-scoped single-threaded; S326/S327 DEFERRED -> NEW Sprint 11a header S450–S459 injected before Sprint 12), docs/adr/ADR-LOG.md (ADR-010 re-pointed to 11a), progress.md (Sprint 8 SURVIVOR appended + checkpoint -> S360), plan, session-context.md
+- No NEW md beyond the operational files + the existing plan. No commits made.
 
 ## build_status
-SPRINT 7 CLOSE-OUT (S289..S293) GREEN BOTH CI LANES from first principles:
-- windows-msvc: build/verify_s289.cmd (msvc-debug) — configure clean + build warning-as-error (/WX) CLEAN + FULL ctest 4/4 100% PASS incl. the S289 15-case Pack suite (vaml-tools-tests) + the S293 7-case ViewerCompiledOpen suite + the S293 ViewerCompiledPlan suite (vaml-presentation-tests) + all prior S280..S288 suites; the vaml_viewer.vcxproj builds green (Debug|x64, vaml-tools.lib linked). 15/15 + 7/7 + plan cases green on the direct exe run.
-- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug — configure clean + build warnings==0 + ctest 4/4 100% PASS (same suites). The vaml_viewer-linux target builds green with the vaml-tools link on the VM.
-- The vml viewer LIVE compiled-path proof (vaml_viewer --compiled sample.vaml -> compile -> render -> mid-run rewrite recompiles + reopens) is [both apps, not CI] on the NVIDIA box (standing S222 display-proof precedent).
-windows-clang-debug is NOT a lane (pre-existing failure; not built/tested).
+BOTH CI LANES GREEN from first principles this session:
+- windows-msvc: cmake --preset msvc-debug (MSVC-bundled CMake 4.3.1-msvc1) configure + build warning-as-error CLEAN + vaml-core-tests 920/920 test cases PASS, 0 failed (the single S036_1 failed assertion is the intentional demonstration).
+- ubuntu-clang (Linux VM, /mnt/hgfs/VamlPOC, clang 21.1.8): cmake --preset clang-debug configure + build warnings==0 (173/173) + ctest --preset clang-debug 4/4 suites PASS, 0 failed.
+- NOTE: the earlier Cygwin-cmake contamination of build/msvc-debug was resolved by deleting that build dir and configuring cleanly with the MSVC cmake via build/vs_build_s8.cmd (a keepable helper; the shell resolved cmake to C:\cygwin64\bin\cmake.exe otherwise). windows-clang-debug is NOT a lane (not built/tested/flagged per the standing rule).
+- The LIVE interactive viewer proof ([both apps, not CI], standing S222+ precedent) is the only display-backed item; the S329_1 headless test is the CI proof and is green.
 
 ## next_step
-S320 (dep:S292) — Sprint 8: RoutedEvent primitive (Signal<T> + token + route-policy hook; reentrancy-safe add/remove). Sprint 7 (S280..S293) is fully delivered + verified + wrapped by the S292 SURVIVOR; the checkpoint in progress.md + roadmap.md is regenerated to S320 (Sprint 8).
+(Stopped at SPRINT 8 completion.) Next = S360 (Sprint 9 — styles/templates/resources, dep:S329). On resumption: begin Sprint 9 per its roadmap header. The must-run command is `implementit`.
 
 ## notes
-- The compiled-path reader (VBamlReader) + Pack form the S7 RELEASE path (vaml-tools; core cannot depend on tools); the S2 text VamlReader is the DEV TOOL — the dual-path split (S290) is enforced at LINKAGE, documented in both reader headers + roadmap/progress. Confirmed at S288+S291 that S7 == S2 behaviorally (parity, not duplication).
-- "Release uses compiled only" (S289) is enforced by SIGNATURE (InitializeComponentFrom takes a ResourcePack + pack URI, never text) + at linkage (release links vaml-tools for VBamlReader, never the text reader); S444 app-shell = the named release consumer (recorded NO-GAP not silent).
-- The S003 tools MINIMAL REAL marker is RESOLVED at S287 (sentinel removed; version symbol kept + extended; grep-audited) — recorded NO-GAP at its own step.
-- {Binding} resolution on the compiled path stays deferred (release consumer, S444/S322) — recorded NO-GAP at S286/S288/S293. The viewer compiled mode renders the real panels via the S212 classifier.
-- ADR-018 ZERO locks across Sprint 7 (both readers + Pack single-threaded/pure; the viewer compiled seam is UI-thread); ADR-021 headless (tools tests + viewer tests drive the REAL seam, never spawn an exe); ADR-011 tools stays CORE (no Vulkan).
-- The viewer compiled-open seam (compiled_open.h) is header-only REAL permanent code (kept-and-extended by S444), NOT MINIMAL REAL.
-- No commits made (per standing directive unless 'commitit' is commanded).
-- No NEW md files created (operational files only).
+- The S322 markup Click wiring operates on real rendered UIElements (panels) today; Button (a MINIMAL REAL DependencyObject seed, not UIElement) stays unresolved until S401 — recorded not silent. The interactive proof uses a real StackPanel.
+- Build helper left in tree: build/vs_build_s8.cmd (MSVC cmake + vcvars64 wrapper to avoid the Cygwin-cmake PATH conflict). Harmless, useful.
+- No commits made (per the standing directive unless 'commitit' is commanded).
+- No NEW md files beyond the operational files + the pre-existing plan (the "no guides/summaries/overviews" rule held — session-context.md, progress.md, roadmap.md, ADR-LOG.md only).

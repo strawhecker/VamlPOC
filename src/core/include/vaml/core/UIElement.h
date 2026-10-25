@@ -66,12 +66,16 @@
 #include "vaml/core/LayoutSlot.h"   // HorizontalAlignment, VerticalAlignment
 #include "vaml/core/Thickness.h"    // Thickness (Margin DP)
 #include "vaml/core/Transform.h"    // Matrix2D (RenderTransform DP)
+#include "vaml/core/Signal.h"       // Signal<T> (S320 — per-event routed-handler lists)
+#include "vaml/core/RoutedEvent.h"  // RoutedEvent / RoutedEventArgs (S320) — routed-handler surface
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -237,6 +241,16 @@ public:
     [[nodiscard]] SetResult set_visibility(Visibility v);
     [[nodiscard]] Visibility visibility() const;
 
+    // --- Focusable (REAL DP; S325) -------------------------------------
+    // Default true. Declares whether THIS element can take keyboard focus.
+    // WPF-faithful: a focusable leaf defaults true; a container/panel is
+    // typically set false by its author (or a future control default). The
+    // S325 FocusManager's tab-order skips non-Focusable elements. Exposed both
+    // via the typed accessor and the standard Set/Get path on
+    // PropertyId("Focusable") (Int32 0/1).
+    [[nodiscard]] SetResult set_focusable(bool value);
+    [[nodiscard]] bool focusable() const;
+
     // --- Opacity (REAL DP; inherited, validated [0,1]) ------------------
     // Default 1.0. Inherited (cascades to descendants) + bounded [0,1]
     // (out-of-range Set is REJECTED, store unchanged). A parent's opacity
@@ -324,8 +338,65 @@ public:
     // (single-parent ownership invariant). Detach first (take_child/remove_child)
     // to move a child between parents.
 
+    // --- Routed events (S321) --------------------------------------------
+    // The per-event routed-handler surface built on the S320 Signal<T>
+    // primitive. `add_routed_handler` registers a handler for `event` on THIS
+    // element (fired in registration order when a raise routes through it);
+    // `remove_routed_handler` removes by token (reentrancy-safe). `RaiseEvent`
+    // (below) is the engine: bubbling (source -> root, stop on `handled`) and
+    // tunneling (root -> source, the preview). The handler may set
+    // `args.handled = true` to stop the route — WPF-faithful.
+    using RoutedHandler    = std::function<void(RoutedEventArgs&)>;
+    using RoutedHandlerToken = SignalToken;
+
+    // Registers `handler` for `event` on this element; returns a removal token.
+    // Lazy per-event list (zero cost when the element subscribes nothing).
+    [[nodiscard]] RoutedHandlerToken add_routed_handler(const RoutedEvent& event,
+                                                        RoutedHandler handler);
+
+    // Removes the routed handler by token; true iff it was present.
+    [[nodiscard]] bool remove_routed_handler(const RoutedEvent& event,
+                                             RoutedHandlerToken token);
+
+    // RAISES `event` on this element with `args`. `args.source` is expected to
+    // be THIS element (the element that raised). The route travels per the
+    // event's strategy (bubble/tunnel), honoring `args.handled`. Public so a
+    // control / the input-marshaller can raise a routed event from an element.
+    void RaiseEvent(const RoutedEvent& event, RoutedEventArgs& args);
+
+    // --- Hit-testing (S323) -----------------------------------------------
+    // Returns the DEEPEST TOPMOST element whose final_rect() contains (x, y),
+    // or nullptr when the point hits no element. TOPMOST = reverse child order
+    // (the LAST child is on top, z-order — later children are tested first);
+    // DEEPEST = a hit child wins over its ancestors. Honors hit-testability:
+    //     - Visibility::Collapsed / Hidden are NOT hit-testable (skipped);
+    //     - a child CLIPPED by an ancestor's final_rect (overflow) is not hit
+    //       (the point must lie within every ancestor's final_rect too).
+    // The walk uses the layout final_rect() (the S122/S124 render slot) — the
+    // S208 render transform is a render concern and NOT folded here (a recorded
+    // future refinement: Model-aware hit-testing). ADR-018: zero locks (pure
+    // tree walk on the borrowed tree; caller owns the tree's lifetime).
+    [[nodiscard]] UIElement* HitTestAt(float x, float y);
+    // Same, but a CONST overload returning a non-owning const pointer.
+    [[nodiscard]] const UIElement* HitTestAt(float x, float y) const;
+
 private:
     void attach_child(std::unique_ptr<UIElement> child);
+
+    // Fires `event`'s handlers on ONE element (sets args.source = element),
+    // in registration order. A handler may set handled=true (checked by the
+    // RaiseEvent loop). A private member so it can read `routed_handlers_`.
+    void _raise_at(UIElement* element, const RoutedEvent& event, RoutedEventArgs& args);
+
+    // --- S321 routed-handler storage -------------------------------------
+    // The per-event handler lists live on the heap in a lazily-allocated store
+    // (a SINGLE pointer member keeps UIElement small — an inline map would bloat
+    // it past the S145 object-pool slot). Zero cost until an element subscribes
+    // a routed handler. Single-threaded (UI/affinity thread) — ADR-018 ZERO new
+    // locks. Routed handlers are a DIFFERENT surface from the S041 property
+    // subscribers.
+    struct RoutedHandlerStore; // defined in RoutedEvent.cpp
+    std::unique_ptr<RoutedHandlerStore> routedHandlers_; // lazily built on first add
 
     // ------------------------------------------------------------------
     // S142: the pimpl is COLLAPSED into one block-resident unit with the base's

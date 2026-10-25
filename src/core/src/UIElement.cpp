@@ -24,13 +24,27 @@
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/PropertyMetadata.h"
 #include "vaml/core/PropertyFlags.h"
+#include "vaml/core/RoutedEvent.h"   // S321 routed handlers
+#include "vaml/core/Signal.h"        // S320 Signal<T>
 
 #include <algorithm>
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <unordered_map>
 
 namespace vaml {
+
+// --- S321 routed-handler store (complete type for the unique_ptr) -----------
+struct UIElement::RoutedHandlerStore
+{
+    // Per-event-name handler lists, keyed by the event's interned name (a
+    // STABLE pool-backed view — see the S140 discipline), each a heap-owned
+    // Signal<T>. Built lazily on first subscribe. Single-threaded (UI/affinity);
+    // ADR-018 ZERO new locks.
+    std::unordered_map<std::string_view, std::unique_ptr<Signal<void(RoutedEventArgs&)>>>
+        byEvent;
+};
 
 namespace {
 
@@ -83,6 +97,15 @@ void register_uielement_properties()
     (void)DependencyProperty::Register(
         "VerticalAlignment", ValueType::Int32, "UIElement",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+
+    // Focusable (S325): default true, NOT inherited. Declares whether THIS
+    // element can take keyboard focus (WPF-faithful: a focusable leaf is true;
+    // a container/panel is set false by its author or default). The Int32
+    // value path (Bool rides Int32? — Value uses Int32 as the closest to a
+    // bool tag; keep 0/1 semantics).
+    (void)DependencyProperty::Register(
+        "Focusable", ValueType::Int32, "UIElement",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
 }
 
 // Runs register_uielement_properties() at most once (first UIElement ctor).
@@ -119,6 +142,18 @@ VAML_CORE_EXPORT
 Visibility UIElement::visibility() const
 {
     return static_cast<Visibility>(Get(PropertyId::of("Visibility")).get<std::int32_t>());
+}
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_focusable(bool value)
+{
+    return Set(PropertyId::of("Focusable"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool UIElement::focusable() const
+{
+    return Get(PropertyId::of("Focusable")).get<std::int32_t>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -492,6 +527,166 @@ void UIElement::walk(const std::function<void(UIElement&)>& visitor) const
     {
         c->walk(visitor);
     }
+}
+
+// --- S321 routed-event engine (bubbling + tunneling + handled) --------------
+
+VAML_CORE_EXPORT
+UIElement::RoutedHandlerToken UIElement::add_routed_handler(
+    const RoutedEvent& event, RoutedHandler handler)
+{
+    // Lazily allocate the store (empty by default — zero cost for an element
+    // with no routed handlers). The token is additive + reentrancy-safe.
+    if (!routedHandlers_)
+    {
+        routedHandlers_ = std::make_unique<RoutedHandlerStore>();
+    }
+    auto& slot = routedHandlers_->byEvent[event.name()];
+    if (!slot)
+    {
+        slot = std::make_unique<Signal<void(RoutedEventArgs&)>>();
+    }
+    return slot->add(std::move(handler));
+}
+
+VAML_CORE_EXPORT
+bool UIElement::remove_routed_handler(const RoutedEvent& event,
+                                      UIElement::RoutedHandlerToken token)
+{
+    if (!routedHandlers_)
+    {
+        return false;
+    }
+    const auto it = routedHandlers_->byEvent.find(event.name());
+    if (it == routedHandlers_->byEvent.end() || !it->second)
+    {
+        return false;
+    }
+    return it->second->remove(token);
+}
+
+VAML_CORE_EXPORT
+void UIElement::RaiseEvent(const RoutedEvent& event, RoutedEventArgs& args)
+{
+    // Establish the original source once (the element the raise started from);
+    // `args.source` is set per hop as the route visits each element.
+    if (args.originalSource == nullptr)
+    {
+        args.originalSource = args.source;
+    }
+
+    if (event.direction() == RouteEventDirection::Bubble)
+    {
+        // BUBBLING: source -> ancestors -> root.
+        UIElement* cur = static_cast<UIElement*>(args.source);
+        while (cur != nullptr)
+        {
+            _raise_at(cur, event, args);
+            if (args.handled)
+            {
+                break; // a handler stopped the bubble (later ancestors stopped)
+            }
+            DependencyObject* p = cur->parent();
+            cur = (p != nullptr) ? dynamic_cast<UIElement*>(p) : nullptr;
+        }
+    }
+    else
+    {
+        // TUNNELING (preview): root -> ... -> source. A handler setting
+        // `handled` during the tunnel stops it (the source/bubble never sees).
+        // Collect the path source -> ... -> root, then walk it reversed.
+        std::vector<UIElement*> path;
+        for (UIElement* c = static_cast<UIElement*>(args.source); c != nullptr;)
+        {
+            path.push_back(c);
+            DependencyObject* p = c->parent();
+            c = (p != nullptr) ? dynamic_cast<UIElement*>(p) : nullptr;
+        }
+        for (auto it = path.rbegin(); it != path.rend(); ++it)
+        {
+            _raise_at(*it, event, args);
+            if (args.handled)
+            {
+                break;
+            }
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void UIElement::_raise_at(UIElement* element, const RoutedEvent& event,
+                          RoutedEventArgs& args)
+{
+    if (element == nullptr)
+    {
+        return;
+    }
+    args.source = element;
+    if (!element->routedHandlers_)
+    {
+        return;
+    }
+    const auto it = element->routedHandlers_->byEvent.find(event.name());
+    if (it == element->routedHandlers_->byEvent.end() || !it->second)
+    {
+        return;
+    }
+    // Fire this element's handlers in registration order, stopping when a
+    // handler sets args.handled = true (a handled event stops the whole route,
+    // including the later handlers of THIS element — WPF-faithful).
+    it->second->fire_until(args, [&](RoutedEventArgs& a) { return a.handled; });
+}
+
+// --- S323 hit-testing -------------------------------------------------------
+
+namespace {
+
+// True iff (x, y) lies within `r` (half-open: the right/bottom edges are
+// EXCLUSIVE, so a point at exactly right()/bottom() is NOT inside — matching
+// the WPF hit-test window).
+[[nodiscard]] bool contains_point(const vaml::Rect& r, float x, float y) noexcept
+{
+    return x >= r.left() && x < r.right() && y >= r.top() && y < r.bottom();
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+UIElement* UIElement::HitTestAt(float x, float y)
+{
+    return const_cast<UIElement*>(std::as_const(*this).HitTestAt(x, y));
+}
+
+VAML_CORE_EXPORT
+const UIElement* UIElement::HitTestAt(float x, float y) const
+{
+    // A non-hit-testable element (Collapsed/Hidden) tests negative, even if the
+    // point is inside its rect.
+    const Visibility vis = visibility();
+    if (vis == Visibility::Collapsed || vis == Visibility::Hidden)
+    {
+        return nullptr;
+    }
+    // The point must lie within THIS element's final_rect (the clip bounds;
+    // content overflowing final_rect is clipped and not hit-testable).
+    if (!contains_point(final_rect_, x, y))
+    {
+        return nullptr;
+    }
+
+    // Test children TOPMOST-first (REVERSE index order — the LAST child is on
+    // top/z). The deepest hit child (recursive) wins.
+    for (std::size_t i = children_.size(); i-- > 0;)
+    {
+        const UIElement* hit = children_[i]->HitTestAt(x, y);
+        if (hit != nullptr)
+        {
+            return hit;
+        }
+    }
+    // No child was hit -> this element is the hit (it contains the point and is
+    // hit-testable).
+    return this;
 }
 
 } // namespace vaml

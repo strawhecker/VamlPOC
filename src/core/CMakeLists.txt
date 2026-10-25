@@ -38,6 +38,9 @@ vaml_add_library(core
     src/BindingExpression.cpp
     src/BindingMarkup.cpp
     src/RelayCommand.cpp
+    src/RoutedEvent.cpp
+    src/InputMarshaller.cpp
+    src/FocusManager.cpp
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()

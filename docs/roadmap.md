@@ -38,7 +38,10 @@
   `Button` → **S401**, `Text` → **S400**,
   `TextBox` → **S402**, `CheckBox` → **S404**, `Slider` → **S403**, `ScrollViewer` → **S405**,
   `Window` → **S440**;
-  VamlReader event hooks (S092, in `vaml/core/VamlReader.h`) → **RESOLVED BY S322**.
+  VamlReader event hooks (S092, in `vaml/core/VamlReader.h`) → **RESOLVED at S322** (the S322 markup
+  event wiring replaced the seed with the real surface: `register_event`, `deferred_event_handlers`,
+  `bind_class_handler` + `BindEvents`; the sentinel tag was removed at that step — kept + extended,
+  never backfilled).
   (The `Color` + `Thickness` marks, both previously **RESOLVED BY S089**, are RESOLVED as of S089 —
   their real parsing semantics now live on the types via parse_color/parse_thickness, and their
   sentinel tags were removed at that step.)
@@ -1182,19 +1185,19 @@ Growth tokens by sprint:
 > translation seam lives in the viewer (the S160 resolution). The `{ASYNC/MULTITHREADING DEFERRED}`
 > marker below is the NO-GAP resolver obligation: **Sprint 11a completes these constructs** — it is a
 > named, scheduled resolution, never a silent backfill.
-- S320 dep:S292  RoutedEvent primitive: Signal<T> + token + route-policy hook; reentrancy-safe add/remove.
-- S321 dep:S320  Bubbling + tunneling + handled: child click bubbles to root unless handled; preview tunnel.
-- S322 dep:S321  Markup event wiring: Click="OnClick" → handler on x:Class owner via registry (element-agnostic; on real UIElements today; becomes Button's at S401).
-- S323 dep:S322  Mouse/keyboard input → routed events via GLFW callbacks + hit-testing (single-threaded; no Dispatcher).
-- S324 dep:S323  Click hit-tests element, raises bubbling routed event with correct source.
-- S325 dep:S324  Keyboard focus + routed key events (bubble).
+- S320 dep:S292  RoutedEvent primitive: Signal<T> + token + route-policy hook; reentrancy-safe add/remove. [DONE]
+- S321 dep:S320  Bubbling + tunneling + handled: child click bubbles to root unless handled; preview tunnel. [DONE]
+- S322 dep:S321  Markup event wiring: Click="OnClick" → handler on x:Class owner via registry (element-agnostic; on real UIElements today; becomes Button's at S401). [DONE — RESOLVES the S092 event-hook MINIMAL REAL seed: the sentinel is REMOVED; register_event + deferred_event_handlers are now the REAL surface feeding bind_class_handler + BindEvents]
+- S323 dep:S322  Mouse/keyboard input → routed events via GLFW callbacks + hit-testing (single-threaded; no Dispatcher). [DONE]
+- S324 dep:S323  Click hit-tests element, raises bubbling routed event with correct source. [DONE]
+- S325 dep:S324  Keyboard focus + routed key events (bubble). [DONE]
 - S326 dep:S325  ~~Dispatcher: input→UI-thread marshalling; continuations scheduled (first Task usage) [ADR-010].~~ **DEFERRED → Sprint 11a** (S450+). Removed from Sprint 8 — Sprint 8 stays single-threaded.
 - S327 dep:S326  ~~Async continuation updates VM prop → binding updates UI; no races.~~ **DEFERRED → Sprint 11a** (S452/S455). Removed from Sprint 8 — the "no races" contract is Sprint 11a's.
-- S328 dep:S325  REFACTOR GATE(S8): events, routing, markup wiring, input all real — **single-threaded, single-instance, ZERO new locks** (no Dispatcher, no Task, no async).
-- S329 dep:S328  SURVIVOR + checkpoint advance to S360.
+- S328 dep:S325  REFACTOR GATE(S8): events, routing, markup wiring, input all real — **single-threaded, single-instance, ZERO new locks** (no Dispatcher, no Task, no async). [DONE — both CI lanes green (windows-msvc 920/920 core; ubuntu-clang 4/4): the deferred Dispatcher/Task/async code was pulled so S8 is demonstrably single-threaded + zero-lock]
+- S329 dep:S328  SURVIVOR + checkpoint advance to S360. [DONE — SURVIVOR appended to progress.md; checkpoint advanced to S360; Sprint 8 closed]
 - S329_1 dep:S323  VIEWER-GROWTH: vaml_viewer INTERACTIVE — click a rendered element → routed event (S320/321)
       → markup handler (S322) runs → a visible state change in the live window (handler updates the VM →
-      binding repaints). [VIEWER GROWTH: input works in the live viewer — single-threaded; no async needed]
+      binding repaints). [VIEWER GROWTH: input works in the live viewer — single-threaded; no async needed] [DONE — vaml_viewer/viewer_interactive.h + ViewerInteractivePlan_test.cpp: click → routed ClickEvent → handler → VM → binding repaint, headless CI proof green]
 > **DEFERRAL NOTE (ASYNC/MULTITHREADING DEFERRED — resolved by Sprint 11a):** Sprint 8 is
 > single-threaded + single-instance; the Dispatcher + Task/async + co_async/co_await + InvokeAsync +
 > multi-thread multi-instance model is Sprint 11a's design, at Sprint 11a's own step (NO-GAP, not a
