@@ -25,7 +25,10 @@
   **RESOLVED at S161** (the marker was replaced by the real Vulkan/GLFW surface: PlatformWindow at
   S160 + the Vulkan/VMA linkage at S161; the real `version()` symbol is kept and extended, sentinel
   tag removed there).
-  `vaml-tools` version marker → **RESOLVED BY S287**; built-in element seeds (S087, in `vaml/core/Element.h`)
+  `vaml-tools` version marker → ~~**RESOLVED BY S287**~~ — **RESOLVED at S287** (the S287 embed/compiler
+  work replaced the marker with the real tooling surface: version.h sentinel tag removed, the real
+  `vaml::tools::version()/Version/tools_name()` symbol KEPT + EXTENDED as the version of the now-real
+  vamlcc/embed/VBamlReader lib); built-in element seeds (S087, in `vaml/core/Element.h`)
   → each resolved by its OWN control/layout sprint: `StackPanel` → **S129 (RESOLVED — re-based onto
   UIElement as a real panel)**, `Grid` → **S131 (RESOLVED — re-based onto UIElement as a real
   panel: row/col definitions + Absolute/Auto/Star resolution + attached Grid.Row/Grid.Column)**,
@@ -1111,13 +1114,64 @@ Growth tokens by sprint:
 - Sprint 7 (S280..S288) COMPLETE: the VBAML compiler pipeline (text -> vamlcc -> .vbaml -> VBamlReader -> tree) is
       end-to-end GREEN on both CI lanes. The S003 tools MINIMAL REAL marker resolved at S287. Session-checkpoint
       regenerated to Sprint 8 (next: S289).
-- S289 dep:S288  Pack/identity: x:Class name mapping; embedded resource lookup; release uses compiled only.
-- S290 dep:S289  Refactor-gated dual path: S2 reader = dev tool, S7 reader = release.
-- S291 dep:S290  REFACTOR GATE(S7): FULL text→vbaml→tree pipeline, parity proven, no stubs.
-- S292 dep:S291  SURVIVOR + checkpoint advance to S320.
-- S293 dep:S288  VIEWER-GROWTH: vaml_viewer opens a COMPILED `.vbaml` (the S280–S289 path visible): view a
+- S289 dep:S288  [DONE — NEW product symbols: src/tools/include/vaml/tools/Pack.h + src/tools/src/Pack.cpp (namespace
+      vaml::tools::pack: PackUri + parse_pack_uri + the AUTHORITY RULE + ResourcePack (the EMBEDDED-RESOURCE LOOKUP)
+      + resolve_pack_uri — the WPF-pack-style identity, honestly C++, content-keyed per the S143/S144 NameTable
+      discipline, single-threaded + pure per ADR-018), + NEW VBamlReader surface (S289): SetOwner/owner() + the
+      InitializeComponent-analogue + InitializeComponentFrom (THE COMPILED-ONLY RELEASE ENTRY — takes (owner,
+      ResourcePack&, packUri), NEVER text, "release uses compiled only" enforced by signature) + register_class/
+      is_registered_class (the x:Class owner mapping; a decoded root_class NOT in the mapping → new
+      VBamlError::OwnerClassMismatch). Resolves the S092/S286-recorded "x:Class → owner binding deferred" NO-GAP.
+      All REAL permanent Category-1 — none MINIMAL REAL. The release-consumer contract (S444 app-shell: compile
+      MainView.vaml→.vbaml via vamlcc, render through InitializeComponentFrom) recorded NO-GAP not silent. NEW
+      test/unit/Pack_s289_test.cpp (15 cases: PackUri parse matrix, ResourcePack register/resolve/dedupe-throws/
+      registered_keys order, add_embedded "embedded lookup", resolve_pack_uri seam, InitializeComponent owner
+      binding + class mapping + OwnerClassMismatch + null-owner, InitializeComponentFrom compiled-only entry +
+      the no-text-parameter static_assert). Both CI lanes green from first principles.]  Pack/identity: x:Class
+      name mapping; embedded resource lookup; release uses compiled only.
+- S290 dep:S289  [DONE — the S2=dev / S7=release role split made STRUCTURAL + documented. MOD both reader headers
+      (vaml/core/VamlReader.h + vaml/tools/VBamlReader.h) with a DUAL-PATH CONTRACT block: S2 VamlReader = DEV TOOL
+      (live reload S222_1, S256 binding, vamlcc's text input; NOT linked by release); S7 VBamlReader + ResourcePack
+      = RELEASE (text-free by construction via S289 InitializeComponentFrom). The refactor-gate grep audit proves
+      the compiled path (VBamlReader.cpp + Pack.cpp) contains ZERO calls to the text scanner/parser/VamlReader/
+      compile_to_bytes/vamlcc — the ONLY text→anything transition in the tree is vamlcc (compile_to_bytes), the
+      dev compiler. NO new machinery (a ReaderRole enum would be dead — the split is enforced at LINKAGE per
+      ADR-003/ADR-021). No new md files; the dual-path docs land in roadmap + progress. Both CI lanes re-verified
+      from first principles.]  Refactor-gated dual path: S2 reader = dev tool, S7 reader = release.
+- S291 dep:S290  [REFACTOR GATE(S7) — DONE: the full text→vamlcc→.vbaml→S7 tree pipeline is complete + parity proven +
+      no stubs. Both CI lanes rebuilt + ctest 4/4 from first principles (verify_s289.cmd msvc-debug warning-as-error
+      clean; clang-debug warnings==0). The S288 parity harness re-run at the gate (text vs compiled behaviorally
+      identical). Grep-audit across src/tools: no STUB/TODO/FIXME/backfill scaffolds; the S003 tools MINIMAL REAL
+      sentinel is CONFIRMED removed (resolved at S287). Dead-surface audit: every S7 public symbol is consumed
+      (compile/VBamlc, VBamlReader, PackUri/ResourcePack, write_embed + embed spans, DualPathParity) — nothing
+      orphaned. ASan no-leak re-run. No MINIMAL REAL introduced/resolved at the gate; no new md files.]  REFACTOR
+      GATE(S7): FULL text→vbaml→tree pipeline, parity proven, no stubs.
+- S292 dep:S291  [DONE — Sprint 7 SURVIVOR consolidated in progress.md (S280..S291 + S293). VIEWER-GROWTH table S7
+      → S293 marked DONE (the compiled path demonstrated live — anti-grave-whistle satisfied). Checkpoint
+      regenerated: last completed = S292, next = S320 (Sprint 8 — RoutedEvent primitive), PENDING none. Guard-rail
+      MINIMAL REAL updated (tools → RESOLVED at S287, kept+extended; all other active marks carried forward intact).
+      ADR-018 reaffirmed: Sprint 7 added ZERO new locks. Roadmap S289/S290/S291/S293/S292 all marked [DONE].]
+      SURVIVOR + checkpoint advance to S320.
+- S293 dep:S288  [VIEWER GROWTH — DONE: vaml_viewer opens a COMPILED `.vbaml` via the runtime VBamlReader (S285) —
+      text→compiled→render demonstrated LIVE; the S222_1 reload RECOMPILES .vaml→.vbaml (vamlcc in-process) then
+      reopens. NEW viewer seam vaml_viewer/compiled_open.h (CompiledOpenResult + load_compiled_bytes + compile_to_vbaml
+      + load_compiled_file — header-only, in-process vamlcc, ADR-021 headless). NEW ViewerApp::create_compiled +
+      the shared stack-builder refactor (create/create_compiled delegate to create_impl — no drift); the app RETAINS
+      the S7 VBamlReader (compiledReader_) so the S286 named()/retained objects stay alive; the compiled reload
+      recompiles-then-reopens, keeping last-good on failure (never blank). MOD cli.h (--compiled flag + cli_wants_compiled
+      + usage) + both main.cpp (--compiled dispatch + the structured compiled-open exit). The viewer (Windows vcxproj +
+      vaml_viewer-linux CMakeLists) gains the vaml-tools link + include. Compiled mode defers {Binding} (S286) and
+      renders the real panels via the S212 classifier — binding-on-compiled recorded NO-GAP (release: S444/S322). NEW
+      test/unit/ViewerCompiledOpen_s293_test.cpp (7 cases: load_compiled_bytes live tree + retained reader + malformed→
+      typed, compile_to_vbaml→VBamlReader round-trip, load_compiled_file .vaml-compiles-first vs .vbaml-direct parity,
+      missing→loud, recompile-then-reopen NEW tree) + ViewerCompiledPlan_s293_test.cpp (the --compiled decision table +
+      create_compiled factory contract). Both CI lanes green from first principles.]  VIEWER-GROWTH: vaml_viewer opens
+      a COMPILED `.vbaml` (the S280–S289 path visible): view a
       prebuilt `.vbaml` via the runtime VBamlReader (S285) — text→compiled→render demonstrated in the live
       viewer; reload (S222_1) recompiles .vaml→.vbaml (vamlcc S287) then reopens. [VIEWER GROWTH: compiled path]
+- Sprint 7 (S280..S293) COMPLETE: Sprint 7 CLOSED (S289..S293) — pack/identity + dual-path contract + refactor gate +
+      compiled-path viewer growth, all four new tokens DONE + the S292 SURVIVOR advanced the checkpoint to Sprint 8
+      (next: S320). Both CI lanes green throughout. Session-checkpoint regenerated to Sprint 8 (next: S320).
 
 ---
 ## Sprint 8 — Routed events + input + async  (goal: real events + input + dispatcher)  [token S320+]

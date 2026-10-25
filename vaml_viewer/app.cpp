@@ -129,8 +129,35 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
     if (!uiRoot)
         return nullptr;  // the root is not a UIElement -> nothing renderable yet
 
+    // S293 refactor: the text-open delegates to the shared stack-builder (with
+    // no compiled reader — this is the S2 text path).
+    return create_impl(config, std::move(load.root), uiRoot, nullptr);
+}
+
+std::unique_ptr<ViewerApp>
+ViewerApp::create_compiled(const ViewerAppConfig& config, vaml::viewer::CompiledOpenResult compiled)
+{
+    // The compiled open must be ok + own a real UIElement root. The S7 reader's
+    // decoded tree borrows its non-root objects via parent links, so the app
+    // RETAINS the VBamlReader (compiled.reader) across its lifetime.
+    if (!compiled.ok || !compiled.root)
+        return nullptr;
+    auto* uiRoot = dynamic_cast<vaml::UIElement*>(compiled.root.get());
+    if (!uiRoot)
+        return nullptr;
+
+    return create_impl(config, std::move(compiled.root), uiRoot, std::move(compiled.reader));
+}
+
+std::unique_ptr<ViewerApp>
+ViewerApp::create_impl(const ViewerAppConfig& config,
+                       std::unique_ptr<vaml::DependencyObject> root,
+                       vaml::UIElement* uiRoot,
+                       std::unique_ptr<vaml::tools::VBamlReader> compiledReader)
+{
     std::unique_ptr<ViewerApp> app(new ViewerApp());
     app->cfg_ = config;
+    app->compiledReader_ = std::move(compiledReader);   // retained (empty in text mode)
 
     try
     {
@@ -350,10 +377,10 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
             return nullptr;
 
         // ---- Attach the REAL core visual tree + frame size (the soup-to-nuts producer) ----
-        // ADOPT the loaded tree into the app (unique_ptr move preserves the object,
-        // so `uiRoot` stays valid — the object does not move). The host BORROWS the
+        // ADOPT the tree into the app (unique_ptr move preserves the object, so
+        // `uiRoot` stays valid — the object does not move). The host BORROWS the
         // root; rooting it here keeps it alive for the app's lifetime.
-        app->root_ = std::move(load.root);
+        app->root_ = std::move(root);
         if (!app->renderer_->set_root(uiRoot))
             return nullptr;
         app->renderer_->set_frame_size(static_cast<float>(config.width),
@@ -378,6 +405,34 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
         if (!config.filePath.empty())
         {
             app->reloader_ = std::make_unique<vaml::viewer::LiveReload>(config.filePath);
+            // S293 — in compiled mode the reload RECOMPILES .vaml→.vbaml (vamlcc
+            // in-process via the compiled_open seam) then reopens through the S7
+            // reader; otherwise it re-binds the declared tree via the S256 seam.
+            if (app->compiledReader_)
+            {
+                app->reloader_->on_reloaded(
+                    [app = app.get()](std::unique_ptr<vaml::DependencyObject> /*newRoot*/) {
+                        // The compiled reload re-reads the watched file through
+                        // load_compiled_file: a .vaml recompiles (vamlcc) then loads
+                        // via the S7 VBamlReader; a .vbaml loads directly. On a
+                        // success it re-adopts the compiled root + retained reader
+                        // through the whole S5 path (apply_reload); on failure the
+                        // last-good compiled tree is kept + reported (never silent).
+                        vaml::viewer::CompiledOpenResult c =
+                            vaml::viewer::load_compiled_file(app->cfg_.filePath);
+                        if (!c.ok)
+                        {
+                            std::fprintf(stderr,
+                                         "vaml_viewer: compiled reload failed for '%s': %s (keeping the last-good tree)\n",
+                                         app->cfg_.filePath.c_str(), c.detail.c_str());
+                            return;
+                        }
+                        app->compiledReader_ = std::move(c.reader);
+                        (void)app->apply_reload(std::move(c.root));
+                    });
+            }
+            else
+            {
             app->reloader_->on_reloaded(
                 [app = app.get()](std::unique_ptr<vaml::DependencyObject> newRoot) {
                     // S256 — the reload RE-BINDS the declared tree through the S256
@@ -394,6 +449,7 @@ ViewerApp::create(const ViewerAppConfig& config, vaml::LoadResult load)
                         (void)app->apply_reload(std::move(newRoot));
                     }
                 });
+            }
             app->reloader_->on_reload_error(
                 [path = config.filePath](const std::string& detail) {
                     std::fprintf(stderr, "vaml_viewer: reload error for '%s': %s (keeping the last-good tree)\n",

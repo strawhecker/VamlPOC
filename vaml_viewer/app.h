@@ -44,10 +44,11 @@
 
 #pragma once
 
-#include "load_file.h"    // vaml::LoadResult (the S221 seam; owns the borrowed tree)
-#include "live_reload.h"  // vaml::viewer::LiveReload (S222_1 — the file-watch reload coordinator)
-#include "view_transform.h"  // S224: vaml::viewer::ViewState + the pan/zoom seams (pure)
-#include "viewer_binding.h"  // S256: ViewerDemoViewModel + run_viewer_binding_plan (the binding reload seam)
+#include "load_file.h"     // vaml::LoadResult (the S221 seam; owns the borrowed tree)
+#include "compiled_open.h" // S293: CompiledOpenResult / load_compiled_file (the compiled .vbaml seam)
+#include "live_reload.h"   // vaml::viewer::LiveReload (S222_1 — the file-watch reload coordinator)
+#include "view_transform.h"// S224: vaml::viewer::ViewState + the pan/zoom seams (pure)
+#include "viewer_binding.h"// S256: ViewerDemoViewModel + run_viewer_binding_plan (the binding reload seam)
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -66,6 +67,7 @@
 #include <vaml/vulkan/ui/SceneRenderer.h>      // ui::SceneRenderer (S210)
 #include <vaml/presentation/Presenter.h>       // presenter_lifetimes_ok (S173)
 #include <vaml/presentation/VamlRenderer.h>    // vaml::presentation::VamlRenderer (S212)
+#include <vaml/tools/VBamlReader.h>            // S293: vaml::tools::VBamlReader (the compiled retained reader)
 
 #include <chrono>
 #include <cstdint>
@@ -174,6 +176,16 @@ public:
     [[nodiscard]] static std::unique_ptr<ViewerApp>
     create(const ViewerAppConfig& config, vaml::LoadResult load);
 
+    // S293 — the COMPILED-open variant. Builds the stack + the VamlRenderer
+    // over a COMPILED `.vbaml` open (CompiledOpenResult, the S7 VBamlReader
+    // tree). `compiled` MUST be ok and own a root that dynamic_casts to a
+    // UIElement. The app ADOPTS the compiled root (root_) + the RETAINED S7
+    // reader (compiledReader_) so the tree's borrowed non-root objects stay
+    // alive for the app's lifetime + the S286 named() registry stays live.
+    // Returns nullptr on any step failure (no throw).
+    [[nodiscard]] static std::unique_ptr<ViewerApp>
+    create_compiled(const ViewerAppConfig& config, CompiledOpenResult compiled);
+
     ~ViewerApp();
     ViewerApp(ViewerApp&&) noexcept;
     ViewerApp& operator=(ViewerApp&&) noexcept;
@@ -228,6 +240,12 @@ private:
     // owns it, the reader borrows it.
     std::shared_ptr<vaml::viewer::ViewerDemoViewModel> bindingVM_;
     std::unique_ptr<vaml::VamlReader> bindingReader_;   // S256: retained reader (keeps the live bindings)
+
+    // S293 — the retained COMPILED reader (the S7 VBamlReader). When the app was
+    // opened via create_compiled, `compiledReader_` owns the non-root retained
+    // objects the tree borrows (via parent links) + the S286 named() registry,
+    // so both stay alive for the app's lifetime. Null in the text-open mode.
+    std::unique_ptr<vaml::tools::VBamlReader> compiledReader_;
 
     // ---- The S222 Vulkan stack (member order == reverse destruction) ----
     // Constructed in build order; destroyed in REVERSE (last-declared first).
@@ -302,6 +320,19 @@ private:
     // "you SEE data binding appear in the window" path: the bound `{Binding Dim}`
     // lands on the target Opacity DP, which the S208 encoder folds into the alpha.
     bool bind_and_render(const std::string& text);
+
+    // The SHARED stack-builder (S293 refactor): builds the whole Vulkan stack +
+    // the VamlRenderer + attaches `root` (a UIElement) + arms the optional reloader,
+    // and ADOPTS `compiledReader` (the S7 VBamlReader) into compiledReader_ when
+    // non-null (the compiled-open retained reader — keeps the tree's non-root
+    // borrowed objects + the S286 named() registry alive). Both create() and
+    // create_compiled() delegate here (no drift). Returns nullptr on any failure
+    // (no throw).
+    [[nodiscard]] static std::unique_ptr<ViewerApp>
+    create_impl(const ViewerAppConfig& config,
+                std::unique_ptr<vaml::DependencyObject> root,
+                vaml::UIElement* uiRoot,
+                std::unique_ptr<vaml::tools::VBamlReader> compiledReader);
 
     // S224 — pushes the current ViewState (as the S208 Matrix2D) into the S213
     // render surface (renderer_->set_view_transform). Called by the pan/zoom input

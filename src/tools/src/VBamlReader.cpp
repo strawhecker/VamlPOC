@@ -6,9 +6,14 @@
 // property table) — the compiled-path "S7 reader". Lives in vaml-tools (core
 // cannot depend on tools; tools → core only). Single-threaded + pure
 // (ADR-018: zero locks); ADR-021 headless-testable.
+//
+// S289 (dep:S288) — adds the PACK/IDENTITY surface (the InitializeComponent
+// analogue + the x:Class owner mapping + the compiled-only entry). See Pack.h
+// + the header comment.
 
 #include "vaml/tools/VBamlReader.h"
 
+#include "vaml/tools/Pack.h"               // pack::ResourcePack (S289)
 #include "vaml/tools/vbaml/VbamlSchema.h"
 #include "vaml/tools/vbaml/VbamlSerializer.h"
 #include "vaml/tools/Vamlc.h" // CompiledProgram / ElementRecord / AttributeRecord
@@ -381,6 +386,113 @@ const std::vector<VBamlDeferredEventHandler>&
 VBamlReader::deferred_event_handlers() const noexcept
 {
     return deferred_event_handlers_;
+}
+
+// ---------------------------------------------------------------------------
+// S289 — Pack/identity + InitializeComponent (the compiled-release path).
+// ---------------------------------------------------------------------------
+
+bool VBamlReader::SetOwner(vaml::DependencyObject* owner)
+{
+    if (owner == nullptr)
+    {
+        return false;
+    }
+    owner_ = owner;
+    return true;
+}
+
+std::unique_ptr<vaml::DependencyObject>
+VBamlReader::InitializeComponent(vaml::DependencyObject* owner,
+                                 const std::vector<std::uint8_t>& bytes)
+{
+    if (owner == nullptr)
+    {
+        throw VBamlException(VBamlError::OwnerClassMismatch,
+                             "InitializeComponent requires a non-null x:Class owner",
+                             kNoElement);
+    }
+    // Load(bytes) — the S285 build — then bind the owner.
+    std::unique_ptr<vaml::DependencyObject> root = Load(bytes);
+    owner_ = owner;
+
+    // The CLASS OWNER MAPPING: when the app registered x:Class owner names, the
+    // decoded root_class() MUST be one of them (footprint-consistent with the
+    // bound owner's declared class). When the set is EMPTY (no mapping was
+    // registered), the check is skipped (a bare pack renders without an owner
+    // class — the S444 app-shell always registers its class, so release is
+    // always gated; a dev-tool bare load is not).
+    if (!class_names_.empty())
+    {
+        const std::string& rc = root_class();
+        if (rc.empty())
+        {
+            throw VBamlException(VBamlError::OwnerClassMismatch,
+                                 "decoded .vbaml has no x:Class; cannot bind to an owner class",
+                                 kNoElement);
+        }
+        bool found = false;
+        for (const std::string& cn : class_names_)
+        {
+            if (cn == rc)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            throw VBamlException(VBamlError::OwnerClassMismatch,
+                                 "x:Class '" + rc + "' not among the pack-owner registered classes",
+                                 kNoElement, rc);
+        }
+    }
+    return root;
+}
+
+std::unique_ptr<vaml::DependencyObject>
+VBamlReader::InitializeComponentFrom(vaml::DependencyObject* owner,
+                                     pack::ResourcePack& pack,
+                                     std::string_view packUri)
+{
+    // THE COMPILED-ONLY RELEASE ENTRY. Resolve the pack identity → bytes (no
+    // text of any kind reachable). A bad identity or an unregistered resource
+    // is a structured, never-silent thrown error.
+    const std::span<const std::uint8_t> bytes = pack::resolve_pack_uri(pack, packUri);
+    if (bytes.empty())
+    {
+        throw VBamlException(VBamlError::MalformedBuffer,
+                             "pack URI did not resolve to a registered compiled resource",
+                             kNoElement, std::string(packUri));
+    }
+    // Copy the resolved bytes into the reader's Load(vector) input (Load takes
+    // a std::vector by value — a span-backed copy is the honest interface).
+    std::vector<std::uint8_t> owned(bytes.begin(), bytes.end());
+    return InitializeComponent(owner, owned);
+}
+
+void VBamlReader::register_class(std::string_view className)
+{
+    for (const std::string& cn : class_names_)
+    {
+        if (cn == className)
+        {
+            return;   // idempotent
+        }
+    }
+    class_names_.push_back(std::string(className));
+}
+
+bool VBamlReader::is_registered_class(std::string_view className) const noexcept
+{
+    for (const std::string& cn : class_names_)
+    {
+        if (cn == className)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace vaml::tools

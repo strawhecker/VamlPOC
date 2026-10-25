@@ -53,10 +53,12 @@
       * vaml-core public include root   : $(ProjectDir)..\src\core\include
       * vaml-vulkan public include root : $(ProjectDir)..\src\vulkan\include
       * vaml-presentation include root  : $(ProjectDir)..\src\presentation\include
+      * vaml-tools public include root  : $(ProjectDir)..\src\tools\include (S293: the VBamlReader + vamlcc surface)
       * vendored GLFW + Vulkan headers  : $(ProjectDir)..\third_party\deps\{glfw,vulkan-headers}\include
     Links (x64 only, matching the repo's msvc-debug build):
       * vaml-presentation.lib : $(ProjectDir)..\build\msvc-debug\src\presentation\vaml-presentation.lib
       * vaml-vulkan.lib       : $(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib
+      * vaml-tools.lib        : $(ProjectDir)..\build\msvc-debug\src\tools\vaml-tools.lib (S293: VBamlReader + vamlcc)
       * vaml-core.lib         : $(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib
       * glfw3.lib             : $(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib (vendored build)
     Vulkan entry points resolve at runtime via vulkan-1.dll (VK_NO_PROTOTYPES), so
@@ -73,12 +75,12 @@
       <!-- /MTd to match the CMake-built static libs (the msvc-debug preset builds the
            libs with the static CRT) — avoids LNK2038 runtime-library mismatches. -->
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;$(ProjectDir)..\src\presentation\include;$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;$(ProjectDir)..\src\presentation\include;$(ProjectDir)..\src\tools\include;$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\presentation\vaml-presentation.lib;$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\presentation\vaml-presentation.lib;$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\tools\vaml-tools.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -92,12 +94,12 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;$(ProjectDir)..\src\presentation\include;$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;$(ProjectDir)..\src\presentation\include;$(ProjectDir)..\src\tools\include;$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\presentation\vaml-presentation.lib;$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\presentation\vaml-presentation.lib;$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\tools\vaml-tools.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -110,6 +112,7 @@
   <ItemGroup>
     <ClInclude Include="load_file.h" />
     <ClInclude Include="app.h" />
+    <ClInclude Include="compiled_open.h" />   <!-- S293: the compiled .vbaml open seam -->
     <ClInclude Include="drop_reopen.h" />
     <ClInclude Include="file_watch.h" />
     <ClInclude Include="live_reload.h" />

@@ -19,6 +19,8 @@ vaml_add_library(tools
     src/vbaml/VbamlSerializer.cpp
     src/VBamlReader.cpp   # S285 (dep:S284) — the compiled-path runtime reader (bytes -> tree)
     src/parity/DualPathParity.cpp   # S288 (dep:S287) — dual-path parity comparator (test-support)
+    src/Pack.cpp          # S289 (dep:S288) — pack/identity: PackUri + ResourcePack + resolve_pack_uri
+                          #                       (the embedded-resource lookup + the x:Class owner release seam)
 )
 
 # vamlcc links vaml-core (the S2 scanner + factory/value/property tables it

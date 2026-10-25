@@ -1,4 +1,25 @@
 #pragma once
+// *****************************************************************************
+// DUAL-PATH CONTRACT (S290, dep:S289) — S2 reader = DEV TOOL, S7 reader = RELEASE
+// *****************************************************************************
+// This `vaml::VamlReader` is the S2 TEXT reader — the DEV TOOL. Its role:
+//   * the live text reload path in vaml_viewer (S222_1),
+//   * the S256 viewer binding path (text → bound tree),
+//   * vamlcc's text→compiled INPUT (S283: `compile_to_bytes`).
+// It consumes VAML TEXT directly (`Load(std::string_view)`).
+//
+// The RELEASE path is the S7 compiled reader (`vaml::tools::VBamlReader` +
+// `ResourcePack`, tools) over compiled `.vbaml` BYTES — the ONLY reader the
+// release app-shell links. This reader is NEVER linked by release; the
+// compiled-only entry (`VBamlReader::InitializeComponentFrom`, S289) takes a
+// pack identity resolving to COMPILED bytes, never text.
+//
+// The ONLY text→anything transition in the whole tree is `vamlcc`
+// (`compile_to_bytes`, S283) — the dev compiler, never linked by release.
+// S288 proved behavioral parity; S290 formalized the split as a documented
+// contract + refactor-gated audit. See docs/roadmap.md + progress.md.
+// *****************************************************************************
+//
 // S092 (dep:S091) — VamlReader extensions: (1) records the x:Name registry,
 // (2) retains deferred markup-extension values (the S2 tag), and (3) exposes a
 // MINIMAL REAL event-hook surface (Sprint 8). Everything S091 delivered is

@@ -2,6 +2,32 @@
 // S285 (dep:S284) — Runtime VBamlReader: bytes → DependencyObject tree
 // (InitializeComponent-style).
 //
+// *****************************************************************************
+// DUAL-PATH CONTRACT (S290, dep:S289) — S2 reader = DEV TOOL, S7 reader = RELEASE
+// *****************************************************************************
+// The S2 text reader (`vaml::VamlReader`, core) and this S7 compiled reader
+// (`vaml::tools::VBamlReader` + `ResourcePack`, tools) are TWO READERS for the
+// SAME VAML declaration, with a STRUCTURAL role split enforced at LINKAGE:
+//
+//   * S2 `VamlReader` = DEV TOOL — the live text reload (S222_1), the S256
+//     binding path, and vamlcc's text→compiled INPUT (S283). It consumes VAML
+//     TEXT directly. The RELEASE app-shell NEVER links this reader, never
+//     ships it, never calls it. (Role + link boundary.)
+//   * S7 `VBamlReader` + `ResourcePack` = RELEASE — the ONLY reader the
+//     release app links. It consumes COMPILED `.vbaml` BYTES only. The
+//     compiled-only contract is enforced at the type level: the S289
+//     `InitializeComponentFrom` entry takes (owner, ResourcePack&, packUri) —
+//     a pack identity resolving to COMPILED bytes — and NEVER a text/VAML
+//     parameter. The text VAML source is structurally unreachable from the
+//     release path (verified by the S290 grep audit + the S289 static_assert).
+//
+// The ONLY text→anything transition in the whole tree is `vamlcc`
+// (`compile_to_bytes`, S283) — the DEV compiler, never linked by release.
+// S288 proved the two paths are behaviorally equivalent (parity, not
+// duplication); S290 formalized this role split as a documented contract +
+// a refactor-gated audit. See docs/roadmap.md + progress.md.
+// *****************************************************************************
+//
 // The compiled-path ("S7 reader") runtime. A .vbaml byte stream (produced by
 // vamlcc / compile_to_bytes, S283) is decoded via the S282 serializer and
 // materialized into a LIVE DependencyObject tree — the compiled analogue of
@@ -57,6 +83,11 @@ namespace vaml::tools {
 
 class VAML_TOOLS_EXPORT VBamlException;
 
+// S289 (dep:S288) — forward-declared pack types (the InitializeComponentFrom
+// signature). Defined in vaml/tools/Pack.h (S289); the reader only needs the
+// class declared here to reference it in the method signature.
+namespace pack { class VAML_TOOLS_EXPORT ResourcePack; }
+
 // S285: the compiled reader's OWN error taxonomy — contains ONLY what the
 // compiled path can itself produce (S048 discipline — no dead enum arms).
 // The malformed-buffer genre propagates from the S282 serializer (mapped to
@@ -72,6 +103,9 @@ enum class VBamlError
     // S286 additions (declared here so the enum is forward-stable):
     DuplicateName,   // an x:Name was registered more than once in one Load (S286)
     ClassOnNonRoot,  // an x:Class directive was authored on a NON-root (S286)
+    // S289 addition — the compiled-only InitializeComponent path's OWN error:
+    OwnerClassMismatch, // the decoded x:Class root_class() is inconsistent with
+                        // the bound owner's declared class (the x:Class mapping)
 };
 
 // S285: a structured compiled-reader error naming the offending element-id.
@@ -164,6 +198,54 @@ public:
     // path and tests use them after S285 wire-up. See the S285 header note.)
     // ------------------------------------------------------------------
 
+    // ------------------------------------------------------------------
+    // S289 — Pack/identity + InitializeComponent (the compiled-release path).
+    // Resolves the S092/S286-recorded "x:Class → owner binding deferred"
+    // NO-GAP. The RELEASE consumer (S444 app-shell) faces ONLY these + Pack.
+    // ------------------------------------------------------------------
+
+    // Binds `owner` to the decoded tree. `SetOwner(obj)` records the x:Class
+    // OWNER (the object S322's event wiring will resolve handlers onto + the
+    // object the S286 `named()` registry serves). Normally called just after
+    // Load(bytes); combined with it in InitializeComponent. Calling
+    // SetOwner with a NULL owner is an error (returns false).
+    [[nodiscard]] bool SetOwner(vaml::DependencyObject* owner);
+
+    // The x:Class owner currently bound to the reader (nullptr when none).
+    [[nodiscard]] vaml::DependencyObject* owner() const noexcept { return owner_; }
+
+    // The InitializeComponent-analogue (WPF-faithful): Loads `bytes` (S285)
+    // then binds `owner` (the x:Class owner). Returns the root. `owner` must
+    // be non-null. On any failure throws VBamlException (S285 taxonomy + the
+    // S289 OwnerClassMismatch).
+    [[nodiscard]] std::unique_ptr<vaml::DependencyObject>
+    InitializeComponent(vaml::DependencyObject* owner,
+                        const std::vector<std::uint8_t>& bytes);
+
+    // THE COMPILED-ONLY RELEASE ENTRY: resolves `packUri` through `pack` (the
+    // S289 resource lookup) → Load → bind owner. It takes NO text of any kind
+    // — the compiled-only contract is enforced by signature (only ResourcePack
+    // bytes are reachable; the text VamlReader / std::string VAML is never
+    // reachable from this path). `owner` must be non-null; `packUri` must
+    // resolve to a registered resource (else it throws a structured
+    // VBamlException). Fails loud, never silent.
+    [[nodiscard]] std::unique_ptr<vaml::DependencyObject>
+    InitializeComponentFrom(vaml::DependencyObject* owner,
+                            pack::ResourcePack& pack,
+                            std::string_view packUri);
+
+    // The CLASS OWNER MAPPING (the x:Class name mapping). `register_class(
+    // className)` declares that `className` is a PACK OWNER the app maps to
+    // the bound owner. When a decoded root_class() is COMPARED against the
+    // set of registered class names and it is NOT found, InitializeComponent
+    // throws OwnerClassMismatch. A class name may be registered multiple times
+    // (idempotent). This is how the app proves the x:Class name ring is
+    // FOOTPRINT-CONSISTENT with the bound owner's declared class.
+    void register_class(std::string_view className);
+
+    // True when `className` has been registered as a pack-owner class name.
+    [[nodiscard]] bool is_registered_class(std::string_view className) const noexcept;
+
     // Strand A — x:Name registry (mirrors VamlReader::named/names/name_count).
     [[nodiscard]] vaml::DependencyObject* named(std::string_view name) const noexcept;
     [[nodiscard]] std::size_t name_count() const noexcept;
@@ -181,6 +263,11 @@ public:
 private:
     std::vector<std::unique_ptr<vaml::DependencyObject>> retained_;
     std::string root_class_;
+
+    // S289 — the x:Class OWNER (non-owning; the app owns the owner object) +
+    // the registered pack-owner class names (the x:Class mapping).
+    vaml::DependencyObject* owner_ = nullptr;
+    std::vector<std::string> class_names_;
 
     // S286 registries (wired at S286; declared so the reader is forward-stable).
     std::vector<std::pair<std::string_view, vaml::DependencyObject*>> names_;

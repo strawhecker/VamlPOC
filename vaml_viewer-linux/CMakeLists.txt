@@ -56,6 +56,8 @@ set(VAML_VULKAN_INCLUDE        "${CMAKE_CURRENT_SOURCE_DIR}/../src/vulkan/includ
 set(VAML_VULKAN_LIB            "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug/src/vulkan/libvaml-vulkan.a")
 set(VAML_PRESENTATION_INCLUDE  "${CMAKE_CURRENT_SOURCE_DIR}/../src/presentation/include")
 set(VAML_PRESENTATION_LIB      "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug/src/presentation/libvaml-presentation.a")
+set(VAML_TOOLS_INCLUDE         "${CMAKE_CURRENT_SOURCE_DIR}/../src/tools/include")
+set(VAML_TOOLS_LIB             "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug/src/tools/libvaml-tools.a")
 
 add_executable(vaml-viewer-linux
     src/main.cpp
@@ -71,12 +73,14 @@ target_include_directories(vaml-viewer-linux PRIVATE
     ${VAML_CORE_INCLUDE}
     ${VAML_VULKAN_INCLUDE}
     ${VAML_PRESENTATION_INCLUDE}
+    ${VAML_TOOLS_INCLUDE}      # S293: <vaml/tools/VBamlReader.h> + <vaml/tools/Vamlc.h> (the compiled surface)
     ${CMAKE_CURRENT_SOURCE_DIR}/../vaml_viewer   # load_file.h + app.h (the shared hosts' headers)
 )
 
 target_link_libraries(vaml-viewer-linux PRIVATE
     ${VAML_PRESENTATION_LIB}
     ${VAML_VULKAN_LIB}
+    ${VAML_TOOLS_LIB}          # S293: vaml-tools (VBamlReader + vamlcc compile_to_bytes)
     ${VAML_CORE_LIB}
     PkgConfig::GLFW3
     PkgConfig::VULKAN

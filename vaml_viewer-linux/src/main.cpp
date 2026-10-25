@@ -20,7 +20,8 @@
 
 #include "load_file.h"
 #include "app.h"
-#include "cli.h"   // S224: cli_action / cli_usage (the PURE --help entry seam)
+#include "cli.h"           // S224: cli_action / cli_usage (the PURE --help entry seam)
+#include "compiled_open.h" // S293: load_compiled_file + CompiledOpenResult (the compiled .vbaml seam)
 
 #include <cstdio>
 #include <cstdlib>
@@ -66,7 +67,34 @@ int main(int argc, char** argv)
         break;   // fall through to the launch below
     }
 
+    // S293 — the COMPILED open dispatch (mirrors Windows). --compiled forces the
+    // compiled path; a `.vbaml` auto-detects it. Compiled mode opens via the S7
+    // runtime VBamlReader (load_compiled_file).
+    const bool compiled = vaml::viewer::cli_wants_compiled(argc, argv);
     const std::string path = argv[1];
+
+    if (compiled)
+    {
+        vaml::viewer::CompiledOpenResult cres = vaml::viewer::load_compiled_file(path);
+        if (!cres.ok)
+        {
+            std::fprintf(stderr, "vaml_viewer: compiled open failed for '%s': %s\n",
+                         path.c_str(), cres.detail.c_str());
+            return 3;
+        }
+
+        vaml::viewer::ViewerAppConfig config;
+        config.title    = "VAML Viewer - " + vaml::viewer::loaded_filename(path);
+        config.filePath = path;   // S222_1 arm: reload recompiles + reopens (S293)
+        auto app = vaml::viewer::ViewerApp::create_compiled(config, std::move(cres));
+        if (!app)
+            return render_init_failed(path);
+
+        std::printf("vaml_viewer-linux: rendering '%s' via the COMPILED path (text->vamlcc->.vbaml->VBamlReader->render)\n",
+                    path.c_str());
+        return app->run_loop();
+    }
+
     vaml::LoadResult result = vaml::load_file(path);   // NON-const: moved into ViewerApp::create below
 
     if (!result.ok)

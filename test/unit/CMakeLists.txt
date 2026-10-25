@@ -413,6 +413,25 @@ add_executable(vaml-tools-tests
     # harness is honest (no false-green). Release-consumer contract: S7 is the
     # release path, S2 the dev tool — parity, not duplication.
     VBamlReader_s288_parity_test.cpp
+    # S289 (dep:S288) — Pack/identity: x:Class name mapping; embedded resource
+    # lookup; release uses compiled only. Tests the REAL pack/identity layer
+    # (PackUri parse matrix, ResourcePack register/resolve/dedupe-throws/
+    # registered_keys order, the add_embedded "embedded resource lookup",
+    # resolve_pack_uri pack-identity -> bytes seam) + the VBamlReader
+    # InitializeComponent / InitializeComponentFrom compiled-release entries
+    # (x:Class owner binding + class mapping + OwnerClassMismatch + the
+    # no-text-parameter static_assert for "release uses compiled only").
+    Pack_s289_test.cpp
+    # S293 (dep:S288) — VIEWER-GROWTH: vaml_viewer opens a COMPILED `.vbaml`
+    # (the S280→S289 path visible). Compiles the REAL viewer seam
+    # (vaml_viewer/compiled_open.h + the shared app.h) into the TOOLS test target
+    # (it links vaml-tools: the compiled_open seam consumes vamlcc compile_to_bytes
+    # + the S285 VBamlReader). Drives load_compiled_bytes over the REAL compiled
+    # pipeline (malformed → typed failure; retained reader keeps named()/retained
+    # alive), compile_to_vbaml → VBamlReader round-trip, load_compiled_file
+    # (.vaml compiles-first vs .vbaml direct-load parity), and the
+    # recompile-then-reopen contract (an edited source recompiles to a NEW tree).
+    ViewerCompiledOpen_s293_test.cpp
 )
 
 # Link the S287 test against the CMake-generated embed source (compiles the
@@ -569,12 +588,19 @@ add_executable(vaml-presentation-tests
     # (headless-observable via the S212 create() path). Links vaml-presentation,
     # so the S208 transform compose into the S213 render-plan surface is proven.
     ViewerPanZoom_test.cpp
+    # S293 (dep:S288) — VIEWER-GROWTH compiled-path PLAN: the app COMPILED-mode
+    # decision table (--compiled / .vbaml auto-detect) + the compiled-open factory
+    # contract (ViewerApp::create_compiled accepts a UIElement-rooted compiled
+    # result, rejects a non-ok / no-root one — never a blank window). Links
+    # vaml-tools + app.cpp (the shared host) + the cli_seam + compiled_open seam.
+    ViewerCompiledPlan_s293_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
 
 target_include_directories(vaml-presentation-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/presentation/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../src/tools/include   # S293: app.cpp includes <vaml/tools/VBamlReader.h>
     ${CMAKE_CURRENT_SOURCE_DIR}/../../vaml_viewer   # S222: the shared host's header (app.h)
 )
 target_include_directories(vaml-presentation-tests SYSTEM PRIVATE
@@ -587,6 +613,6 @@ else()
     target_compile_options(vaml-presentation-tests PRIVATE "-Wno-#warnings")
 endif()
 
-target_link_libraries(vaml-presentation-tests PRIVATE vaml-presentation)
+target_link_libraries(vaml-presentation-tests PRIVATE vaml-presentation vaml-tools)
 
 add_test(NAME vaml-presentation-tests COMMAND vaml-presentation-tests)

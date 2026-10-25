@@ -61,7 +61,13 @@ enum class CliAction
                 // A "long" token: only "--help" is help; anything else is an arg.
                 if (a[2] == 'h' && a[3] == 'e' && a[4] == 'l' && a[5] == 'p' && a[6] == '\0')
                     return CliAction::Help;
-                sawArg = true;   // some other long option -> treated as a positional
+                // --compiled is a flag (not a positional); a Run still requires
+                // a positional file argument to launch.
+                if (a[2] == 'c' && a[3] == 'o' && a[4] == 'm' && a[5] == 'p' && a[6] == 'i' &&
+                    a[7] == 'l' && a[8] == 'e' && a[9] == 'd' && a[10] == '\0')
+                    sawArg = false;
+                else
+                    sawArg = true;   // some other long option -> treated as a positional
             }
             else if (a[0] == '-' && a[1] == 'h' && a[2] == '\0')
             {
@@ -76,22 +82,49 @@ enum class CliAction
     return sawArg ? CliAction::Run : CliAction::NoArg;
 }
 
+// Scans argv for the S293 `--compiled` flag (forces the compiled open path on
+// a `.vaml` source; a `.vbaml` auto-detects compiled-anyway). Returns true only
+// when the exact `--compiled` token appears. Pure + headless-testable.
+[[nodiscard]] inline bool cli_wants_compiled(int argc, const char* const* argv) noexcept
+{
+    if (!argv)
+    {
+        return false;
+    }
+    for (int i = 1; i < argc; ++i)
+    {
+        if (argv[i] == nullptr)
+            continue;
+        const char* a = argv[i];
+        if (a[0] == '-' && a[1] == '-' &&
+            a[2] == 'c' && a[3] == 'o' && a[4] == 'm' && a[5] == 'p' && a[6] == 'i' &&
+            a[7] == 'l' && a[8] == 'e' && a[9] == 'd' && a[10] == '\0')
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // The S224 `--help` usage text — the single source of truth for BOTH apps'
 // main(). `--help` prints it to STDOUT (exit 0); the no-arg case prints it
 // (or a short equivalent) to STDERR (exit 2). Pure + headless-testable.
 [[nodiscard]] inline const char* cli_usage() noexcept
 {
     return
-        "usage: vaml_viewer <file.vaml>\n"
+        "usage: vaml_viewer [--compiled] <file>\n"
         "\n"
         "Renders a VAML document to a window (file -> parse -> tree -> layout -> Vulkan render).\n"
         "\n"
         "Options:\n"
-        "  -h, --help   show this help and exit\n"
+        "  -h, --help     show this help and exit\n"
+        "  --compiled     open via the COMPILED path: a .vaml is recompiled to .vbaml\n"
+        "                 (vamlcc, the runtime VBamlReader) before render; a .vbaml is\n"
+        "                 loaded directly. [S293 VIEWER GROWTH: compiled path]\n"
         "\n"
         "The rendered view supports PAN (left-drag) and ZOOM (mouse wheel). The window\n"
         "title shows the loaded file's name. Live file-reload (S222_1) and drag-and-drop\n"
-        "reopen (S223) are both active when a .vaml is loaded.\n";
+        "reopen (S223) are both active when a file is loaded.\n";
 }
 
 // The S224 window-TITLE polish: the LOADED FILENAME (basename) derived from a
