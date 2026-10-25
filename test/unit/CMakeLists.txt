@@ -366,6 +366,39 @@ add_executable(vaml-core-tests
     # path (ADR-021 single source of truth) — headless, no window/runtime.
     ViewerCli_test.cpp
     ViewerViewState_test.cpp
+    # S400 (dep:S368) — the Text control + the pure TextLayout seam (vaml::core;
+    # the CORE half — wrap/advance math + the real Text DPs + MeasureOverride +
+    # the foreground BrushId resolution). The Material/TextGlyph render half
+    # lives in TextGlyphPlan_test.cpp (vaml-vulkan-tests) + ViewerTextMaterial_
+    # test.cpp (vaml-presentation-tests).
+    Text_test.cpp
+    # S401 (dep:S400) — the Button control (the S087 Button MINIMAL-REAL seed
+    # RESOLVED at S401): the real re-based Button (IsEnabled DP + the Click
+    # routed event + the hover/pressed/disabled visual states + Measure). The
+    # material + the classifier half live in the vulkan/presentation targets.
+    Button_test.cpp
+    # S402 (dep:S401) — the TextBox control (the S087 TextBox MINIMAL-REAL seed
+    # RESOLVED at S402): the real re-based TextBox (Text/AcceptsReturn DPs,
+    # caret/selection model, key-driven editing, single/multi-line Enter, the
+    # S244 two-way write-back on an edit, the S400 wrap Measure). The material
+    # + classifier half live in the vulkan/presentation targets.
+    TextBox_test.cpp
+    # S403/S404/S405 (dep:S402/S403/S404) — the Slider / CheckBox / ScrollViewer
+    # controls (the S087 seeds RESOLVED at S403/S404/S405 — all re-based onto
+    # UIElement): the combined core controls suite (Slider Value/Min/Max + the
+    # value-changed routed event + thumb-drag; CheckBox nullable IsChecked +
+    # IsThreeState + the WPF on-toggle cycle; ScrollViewer offset/clipping/wheel).
+    # The material + classifier half live in the vulkan/presentation targets.
+    Controls_test.cpp
+    # S406 (dep:S405) — Focus + tab order + Enter-activates-default + routed key
+    # events: extends the S325 FocusManager (default-button + the Enter
+    # activation). The material/classifier half lives in the vulkan/presentation
+    # targets.
+    Focus406_test.cpp
+    # S407 (dep:S406) — the Sprint-10 Milestone: every S10 control is a real
+    # UIElement re-base (Text/Button/TextBox/Slider/CheckBox/ScrollViewer/Icon),
+    # each registered concrete + tested, no DependencyObject-only seeds remain.
+    Milestone407_test.cpp
     # S320+S321 (dep:S292/S320) — Signal<T> + RoutedEvent primitive + the routed-
     # event engine (bubbling + tunneling + handled over the REAL parent chain).
     RoutedEvent_test.cpp
@@ -609,6 +642,16 @@ add_executable(vaml-vulkan-tests
     # backpressure) + the S211 loop-plan (ConsumeMarshalled + should_consume) + a
     # REAL two-thread handoff (UI mutates, render drains once per frame). Headless.
     MarshalledScene_test.cpp
+    # S400 (dep:S368) — the RENDER side of the Text control (vaml::vulkan::ui):
+    # text_glyph_uv (the S202 exact-grid UV derivation) + build_text_glyph_items
+    # (one S206 text_glyph quad per rendered glyph, atlas-cell sized + titled) +
+    # classify_element -> MaterialKind::Text for a real Text. Pure + headless.
+    TextGlyphPlan_test.cpp
+    # S400_1 (dep:S400) — the Icon control (per ADR-015): the DP surface +
+    # the S400_1 render seam (IconGlyphPlan) — the S213_1 best-fit quad +
+    # the S205_1 Monochrome tint path + the DELIBERATE fallback glyph + the
+    # structured diagnostic (ADR-015 NO-silent). Pure + headless.
+    IconGlyphPlan_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)
@@ -683,6 +726,36 @@ add_executable(vaml-presentation-tests
     # result, rejects a non-ok / no-root one — never a blank window). Links
     # vaml-tools + app.cpp (the shared host) + the cli_seam + compiled_open seam.
     ViewerCompiledPlan_s293_test.cpp
+    # S400 (dep:S368) — the Text material at the presentation vertical-slice
+    # boundary: classify_merge_element maps a real Text to MaterialKind::Text +
+    # a TextGlyph DrawItem at the arranged origin (the S409_1 consumer seam's
+    # default). Headless.
+    ViewerTextMaterial_test.cpp
+    # S400_1 (dep:S400) — the Icon material at the presentation vertical-slice
+    # boundary: classify_merge_element maps a real Icon to MaterialKind::
+    # Monochrome + the S400_1 fallback glyph at the arranged origin (the honest
+    # headless render without a live device atlas; the real atlas quad is the
+    # [s400_1-live]/S409_1 path). Headless.
+    ViewerIconMaterial_test.cpp
+    # S401 (dep:S400) — the Button material at the presentation vertical-slice
+    # boundary: classify_merge_element maps a real Button to MaterialKind::Solid
+    # at its arranged rect, honoring the visual-state Background + IsEnabled (a
+    # disabled Button's fill is faded). Headless.
+    ViewerButtonMaterial_test.cpp
+    # S402 (dep:S401) — the TextBox material at the presentation vertical-slice
+    # boundary: classify_merge_element maps a real TextBox to MaterialKind::Solid
+    # (the S402 edit-field fill box) at its arranged rect. Headless.
+    ViewerTextBoxMaterial_test.cpp
+    # S403/S404/S405 — the Slider / CheckBox / ScrollViewer materials at the
+    # presentation vertical-slice boundary (Solid material + the enabled/checked/
+    # viewport default draws). Headless.
+    ViewerControlsMaterial_test.cpp
+    # S409_1 (dep:S408) — VIEWER-GROWTH: the live viewer hosts the REAL S10
+    # control set render + interactive via the generic renderer (the "same for
+    # S10+" commitment). Headless proof that the viewer's generic classifier
+    # renders EVERY S10 control to a real material (the sample.vaml is the
+    # [both-apps] live-display proof).
+    ViewerControlsPlan_s409_1_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)

@@ -43,6 +43,7 @@ using vaml::ElementFactory;
 using vaml::ElementFactoryRegistry;
 using vaml::ElementNotFound;
 using vaml::Grid;
+using vaml::Icon;
 using vaml::ScrollViewer;
 using vaml::Slider;
 using vaml::StackPanel;
@@ -234,6 +235,8 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     SHOULD(ShouldlyIntegral(g.is_registered("WrapPanel")).ShouldBe(true));
     // S136: Canvas is a real built-in (registered at S136, not a seed).
     SHOULD(ShouldlyIntegral(g.is_registered("Canvas")).ShouldBe(true));
+    // S400_1: Icon is a real control (registered at S400_1, not a seed).
+    SHOULD(ShouldlyIntegral(g.is_registered("Icon")).ShouldBe(true));
 
     // The S087 headline: create("Button") etc. yields the CONCRETE type, not a
     // generic blob — the typeName -> type dispatch is real end-to-end.
@@ -251,9 +254,12 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<WrapPanel>(g.create("WrapPanel"));
     // S136: the registry-resolve assertion is authored at THIS step.
     assertConcrete<Canvas>(g.create("Canvas"));
+    // S400_1: the registry-resolve assertion is authored at THIS step.
+    assertConcrete<Icon>(g.create("Icon"));
 
-    // Size matches the full built-in set (11 elements: 9 seeds + WrapPanel + Canvas).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(11u));
+    // Size matches the full built-in set (12 elements: 9 seeds + WrapPanel +
+    // Canvas + Icon).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(12u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -262,7 +268,8 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     register_builtin_elements(); // second population must NOT throw
     ElementFactoryRegistry& g = ElementFactoryRegistry::global();
     // Exactly the built-in set, no duplicates (a duplicate would have thrown or
-    // inflated size). S134: WrapPanel adds the 10th built-in; S136: Canvas the 11th.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(11u));
+    // inflated size). S134: WrapPanel adds the 10th built-in; S136: Canvas the
+    // 11th; S400_1: Icon the 12th.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(12u));
     assertConcrete<Button>(g.create("Button"));
 }

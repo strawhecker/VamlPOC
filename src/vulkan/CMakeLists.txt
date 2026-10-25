@@ -85,6 +85,16 @@ vaml_add_library(vulkan
     # visual tree (vaml::core::UIElement) and produces the S206 DrawItem list —
     # draw list by material, z-order via tree order (the CORE→vulkan feed edge).
     src/ui/UiSceneEncoder.cpp
+    # S400 (dep:S207) — the RENDER-side Text seam: maps the CORE text_layout_plan
+    # (already word-wrapped) into S206 DrawItem glyph quads with the REAL S202
+    # exact-grid atlas UVs. Pure + headless-testable (no Vulkan runtime). Consumed
+    # by the S400 Text material + S409_1 viewer growth.
+    src/ui/TextGlyphPlan.cpp
+    # S400_1 (dep:S400) — the RENDER-side Icon seam: turns the Icon control's
+    # DP-driven inputs into the S206 draw item via the S213_1 best-fit + the
+    # cached icon provider, with the deliberate fallback glyph + structured
+    # diagnostic for an unresolved asset (ADR-015 NO-GAP). Pure + headless.
+    src/icon/IconGlyphPlan.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

@@ -41,6 +41,9 @@
 
 namespace vaml {
 
+class Button; // forward — S406 default-button (Button is defined in Element.h,
+              // which FocusManager.h cannot include; the .cpp owns the wiring)
+
 // A keyboard key routed through the key events (mirrors vaml::input::Key; the
 // FocusManager + routed key events share the same key surface).
 enum class KeyCode : std::uint8_t
@@ -54,6 +57,7 @@ enum class KeyCode : std::uint8_t
     Tab      = 52,
     Up = 53, Down = 54, Left = 55, Right = 56,
     Enter = 57, Escape = 58,
+    Backspace = 59, Home = 60, End = 61, Space = 62, TextBoxAccept = 63,
 };
 
 // The ROUTED KEY args: extends RoutedEventArgs with the key + down state, so a
@@ -95,9 +99,20 @@ public:
     // handled=true to stop the climb. False when nothing is focused (no-op).
     bool RaiseKeyRouted(KeyCode key, bool isDown);
 
+    // --- S406 default-button (Enter-activates-default) ---------------------
+    // Sets the DEFAULT BUTTON for this root: the Button whose Click is raised
+    // when Enter is pressed AND the focused element / its handlers did NOT
+    // consume it (the WPF-faithful "Enter activates the default button"
+    // primitive; the default-command association to IsDefault on a Button is
+    // the real wiring, recorded). Nullable (clear). The default button need not
+    // be focused; Enter raises its Click regardless of where focus sits (WPF).
+    void set_default_button(Button* b);
+    [[nodiscard]] Button* default_button() const noexcept { return defaultButton_; }
+
 private:
     UIElement* root_ = nullptr;
     UIElement* focused_ = nullptr;
+    Button* defaultButton_ = nullptr; // S406 — the Enter-activated default button
 
     // Walks the visual tree PRE-ORDER collecting the focusable elements into
     // `out` (the deterministic tab order).

@@ -16,13 +16,16 @@
 
 #include "vaml/core/Element.h"
 
+#include "vaml/core/ControlTemplate.h"   // S364/S365 — the Button's default template + visual states
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/ElementFactoryRegistry.h"
+#include "vaml/core/FocusManager.h"      // S325/S402 — KeyCode (the TextBox edits on)
 #include "vaml/core/Geometry.h"
 #include "vaml/core/GridLength.h"
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/PropertyFlags.h"
 #include "vaml/core/PropertyMetadata.h"
+#include "vaml/core/RoutedEvent.h"       // S320/S321 — ClickEvent (the Button's routed event)
 
 #include <algorithm>
 #include <cmath>
@@ -280,8 +283,193 @@ GridTrackResolution resolve_grid_with_spans(
 // (layout slots, named parts, templates) is each control's own sprint. The
 // StackPanel ctor is NOT a seed anymore (S129): it derives UIElement and self-
 // registers its Orientation DP.
+// --- S401 Button control: REAL DP + Click + template/visual states ---------
+
+namespace {
+
+// Registers the Button's REAL DPs into the global table exactly once per
+// process (Meyers-static guard). Button is the S401 headline control; its DPs
+// are GLOBALLY registered so they resolve on any DependencyObject via S043
+// attached-aware resolution.
+void register_button_properties()
+{
+    // IsEnabled: Bool via Int32, default true. Gates the Click routing.
+    (void)DependencyProperty::Register(
+        "IsEnabled", ValueType::Int32, "Button",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+}
+
+// A helper that builds ONE VisualState entry for the Button's default template:
+// a named state's brush-property target is the shared "Background" DP (the S364
+// visual-state engine register) with the given opaque RGBA fill.
+VisualState make_state(std::string name, std::uint8_t r, std::uint8_t g, std::uint8_t b)
+{
+    VisualState st;
+    st.name          = std::move(name);
+    st.brushProperty = "Background"; // the S364 visual-state shared brush DP
+    st.brush         = std::make_unique<SolidColorBrush>();
+    (void)st.brush->set_color(Color{ r, g, b, 255 });
+    return st;
+}
+
+// Runs register_button_properties() at most once (first Button ctor).
+void ensure_button_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_button_properties();
+    }
+}
+
+// Registers the TextBox's REAL DPs (S402) into the global table exactly once.
+void register_textbox_properties()
+{
+    // Text: String, default "".
+    (void)DependencyProperty::Register(
+        "TextBox.Text", ValueType::String, "TextBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // AcceptsReturn: Bool via Int32, default false (single-line).
+    (void)DependencyProperty::Register(
+        "TextBox.AcceptsReturn", ValueType::Int32, "TextBox",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+}
+
+// Runs register_textbox_properties() at most once (first TextBox ctor).
+void ensure_textbox_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_textbox_properties();
+    }
+}
+
+} // namespace
+
+struct Button::Impl
+{
+    // The Button's DEFAULT implicit template visual states (S363/S367): the
+    // shared "Background" brush DP + Normal/Hover/Pressed/Disabled fills.
+    std::vector<VisualState> states;
+    std::string              current = "Normal";
+
+    // Builds the four default states on first use.
+    void ensure_states()
+    {
+        if (!states.empty())
+            return;
+        states.push_back(make_state("Normal",   200u, 200u, 205u)); // neutral gray
+        states.push_back(make_state("Hover",    230u, 232u, 236u)); // lighter
+        states.push_back(make_state("Pressed",  160u, 162u, 168u)); // darker
+        states.push_back(make_state("Disabled", 150u, 150u, 152u)); // faded (S205 fade = render step)
+    }
+};
+
 VAML_CORE_EXPORT
-Button::Button() = default;
+Button::Button()
+{
+    ensure_button_properties_registered();
+    impl_ = std::make_unique<Impl>();
+    impl_->ensure_states();
+}
+
+VAML_CORE_EXPORT
+Button::~Button() = default;
+
+VAML_CORE_EXPORT
+SetResult Button::set_is_enabled(bool value)
+{
+    const SetResult r = Set(PropertyId::of("IsEnabled"), Value::Int32(value ? 1 : 0));
+    // An IsEnabled change re-flows the visual state (disabled swaps the fill;
+    // re-enabling returns to Normal). The invalidation re-renders.
+    InvalidateMeasure();
+    return r;
+}
+
+VAML_CORE_EXPORT
+bool Button::is_enabled() const
+{
+    return Get(PropertyId::of("IsEnabled")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+bool Button::raise_click()
+{
+    // IsEnabled gates the Click routing (WPF-faithful): a disabled Button does
+    // NOT raise Click. Raises the BUBBLING ClickEvent (S320/S321) with
+    // source==this; a handler setting handled=true stops the route.
+    if (!is_enabled())
+        return false;
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::ClickEvent(), args);
+    return args.handled;
+}
+
+VAML_CORE_EXPORT
+SetResult Button::set_visual_state(std::string name)
+{
+    if (!impl_)
+        return vaml::SetResult::REJECTED;
+    // Exit the current state (revert its brush), then enter the requested one.
+    // The state engine (S364 enter_state/exit_state) swaps the shared
+    // "Background" brush color; a disabled Button forces the Disabled state
+    // (the visual tracks IsEnabled).
+    for (VisualState& s : impl_->states)
+    {
+        if (s.engaged)
+            exit_state(*this, s);
+    }
+    VisualState* target = nullptr;
+    for (VisualState& s : impl_->states)
+    {
+        if (s.name == name)
+        {
+            target = &s;
+            break;
+        }
+    }
+    if (!target || !is_enabled())
+    {
+        if (!is_enabled())
+        {
+            // A disabled Button always presents the Disabled state (WPF-
+            // faithful visual). Revert whatever was engaged, force Disabled.
+            for (VisualState& s : impl_->states)
+                if (s.name == "Disabled") { enter_state(*this, s); impl_->current = "Disabled"; }
+        }
+        return vaml::SetResult::REJECTED;
+    }
+    enter_state(*this, *target);
+    impl_->current = name;
+    InvalidateArrange();
+    return vaml::SetResult::APPLIED;
+}
+
+VAML_CORE_EXPORT
+std::string Button::visual_state() const
+{
+    return impl_ ? impl_->current : std::string("Normal");
+}
+
+VAML_CORE_EXPORT
+Size Button::MeasureOverride(const Size& available) const
+{
+    // The S401 real Button algorithm: a Button reports a bounded default box
+    // (its nominal slot) at its natural (content) size. It defers to its
+    // VisualState/Background for the rendered fill; the default quad is emitted
+    // by the vulkan classifier (MaterialKind::Solid). A bounded offer governs
+    // the box via the S123 stretch-vs-wrap rule (the base Measure finalizer).
+    const float w = (available.width > 0.0f ? available.width : 20.0f);
+    const float h = (available.height > 0.0f ? available.height : 16.0f);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
 
 VAML_CORE_EXPORT
 StackPanel::StackPanel()
@@ -693,20 +881,895 @@ void Canvas::ArrangeOverride(const Rect& finalSlot)
     }
 }
 
-VAML_CORE_EXPORT
-Text::Text() = default;
+// --- S400 Text control: REAL DPs + the real MeasureOverride ------------------
+
+namespace {
+
+// Registers the Text control's four REAL DPs into the global table exactly once
+// per process (Meyers-static guard; a second call is a no-op — mirrors the
+// UIElement/StackPanel self-registration pattern). Authentication: Text is the
+// S400 headline control; its DPs are GLOBALLY registered so they resolve on ANY
+// DependencyObject via S043 attached-aware resolution (a style setter can target
+// "Text"/"FontSize"/"FontWeight"/"Foreground" on a Text).
+void register_text_properties()
+{
+    // Text: String, default "".
+    (void)DependencyProperty::Register(
+        "Text", ValueType::String, "Text",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // FontSize: Double, default 16, validated >= 0 (a negative em size is
+    // structurally meaningless -> REJECTED).
+    (void)DependencyProperty::Register(
+        "FontSize", ValueType::Double, "Text",
+        std::move(PropertyMetadata::WithDefault(Value::Double(16.0), PropertyFlags::None))
+            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
+    // FontWeight: Int32, default Normal=0 (the S206 glyph convention).
+    (void)DependencyProperty::Register(
+        "FontWeight", ValueType::Int32, "Text",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // Foreground: BrushId, default 0. The WPF-faithful "foreground is a BRUSH"
+    // read (a BrushId maps to a registered SolidColorBrush; see
+    // resolve_foreground_brush below). BrushId rides the Int32 payload.
+    (void)DependencyProperty::Register(
+        "Foreground", ValueType::BrushId, "Text",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+}
+
+// Runs register_text_properties() at most once (first Text ctor).
+void ensure_text_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_text_properties();
+    }
+}
+
+} // namespace
 
 VAML_CORE_EXPORT
-TextBox::TextBox() = default;
+Text::Text()
+{
+    ensure_text_properties_registered();
+}
 
 VAML_CORE_EXPORT
-CheckBox::CheckBox() = default;
+SetResult Text::set_text(std::string value)
+{
+    return Set(PropertyId::of("Text"), Value::String(std::move(value)));
+}
 
 VAML_CORE_EXPORT
-Slider::Slider() = default;
+std::string Text::text() const
+{
+    return Get(PropertyId::of("Text")).get<std::string>();
+}
 
 VAML_CORE_EXPORT
-ScrollViewer::ScrollViewer() = default;
+SetResult Text::set_font_size(double value)
+{
+    return Set(PropertyId::of("FontSize"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Text::font_size() const
+{
+    return Get(PropertyId::of("FontSize")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Text::set_font_weight(std::int32_t value)
+{
+    return Set(PropertyId::of("FontWeight"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Text::font_weight() const
+{
+    return Get(PropertyId::of("FontWeight")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Text::set_foreground(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Foreground"), Value::BrushId(brushId));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Text::foreground() const
+{
+    return Get(PropertyId::of("Foreground")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+Size Text::MeasureOverride(const Size& available) const
+{
+    // The S400 real Text algorithm: run the CPU text-LAYOUT + WRAP engine
+    // (text_layout_plan) with the default metrics (a fontSize-based estimate —
+    // device-free, so this needs no Vulkan atlas). Wrap within the offered
+    // `available` width (the S123 infinity-aware basis: an unbounded offer -> no
+    // wrap -> one line; a bounded offer -> word-wrap). The returned extent
+    // {measuredWidth, measuredHeight} is the Text's natural content extent; the
+    // base Measure finalizer (compute_measured_desired) then applies the
+    // S123 stretch-vs-wrap rule against `available`.
+    //
+    // KEY DESIGN (recorded, NO-GAP not silent): the MEASURE basis uses
+    // default_text_metric (a fontSize-proportional estimate), while the RENDER
+    // basis (vulkan build_text_glyph_items) uses the REAL atlas advances — but
+    // BOTH use the SAME wrap RULE (text_layout_plan), so the box this Measure
+    // reports and the extent the renderer lays out stay in lock-step. A bounded
+    // available width -> word-wrap here, and the renderer re-runs the same wrap
+    // with the real advances, so the glyphs never overflow the measured box.
+    const float fontSize = static_cast<float>(font_size());
+    const std::string content = text();
+    const TextLayoutPlan plan = text_layout_plan(
+        content, fontSize, available.width,
+        [fontSize](std::uint32_t cp) { return default_text_metric(cp, fontSize); });
+    return Size{ plan.measuredWidth, plan.measuredHeight };
+}
+
+// --- S400_1 Icon control: REAL DPs + the real MeasureOverride (per ADR-015) ---
+
+namespace {
+
+// Registers the Icon control's seven REAL DPs into the global table exactly
+// once per process (Meyers-static guard). GLOBALLY registered so they resolve
+// on any DependencyObject via S043 attached-aware resolution. The DP surface is
+// the S400_1 title: Source/IconKey/TintMode/Foreground/Width/Height/Stretch.
+void register_icon_properties()
+{
+    // IconKey: String, default "" — the strong resource key the S360_1 walk
+    // resolves (fetch via resolve_icon). NEVER a path/URI/script (ADR-015).
+    (void)DependencyProperty::Register(
+        "IconKey", ValueType::String, "Icon",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // Source: String, default "" — the optional direct byte-asset reference.
+    // IconKey wins when both are set (the resource dict is the ADR-015
+    // authority).
+    (void)DependencyProperty::Register(
+        "Icon.Source", ValueType::String, "Icon",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // TintMode: Int32, default Preserve=0 (IconTintMode::Preserve).
+    (void)DependencyProperty::Register(
+        "Icon.TintMode", ValueType::Int32, "Icon",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // Foreground: BrushId, default 0 — the Monochrome tint color (the
+    // WPF-faithful brush read, mirrors Text).
+    (void)DependencyProperty::Register(
+        "Icon.Foreground", ValueType::BrushId, "Icon",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    // Width: Double, default 0 = auto. Validated >= 0 (a negative icon box is
+    // structurally meaningless -> REJECTED).
+    (void)DependencyProperty::Register(
+        "Icon.Width", ValueType::Double, "Icon",
+        std::move(PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None))
+            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
+    // Height: Double, default 0 = auto. Validated >= 0.
+    (void)DependencyProperty::Register(
+        "Icon.Height", ValueType::Double, "Icon",
+        std::move(PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None))
+            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
+    // Stretch: Int32, default None=0 (IconStretch::None).
+    (void)DependencyProperty::Register(
+        "Icon.Stretch", ValueType::Int32, "Icon",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+// Runs register_icon_properties() at most once (first Icon ctor).
+void ensure_icon_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_icon_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Icon::Icon()
+{
+    ensure_icon_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Icon::set_icon_key(std::string value)
+{
+    return Set(PropertyId::of("IconKey"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string Icon::icon_key() const
+{
+    return Get(PropertyId::of("IconKey")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult Icon::set_source(std::string value)
+{
+    return Set(PropertyId::of("Icon.Source"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string Icon::source() const
+{
+    return Get(PropertyId::of("Icon.Source")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult Icon::set_tint_mode(std::int32_t value)
+{
+    return Set(PropertyId::of("Icon.TintMode"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Icon::tint_mode() const
+{
+    return Get(PropertyId::of("Icon.TintMode")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Icon::set_foreground(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Icon.Foreground"), Value::BrushId(brushId));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Icon::foreground() const
+{
+    return Get(PropertyId::of("Icon.Foreground")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Icon::set_width(double value)
+{
+    return Set(PropertyId::of("Icon.Width"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Icon::width() const
+{
+    return Get(PropertyId::of("Icon.Width")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Icon::set_height(double value)
+{
+    return Set(PropertyId::of("Icon.Height"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Icon::height() const
+{
+    return Get(PropertyId::of("Icon.Height")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Icon::set_stretch(std::int32_t value)
+{
+    return Set(PropertyId::of("Icon.Stretch"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Icon::stretch() const
+{
+    return Get(PropertyId::of("Icon.Stretch")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+Size Icon::MeasureOverride(const Size& available) const
+{
+    // The S400_1 real Icon algorithm: the icon's measured box is driven by the
+    // Width/Height DPs (0 = auto) → the authored asset's natural extent (when
+    // it resolves) or a bounded default. The base Measure finalizer then
+    // applies the S123 infinity-aware stretch-vs-wrap rule, so the STRETCH DP
+    // (None/Fill/Uniform/UniformToFill) governs the final box through the
+    // alignment/measure contract (the render quad is emitted by the classifier
+    // via the cached icon provider).
+    //
+    // The natural extent: when the control carries a Width/Height, the box uses
+    // those (a bounded icon box). When either is 0 (auto), the asset's natural
+    // size is NOT available at measure time (device-free core — the atlas slot
+    // is a vulkan-side read); a DEFAULT 16px icon box stands in (the S400_1
+    // nominal icon box), recorded NO-GAP — the asset's true authored extent is
+    // resolved at RENDER by the cached provider + best-fit (S213_1) and the
+    // final arranger clamps the box (the render never overflows the measured
+    // slot the class-of-fits governs).
+    const float w = static_cast<float>(width() > 0.0 ? width() : (available.width > 0.0f ? available.width : 16.0f));
+    const float h = static_cast<float>(height() > 0.0 ? height() : (available.height > 0.0f ? available.height : 16.0f));
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+VAML_CORE_EXPORT
+TextBox::TextBox()
+{
+    ensure_textbox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult TextBox::set_text(std::string value)
+{
+    return Set(PropertyId::of("TextBox.Text"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string TextBox::text() const
+{
+    return Get(PropertyId::of("TextBox.Text")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult TextBox::set_accepts_return(bool value)
+{
+    return Set(PropertyId::of("TextBox.AcceptsReturn"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool TextBox::accepts_return() const
+{
+    return Get(PropertyId::of("TextBox.AcceptsReturn")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+std::size_t TextBox::caret() const noexcept
+{
+    return caret_;
+}
+
+VAML_CORE_EXPORT
+void TextBox::set_caret(std::size_t pos)
+{
+    const std::size_t len = text().size();
+    caret_ = std::min(pos, len);
+    // Setting the caret collapses any selection (WPF-faithful caret move).
+    selStart_ = caret_;
+    selLen_   = 0;
+}
+
+VAML_CORE_EXPORT
+std::size_t TextBox::selection_start() const noexcept
+{
+    return selStart_;
+}
+
+VAML_CORE_EXPORT
+std::size_t TextBox::selection_length() const noexcept
+{
+    return selLen_;
+}
+
+VAML_CORE_EXPORT
+void TextBox::select_all()
+{
+    const std::size_t len = text().size();
+    selStart_ = 0;
+    selLen_   = len;
+    caret_    = len;
+}
+
+VAML_CORE_EXPORT
+void TextBox::clear_selection()
+{
+    selLen_ = 0;
+}
+
+VAML_CORE_EXPORT
+std::size_t TextBox::delete_selection(std::string& s)
+{
+    if (selLen_ == 0)
+        return 0;
+    const std::size_t start = std::min(selStart_, s.size());
+    const std::size_t end   = std::min(selStart_ + selLen_, s.size());
+    const std::size_t removed = end - start;
+    s.erase(start, removed);
+    caret_    = start;
+    selStart_ = start;
+    selLen_   = 0;
+    return removed;
+}
+
+VAML_CORE_EXPORT
+bool TextBox::handle_key(vaml::KeyCode key, bool isDown, bool shift)
+{
+    if (!isDown)
+        return false; // only a key-down drives an edit (releases are not edits)
+    accepted_ = false;
+    std::string s = text();
+
+    // A shift+caret-move EXTENDS the selection (WPF-faithful); a bare move
+    // collapses it.
+    const auto commit = [&]() {
+        (void)Set(PropertyId::of("TextBox.Text"), Value::String(s));
+    };
+    const auto clampCaret = [&](std::size_t p) {
+        return std::min(p, s.size());
+    };
+    const auto collapse = [&]() {
+        selStart_ = caret_;
+        selLen_   = 0;
+    };
+
+    // Navigational keys.
+    switch (key)
+    {
+    case vaml::KeyCode::Left:
+    {
+        std::size_t target = caret_ > 0 ? caret_ - 1 : 0;
+        if (shift && selLen_ > 0)
+            target = std::min(selStart_, selStart_ + selLen_ - 1);
+        caret_ = clampCaret(target);
+        if (!shift)
+            collapse();
+        else if (selLen_ == 0)
+        {
+            selStart_ = std::min(caret_, s.size());
+            selLen_   = (caret_ < selStart_) ? 0 : 0; // no pre-existing selection
+        }
+        return true;
+    }
+    case vaml::KeyCode::Right:
+        caret_ = clampCaret(caret_ + 1);
+        if (!shift)
+            collapse();
+        return true;
+    case vaml::KeyCode::Home:
+        caret_ = 0;
+        if (!shift)
+            collapse();
+        return true;
+    case vaml::KeyCode::End:
+        caret_ = s.size();
+        if (!shift)
+            collapse();
+        return true;
+    default:
+        break;
+    }
+
+    // A printable letter/digit inserts at the caret (replacing any selection).
+    if (key >= vaml::KeyCode::A && key <= vaml::KeyCode::Z)
+    {
+        (void)delete_selection(s);
+        s.insert(s.begin() + static_cast<std::ptrdiff_t>(caret_), static_cast<char>('a' + (static_cast<int>(key) - static_cast<int>(vaml::KeyCode::A))));
+        caret_ = std::min(caret_ + 1, s.size());
+        commit();
+        collapse();
+        return true;
+    }
+    if (key >= vaml::KeyCode::Digit0 && key <= vaml::KeyCode::Digit9)
+    {
+        (void)delete_selection(s);
+        s.insert(s.begin() + static_cast<std::ptrdiff_t>(caret_), static_cast<char>('0' + (static_cast<int>(key) - static_cast<int>(vaml::KeyCode::Digit0))));
+        caret_ = std::min(caret_ + 1, s.size());
+        commit();
+        collapse();
+        return true;
+    }
+    if (key == vaml::KeyCode::Space || key == vaml::KeyCode::TextBoxAccept)
+    {
+        // TextBoxAccept is the generic "insert a char" override; a space is a
+        // printable insert. A space literal inserts ' '.
+        (void)delete_selection(s);
+        const char c = (key == vaml::KeyCode::Space) ? ' ' : ' ';
+        s.insert(s.begin() + static_cast<std::ptrdiff_t>(caret_), c);
+        caret_ = std::min(caret_ + 1, s.size());
+        commit();
+        collapse();
+        return true;
+    }
+
+    // Backspace deletes the char left of the caret / a selected range.
+    if (key == vaml::KeyCode::Backspace)
+    {
+        if (selLen_ > 0)
+        {
+            (void)delete_selection(s);
+            commit();
+            return true;
+        }
+        if (caret_ > 0)
+        {
+            s.erase(s.begin() + static_cast<std::ptrdiff_t>(caret_ - 1));
+            caret_ = std::min(caret_ - 1, s.size());
+            commit();
+            collapse();
+            return true;
+        }
+        return true; // nothing to delete — still an edit key (no-op)
+    }
+
+    // Enter: multi-line inserts a newline; single-line ACCEPTS (returns true).
+    if (key == vaml::KeyCode::Enter)
+    {
+        if (accepts_return())
+        {
+            (void)delete_selection(s);
+            s.insert(s.begin() + static_cast<std::ptrdiff_t>(caret_), '\n');
+            caret_ = std::min(caret_ + 1, s.size());
+            commit();
+            collapse();
+            return true;
+        }
+        // Single-line Accept: signal accepted, consume the key (no text change).
+        accepted_ = true;
+        return true;
+    }
+
+    // Return a NEWLINE literal marker (the text layer uses '\n').
+    if (key == vaml::KeyCode::Up && accepts_return())
+    {
+        // Up/Down in multiline are vertical navigation (recorded NO-GAP: full
+        // vertical caret nav is a later refinement); consuming them keeps them
+        // out of the edition loop.
+        return true;
+    }
+    if (key == vaml::KeyCode::Down && accepts_return())
+    {
+        return true;
+    }
+
+    return false; // an unhandled key is not an edit
+}
+
+VAML_CORE_EXPORT
+Size TextBox::MeasureOverride(const Size& available) const
+{
+    // The S402 real TextBox algorithm: wrap the Text content at `available` via
+    // the S400 text_layout_plan (multi-line growth when AcceptsReturn); report a
+    // bounded default box for the edit field. The base Measure finalizer applies
+    // the S123 stretch-vs-wrap rule.
+    const float fs = 16.0f;
+    const float lineH = 1.2f * fs;
+    const TextLayoutPlan plan = text_layout_plan(
+        text(), fs, available.width,
+        [fs](std::uint32_t cp) { return default_text_metric(cp, fs); });
+    const float h = plan.measuredHeight > 0.0f ? plan.measuredHeight : lineH;
+    const float w = available.width > 0.0f ? available.width : (plan.measuredWidth > 0.0f ? plan.measuredWidth : 100.0f);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S403 Slider control: REAL Value/Min/Max DPs + value-changed + thumb drag ---
+
+namespace {
+
+void register_slider_properties()
+{
+    // Value: Double, default 0; the value_clamp is applied in apply_change
+    // (Set is validated >= min/max on read, see set_value).
+    (void)DependencyProperty::Register(
+        "Slider.Value", ValueType::Double, "Slider",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Slider.Minimum", ValueType::Double, "Slider",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Slider.Maximum", ValueType::Double, "Slider",
+        PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
+    // The S403 "routed change event" identity (Bubbling).
+    (void)RoutedEvent::registered("ValueChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_slider_properties_registered()
+{
+    static bool reg = false;
+    if (!reg)
+    {
+        reg = true;
+        register_slider_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Slider::Slider()
+{
+    ensure_slider_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Slider::set_value(double v)
+{
+    // Clamp to [Minimum, Maximum] then place; a real change raises the change.
+    const double lo = std::min(minimum(), maximum());
+    const double hi = std::max(minimum(), maximum());
+    const double clamped = std::clamp(v, lo, hi);
+    const double old = Get(PropertyId::of("Slider.Value")).get<double>();
+    if (old == clamped)
+        return vaml::SetResult::NO_CHANGE;
+    const SetResult r = Set(PropertyId::of("Slider.Value"), Value::Double(clamped));
+    if (r == vaml::SetResult::APPLIED)
+        apply_change(clamped);
+    return r;
+}
+
+VAML_CORE_EXPORT
+double Slider::value() const
+{
+    return Get(PropertyId::of("Slider.Value")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Slider::set_minimum(double v)
+{
+    return Set(PropertyId::of("Slider.Minimum"), Value::Double(v));
+}
+
+VAML_CORE_EXPORT
+double Slider::minimum() const
+{
+    return Get(PropertyId::of("Slider.Minimum")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Slider::set_maximum(double v)
+{
+    return Set(PropertyId::of("Slider.Maximum"), Value::Double(v));
+}
+
+VAML_CORE_EXPORT
+double Slider::maximum() const
+{
+    return Get(PropertyId::of("Slider.Maximum")).get<double>();
+}
+
+VAML_CORE_EXPORT
+void Slider::apply_change(double newValue)
+{
+    (void)newValue; // the routed change is the notification; the new value is the DP's current
+    // The S403 "routed change event": fire the Signal + raise the BUBBLING
+    // "ValueChanged" routed event (source==this). A handler may observe the
+    // change; the two-way binding (S244) also writes the new Value to the VM
+    // (a real DP change already armed it).
+    onValueChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("\1", vaml::RouteEventDirection::Bubble),
+               args);
+}
+
+VAML_CORE_EXPORT
+double Slider::set_value_from_ratio(double ratio)
+{
+    // Ratio in [0,1] along the track -> Value = Minimum + ratio*(Max-Min),
+    // clamped (a ratio outside [0,1] clamps). Raises the change.
+    const double r = std::clamp(ratio, 0.0, 1.0);
+    const double lo = std::min(minimum(), maximum());
+    const double hi = std::max(minimum(), maximum());
+    const double v = lo + r * (hi - lo);
+    (void)set_value(v);
+    return value();
+}
+
+VAML_CORE_EXPORT
+Size Slider::MeasureOverride(const Size& available) const
+{
+    // The S403 real Slider algorithm: the default track box at the arranged
+    // extent; the S123 finalizer applies the stretch-vs-wrap. The rendered
+    // track + thumb is the vulkan classifier (deferred to S409_1).
+    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float h = available.height > 0.0f ? available.height : 8.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S404 CheckBox control: REAL IsChecked (nullable bool) + IsThreeState + toggle ---
+
+namespace {
+
+void register_checkbox_properties()
+{
+    // IsChecked: Int32 (0=unchecked, 1=checked, 2=indeterminate), default 0.
+    (void)DependencyProperty::Register(
+        "CheckBox.IsChecked", ValueType::Int32, "CheckBox",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x >= 0 && x <= 2; }));
+    // IsThreeState: Bool via Int32, default false.
+    (void)DependencyProperty::Register(
+        "CheckBox.IsThreeState", ValueType::Int32, "CheckBox",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    (void)RoutedEvent::registered("CheckedChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_checkbox_properties_registered()
+{
+    static bool reg = false;
+    if (!reg)
+    {
+        reg = true;
+        register_checkbox_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+CheckBox::CheckBox()
+{
+    ensure_checkbox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult CheckBox::set_checked(std::int32_t state)
+{
+    // IsChecked is nullable (third state 2=indeterminate). A real change raises
+    // the change + writes back via the S244 two-way IsChecked binding.
+    const std::int32_t s = std::clamp(state, 0, 2);
+    const std::int32_t old = Get(PropertyId::of("CheckBox.IsChecked")).get<int>();
+    if (old == s)
+        return vaml::SetResult::NO_CHANGE;
+    const SetResult r = Set(PropertyId::of("CheckBox.IsChecked"), Value::Int32(s));
+    if (r == vaml::SetResult::APPLIED)
+        apply_change(s);
+    return r;
+}
+
+VAML_CORE_EXPORT
+std::int32_t CheckBox::checked() const
+{
+    return Get(PropertyId::of("CheckBox.IsChecked")).get<int>();
+}
+
+VAML_CORE_EXPORT
+SetResult CheckBox::set_is_three_state(bool value)
+{
+    return Set(PropertyId::of("CheckBox.IsThreeState"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool CheckBox::is_three_state() const
+{
+    return Get(PropertyId::of("CheckBox.IsThreeState")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+void CheckBox::apply_change(std::int32_t newState)
+{
+    (void)newState;
+    onCheckedChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("\1", vaml::RouteEventDirection::Bubble),
+               args);
+}
+
+VAML_CORE_EXPORT
+std::int32_t CheckBox::toggle()
+{
+    // The WPF on-toggle cycle (source-confirmed from ToggleButton.cs):
+    //   true+IsThreeState -> null(2); true+!IsThreeState -> false(0);
+    //   false -> true(1); null -> false(0).
+    const std::int32_t cur = checked();
+    std::int32_t next = 0;
+    if (cur == 0)
+        next = 1; // unchecked(false) -> checked(true)
+    else if (cur == 1)
+        next = is_three_state() ? 2 : 0; // checked(true) -> indeterminate || unchecked
+    else // cur == 2 (indeterminate)
+        next = 0; // indeterminate(null) -> unchecked(false)
+    (void)set_checked(next);
+    return next;
+}
+
+VAML_CORE_EXPORT
+Size CheckBox::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 14.0f;
+    const float h = available.height > 0.0f ? available.height : 14.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S405 ScrollViewer control: offset + clipping + wheel scroll ------------
+
+VAML_CORE_EXPORT
+ScrollViewer::ScrollViewer()
+{
+    (void)RoutedEvent::registered("ScrollChanged", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+SetResult ScrollViewer::set_vertical_offset(double v)
+{
+    const double scrollable = scrollable_height();
+    const double clamped = std::clamp(v, 0.0, scrollable);
+    if (vertical_ == clamped)
+        return vaml::SetResult::NO_CHANGE;
+    vertical_ = clamped;
+    onScrollChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("\1", vaml::RouteEventDirection::Bubble),
+               args);
+    return vaml::SetResult::APPLIED;
+}
+
+VAML_CORE_EXPORT
+double ScrollViewer::vertical_offset() const { return vertical_; }
+
+VAML_CORE_EXPORT
+SetResult ScrollViewer::set_horizontal_offset(double v)
+{
+    if (horizontal_ == v)
+        return vaml::SetResult::NO_CHANGE;
+    horizontal_ = std::max(0.0, v);
+    onScrollChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("\1", vaml::RouteEventDirection::Bubble),
+               args);
+    return vaml::SetResult::APPLIED;
+}
+
+VAML_CORE_EXPORT
+double ScrollViewer::horizontal_offset() const { return horizontal_; }
+
+VAML_CORE_EXPORT
+void ScrollViewer::set_content_height(double h) { contentH_ = std::max(0.0, h); }
+
+VAML_CORE_EXPORT
+double ScrollViewer::content_height() const { return contentH_; }
+
+VAML_CORE_EXPORT
+double ScrollViewer::viewport_height() const { return std::max(0.0, static_cast<double>(final_rect().height)); }
+
+VAML_CORE_EXPORT
+double ScrollViewer::scrollable_height() const { return std::max(0.0, contentH_ - viewport_height()); }
+
+VAML_CORE_EXPORT
+double ScrollViewer::scroll_by_vertical(double delta)
+{
+    const double target = vertical_ + delta;
+    const double clamped = std::clamp(target, 0.0, scrollable_height());
+    if (clamped != vertical_)
+        (void)set_vertical_offset(clamped);
+    return vertical_;
+}
+
+VAML_CORE_EXPORT
+Rect ScrollViewer::clip_content(const Rect& content) const
+{
+    // The S124 clip: the child content rect, translated by the current offset
+    // then clipped against the arranged viewport. Returns the VISIBLE sub-rect
+    // in viewport coordinates (a fully-hidden content -> a zero rect).
+    const vaml::Rect fr = final_rect();
+    const float vx = fr.x;
+    const float vy = fr.y;
+    const float vw = fr.width;
+    const float vh = fr.height;
+    // Content's visible top-left in viewport space (inside the viewport origin).
+    const Rect moved{ content.x - static_cast<float>(vertical_offset()),
+                      content.y,
+                      content.width,
+                      content.height };
+    const float x0 = std::max(moved.x, vx);
+    const float y0 = std::max(moved.y, vy);
+    const float x1 = std::min(moved.x + moved.width, vx + vw);
+    const float y1 = std::min(moved.y + moved.height, vy + vh);
+    if (x1 <= x0 || y1 <= y0)
+        return Rect{ x0, y0, 0.0f, 0.0f };
+    return Rect{ x0, y0, x1 - x0, y1 - y0 };
+}
+
+VAML_CORE_EXPORT
+void ScrollViewer::apply_offset(double /*newV*/, double /*newH*/) {}
+
+VAML_CORE_EXPORT
+Size ScrollViewer::MeasureOverride(const Size& available) const
+{
+    // The S405 real ScrollViewer algorithm: the viewport is the arranged box
+    // (the scrollable content beyond it is the S409_1 viewer draw). A
+    // ScrollViewer measures to the viewport offer (or a bounded default).
+    const float w = available.width > 0.0f ? available.width : 200.0f;
+    const float h = available.height > 0.0f ? available.height : 120.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
 
 VAML_CORE_EXPORT
 Window::Window() = default;
@@ -1015,6 +2078,9 @@ void register_builtin_elements()
     registry.register_element("StackPanel",   [] { return std::make_unique<StackPanel>(); });
     registry.register_element("Grid",         [] { return std::make_unique<Grid>(); });
     registry.register_element("Text",         [] { return std::make_unique<Text>(); });
+    // S400_1: Icon is a REAL control (not a seed) — re-based onto UIElement at
+    // its own sprint HERE (S400_1), registered directly. Built-in count 11 -> 12.
+    registry.register_element("Icon",         [] { return std::make_unique<Icon>(); });
     registry.register_element("TextBox",      [] { return std::make_unique<TextBox>(); });
     registry.register_element("CheckBox",     [] { return std::make_unique<CheckBox>(); });
     registry.register_element("Slider",       [] { return std::make_unique<Slider>(); });

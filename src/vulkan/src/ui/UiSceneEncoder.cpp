@@ -13,14 +13,54 @@
 
 namespace vaml::vulkan::ui {
 
-MaterialKind classify_element(const vaml::UIElement& /*element*/) noexcept
+MaterialKind classify_element(const vaml::UIElement& element) noexcept
 {
-    // The DEFAULT classifier: a base UIElement / a plain container contributes
-    // no visual yet — no real control material exists until Text→S400 /
-    // Button→S401 / templates→S364 replace this seam (kept-and-extended, never
-    // silently backfilled). A host element that WANTS a draw supplies its own
-    // ElementVisual via the encoder's `visualOf` callback (which may consult
-    // control state); classify_element is the default for unhandled elements.
+    // The material authority for the S207 "draw list by material" grouping. The
+    // S400 real per-control material is authored HERE: a vaml::Text classifies
+    // to MaterialKind::Text (the SDF glyph-quad material), so the encoder emits
+    // its glyph quads. Every non-Text base UIElement / plain container
+    // contributes NO material (None) — real controls replace this seam in place
+    // (Button->S401, templates->S364, etc.), kept-and-extended, never silently
+    // backfilled. A host element that WANTS a draw supplies its own ElementVisual
+    // via the encoder's `visualOf` callback; classify_element is the default for
+    // unhandled elements.
+    if (dynamic_cast<const vaml::Text*>(&element) != nullptr)
+    {
+        return MaterialKind::Text;
+    }
+    // S400_1: a real Icon control classifies to the MONOCHROME material (the
+    // S400_1 TintMode default — Monochrome tint; the actual shader path is
+    // chosen by the DP + produced by IconGlyphPlan's render seam, and the full
+    // multicolor/Preserve path lands with the real atlas at S409_1). The S207
+    // material authority is real here (a control contributes a draw material).
+    if (dynamic_cast<const vaml::Icon*>(&element) != nullptr)
+    {
+        return MaterialKind::Monochrome;
+    }
+    // S401: a real Button control classifies to the SOLID material (the S401
+    // default Button material — the default fill quad, whose Background brush
+    // color the S364 visual states swap for Hover/Pressed/Disabled). The S207
+    // material authority is real (a Button contributes its default draw).
+    if (dynamic_cast<const vaml::Button*>(&element) != nullptr)
+    {
+        return MaterialKind::Solid;
+    }
+    // S402: a real TextBox control classifies to the SOLID material (the S402
+    // default edit-field fill box; the typed text glyphs are the S409_1 viewer
+    // path, recorded NO-GAP not silent).
+    if (dynamic_cast<const vaml::TextBox*>(&element) != nullptr)
+    {
+        return MaterialKind::Solid;
+    }
+    // S403/S404/S405: the real Slider / CheckBox / ScrollViewer controls all
+    // classify to the SOLID material (the S403 track, S404 check box, S405
+    // viewport-clip default draw boxes — the S207 material authority is real).
+    if (dynamic_cast<const vaml::Slider*>(&element) != nullptr ||
+        dynamic_cast<const vaml::CheckBox*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ScrollViewer*>(&element) != nullptr)
+    {
+        return MaterialKind::Solid;
+    }
     return MaterialKind::None;
 }
 

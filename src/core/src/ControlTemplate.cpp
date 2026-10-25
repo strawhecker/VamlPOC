@@ -53,6 +53,11 @@ void collect_bindings(const TemplatePart& part,
                                                     const ControlTemplate& templ,
                                                     UIElement& control)
 {
+    // templ/control are threaded to the consumer wiring; currently unused at
+    // this level (the TemplateBinding wiring is applied by the caller). Silence
+    // the unused-parameter diagnostic explicitly.
+    (void)templ;
+    (void)control;
     // Build via the element registry if the type is a registered UIElement.
     if (!part.typeName.empty())
     {

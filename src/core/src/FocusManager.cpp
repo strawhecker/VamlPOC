@@ -4,6 +4,8 @@
 
 #include "vaml/core/FocusManager.h"
 
+#include "vaml/core/Element.h"   // Button (S406 default-button activation)
+
 #include <algorithm>
 
 namespace vaml {
@@ -16,6 +18,11 @@ FocusManager::FocusManager(UIElement* root)
 void FocusManager::KeyboardFocus(UIElement* element)
 {
     focused_ = element;
+}
+
+void FocusManager::set_default_button(Button* b)
+{
+    defaultButton_ = b;
 }
 
 namespace {
@@ -104,16 +111,26 @@ UIElement* FocusManager::MoveFocusPrevious()
 
 bool FocusManager::RaiseKeyRouted(KeyCode key, bool isDown)
 {
-    if (focused_ == nullptr)
+    const bool focusedPresent = (focused_ != nullptr);
+    bool handled = false;
+    if (focusedPresent)
     {
-        return false;
+        KeyRoutedEventArgs args;
+        args.source = focused_;
+        args.key    = key;
+        args.isDown = isDown;
+        focused_->RaiseEvent(key_event(isDown), args);
+        handled = args.handled;
     }
-    KeyRoutedEventArgs args;
-    args.source = focused_;
-    args.key    = key;
-    args.isDown = isDown;
-    focused_->RaiseEvent(key_event(isDown), args);
-    return true;
+    // S406 ENTER-ACTIVATES-DEFAULT: on an Enter KEY-DOWN that NO focused
+    // element/handler consumed, raise the Click on the default button (the
+    // WPF-faithful primitive). The default button need not be focused (WPF).
+    // A handled Enter (e.g. a TextBox single-line accept) does NOT re-activate.
+    if (!handled && isDown && key == KeyCode::Enter && defaultButton_ != nullptr)
+    {
+        (void)defaultButton_->raise_click();
+    }
+    return focusedPresent;
 }
 
 } // namespace vaml

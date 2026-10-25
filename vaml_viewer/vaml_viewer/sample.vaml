@@ -1,0 +1,41 @@
+<!-- S409_1 (dep:S408) — Sprint 10 VIEWER-GROWTH sample: the LIVE viewer hosts
+     the REAL control set (Text/Icon/Button/TextBox/Slider/CheckBox/ScrollViewer)
+     render + interactive via the generic renderer. This is the dedicated sample
+     .vaml exercising every S10 control + a template (the "same for S10+"
+     commitment — the viewer matures as the controls land). -->
+
+<StackPanel Width="360" Height="460" Background="#E8E8EA">
+
+    <Text FontSize="18" FontWeight="0" Text="Sprint 10 — Core controls" />
+
+    <!-- The S400 Text control (content + font size) -->
+    <Text Text="Text control: wrapping via measure"
+          FontSize="12" />
+
+    <!-- The S401 Button (template/hover/pressed + Click + IsEnabled) -->
+    <Button Content="Button (IsEnabled true)" IsEnabled="True" />
+
+    <!-- The S400_1 Icon control (Source/IconKey/TintMode) -->
+    <Icon IconKey="app.shell.save" TintMode="Monochrome" Width="20" Height="20" />
+
+    <!-- The S402 TextBox (single+multi line + editing) -->
+    <TextBox Text="Type here" AcceptsReturn="False" />
+
+    <!-- The S403 Slider (value + thumb drag + value-changed) -->
+    <Slider Value="50" Minimum="0" Maximum="100" Width="200" Height="24" />
+
+    <!-- The S404 CheckBox (IsChecked + IsThreeState toggle) -->
+    <CheckBox IsChecked="0" IsThreeState="False" Content="CheckBox" />
+
+    <!-- The S405 ScrollViewer (scroll + clipping + wheel) inside the live pane -->
+    <ScrollViewer Width="320" Height="120" >
+        <StackPanel Orientation="Vertical">
+            <Text Text="ScrollViewer content line 1" />
+            <Text Text="ScrollViewer content line 2" />
+            <Text Text="ScrollViewer content line 3" />
+            <Text Text="ScrollViewer content line 4" />
+            <Text Text="ScrollViewer content line 5" />
+        </StackPanel>
+    </ScrollViewer>
+
+</StackPanel>

@@ -63,6 +63,7 @@
 #include <vaml/vulkan/ui/UiScene.h>   // DrawItem, solid_rect/border_rect/text_glyph, ui_item_degenerate
 #include <vaml/vulkan/ui/UiPipeline.h> // Color4
 
+#include <vaml/core/Element.h>        // Text (S400 — real per-control material THROUGH the default classifier)
 #include <vaml/core/UIElement.h>      // vaml::UIElement, Visibility (the REAL core visual tree)
 
 #include <cstdint>

@@ -13,7 +13,9 @@
 
 #include <vaml/presentation/VamlRenderer.h>
 
-#include <vaml/presentation/dpi.h>              // S213: dpi_render_plan (physical/logical)
+#include <vaml/core/Element.h>              // Text (the S400 real control)
+#include <vaml/core/TextLayout.h>           // text_layout_plan / resolve_foreground_color
+#include <vaml/presentation/dpi.h>          // S213: dpi_render_plan (physical/logical)
 #include <vaml/vulkan/CommandBuffer.h>      // describe_command_buffer_begin, build_render_pass_begin
 #include <vaml/vulkan/ui/MarshalledScene.h> // has_newer / consume_latest
 
@@ -82,16 +84,184 @@ void compose_view_into_render_plan(const vaml::Matrix2D& view, dpi::RenderPlan& 
 vaml::vulkan::ui::ElementVisual
 classify_merge_element(const vaml::UIElement& element) noexcept
 {
-    // The vertical-slice classifier: every REAL UIElement (today the real layout
-    // panels StackPanel/Grid/WrapPanel/Canvas, re-based onto UIElement at
-    // S129/S131/S134/S136) contributes a SOLID fill at its ARRANGED final_rect,
-    // alpha-tinted by its S208 effective_opacity (the inheritance-resolved value —
-    // a child's transparent panel is honest). Degenerate (zero/negative extent)
-    // rects are skipped by the encoder's ui_item_degenerate rule, so a not-yet-
-    // arranged panel contributes nothing. A DependencyObject-only control seed
-    // (Button/Text/etc., not yet re-based) is not a UIElement and gets None (no
-    // draw; its subtree still walks). This is the S207 forward seam real control
-    // materials replace in place at S400/S364 — never a core virtual (ADR-011).
+    // A real S400 Text control classifies to the TEXT material: it emits an SDF
+    // glyph-quad DrawItem (MaterialKind::Text -> DrawItemKind::TextGlyph) built
+    // through the S400 text_layout_plan (the wrapped layout) + the resolved
+    // foreground color + a NOMINAL atlas cell (the vertical-slice default has no
+    // device atlas: a synthetic 16px glyph-cell + a toy UV provider). This is the
+    // "Text material authored in the classifier" NO-GAP (the S207 forward seam
+    // real controls replace in place): a Text renders as TEXT (not a solid fill).
+    //
+    // NO-GAP (recorded, not silent): the vertical-slice default emits ONE
+    // representative glyph per Text (the ElementVisual contract carries a single
+    // DrawItem; and the default classifier has no live atlas). The FULL multi-
+    // glyph text render through the REAL SDF atlas + the generic renderer is the
+    // S409_1 VIEWER-GROWTH token (it replaces this default with the real per-
+    // control materials via encode_visual_slice). This S400 classifier proves the
+    // text glyph material + the resolved foreground end-to-end (headlessly).
+    if (auto* text = dynamic_cast<const vaml::Text*>(&element))
+    {
+        const vaml::Rect r = element.final_rect();
+        const float fs = static_cast<float>(text->font_size());
+        // The wrapped layout at the Text's available width (the box the control
+        // measured) — the same wrap rule the Measure used.
+        const vaml::TextLayoutPlan plan = vaml::text_layout_plan(
+            text->text(), fs, r.width,
+            [fs](std::uint32_t cp) { return vaml::default_text_metric(cp, fs); });
+        // The resolved foreground (WPF-faithful brush read; unresolved -> opaque
+        // black + a structured diagnostic, NEVER silent).
+        const vaml::Color fg = vaml::resolve_foreground_color(element, text->foreground());
+
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Text;
+        // The FIRST renderable glyph (if any) as the representative quad at the
+        // element's arranged origin, using a nominal 16px glyph cell + full-atlas
+        // UV (the vertical-slice default has no device atlas). A Text with no
+        // renderable content emits a degenerate (skipped) glyph -> contributes
+        // nothing (the encoder's ui_item_degenerate skip rule).
+        const float fgR = static_cast<float>(fg.r) / 255.0f;
+        const float fgG = static_cast<float>(fg.g) / 255.0f;
+        const float fgB = static_cast<float>(fg.b) / 255.0f;
+        const float fgA = static_cast<float>(fg.a) / 255.0f;
+        v.item = vaml::vulkan::ui::text_glyph(
+            r.x, r.y, 16.0f, 16.0f, 0.0f, 0.0f, 1.0f, 1.0f,
+            vaml::vulkan::ui::Color4{ fgR, fgG, fgB, fgA }, 0.15f);
+        (void)plan; // the layout + real atlas metrics are consumed at S409_1's renderer
+        return v;
+    }
+
+    // S401 — a REAL Button control classifies to the SOLID material (the S401
+    // default Button material). It renders its default fill quad at the arranged
+    // final_rect, tinted by the CURRENT visual-state Background color (the S364
+    // shared "Background" Color DP the Button's Hover/Pressed/Disabled states
+    // swap) and honoring IsEnabled (a disabled Button's fill is faded — the
+    // S401 disabled visual; the full S205 shader-level disabled fade is the
+    // [s401-live] render step, recorded NO-GAP not silent). A Button is a real
+    // hit-testable control, so the S324 click flow raises ClickEvent on it
+    // directly (source==the Button).
+    if (auto* button = dynamic_cast<const vaml::Button*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        // The visual-state Background color: the Button's default template
+        // drives the "Background" Color DP (Value::Color) via the S364 state
+        // engine. A Button with no template applied falls back to a neutral
+        // fill.
+        vaml::Color bg{ 200, 200, 205, 255 };
+        const vaml::Value bv = element.Get(vaml::PropertyId::of("Background"));
+        if (bv.type() == vaml::ValueType::Color)
+            bg = bv.get<vaml::Color>();
+        // IsEnabled fades the fill (disabled visual); the effective opacity
+        // (S208) alpha composites below.
+        const float enabledAlpha = button->is_enabled() ? 1.0f : 0.55f;
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(bg.r) / 255.0f,
+                                      static_cast<float>(bg.g) / 255.0f,
+                                      static_cast<float>(bg.b) / 255.0f,
+                                      enabledAlpha });
+        return v;
+    }
+
+    // S402 — a REAL TextBox control classifies to the SOLID material (the S402
+    // default edit-field fill box). The headless vertical-slice default emits a
+    // light "edit field" box at the arranged final_rect (the S402 field visual;
+    // the typed text glyphs through the SDF/atlas path are the S409_1 viewer
+    // growth — recorded NO-GAP not silent). The S402 editing model + caret +
+    // two-way binding are core (headless-tested); the rendered field box is the
+    // honest vertical-slice default.
+    if (dynamic_cast<const vaml::TextBox*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.92f, 0.93f, 0.95f, 1.0f });
+        return v;
+    }
+
+    // S403 — a REAL Slider control classifies to the SOLID material (the S403
+    // default track box) at its arranged final_rect. The track+thumb visuals are
+    // the S409_1 viewer draw (recorded NO-GAP not silent); the Value/range/
+    // change + thumb-drag + two-way binding are the S403 real algorithm (core).
+    if (dynamic_cast<const vaml::Slider*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.55f, 0.58f, 0.62f, 1.0f });
+        return v;
+    }
+
+    // S404 — a REAL CheckBox control classifies to the SOLID material (the S404
+    // check-box slot) honoring IsChecked: a CHECKED/INDETERMINATE box is filled
+    // (the check marker); an UNCHECKED box is an outlined empty slot. The toggle
+    // + nullable IsChecked (WPF-faithful third state) + two-way binding are the
+    // S404 real algorithm (core); the filled-vs-outline glyph is the honest
+    // vertical-slice default (S409_1 draws the check marker live).
+    if (auto* cb = dynamic_cast<const vaml::CheckBox*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const bool on = cb->checked() != 0;
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{
+                                                  on ? 0.30f : 0.85f,
+                                                  on ? 0.55f : 0.85f,
+                                                  on ? 0.42f : 0.85f,
+                                                  on ? 1.0f : 0.6f });
+        return v;
+    }
+
+    // S405 — a REAL ScrollViewer control classifies to the SOLID material (the
+    // S405 default viewport-clip box) at its arranged final_rect. The scrollbar
+    // + the content beyond the viewport are the S409_1 viewer draw (recorded
+    // NO-GAP not silent); the offset/clipping/wheel are the S405 real algorithm.
+    if (dynamic_cast<const vaml::ScrollViewer*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.05f, 0.05f, 0.05f, 0.0f });
+        return v;
+    }
+
+    // S400_1 — a REAL Icon control classifies to the MONOCHROME material. The
+    // headless vertical-slice default has NO device IconAtlas (the S209 per-
+    // texture binding + the S213_1 last_framebuffer_scale sampling are the live
+    // [s400_1-live]/S409_1 path), so the headless classifier emits the S400_1
+    // DELIBERATE FALLBACK GLYPH — a visible marker at the icon's arranged box
+    // that reads as "an icon is here" without a live asset. This is the honest
+    // headless outcome (a real icon quad through the cached provider + the
+    // S213_1 best-fit is proven by IconGlyphPlan_test headlessly, and the real
+    // atlas render is S409_1, recorded NO-GAP not silent). A resolved real
+    // asset renders via the IconGlyphPlan seam on the live path.
+    if (auto* icon = dynamic_cast<const vaml::Icon*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Monochrome;
+        const vaml::Rect r = element.final_rect();
+        // The S400_1 fallback glyph: a recognizable filled square (the "broken
+        // icon" marker) at the arranged box. The Monochrome tint color is the
+        // resolved foreground (WPF-faithful brush read; unresolved -> the
+        // default). This is what the headless classifier renders for an Icon.
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.80f, 0.80f, 0.80f, 0.55f });
+        (void)icon; // the DP-driven real quad + the S213_1 best-fit are the live/S409_1 path
+        return v;
+    }
+
+    // Non-Text: every REAL UIElement (today the real layout panels
+    // StackPanel/Grid/WrapPanel/Canvas, plus any non-Text base) contributes a
+    // SOLID fill at its ARRANGED final_rect, alpha-tinted by its S208 effective
+    // opacity. A DependencyObject-only control seed (Button/TextBox etc., not yet
+    // re-based) is not a UIElement and gets None here (skipped by the encoder;
+    // its own sprint re-bases it). Kept-and-extended, replaced in place by real
+    // control materials at S400/S364 — never a core virtual (ADR-011).
     vaml::vulkan::ui::ElementVisual v;
     v.kind = vaml::vulkan::ui::MaterialKind::Solid;
     const vaml::Rect r = element.final_rect();

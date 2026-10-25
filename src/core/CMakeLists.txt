@@ -49,6 +49,7 @@ vaml_add_library(core
     src/RoutedEvent.cpp
     src/InputMarshaller.cpp
     src/FocusManager.cpp
+    src/TextLayout.cpp          # S400 — TextLayout (pure CPU text layout + wrap engine)
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()
