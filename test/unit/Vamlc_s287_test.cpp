@@ -193,7 +193,7 @@ TEST_CASE("S287: the sidecar loads through the S285 reader into the demo tree")
         SHOULD(ShouldlyIntegral(dynamic_cast<Button*>(retained[0].get()) != nullptr).ShouldBe(true));
         SHOULD(ShouldlyIntegral(dynamic_cast<StackPanel*>(retained[1].get()) != nullptr).ShouldBe(true));
         // The demo's literal prop (S287Content="Search") is set by the reader.
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S287Content")))
+        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S287Content")))
                    .ShouldBe(Value::String("Search")));
     }
     // x:Class on the root records the demo's root class.

@@ -36,4 +36,14 @@ function(vaml_apply_compiler_policy target)
             target_compile_options(${target} PRIVATE -Werror)
         endif()
     endif()
+
+    # S440 (Sprint 11) — shared MSVC precompiled header (build-speed ONLY).
+    # Every target that applies the shared policy ALSO gets the shared MSVC PCH,
+    # so libraries + test executables amortize the stable-header re-parse on the
+    # msvc-debug lane. Semantics-neutral (parse amortization only). No-op for
+    # non-MSVC (clang/gcc classic path) — no behavior change on any lane.
+    # CMAKE_CURRENT_FUNCTION_LIST_DIR = the dir of THIS (compiler-policy) file,
+    # which is where pch.cmake lives — NOT the caller's subdirectory.
+    include(${CMAKE_CURRENT_FUNCTION_LIST_DIR}/pch.cmake)
+    vaml_apply_msvc_pch(${target})
 endfunction()

@@ -19,6 +19,7 @@
 #include "vaml/core/Thickness.h" // parse_thickness
 
 #include <charconv>
+#include <cmath>
 #include <string>
 #include <utility>
 
@@ -175,22 +176,24 @@ bool iequals(std::string_view a, std::string_view b)
             " (MalformedValue)");
 }
 
-// Strict signed-32-bit integer parse: the WHOLE string must be one valid int
-// (no surrounding/junk/trailing characters, no leading whitespace — from_chars
-// does not skip whitespace).
-Value convert_int32(std::string_view s)
+// Strict finite double parse: the WHOLE string must be one valid floating-point
+// literal (integer "18" or real "18.5" both parse; no surrounding/junk/trailing
+// characters — from_chars does not skip whitespace). NaN/Inf reject (Malformed)
+// so no non-finite value can ride a Double DP (the renderer/layout never sees a
+// NaN/Inf where a layout extent is expected — mirrors the finite-layout rule).
+Value convert_double(std::string_view s)
 {
     if (s.empty())
     {
-        throw_malformed("Int32", s);
+        throw_malformed("Double", s);
     }
-    int value = 0;
+    double value = 0.0;
     auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
-    if (ec != std::errc() || ptr != (s.data() + s.size()))
+    if (ec != std::errc() || ptr != (s.data() + s.size()) || !std::isfinite(value))
     {
-        throw_malformed("Int32", s);
+        throw_malformed("Double", s);
     }
-    return Value::Int32(static_cast<std::int32_t>(value));
+    return Value::Double(value);
 }
 
 Value convert_bool(std::string_view s)
@@ -204,6 +207,85 @@ Value convert_bool(std::string_view s)
         return Value::Bool(false);
     }
     throw_malformed("Bool", s);
+}
+
+// ---------------------------------------------------------------------------
+// The common VAML ENUM-NAME map for the Int32 value path (S440, dep:S089).
+//
+// Background: the S1 value path has no scalar enum tag — enums (Orientation,
+// Visibility, Horizontal/VerticalAlignment, FontWeight, stretch) RIDE the
+// Int32 payload (see Element.h / UIElement.h "rides the Int32 value path").
+// Markup literally authors `Orientation="Horizontal"` (WPF-faithful — XAML
+// accepts the enum NAME for an enum-typed property). The Int32 converter is
+// SHARED by every Int32-typed DP, so it must accept BOTH a numeric literal and
+// the common enum names (the S440 app-shell is the first live document to
+// author these from markup).
+//
+// The map is the exact integer value of each named enum member the built-in
+// control surface exposes (values confirmed from Element.h / UIElement.h /
+// LayoutSlot.h):
+//   Orientation            : Vertical=0, Horizontal=1
+//   Visibility             : Visible=0, Hidden=1, Collapsed=2
+//   HorizontalAlignment    : Stretch=0, Left=1, Center=2, Right=3
+//   VerticalAlignment      : Stretch=0, Top=1, Center=2, Bottom=3
+//   FontWeight (S206)      : Normal=0, Bold=1
+//   WrapDirection (S134)   : reuses Orientation (Vertical=0, Horizontal=1)
+//   IconStretch (S400_1)   : None=0, Fill=1, Uniform=2, UniformToFill=3
+//
+// NOTE (shared-converter scope, recorded): this is deliberately the CROSS-CUT
+// enum-name surface (the names any Int32-typed VAML property sensibly takes),
+// NOT a per-DP whitelist — a DP-specific enum-name mapping belongs at that DP's
+// own conversion step (recorded NO-GAP, not silent). An unknown NAME still falls
+// through to MalformedValue (never a silent 0 — "Horizontal" must not quietly
+// become 0 if someone typos a future enum). Numeric literals are ALWAYS valid
+// for the Int32 path and are tried first, so a numeric value is unambiguous.
+[[nodiscard]] int enum_name_to_int32(std::string_view name) noexcept
+{
+    if (iequals(name, "Horizontal") || iequals(name, "Vertical"))       // Orientation / WrapDirection
+    {
+        return iequals(name, "Horizontal") ? 1 : 0;
+    }
+    if (iequals(name, "Visible"))      { return 0; }  // Visibility
+    if (iequals(name, "Hidden"))       { return 1; }
+    if (iequals(name, "Collapsed"))    { return 2; }
+    if (iequals(name, "Stretch"))      { return 0; }  // Horizontal/VerticalAlignment (+ IconStretch None/Stretch col)
+    if (iequals(name, "Left"))         { return 1; }  // HorizontalAlignment
+    if (iequals(name, "Top"))          { return 1; }  // VerticalAlignment
+    if (iequals(name, "Center"))       { return 2; }  // both alignments
+    if (iequals(name, "Right"))        { return 3; }  // HorizontalAlignment
+    if (iequals(name, "Bottom"))       { return 3; }  // VerticalAlignment
+    if (iequals(name, "Normal"))       { return 0; }  // FontWeight / IconStretch None=0
+    if (iequals(name, "Bold"))         { return 1; }  // FontWeight
+    if (iequals(name, "None"))         { return 0; }  // IconStretch
+    if (iequals(name, "Fill"))         { return 1; }  // IconStretch
+    if (iequals(name, "Uniform"))      { return 2; }  // IconStretch
+    if (iequals(name, "UniformToFill")){ return 3; }  // IconStretch
+    return -1; // not in the common enum-name surface -> falls through to MalformedValue
+}
+
+// The Int32 VALUE-PATH converter: a numeric literal (strict int) OR a common
+// enum name (enum_name_to_int32). Any other literal -> MalformedValue.
+Value convert_int32_value(std::string_view s)
+{
+    if (s.empty())
+    {
+        throw_malformed("Int32", s);
+    }
+    // Numeric literals are unambiguous and always valid for the Int32 path.
+    int value = 0;
+    auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
+    if (ec == std::errc() && ptr == (s.data() + s.size()))
+    {
+        return Value::Int32(static_cast<std::int32_t>(value));
+    }
+    // Not a number — try the common VAML enum-name surface (WPF-faithful:
+    // `Orientation="Horizontal"`). Unknown name -> MalformedValue (never 0).
+    const int named = enum_name_to_int32(s);
+    if (named < 0)
+    {
+        throw_malformed("Int32", s);
+    }
+    return Value::Int32(named);
 }
 
 } // namespace
@@ -225,8 +307,19 @@ void register_builtin_converters()
     }
     registered = true;
 
+    // S440 extends the S089 built-in converter set with the Double converter +
+    // the Int32 common enum-name surface (see convert_int32_value / convert_double).
+    // Registration order is the try_infer_type PROBE order: Int32 stays before
+    // Double so a whole-number literal still infers as Int32 (numeric-only DPs
+    // keep the Int32 tag), while convertLiteral routes by the DP's boundType
+    // directly (a Double DP always takes the Double converter regardless of
+    // registration order).
     registry.register_converter("Int32", [](std::string_view s) -> Value {
-        return convert_int32(s);
+        return convert_int32_value(s);
+    });
+
+    registry.register_converter("Double", [](std::string_view s) -> Value {
+        return convert_double(s);
     });
 
     registry.register_converter("Thickness", [](std::string_view s) -> Value {

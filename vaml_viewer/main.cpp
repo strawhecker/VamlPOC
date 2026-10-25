@@ -27,7 +27,7 @@
 
 #include "load_file.h"
 #include "app.h"           // the S222 shared viewer render host
-#include "cli.h"           // S224: cli_action / cli_usage (the PURE --help entry seam)
+#include "cli.h"           // S224: cli_action / cli_usage (the PURE --help entry seam), S440: cli_wants_app_shell
 #include "compiled_open.h" // S293: load_compiled_file + CompiledOpenResult (the compiled .vbaml seam)
 
 #include <cstdio>
@@ -76,6 +76,25 @@ int main(int argc, char** argv)
     case vaml::viewer::CliAction::Run:
     default:
         break;   // fall through to the launch below
+    }
+
+    // S440 — the `--app` LAUNCH MODE (the in-repo Sprint 11 v1 app). When the
+    // `--app` flag appears (with no file — the "no-file but --app" case), the
+    // viewer launches the app-shell as the DEFAULT SHELL: run_app_shell_plan()
+    // (in ViewerApp::create_app_shell) loads + finalizes the authored MainView
+    // .vaml and renders it. This branch runs BEFORE the file-arg reads below
+    // because --app needs NO file. Any shell load failure -> exit 4 (never silent).
+    if (vaml::viewer::cli_wants_app_shell(argc, argv))
+    {
+        vaml::viewer::ViewerAppConfig config;
+        config.title    = "VAML Viewer - App Shell";   // S224: title = the app-shell title in --app mode
+        config.filePath = "";                          // the app-shell is the default shell (no file-watch)
+        auto app = vaml::viewer::ViewerApp::create_app_shell(config);
+        if (!app)
+            return render_init_failed("--app (app-shell)");
+
+        std::printf("vaml_viewer: launching the APP-SHELL (MainView.vaml -> finalize_visual_tree -> render)\n");
+        return app->run_loop();
     }
 
     // S293 — the COMPILED open dispatch. --compiled forces the compiled path;

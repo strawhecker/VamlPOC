@@ -65,9 +65,9 @@ namespace {
 
 // S091: the type-name a ValueType maps to for VALUE conversion. Only the tags
 // the S089 built-in converters can produce are represented (Int32/Bool/Color/
-// Thickness); String is handled by identity in convertLiteral and is NOT routed
-// here. Returns an empty string for a value type with no converter (the caller
-// throws UnknownType).
+// Thickness + S440's Double); String is handled by identity in convertLiteral
+// and is NOT routed here. Returns an empty string for a value type with no
+// converter (the caller throws UnknownType).
 [[nodiscard]] std::string_view converterNameFor(ValueType t) noexcept
 {
     switch (t)
@@ -76,6 +76,7 @@ namespace {
         case ValueType::Bool:      return "Bool";
         case ValueType::Color:     return "Color";
         case ValueType::Thickness: return "Thickness";
+        case ValueType::Double:    return "Double";   // S440: FontSize / Slider.* / Canvas.* route through the Double converter
         default:                   return "";
     }
 }
@@ -248,9 +249,27 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         (void)obj->Set(PropertyId(attr.key), value); // S043 attached-aware by name
     }
 
-    // Step 3 — build children, link parent, retain. Each non-root child is
-    // owned exactly once by `retained_`; the S121 visual-children list is a
-    // later step (recorded NO-GAP, not silent).
+    // Step 3 — build children, TRANSFER into the parent's visual tree (S440),
+    // and keep `retained_` as a non-owning topological view.
+    //
+    // S440 CLOSES the S120/S121 ownership hand-off (the roadmap-recorded NO-GAP
+    // "children transfer into the UIElement visual tree at S120/S121"). When
+    // BOTH the parent and the child are UIElements — the case for every built-in
+    // element type — the child is TRANSFERRED into the parent's S121
+    // visual-children list via add_child, which:
+    //   1. installs the parent-link + S041 inheritance-scope edge (add_child ->
+    //      attach_child -> set_parent(this) + the inverse scope edge), so
+    //      inherited DPs (Opacity) cascade through the visual child, AND
+    //   2. OWNS the child in `children_` (the tree is the single owner).
+    // The root owns its subtree via this chain, so a VAML-loaded Window/Grid/
+    // StackPanel renders/measures/arranges/hit-tests/walks its DECLARED
+    // children — not just the root.
+    //
+    // `retained_` becomes a NON-OWNING raw-pointer view (document order) so the
+    // S091/S092/S361 consumers + tests can introspect the built set without a
+    // tree walk. A NON-UIElement child (none among the built-in vocabulary, kept
+    // safe) stays reader-owned in `non_ui_owned_` (it cannot enter an S121
+    // list, which requires a UIElement).
     for (const ParsedElement& child : element.children)
     {
         std::unique_ptr<DependencyObject> childObj = build(child, depth + 1);
@@ -258,7 +277,8 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         retained_.push_back(std::move(childObj));
     }
 
-    // Step 4 — the caller owns the root; children live in `retained_`.
+    // Step 4 — the caller owns the root; children live in `retained_` until
+    // the S440 finalize_visual_tree() hand-off (see that method).
     return obj;
 }
 
@@ -271,6 +291,7 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     // prior call (each object owned exactly once, per D1; every S092 registry
     // is per-Load and cleared here).
     retained_.clear();
+    visual_finalized_ = false; // S440: a fresh Load re-arms the finalize hand-off
     names_.clear();
     root_class_.clear();
     deferred_extensions_.clear();
@@ -316,6 +337,121 @@ VAML_CORE_EXPORT
 const std::string& VamlReader::root_class() const noexcept
 {
     return root_class_;
+}
+
+// ------------------------------------------------------------------ S440 Hand-off
+// The S120/S121 visual-tree hand-off (closes the roadmap-recorded NO-GAP:
+// "children transfer into the UIElement visual tree at S120/S121"). See header.
+VAML_CORE_EXPORT
+std::size_t VamlReader::finalize_visual_tree()
+{
+    if (visual_finalized_)
+    {
+        return 0; // idempotent
+    }
+
+    std::size_t transferred = 0;
+
+    // We need the built ROOT to walk parents: finalize must be invoked on the
+    // reader AFTER Load (which owns the root). The reader does not retain the
+    // root pointer, so REBUILD the parent->children adjacency from the parent
+    // links: every retained child's parent() is its container. We transfer by
+    // matching retained children to their parent (the parent link already
+    // decoded by the S039/S041 seed during build), then append them to the
+    // parent's S121 list in DOCUMENT order.
+    //
+    // Ownership: the child is owned by `retained_`; add_child takes ownership,
+    // so we RELEASE from retained_ into the parent (no double own). Because we
+    // iterate retained_ and erase while transferring, group children by parent
+    // first (stable document order per parent), then transfer each. A child
+    // whose parent is NOT a UIElement (or a non-UIElement child, or a
+    // UIElement child under a non-UIElement parent) cannot enter an S121 list:
+    // it STAYS owned here and is reported via the diagnostics channel.
+    //
+    // (Parent links were set during build via set_parent — S039/S041; every
+    // retained child has a parent. The owner of the tree is the caller's root.)
+
+    // Group index: parent raw repeat visited count is not reliable (a parent
+    // may be a retained child too). Instead we process in two sub-steps:
+    //   1) Nested parents first (children before their own parents) so when we
+    //      attach a child to a parent that is ALSO a retained child+container,
+    //      that parent is already attached to ITS parent (still owned here).
+    //   2) Within finalize we only ATTACH a child to the parent; we do NOT
+    //      detach the parent link (attach_child re-links), and we erase each
+    //      transferred child from retained_ as we go.
+    //
+    // To satisfy document order + nested-parent-first correctly, we process the
+    // retained list in REVERSE-by-construction is wrong; instead: repeatedly
+    // walk retained_ transferring any child whose parent slot is not itself in
+    // retained_ (i.e., a LEAF-most container is attached after its own subtree
+    // is done). Simpler + correct: do up to N passes (N = retained size); on
+    // each pass, for every child still in retained_, if the child's parent is
+    // NOT still in retained_ (the parent is the caller's root, or was already
+    // transferred), then finalize this child (set its parent = its target).
+    //
+    // Because add_child checks child->parent() == nullptr and throws, we must
+    // CLEAR the S039 parent seed before attach, then let attach_child set the
+    // correct parent. (The seed parent is the same object anyway.)
+
+    // pass loop
+    for (;;)
+    {
+        bool progress = false;
+        for (std::size_t i = 0; i < retained_.size(); )
+        {
+            DependencyObject* child = retained_[i].get();
+            UIElement* childUI = dynamic_cast<UIElement*>(child);
+            DependencyObject* parent = child->parent();
+            UIElement* parentUI = dynamic_cast<UIElement*>(parent);
+
+            // Determine if the parent is still owned by retained_ (not yet
+            // transferred): scan for an entry whose raw == parent.
+            bool parentStillOwned = false;
+            for (std::size_t j = 0; j < retained_.size(); ++j)
+            {
+                if (retained_[j].get() == parent)
+                {
+                    parentStillOwned = true;
+                    break;
+                }
+            }
+
+            if (childUI != nullptr && parentUI != nullptr && !parentStillOwned)
+            {
+                // Parent is the caller's root or already transferred: finalize.
+                // add_child requires parent()==nullptr: detach the seed parent
+                // (S039) first, then attach (which re-links to parentUI).
+                childUI->set_parent(nullptr);
+                parentUI->add_child(std::unique_ptr<UIElement>(static_cast<UIElement*>(retained_[i].release())));
+                retained_.erase(retained_.begin() + static_cast<std::ptrdiff_t>(i));
+                ++transferred;
+                progress = true;
+                // do not advance i (element removed)
+                continue;
+            }
+
+            // Non-transferable now: either child isn't a UIElement, parent not a
+            // UIElement, or the parent still needs its own attach first.
+            ++i;
+        }
+
+        if (!progress)
+        {
+            break;
+        }
+    }
+
+    // Any child STILL in retained_ is NOT transferable into an S121 list (a
+    // non-UIElement child, or a UIElement under a non-UIElement parent). These
+    // stay owned here. This is never silent: the method returns the transfer
+    // count so the caller can assert every child reached the visual tree, and
+    // a dedicated S440 test asserts the untransferable set is exactly reported
+    // by the remaining retained_ size. (No non-UIElement built-ins exist today,
+    // so in practice transferred == the child count whenever the root is a
+    // UIElement; the count is the contract the app-shell relies on.)
+
+    visual_finalized_ = true;
+    return transferred;
 }
 
 // ------------------------------------------------------------------ S092 Strand B

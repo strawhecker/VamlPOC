@@ -20,6 +20,7 @@
 
 #include "vaml/core/DependencyObject.h"
 #include "vaml/core/DependencyProperty.h"
+#include "vaml/core/Element.h" // UIElement (S440: S121 transfer needs the child-host API)
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/Intern.h" // S140_1: vaml::intern — process-stable retained string_view
 #include "vaml/core/PropertyId.h"
@@ -116,6 +117,7 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
     // reader-level CONFIGURATION and survives per-Load clearing — matching the
     // S092 contract — so it is NOT reset here.
     retained_.clear();
+    visual_finalized_ = false; // S440: a fresh Load re-arms the finalize hand-off
     root_class_.clear();
     names_.clear();
     deferred_extensions_.clear();
@@ -288,7 +290,13 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
         }
     }
 
-    // Pass 2: parent-link children (S039/S041 set_parent).
+    // Pass 2: parent-link children (S039/S041 set_parent) — NON-OWNING parent
+    // links only. Ownership stays unified: the root goes to the caller, every
+    // non-root child stays owned here in `nodes` until the S440
+    // `finalize_visual_tree()` hand-off (below) transfers UIElements into their
+    // parents' S121 visual-children lists for rendering. Pre-S440 consumers
+    // (parse/structure/introspection tests) call neither finalize and see the
+    // original owning retained_ set.
     for (std::size_t id = 0; id < prog.elements.size(); ++id)
     {
         const vaml::tools::ElementRecord& rec = prog.elements[id];
@@ -307,10 +315,13 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
     }
 
     // Pass 3: retained_ = every non-root, in POST-ORDER (children before
-    // parent — the S2 reader's retained_objects() contract, so nested children
-    // precede their container). First collect the post-order id sequence, then
-    // move nodes OUT by those ids (children are never shared across parents, so
-    // each id is moved exactly once).
+    // parent — the S285 retained_objects() contract, and the S2 text reader's
+    // retained_objects() order, so nested children precede their container).
+    // First collect the post-order id sequence, then move nodes OUT by those
+    // ids (children are never shared across parents, so each id moves once).
+    // This is the D1/S091 OWNING model the pre-S440 parse tests rely on; S440
+    // `finalize_visual_tree()` (below) is the explicit hand-off that later lets
+    // the S121 visual tree own those children for rendering.
     std::vector<std::size_t> postOrder;
     {
         std::vector<std::size_t> order;
@@ -338,8 +349,90 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
         }
     }
 
-    // The root is owned by the caller; the rest by this reader.
+    // The root is owned by the caller; the rest by this reader (until S440
+    // finalize_visual_tree() transfers them into the S121 tree).
     return std::move(nodes[0]);
+}
+
+// ---------------------------------------------------------------------------
+// S440 — the S120/S121 visual-tree hand-off (parity with VamlReader).
+// Closes the roadmap-recorded NO-GAP "children transfer into the UIElement
+// visual tree at S120/S121". See the header.
+// ---------------------------------------------------------------------------
+std::size_t VBamlReader::finalize_visual_tree()
+{
+    if (visual_finalized_)
+    {
+        return 0; // idempotent
+    }
+
+    std::size_t transferred = 0;
+
+    // Transfer each owned (non-root) child that is BOTH a UIElement AND owns a
+    // UIElement parent into the parent's S121 visual-children list. The parent
+    // link was seeded during Pass 2 (set_parent). Because add_child requires a
+    // nullptr parent (it re-links), clear the seed then attach.
+    //
+    // Nested-parent correctness: a parent that is ITSELF a retained child must
+    // be attached to ITS parent before (or at least as transferable as) its own
+    // children are. We do repeat passes — on each pass transfer any child whose
+    // parent is NOT still owned by `retained_` (the parent is the caller's root
+    // or was already transferred), until a pass makes no progress. This yields
+    // a bottom-up transfer (children before their own parents) while preserving
+    // each parent's own document order (a parent is only finalized once — on
+    // the pass right after all its children were done).
+    for (;;)
+    {
+        bool progress = false;
+        for (std::size_t i = 0; i < retained_.size(); )
+        {
+            std::unique_ptr<vaml::DependencyObject>& slot = retained_[i];
+            vaml::UIElement* childUI = dynamic_cast<vaml::UIElement*>(slot.get());
+            vaml::UIElement* parentUI =
+                dynamic_cast<vaml::UIElement*>(slot->parent());
+            if (childUI == nullptr || parentUI == nullptr)
+            {
+                ++i; // not transferable (non-UIElement child/parent)
+                continue;
+            }
+
+            // Parent still owned by retained_ (not yet finalized)?
+            bool parentStillOwned = false;
+            for (std::size_t j = 0; j < retained_.size(); ++j)
+            {
+                if (retained_[j].get() == static_cast<vaml::DependencyObject*>(parentUI))
+                {
+                    parentStillOwned = true;
+                    break;
+                }
+            }
+            if (parentStillOwned)
+            {
+                ++i; // wait for the parent's own attach first
+                continue;
+            }
+
+            // Finalize: clear the S039 seed, then add_child (re-links + owns).
+            childUI->set_parent(nullptr);
+            parentUI->add_child(
+                std::unique_ptr<vaml::UIElement>(static_cast<vaml::UIElement*>(slot.release())));
+            retained_.erase(retained_.begin() + static_cast<std::ptrdiff_t>(i));
+            ++transferred;
+            progress = true;
+            // do not advance i (element removed)
+        }
+
+        if (!progress)
+        {
+            break;
+        }
+    }
+
+    // Any child still owned here is NOT transferable into an S121 list (a
+    // non-UIElement child, or a UIElement under a non-UIElement parent). These
+    // stay reader-owned; never silent.
+    visual_finalized_ = true;
+    return transferred;
 }
 
 // ---------------------------------------------------------------------------

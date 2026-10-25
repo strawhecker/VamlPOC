@@ -9,6 +9,7 @@
 
 #include "app.h"
 #include "drop_reopen.h"  // S223: is_vaml_drop / drop_choice (the pure drop-decision seams)
+#include "app_shell.h"    // S440: run_app_shell_plan + AppShellPlanResult (the app-shell load seam)
 
 #include <vaml/core/UIElement.h>        // vaml::UIElement (the REAL visual tree root)
 #include <vaml/vulkan/VulkanSurface.h>
@@ -147,6 +148,39 @@ ViewerApp::create_compiled(const ViewerAppConfig& config, vaml::viewer::Compiled
         return nullptr;
 
     return create_impl(config, std::move(compiled.root), uiRoot, std::move(compiled.reader));
+}
+
+std::unique_ptr<ViewerApp>
+ViewerApp::create_app_shell(const ViewerAppConfig& config)
+{
+    // S440 — the `--app` launch path (the Sprint 11 v1 app). Load the in-repo
+    // app-shell through the S440 seam (the RETAINED VamlReader + finalize_visual_
+    // tree hand-off that RENDERS the declared shell children), then adopt the
+    // shell tree + retain the shell reader so the S443 live wiring stays armed.
+    vaml::viewer::AppShellPlanResult plan = vaml::viewer::run_app_shell_plan();
+    if (!plan.ok || !plan.root)
+    {
+        // Report the structured reason (never silent) — a shell failure means the
+        // app cannot render its authored UI.
+        std::fprintf(stderr, "vaml_viewer: app-shell failed to load: %s\n",
+                     plan.detail.empty() ? "no root" : plan.detail.c_str());
+        return nullptr;
+    }
+    auto* uiRoot = dynamic_cast<vaml::UIElement*>(plan.root.get());
+    if (!uiRoot)
+    {
+        std::fprintf(stderr, "vaml_viewer: app-shell root is not a UIElement (cannot render)\n");
+        return nullptr;
+    }
+
+    std::unique_ptr<ViewerApp> app = create_impl(config, std::move(plan.root), uiRoot, nullptr);
+    if (app)
+    {
+        // Retain the app-shell reader (keeps the finalized visual tree + any S443
+        // {Binding}/{Command} wiring armed for the app's lifetime).
+        app->appShellReader_ = std::move(plan.reader);
+    }
+    return app;
 }
 
 std::unique_ptr<ViewerApp>

@@ -1265,6 +1265,9 @@ Growth tokens by sprint:
 
 ---
 ## Sprint 11a — Multithreaded UI, Dispatcher + async (the deferred multithreaded construction)  [token S450+]
+- my notes:
+- this lib does not require a dispatcher nor use it. it does need to function in an eco-system
+-   that does. it raises the question of who owns the UI thread. 
 > VIEWER GROWTH: no NEW renderable feature this sprint (threading infrastructure) — the interactive viewer
 > (S329_1) is UNCHANGED; S222_1 RELOAD + S329_1 input still demonstrated. This sprint COMPLETES the
 > Sprint-8 DEFERRAL (the `ASYNC/MULTITHREADING DEFERRED — resolved by Sprint 11a` marker) — the

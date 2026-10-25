@@ -184,10 +184,26 @@ public:
     [[nodiscard]] std::unique_ptr<vaml::DependencyObject>
     Load(const std::vector<std::uint8_t>& bytes);
 
-    // The non-root built objects, in construction order. Each is owned exactly
-    // once by this reader. (The returned root is separate.)
+    // The non-root built objects, in construction (POST-)order. OWNED by this
+    // reader (each unique_ptr) until `finalize_visual_tree()` — S440 parity
+    // with the S2 text reader — transfers them into their parents' S121
+    // visual-children lists; after finalize the vector is emptied (the tree
+    // owns the children). Pre-S440 parse/structure consumers see the D1 owning
+    // set (unchanged).
     [[nodiscard]] const std::vector<std::unique_ptr<vaml::DependencyObject>>&
     retained_objects() const noexcept { return retained_; }
+
+    // ------------------------------------------------------------------
+    // S440 — the S120/S121 visual-tree hand-off (parity with VamlReader).
+    // Closes the roadmap-recorded NO-GAP: a compiled (.vbaml) loaded tree that
+    // calls this RENDERS its declared children (not just the root). Transfers
+    // every non-root child that is BOTH a UIElement AND owns a UIElement parent
+    // into that parent's S121 visual-children list via add_child (parent-link +
+    // S041 inheritance-scope edge + tree ownership), removing each transferred
+    // child from this reader's owned-retained set — the reader keeps no
+    // dangling half-owner. Idempotent; returns the number transferred.
+    // Call AFTER Load, BEFORE rendering/reload writes children.
+    [[nodiscard]] std::size_t finalize_visual_tree();
 
     // The authored x:Class name on the root, empty when absent (S092-analogue;
     // binding it to an owner object/type is deferred — recorded NO-GAP).
@@ -261,7 +277,14 @@ public:
     deferred_event_handlers() const noexcept;
 
 private:
+    // The non-root built objects, in construction (POST-)order. OWNED by this
+    // reader (each unique_ptr) until `finalize_visual_tree()` (S440) transfers
+    // them into the S121 visual tree; then this vector is emptied.
     std::vector<std::unique_ptr<vaml::DependencyObject>> retained_;
+
+    // S440: set true once finalize_visual_tree() has run; a second call is a
+    // no-op. Reset at the start of each Load.
+    bool visual_finalized_ = false;
     std::string root_class_;
 
     // S289 — the x:Class OWNER (non-owning; the app owns the owner object) +

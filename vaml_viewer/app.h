@@ -49,6 +49,7 @@
 #include "live_reload.h"   // vaml::viewer::LiveReload (S222_1 — the file-watch reload coordinator)
 #include "view_transform.h"// S224: vaml::viewer::ViewState + the pan/zoom seams (pure)
 #include "viewer_binding.h"// S256: ViewerDemoViewModel + run_viewer_binding_plan (the binding reload seam)
+#include "app_shell.h"     // S440: run_app_shell_plan + AppShellPlanResult (the app-shell load seam)
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -186,6 +187,17 @@ public:
     [[nodiscard]] static std::unique_ptr<ViewerApp>
     create_compiled(const ViewerAppConfig& config, CompiledOpenResult compiled);
 
+    // S440 — the APP-SHELL launch variant (the `--app` mode, Sprint 11 v1 app).
+    // Builds the stack + the VamlRenderer over the in-repo app-shell: runs
+    // `run_app_shell_plan()` (loads the authored MainView.vaml through a RETAINED
+    // VamlReader + finalize_visual_tree — the S120/S121 hand-off that RENDERS the
+    // declared shell children), adopts the shell tree (the S440 REAL Window root)
+    // + RETAINS the app-shell reader so the S443 {Binding}/{Command} wiring stays
+    // armed, and renders it. Returns nullptr on any failure (no throw). A plan
+    // failure reports its structured `detail` to stderr (never silent).
+    [[nodiscard]] static std::unique_ptr<ViewerApp>
+    create_app_shell(const ViewerAppConfig& config);
+
     ~ViewerApp();
     ViewerApp(ViewerApp&&) noexcept;
     ViewerApp& operator=(ViewerApp&&) noexcept;
@@ -240,6 +252,11 @@ private:
     // owns it, the reader borrows it.
     std::shared_ptr<vaml::viewer::ViewerDemoViewModel> bindingVM_;
     std::unique_ptr<vaml::VamlReader> bindingReader_;   // S256: retained reader (keeps the live bindings)
+    // S440 — the retained APP-SHELL reader (the --app mode). Keeps the S120/S121
+    // finalized visual tree + any S443 {Binding}/{Command} wiring armed across the
+    // app's lifetime (mirrors the bindingReader_ retention pattern). Null outside
+    // --app mode.
+    std::unique_ptr<vaml::VamlReader> appShellReader_;
 
     // S293 — the retained COMPILED reader (the S7 VBamlReader). When the app was
     // opened via create_compiled, `compiledReader_` owns the non-root retained

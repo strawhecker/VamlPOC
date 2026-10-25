@@ -399,6 +399,14 @@ add_executable(vaml-core-tests
     # UIElement re-base (Text/Button/TextBox/Slider/CheckBox/ScrollViewer/Icon),
     # each registered concrete + tested, no DependencyObject-only seeds remain.
     Milestone407_test.cpp
+    # S440 (dep:S408) — the dedicated Window RE-BASE test (core). Window is the
+    # app-shell root of Sprint 11's in-repo v1 viewer; it is re-based onto
+    # UIElement here (resolving the S087 `[MINIMAL REAL] Element Window` sentinel
+    # at its own step — NO-GAP, not a backfill). Proves Window IS-A UIElement,
+    # resolves via the S087 factory by name, hosts EXACTLY ONE content child (the
+    # WPF-faithful single-content slot), and lays its content child out to FILL
+    # its box (the implicit single-child layout — a Window root RENDERS content).
+    Window_rebase_test.cpp
     # S320+S321 (dep:S292/S320) — Signal<T> + RoutedEvent primitive + the routed-
     # event engine (bubbling + tunneling + handled over the REAL parent chain).
     RoutedEvent_test.cpp
@@ -756,6 +764,16 @@ add_executable(vaml-presentation-tests
     # renders EVERY S10 control to a real material (the sample.vaml is the
     # [both-apps] live-display proof).
     ViewerControlsPlan_s409_1_test.cpp
+    # S440 (dep:S408) — the APP-SHELL: the authored MainView.vaml + the REAL
+    # Window (re-based onto UIElement) + run_app_shell_plan, which Loads the
+    # shell through a RETAINED VamlReader and calls finalize_visual_tree() — the
+    # S120/S121 hand-off that TRANSFERS every declared child into its parent's
+    # S121 visual-children list, so the Window RENDERS its declared
+    # Grid/StackPanel/Text/TextBox/Button/Slider/CheckBox subtree (NOT just the
+    # root). This closes the Sprint-10 S120/S121 gap at its real home (the core
+    # reader) — the "make all S10 controls functional with children defined in a
+    # running app" directive of Sprint 11. Header-only seam (app_shell.h).
+    AppShellPlan_s440_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)

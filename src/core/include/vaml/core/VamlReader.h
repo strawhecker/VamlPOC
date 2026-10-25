@@ -178,9 +178,14 @@ public:
     // extensions (Strand B) and deferred event handlers (Strand C).
     [[nodiscard]] std::unique_ptr<DependencyObject> Load(const ParsedElement& root);
 
-    // The non-root built objects, in construction order. Each is owned exactly
-    // once by this reader; the returned root is separate. Mirrors the
-    // ownership-model decision (header comment).
+    // The non-root built objects, in construction (document) order. Each is
+    // owned exactly once by this reader during parse (the S091/D1 model); the
+    // returned root is separate. S440 adds ONE explicit, honest hand-off:
+    // `finalize_visual_tree()` — see below — transfers the owned children into
+    // their parents' S121 visual-children lists so the tree RENDERS its
+    // declared children (not just the root). Before finalize, retained_ keeps
+    // owning (all pre-S440 commit/parse tests are unchanged). After finalize,
+    // the visual tree owns them and retained_ is emptied (non-owning).
     [[nodiscard]] const std::vector<std::unique_ptr<DependencyObject>>&
     retained_objects() const noexcept { return retained_; }
 
@@ -208,6 +213,36 @@ public:
     // ONLY the authored name; binding it to an owner object/type is deferred
     // (Sprint 8 / S286 / InitializeComponent-analogue). Recorded NO-GAP.
     [[nodiscard]] const std::string& root_class() const noexcept;
+
+    // ------------------------------------------------------------------
+    // S440 — the S120/S121 visual-tree hand-off (closes the roadmap-recorded
+    // NO-GAP: "children transfer into the UIElement visual tree at S120/S121").
+    // REAL permanent core surface — NOT a MINIMAL REAL seed: this is the funded
+    // S11 deliverable that makes a VAML-loaded tree RENDER its declared
+    // children (not just the root).
+    // ------------------------------------------------------------------
+
+    // TRANSFERS every non-root child that is BOTH a UIElement AND owns a
+    // UIElement parent into that parent's S121 visual-children list via
+    // add_child (parent-link + S041 inheritance-scope edge + tree ownership),
+    // so the loaded tree measures/arranges/renders/hit-tests its children.
+    // After the transfer each transferred child is REMOVED from the reader's
+    // owned-retained set (the visual tree now owns it) — the reader keeps no
+    // dangling half-owner. Idempotent (a second call after a successful
+    // first is a no-op). Bind/home AFTER the tree is fully built (after Load),
+    // BEFORE rendering/reload writes children.
+    //
+    // During construction `retained_` owns every child (D1); callers that only
+    // PARSE (mount structural/introspection tests) never call this and keep the
+    // owned set. Callers that WANT a renderable tree (the app-shell, reload,
+    // the compiled reader, the renderers) call it and retain_ is emptied of
+    // transferred children. Returns the number of children transferred.
+    //
+    // Ownership is NOT silent: a child that stays in `retained_` (a
+    // non-UIElement, or a UIElement whose parent is non-UIElement) remains
+    // reader-owned and is NOT in the visual tree — the call reports it via the
+    // S250_1 diagnostics channel if an app diagnostic function is installed.
+    [[nodiscard]] std::size_t finalize_visual_tree();
 
     // ------------------------------------------------------------------
     // S092 Strand B — deferred markup extensions (the S2 tag). Resolved by
@@ -373,7 +408,15 @@ private:
     // via the type-name mapping. Throws ValueConversionException (S089/S090).
     static Value convertLiteral(const DependencyProperty& dp, std::string_view literal);
 
+    // The non-root built objects, in construction (document) order. OWNED by
+    // the reader (D1/S091) until `finalize_visual_tree()` hands each child into
+    // its parent's S121 visual-children list; after finalize this vector is
+    // emptied (the visual tree owns the children).
     std::vector<std::unique_ptr<DependencyObject>> retained_;
+
+    // S440: set true once finalize_visual_tree() has transferred the built set;
+    // a second call is an idempotent no-op. Reset at the start of each Load.
+    bool visual_finalized_ = false;
 
     // S092 Strand A — x:Name registry (insertion-ordered; interned string_view
     // keys per S144/S140 — pool-backed, content-equal, stable for this reader's

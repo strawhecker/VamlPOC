@@ -173,7 +173,7 @@ TEST_CASE("S092: a nested child x:Name resolves to the deepest/named object")
 
     assertConcrete<StackPanel>(root);
     const auto& retained = reader.retained_objects();
-    // retained[0] = the nested Text (constructed depth-first first); retained[1] = Button.
+    // retained[0].get() = the nested Text (constructed depth-first first); retained[1].get() = Button.
     SHOULD(ShouldlyString(retained.size()).ShouldBe(2u));
     if (retained.size() == 2)
     {
@@ -252,7 +252,7 @@ TEST_CASE("S092: an isExtension attribute is retained as DeferredExtension (S2 t
     const auto& retained = reader.retained_objects();
     if (retained.size() == 1)
     {
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S092Text")))
+        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S092Text")))
                    .ShouldBe(Value::String("")));
     }
 }

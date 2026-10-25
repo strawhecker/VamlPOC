@@ -1771,8 +1771,80 @@ Size ScrollViewer::MeasureOverride(const Size& available) const
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
+// --- S440 Window (REAL container window-type; re-based onto UIElement) ------
+
 VAML_CORE_EXPORT
-Window::Window() = default;
+Window::Window()
+{
+    // No Window-owner DPs to register yet: Window inherits the full UIElement
+    // surface (Visibility/Opacity/Margin/alignment) + the S121 child machinery,
+    // and owns no new global property names of its own at S440. The content
+    // child slot is plain member state, not a DP.
+}
+
+VAML_CORE_EXPORT
+void Window::set_content(std::unique_ptr<UIElement> child)
+{
+    // WPF-faithful single-content slot (NOT a panel list): a Window hosts
+    // EXACTLY ONE content child. Replace any prior content.
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+
+    // Detach + destroy the prior content child (the parent OWNS its children:
+    // remove_child detaches + destroys + clears the S041 scope edge). The
+    // [[nodiscard]] size_t return is consumed.
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+
+    // Adopt the new content child: TRANSFER ownership into the Window's visual-
+    // children list (the S121 attach path wires the parent link + the S041
+    // inheritance-scope edge). content_ is a NON-OWNING observer into that list
+    // (kept alive by the parent), so there is exactly ONE ownership edge.
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* Window::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size Window::MeasureOverride(const Size& available) const
+{
+    // The S440 real Window algorithm: a Window sizes to its single content
+    // child within the offered box. Measure the content (if present) at the
+    // offered bounds and report its desired size.
+    if (content_)
+    {
+        content_->Measure(available);
+        return content_->desired_size();
+    }
+    return Size{ 0.0f, 0.0f };
+}
+
+VAML_CORE_EXPORT
+void Window::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    // The S440 real Window algorithm: arrange the single content child to FILL
+    // the Window's final rect (implicit single-child layout). The base clip
+    // (LayoutSlot clip_to_bounds) clips content to the window box.
+    if (content_)
+    {
+        content_->Arrange(finalSlot);
+    }
+}
 
 // --- S129 StackPanel: Orientation DP + real panel Measure/Arrange ----------
 

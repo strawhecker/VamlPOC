@@ -134,9 +134,9 @@ TEST_CASE("S285: compiled golden loads — root type + retained order + parent c
         SHOULD(ShouldlyIntegral(dynamic_cast<vaml::StackPanel*>(retained[2].get()) != nullptr).ShouldBe(true));
 
         // Parent chain: Button/Text -> StackPanel; StackPanel -> root Window.
-        SHOULD(ShouldlyIntegral(retained[0]->parent() == retained[2].get()).ShouldBe(true));
-        SHOULD(ShouldlyIntegral(retained[1]->parent() == retained[2].get()).ShouldBe(true));
-        SHOULD(ShouldlyIntegral(retained[2]->parent() == root.get()).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(retained[0].get()->parent() == retained[2].get()).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(retained[1].get()->parent() == retained[2].get()).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(retained[2].get()->parent() == root.get()).ShouldBe(true));
     }
 }
 
@@ -164,12 +164,12 @@ TEST_CASE("S285: compiled golden — every literal prop converted + set (incl. a
     SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Margin")))
                .ShouldBe(Value::Thickness(Thickness{10, 10, 10, 10})));
 
-    // StackPanel (retained[2]): Bool.
-    SHOULD(ShouldlyString(retained[2]->Get(PropertyId::of("S285Enabled")))
+    // StackPanel (retained[2].get()): Bool.
+    SHOULD(ShouldlyString(retained[2].get()->Get(PropertyId::of("S285Enabled")))
                .ShouldBe(Value::Bool(true)));
 
-    // search Button (retained[0]): String + numeric + attached Int32 + Color.
-    const auto& btn = retained[0];
+    // search Button (retained[0].get()): String + numeric + attached Int32 + Color.
+    const auto& btn = retained[0].get();
     SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Content")))
                .ShouldBe(Value::String("Search")));
     SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Width")))
@@ -179,8 +179,8 @@ TEST_CASE("S285: compiled golden — every literal prop converted + set (incl. a
     SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Fill")))
                .ShouldBe(Value::Color(Color{255, 0, 0, 255})));
 
-    // Text (retained[1]): attached dotted String.
-    SHOULD(ShouldlyString(retained[1]->Get(PropertyId::of("S285Dock.Dock")))
+    // Text (retained[1].get()): attached dotted String.
+    SHOULD(ShouldlyString(retained[1].get()->Get(PropertyId::of("S285Dock.Dock")))
                .ShouldBe(Value::String("Top")));
 }
 

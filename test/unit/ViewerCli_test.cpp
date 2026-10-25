@@ -72,6 +72,45 @@ TEST_CASE("S224: cli_usage is non-empty and documents the pan/zoom + reload/drop
     CHECK(std::strstr(u, "--help") != nullptr);
 }
 
+TEST_CASE("S440: --app -> Run action + cli_wants_app_shell (the app-shell launch mode)")
+{
+    // S440 — `vaml_viewer --app` is the app-shell LAUNCH MODE (Sprint 11 v1 app):
+    // it needs NO file, so --app alone makes the action Run (the "no-file but
+    // --app" case), and cli_wants_app_shell detects the flag so main() dispatches
+    // to ViewerApp::create_app_shell. Pure + headless.
+    const char* argvApp[] = { "vaml_viewer", "--app" };
+    CHECK(cli_action(2, argvApp) == CliAction::Run);
+    CHECK(cli_wants_app_shell(2, argvApp) == true);
+
+    // --app is a FLAG (not a positional): it returns Run with NO file.
+    const char* argvOnly[] = { "vaml_viewer", "--app" };
+    CHECK(cli_action(2, argvOnly) == CliAction::Run);
+
+    // Ensure --app is not mistaken for a file launch — cli_wants_app_shell only
+    // fires on the EXACT --app token.
+    const char* argvFile[] = { "vaml_viewer", "scene.vaml" };
+    CHECK(cli_action(2, argvFile) == CliAction::Run);
+    CHECK(cli_wants_app_shell(2, argvFile) == false);
+
+    // A bare invocation with no --app and no file is STILL NoArg (usage, exit 2).
+    const char* argvNo[] = { "vaml_viewer" };
+    CHECK(cli_action(1, argvNo) == CliAction::NoArg);
+    CHECK(cli_wants_app_shell(1, argvNo) == false);
+
+    // cli_wants_app_shell(null argv) is safe + deterministic.
+    CHECK(cli_wants_app_shell(0, nullptr) == false);
+}
+
+TEST_CASE("S440: --app + a file still prefers the app-shell launch (flag wins the shell)")
+{
+    // S440 — when --app is present (with or without a file), the app-shell is
+    // the DISPATCH: main() checks cli_wants_app_shell first. The action is Run
+    // and the flag is detected.
+    const char* argvBoth[] = { "vaml_viewer", "--app", "scene.vaml" };
+    CHECK(cli_action(3, argvBoth) == CliAction::Run);
+    CHECK(cli_wants_app_shell(3, argvBoth) == true);
+}
+
 TEST_CASE("S224: loaded_filename derives the basename (title = loaded filename polish)")
 {
     CHECK(loaded_filename("/home/robert/scene.vaml") == "scene.vaml");

@@ -836,11 +836,59 @@ private:
     void apply_offset(double newV, double newH);
 };
 
-// [MINIMAL REAL] Element Window — RESOLVED BY S440 (Sprint 11, app MainView). Do NOT extend silently; do NOT backfill.
-class VAML_CORE_EXPORT Window final : public DependencyObject
+// Window — REAL container window-type (S440). RESOLVES the S087 MINIMAL REAL
+// seed at its own sprint (NO-GAP, not a backfill): re-based onto UIElement (was
+// DependencyObject) so it participates in the visual tree + Measure/Arrange +
+// the app-shell (SPRINT 11, the in-repo v1 viewer deliverable).
+//
+// S440 surface (the S440 title: "app-shell = an authored MainView.vaml rendered
+// via the public surface"): Window is the thin WPF-faithful WINDOW-TYPE root of
+// the app-shell — a UIElement CONTAINER that hosts ONE logical content child
+// (the authored MainView.vaml Grid). As a UIElement it lays out its single
+// content child to FILL its own box (implicit single-child layout: the child is
+// arranged into the Window's full final rect), participates in hit-testing
+// (Window IS the hit root of the app-shell tree), and renders through the same
+// generic classifier both apps consume.
+//
+// A Window hosts EXACTLY ONE content child (the WPF ContentControl-faithful
+// composition): add_child with a second child replaces the first (an owned
+// single-content slot, not a panel list). MeasureOverride measures the single
+// child at the window's offered box; ArrangeOverride arranges it to fill.
+//
+// S440 also authors the app-shell harness (vaml_viewer/app_shell.{h,cpp}, the
+// ADR-021 consumer path) + the authored MainView.vaml + the `--app` viewer
+// launch mode; Window is this core re-base that lets the app-shell root be a
+// real renderable/layoutable UIElement. The Window's real content (the host
+// + the app-shell tree) is authored AT THIS STEP in the viewer, not back-filled.
+class VAML_CORE_EXPORT Window final : public UIElement
 {
 public:
     Window();
+
+    // --- Content child (WPF-Faithful single-content slot) ------------------
+    // Window hosts EXACTLY ONE content child. `set_content` adopts an owned
+    // child (replacing any prior). The child is owned by the Window's visual-
+    // children list (the S121 single owner); `content_` is a NON-OWNING observer
+    // pointer (kept alive by the parent), so no second ownership edge exists.
+    // `content()` returns the non-owning pointer (nullptr when empty).
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    // S440 real Window algorithm: MeasureOverride measures the single content
+    // child at the offered box and reports the child's desired size (the
+    // window sizes to its content within the offered bounds); ArrangeOverride
+    // arranges the content child to fill the Window's final rect (implicit
+    // single-child layout). The base clip (LayoutSlot clip_to_bounds) clips
+    // content to the window box.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    // NON-OWNING observer pointer to the single content child (owned by the
+    // visual-children list). Kept so Measure/Arrange/content() can reach the
+    // content without a list scan.
+    UIElement* content_ = nullptr;
 };
 
 // Startup registration: registers every built-in element type name into

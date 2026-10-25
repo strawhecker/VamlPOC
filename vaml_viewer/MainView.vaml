@@ -1,0 +1,41 @@
+<!-- vaml_viewer app-shell MainView (Sprint 11, S440–S445).
+     The canonical in-repo app-shell: a Window root (REAL container window-type,
+     S440 — re-based onto UIElement) hosting a Grid containing the full S440
+     control set (StackPanel + Text + TextBox + Button + Slider + CheckBox), all
+     x:Name'd, with authored literals + a deferred {Binding} (Status) attribute
+     (fully wired at S443 via the VamlReader set_data_context + BindExtensions).
+
+     Every attribute is a REAL globally-registered DependencyProperty name the
+     S2 runtime reader (VamlReader) resolves — no fake S-prefix names. The S10
+     control DP names are the exact registered keys:
+       UIElement:   Orientation(StackPanel)
+       Text:        Text, FontSize
+       TextBox:     TextBox.Text
+       Slider:      Slider.Value, Slider.Minimum, Slider.Maximum
+       CheckBox:    CheckBox.IsChecked
+
+     S440 NOTE — the rendered-UI vertical slice: this file is loaded through a
+     RETAINED VamlReader which calls finalize_visual_tree() (the S120/S121
+     hand-off), transferring every declared child into its parent's SI21 visual-
+     children list so the Window RENDERS its declared Grid/StackPanel/controls —
+     not just the root. This is the "make all S10 controls functional with
+     children defined in a running app" directive of sprint 11.
+-->
+<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root">
+  <Grid x:Name="RootGrid">
+    <StackPanel x:Name="HeaderPanel" Orientation="Horizontal">
+      <Text x:Name="TitleText" Text="VAML App Shell" FontSize="18"/>
+      <Button x:Name="RunButton"/>
+      <CheckBox x:Name="EnabledCheck" CheckBox.IsChecked="1"/>
+    </StackPanel>
+    <StackPanel x:Name="BodyPanel" Orientation="Vertical">
+      <Text x:Name="PromptText" Text="Enter text:" FontSize="14"/>
+      <TextBox x:Name="InputBox" TextBox.Text="Hello, VAML"/>
+      <Text x:Name="StatusText" Text="{Binding Status}" FontSize="12"/>
+    </StackPanel>
+    <StackPanel x:Name="FooterPanel" Orientation="Vertical">
+      <Text x:Name="SliderLabel" Text="Dim:" FontSize="12"/>
+      <Slider x:Name="DimSlider" Slider.Minimum="0" Slider.Maximum="100" Slider.Value="50"/>
+    </StackPanel>
+  </Grid>
+</Window>
