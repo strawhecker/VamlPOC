@@ -1174,20 +1174,33 @@ Growth tokens by sprint:
       (next: S320). Both CI lanes green throughout. Session-checkpoint regenerated to Sprint 8 (next: S320).
 
 ---
-## Sprint 8 — Routed events + input + async  (goal: real events + input + dispatcher)  [token S320+]
+## Sprint 8 — Routed events + input (single-threaded, single-instance)  (goal: real events + input)  [token S320+]
+> SCOPE RE-SCOPED (plan-decision, Sprint-8 review): Sprint 8 is **single-threaded, single-instance, and
+> zero-new-lock** ONLY. The Dispatcher + async continuation model is **DEFERRED to Sprint 11a** (the
+> multithreaded-UI sprint). See the DEFERRAL NOTE below + the Sprint 11a header. The S323 hit-test /
+> InputMarshaller / S325 focus are the DISPATCHER-FREE single-threaded input surface; the GLFW→routed
+> translation seam lives in the viewer (the S160 resolution). The `{ASYNC/MULTITHREADING DEFERRED}`
+> marker below is the NO-GAP resolver obligation: **Sprint 11a completes these constructs** — it is a
+> named, scheduled resolution, never a silent backfill.
 - S320 dep:S292  RoutedEvent primitive: Signal<T> + token + route-policy hook; reentrancy-safe add/remove.
 - S321 dep:S320  Bubbling + tunneling + handled: child click bubbles to root unless handled; preview tunnel.
-- S322 dep:S321  Markup event wiring: Button Click="OnClick" → handler on x:Class owner via registry.
-- S323 dep:S322  Mouse/keyboard input → routed events via GLFW callbacks + hit-testing.
+- S322 dep:S321  Markup event wiring: Click="OnClick" → handler on x:Class owner via registry (element-agnostic; on real UIElements today; becomes Button's at S401).
+- S323 dep:S322  Mouse/keyboard input → routed events via GLFW callbacks + hit-testing (single-threaded; no Dispatcher).
 - S324 dep:S323  Click hit-tests element, raises bubbling routed event with correct source.
 - S325 dep:S324  Keyboard focus + routed key events (bubble).
-- S326 dep:S325  Dispatcher: input→UI-thread marshalling; continuations scheduled (first Task usage) [ADR-010].
-- S327 dep:S326  Async continuation updates VM prop → binding updates UI; no races.
-- S328 dep:S327  REFACTOR GATE(S8): events, routing, markup wiring, input, async dispatcher all real.
+- S326 dep:S325  ~~Dispatcher: input→UI-thread marshalling; continuations scheduled (first Task usage) [ADR-010].~~ **DEFERRED → Sprint 11a** (S450+). Removed from Sprint 8 — Sprint 8 stays single-threaded.
+- S327 dep:S326  ~~Async continuation updates VM prop → binding updates UI; no races.~~ **DEFERRED → Sprint 11a** (S452/S455). Removed from Sprint 8 — the "no races" contract is Sprint 11a's.
+- S328 dep:S325  REFACTOR GATE(S8): events, routing, markup wiring, input all real — **single-threaded, single-instance, ZERO new locks** (no Dispatcher, no Task, no async).
 - S329 dep:S328  SURVIVOR + checkpoint advance to S360.
-- S329_1 dep:S323  VIEWER-GROWTH: vaml_viewer INTERACTIVE — click a rendered `Button` → routed event (S320/321)
+- S329_1 dep:S323  VIEWER-GROWTH: vaml_viewer INTERACTIVE — click a rendered element → routed event (S320/321)
       → markup handler (S322) runs → a visible state change in the live window (handler updates the VM →
-      binding repaints). [VIEWER GROWTH: input works in the live viewer]
+      binding repaints). [VIEWER GROWTH: input works in the live viewer — single-threaded; no async needed]
+> **DEFERRAL NOTE (ASYNC/MULTITHREADING DEFERRED — resolved by Sprint 11a):** Sprint 8 is
+> single-threaded + single-instance; the Dispatcher + Task/async + co_async/co_await + InvokeAsync +
+> multi-thread multi-instance model is Sprint 11a's design, at Sprint 11a's own step (NO-GAP, not a
+> silent backfill). For the time being: ONE vaml tree, ONE thread, ZERO new locks in this sprint.
+> ADR-010 (Task/continuation model) RE-POINTED to Sprint 11a; ADR-018 re-affirmed for Sprint 8 as
+> ZERO new locks (the S326 Dispatcher-Post mutex idea never shipped — deferred with the Dispatcher).
 
 ---
 ## Sprint 9 — Styles / resources / templates  (goal: full styling)  [token S360+]
@@ -1253,6 +1266,58 @@ Growth tokens by sprint:
 - S449 dep:S448  REFACTOR GATE(S11) — v1 vertical slice (the viewer app-shell) COMPLETE in-repo. SURVIVOR.
       (This is NOT a throwaway "POC complete" — it is the working first-version app that v2-as-v1 builds on;
       see ADR-017. The EXTERNAL v1 app acceptance is separate + outside this repo + not CI-gated.)
+
+---
+## Sprint 11a — Multithreaded UI, Dispatcher + async (the deferred multithreaded construction)  [token S450+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (threading infrastructure) — the interactive viewer
+> (S329_1) is UNCHANGED; S222_1 RELOAD + S329_1 input still demonstrated. This sprint COMPLETES the
+> Sprint-8 DEFERRAL (the `ASYNC/MULTITHREADING DEFERRED — resolved by Sprint 11a` marker) — the
+> Dispatcher + Task/Executor + co_async/InvokeAsync + multi-thread multi-instance model becomes REAL here,
+> at its OWN step, NOT a silent backfill of Sprint 8.
+>
+> RATIONALE / DESIGN FRAME (the architect's reasoning, Sprint-8 review):
+> - S326/S327 were originally scoped into Sprint 8, but the review found the Dispatcher/async is a
+>   SEPARATE, LARGER sprint (a whole parallel-threaded-UI construction), not a single-sprint add-on — the
+>   "single-threaded smell" argument. Sprint 8 is intentionally single-threaded; 11a owns the threading.
+> - **We do NOT impose a dispatcher/async runtime.** The app MAY inject its own (an `IAsyncDispatcher`
+>   seam + an interface to instantiate + replace ours). "we do not force uses that use our framework
+>   instead of their own to use our dispatcher" — the plan is a REPLACEABLE seam, per ADR-006's
+>   app-owned, NO-DI composition.
+> - Three threads × three independent vaml UI instances (no locks, no knowledge of each other) + ONE
+>   shared input pump that routes each mouse/keyboard event to the OWNING instance (the S323 marshaller
+>   generalized per-instance) — Axis A (UI-event threading). The Vulkan multi-threaded *command-record*
+>   axis (Axis B) is a DIFFERENT, orthogonal concern (already partly in the render path) and is tracked
+>   separately, NOT folded into 11a (recorded, not silent).
+> - When the UI thread goes silent it checks the queue and runs co_async/co_await routines (the
+>   Dispatcher's deferred-work pump) — the thread-pool-with-spin-check model where many worker threads
+>   ACT AS IF they were the UI thread, but a mechanism allows only ONE at a time on the actual UI thread
+>   (`InvokeAsync` on that thread); `co_await` places the callback back on the pool.
+- S450 dep:S408  `IAsyncDispatcher` seam (REPLACEABLE — apps may inject their own) + the default
+      `Dispatcher` (single-owner FIFO message pump; owner thread id = the constructing thread; Post /
+      ProcessQueue / PumpInvoke; the ONE Sprint-11a cross-thread lock under ADR-018 — the standing
+      ChangeQueue-mutex precedent). [Completes Sprint-8 S326 deferral]
+- S451 dep:S450  `Task<T>` + `Executor` + SyncExecutor + DispatcherExecutor + CancellationToken — the
+      ADR-010 minimal continuation model (FIRST Task usage). [Completes Sprint-8 S326-first-Task deferral]
+- S452 dep:S451  co_async / co_await (C++20 coroutines) over the injected dispatcher: the library exposes
+      an awaitable that resumes on the owner (UI) thread; full continuation scheduling + cancellation.
+- S453 dep:S452  `InvokeAsync`: schedule a runnable on the Dispatcher's owner thread + return an awaitable
+      Task; the app/library idiom for "do X on the UI thread".
+- S454 dep:S453  Async continuation updates a VM prop → binding updates UI (no races: VM written ONLY on
+      its owner thread; binding fires on that same thread; the Dispatcher marshals). [Completes the
+      Sprint-8 S327 deferral — the no-races contract, real]
+- S455 dep:S454  Multi-instance per-thread model: N independent vaml trees, each on its OWN thread;
+      one shared input pump (S323 generalized) routes each event to the owning instance; NO locks between
+      instances, no shared knowledge.
+- S456 dep:S455  Thread-pool-as-UI model: worker threads act as the UI thread but only one drains at a
+      time on the real UI thread; `co_await` returns work to the pool (the "one-at-a-time on the actual
+      UI thread" invariant).
+- S457 dep:S456  ADR-018 lock governance for 11a: catalog EVERY lock this sprint adds (the Dispatcher
+      Post queue + the co_async resume handoff), each approved under the standing precedent + declared in
+      the public surface; everything else lockless (relaxed atomics, thread-affinity).
+- S458 dep:S457  REFACTOR GATE(S11a): multithreaded constructs real + green both CI lanes; TSan-clean on
+      the multi-thread suites; no deadlocks; replacement seam proven (an app-injected custom dispatcher
+      substitutes the default).
+- S459 dep:S458  SURVIVOR + checkpoint note (Sprint 8's deferral RESOLVED; Sprint 11a owns the threading).
 
 ---
 ## Sprint 12 — Docs from evidence + production packaging  (goal: production-ready repo + packaging)  [token S480+]
