@@ -81,6 +81,11 @@
 
 namespace vaml {
 
+// Forward declaration (the full ResourceDictionary is defined in
+// ResourceDictionary.h; UIElement holds an owned unique_ptr to it, so a
+// forward declaration is sufficient here and avoids an include cycle).
+class ResourceDictionary;
+
 // WPF-faithful visibility states, stored on the Visibility DP via the Int32
 // value path (Value has no enum tag in S030 — the enum rides Int32).
 enum class Visibility : std::uint8_t
@@ -97,6 +102,24 @@ public:
     // S121: the pimpl owns the visual children (unique_ptr<UIElement>), so the
     // destructor must be out-of-line (default) for the Impl to be complete here.
     ~UIElement() override;
+
+    // --- Resources slot (S360) ---------------------------------------------
+    // The element's OWN ResourceDictionary (WPF FrameworkElement.Resources
+    // analogue). OPTIONAL — the default is no resources. The S360 three-scope
+    // lookup (find_for_element) reads this slot first, then walks the parent
+    // chain, then app + system. `set_resources` takes OWNERSHIP; `resources()`
+    // returns the non-owning pointer (nullptr when none).
+    //
+    // S360 OBJECT-POOL BUDGET: the ResourceDictionary is stored OUT-OF-LINE in
+    // a process-wide side-table keyed by the element's address (NOT an inline
+    // unique_ptr member), so a UIElement/grid that never declares resources
+    // does not grow — the S145 slot-size invariant is preserved. An element
+    // with resources has ONE owner (the dictionary) + one lifetime (torn down
+    // when the element is destroyed / the resource is removed / the side-table
+    // is reset). See ResourceDictionary.cpp.
+    void set_resources(std::unique_ptr<ResourceDictionary> resources);
+    [[nodiscard]] const ResourceDictionary* resources() const noexcept;
+    [[nodiscard]] ResourceDictionary* resources() noexcept;
 
     // --- Layout slot (RESOLVED BY S122) ------------------------------------
     // DesiredSize + final rect are the S123/S124 WRITE targets, exposed

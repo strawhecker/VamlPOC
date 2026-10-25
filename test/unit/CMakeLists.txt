@@ -69,6 +69,54 @@ add_executable(vaml-core-tests
     VamlReader_s093_test.cpp
     VamlReader_s094_test.cpp
     GoldenDocs_test.cpp
+    # S360 (dep:S329) — ResourceDictionary + merged dictionaries + three-scope
+    # lookup (tree + app + system). The Sprint-9 resource foundation: the
+    # OWNED ResourceValue model (Object/Plain/Deferred), interned-keyed ordered
+    # store with dedupe-throws-unchanged, WPF merge precedence (self-wins +
+    # sibling-last-wins), get() -> shared ResourceLookupException(MissingKey),
+    # the find_for_element tree->...->app->system walk with shadowing at each
+    # scope, and the UIElement.resources() slot.
+    ResourceDictionary_test.cpp
+    # S360_1 (dep:S360) — IconKey resource entry (ADR-015): a strong content-
+    # equal key a ViewModel exposes (never a path/SVG/render object), resolved
+    # through the ResourceDictionary. resolve_icon reuses the shared S360
+    # ResourceLookupError::MissingKey (decision 3 — NOT duplicated; S361 reuses
+    # the same error); a Plain/non-Object entry -> MissingKey; the S360 tree
+    # -> app walk with element-scope shadowing.
+    IconKey_test.cpp
+    # S361 (dep:S360) — StaticResource/DynamicResource resolution; merge
+    # precedence; missing-key errors. RESOLVES the S092 x:Key and the S252/S253
+    # MarkupExtensionKind::None deferrals. The parse_resource_markup seams
+    # ({StaticResource X}/{DynamicResource X}; non-resource -> recognized=false;
+    # empty-key -> malformed), the ResourceResolver static path (applied once,
+    # missing -> the SHARED decision-3 ResourceLookupException(MissingKey)), the
+    # merged-dictionary precedence through markup, and the dynamic path (applies
+    # now + records the link; reapply_dynamic_resources re-pushes on a source
+    # change; NEVER throws on a transiently-missing key — holds).
+    ResourceResolution_test.cpp
+    # S362 (dep:S361) — Style + Setter + BasedOn + PropertyTrigger + DataTrigger:
+    # the WPF-faithful style DATA MODEL + seams. setter_value_kind discrimination,
+    # Style target_type + ordered setters, BasedOn pointer wiring, trigger kind
+    # discrimination (Property vs Data with the S240 PropertyPath on DataTrigger),
+    # style_valid gate.
+    Style_test.cpp
+    # S363 (dep:S362) — Style applied to type: explicit setters land on DPs,
+    # BasedOn chain (base then child-overrides), local-wins (authored local not
+    # clobbered), PropertyTrigger fires/un-fires on DP-equality, DataTrigger fires
+    # through the S240 path + dependency-object reader, and implicit style by
+    # target type (find_implicit_style + apply_implicit_style from the tree/app
+    # scope).
+    StyleApply_test.cpp
+    # S364 (dep:S363) — ControlTemplate + visual states: template record + owned
+    # content, instantiate -> live tree, apply_control_template, enter_state/
+    # exit_state brush swap (SolidColorBrush Color lands on the target brush DP),
+    # find_state, target-type checking. SolidColorBrush is core data (ADR-011).
+    ControlTemplate_test.cpp
+    # S365 (dep:S364) — TemplateBinding to control props; templatable Button
+    # restyle: the {TemplateBinding prop} read of the control DP, control-DP
+    # change observed (re-skin), the templated Button restyle + visual-state
+    # attach. Real Button remains its own S401 (mechanism proven here).
+    TemplateBinding_test.cpp
     # S240 (dep:S226) — PropertyPath parser + evaluator (dot-path; indexers;
     # null-safe; errors reported). The Class A syntax suite (valid dot/indexer/
     # mixed paths + every syntax error as a typed PropertyPathException naming
@@ -446,6 +494,23 @@ add_executable(vaml-tools-tests
     # (x:Class owner binding + class mapping + OwnerClassMismatch + the
     # no-text-parameter static_assert for "release uses compiled only").
     Pack_s289_test.cpp
+    # S366 (dep:S365) — Dual-path shared style/template resolution parity: a
+    # styling doc loads through BOTH the S2 text reader and the S7 compiled
+    # reader; implicit-style + {StaticResource} resolution reach the SAME core
+    # surface (find_implicit_style/apply_implicit_style/find_for_element)
+    # identically on both paths. Proves S2+S7 agree on the styling RESOLUTION
+    # surface. (Full resource-<authoring>-grammar in the S2/S7 parsers is a
+    # recorded NO-GAP forward surface; the mechanism tokens S360–S365 ship the
+    # resolution engine this test drives through the shared core functions.)
+    TemplateParity_test.cpp
+    # S369 (dep:S368) — VIEWER-GROWTH: live re-skin on template/style/brush edit.
+    # The S9 anti-grave-whistle gate token. Compiles the REAL viewer seam
+    # (vaml_viewer/viewer_restyle.h, ADR-021) into the test target: the pure
+    # re-skin decision table + the plan runner that re-Loads a styled .vaml and
+    # applies an EDITED brush through the S364 state/brush-DP engine — the
+    # rendered fill re-skis live (edited red -> green). Missing target readable,
+    # bad markup fails with structured detail.
+    ViewerRestylePlan_test.cpp
     # S293 (dep:S288) — VIEWER-GROWTH: vaml_viewer opens a COMPILED `.vbaml`
     # (the S280→S289 path visible). Compiles the REAL viewer seam
     # (vaml_viewer/compiled_open.h + the shared app.h) into the TOOLS test target

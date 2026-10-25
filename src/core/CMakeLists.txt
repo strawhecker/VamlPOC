@@ -32,6 +32,14 @@ vaml_add_library(core
     src/Transform.cpp
     src/LayoutSlot.cpp
     src/LayoutManager.cpp
+    src/ResourceDictionary.cpp    # S360 — ResourceDictionary + merged + three-scope lookup
+    src/IconKey.cpp               # S360_1 — IconKey resource entry (ADR-015)
+    src/ResourceMarkup.cpp        # S361 — {StaticResource}/{DynamicResource} parse + resolution seams
+    src/ResourceResolver.cpp      # S361 — static/dynamic resource resolution over the S360 lookup
+    src/Style.cpp                 # S362 — Style + Setter + BasedOn + PropertyTrigger + DataTrigger
+    src/StyleApplier.cpp          # S363 — style application to typed elements (setters + triggers)
+    src/Brush.cpp                 # S364 — SolidColorBrush (core data brush + Color DP, ADR-011)
+    src/ControlTemplate.cpp       # S364/S365 — ControlTemplate + visual states + TemplateBinding
     src/PropertyPath.cpp
     src/BindingDiagnostics.cpp
     src/ObservableObject.cpp

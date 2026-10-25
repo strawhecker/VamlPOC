@@ -21,6 +21,7 @@
 
 #include "vaml/core/UIElement.h"
 
+#include "vaml/core/ResourceDictionary.h" // S360 — the complete Resources slot type (dtor + accessors)
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/PropertyMetadata.h"
 #include "vaml/core/PropertyFlags.h"
@@ -130,7 +131,36 @@ UIElement::UIElement()
 }
 
 VAML_CORE_EXPORT
-UIElement::~UIElement() = default;
+UIElement::~UIElement()
+{
+    // S360 lifetime: an element that owned a ResourceDictionary releases it on
+    // destruction so the side-table holds no dangling key (the S245 detach-on-
+    // destroy discipline applied to the resource side-table).
+    vaml::detail::remove_element_resources(this);
+}
+
+// --- S360 Resources slot (stored OUT-OF-LINE; see ResourceDictionary.cpp) ----
+
+VAML_CORE_EXPORT
+void UIElement::set_resources(std::unique_ptr<ResourceDictionary> resources)
+{
+    // The side-table is populated/owned by ResourceDictionary.cpp (the only TU
+    // that knows the complete ResourceDictionary type).
+    vaml::detail::set_element_resources(this, std::move(resources));
+}
+
+VAML_CORE_EXPORT
+const ResourceDictionary* UIElement::resources() const noexcept
+{
+    return vaml::detail::get_element_resources(this);
+}
+
+VAML_CORE_EXPORT
+ResourceDictionary* UIElement::resources() noexcept
+{
+    return const_cast<ResourceDictionary*>(
+        vaml::detail::get_element_resources(const_cast<const UIElement*>(this)));
+}
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_visibility(Visibility v)

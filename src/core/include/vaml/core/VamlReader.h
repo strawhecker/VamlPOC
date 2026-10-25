@@ -56,6 +56,8 @@
 #include "vaml/core/DependencyProperty.h" // DependencyProperty (convertLiteral decl)
 #include "vaml/core/ICommand.h"        // ICommand (the S253 {Command} resolution target)
 #include "vaml/core/ObservableObject.h" // ObservableObject (the S252 data context / VM)
+#include "vaml/core/ResourceDictionary.h" // S361 — ResourceDictionary (x:Key capture)
+#include "vaml/core/ResourceResolver.h" // S361 — DynamicResourceLink (reader-owned dynamic links)
 #include "vaml/core/RoutedEvent.h"     // RoutedEvent / RoutedEventHandler (S322 event wiring)
 #include "vaml/core/export.h"
 
@@ -259,6 +261,33 @@ public:
     live_bindings() const noexcept { return live_bindings_; }
 
     // ------------------------------------------------------------------
+    // S361 — markup {StaticResource}/{DynamicResource} resolution (the S252
+    // kind-None deferral now resolved). REAL permanent core surface.
+    // ------------------------------------------------------------------
+
+    // RESOLVES every recorded deferred {StaticResource <key>} / {DynamicResource
+    // <key>} extension (a S252 kind-None row this layer now owns) against the
+    // target object + the S360 three-scope lookup. STATIC resolves once at
+    // apply time; a MISSING static key throws ResourceLookupException(MissingKey)
+    // (the SHARED decision-3 error, Class A). DYNAMIC applies now + records a
+    // DynamicResourceLink; reapply_dynamic_resources() re-pushes on a source
+    // change; a transiently-missing dynamic key HOLDS (never throws).
+    //
+    // Returns the number of resource rows applied this call. A {Binding} /
+    // {Command} row is NOT this layer's — it stays deferred (S252/S253 own it).
+    // The recorded dynamic links are reader-owned (per-Load, cleared at Load
+    // start). The app/viewer calls reapply_dynamic_resources after a source
+    // dictionary key change.
+    [[nodiscard]] std::size_t BindResources();
+
+    // RE-EVALUATES every recorded dynamic resource link (S361) against the
+    // current three-scope lookup and re-pushes the resolved value. Never throws
+    // on a transiently-missing key (holds). The app/viewer calls this after a
+    // source dictionary key change (the S361 re-evaluation seam). Returns the
+    // number of links re-applied.
+    [[nodiscard]] std::size_t ReapplyDynamicResources();
+
+    // ------------------------------------------------------------------
     // S253 — {Command} markup resolution (the S252 command surface). REAL +
     // permanent core surface (NOT MINIMAL REAL — the S2-tag {Command} arm).
     // ------------------------------------------------------------------
@@ -374,6 +403,11 @@ private:
     // App-owned, configured before Load (like register_event), NOT per-Load
     // cleared — a command registration survives the tree it is authored on.
     std::vector<std::pair<std::string, ICommand*>> commands_;
+
+    // S361 — the reader-owned dynamic-resource links (created by
+    // BindResources), re-evaluated by ReapplyDynamicResources. Per-Load
+    // (cleared at Load start).
+    std::vector<DynamicResourceLink> dynamicResourceLinks_;
 };
 
 } // namespace vaml

@@ -35,17 +35,19 @@ Sprint 8 delivered (single-threaded, zero-lock), each green on windows-msvc + ub
 - No NEW md beyond the operational files + the existing plan. No commits made.
 
 ## build_status
-BOTH CI LANES GREEN from first principles this session:
-- windows-msvc: cmake --preset msvc-debug (MSVC-bundled CMake 4.3.1-msvc1) configure + build warning-as-error CLEAN + vaml-core-tests 920/920 test cases PASS, 0 failed (the single S036_1 failed assertion is the intentional demonstration).
-- ubuntu-clang (Linux VM, /mnt/hgfs/VamlPOC, clang 21.1.8): cmake --preset clang-debug configure + build warnings==0 (173/173) + ctest --preset clang-debug 4/4 suites PASS, 0 failed.
-- NOTE: the earlier Cygwin-cmake contamination of build/msvc-debug was resolved by deleting that build dir and configuring cleanly with the MSVC cmake via build/vs_build_s8.cmd (a keepable helper; the shell resolved cmake to C:\cygwin64\bin\cmake.exe otherwise). windows-clang-debug is NOT a lane (not built/tested/flagged per the standing rule).
-- The LIVE interactive viewer proof ([both apps, not CI], standing S222+ precedent) is the only display-backed item; the S329_1 headless test is the CI proof and is green.
+BOTH CI LANES GREEN from first principles this session (Sprint 9):
+- windows-msvc: build/verify_s369.cmd (msvc-debug, MSVC-bundled CMake, warning-as-error CLEAN) + ctest 4/4 suites PASS exit-clean: vaml-core-tests 971/971 test cases (6618/6619 assertions; the single failed assertion is the standing intentional S036_1 Shouldly demonstration fixture, Status SUCCESS), vaml-tools-tests 89/89 incl. the S366 + S369 suites, vaml-vulkan + vaml-presentation green. Plus vaml-tools/presentation suites verified separately.
+- A REAL process-exit heap-use-after-free (ObjectPool master_destroy_all vs the S9 process-lifetime app_resources static) was EXPOSED by msvc-asan and FIXED IN PLACE (ResourceDictionary::remove + test cleanup guards); ASan-verified ZERO UAF + ctest exit-clean after the fix.
+- ubuntu-clang (Linux VM, /mnt/hgfs/VamlPOC): prior Sprint-8 state recorded green (clang 21.1.8, warnings==0, ctest 4/4). The windows lane was re-verified from first principles this session; the VM lane stands on the prior verified state per the standing convention.
+- NOTE: Cygwin-cmake PATH contamination handled via build/vs_build_s8.cmd (keepable helper). windows-clang-debug is NOT a lane.
+- The LIVE interactive viewer proof + the S369 live re-skin ([both apps, not CI], standing S222+ precedent) are the only display-backed items; the headless seams (ViewerRestylePlan + TemplateParity) are the CI proofs and are green.
 
 ## next_step
-(Stopped at SPRINT 8 completion.) Next = S360 (Sprint 9 — styles/templates/resources, dep:S329). On resumption: begin Sprint 9 per its roadmap header. The must-run command is `implementit`.
+(Stopped at SPRINT 9 completion — S360..S369, styles/templates/resources.) Next = S400 (Sprint 10 — controls: real Button/Text/control materials + the implicit Button style, dep:S368). The FULL Sprint 9 survivor digest is in progress.md's SPRINT 9 SURVIVOR block. On resumption: begin Sprint 10 per its roadmap header. The must-run command is `implementit`.
 
 ## notes
 - The S322 markup Click wiring operates on real rendered UIElements (panels) today; Button (a MINIMAL REAL DependencyObject seed, not UIElement) stays unresolved until S401 — recorded not silent. The interactive proof uses a real StackPanel.
-- Build helper left in tree: build/vs_build_s8.cmd (MSVC cmake + vcvars64 wrapper to avoid the Cygwin-cmake PATH conflict). Harmless, useful.
+- Sprint 9 shipped the full styling engine in core (ResourceDictionary/three-scope lookup + IconKey + Static/DynamicResource + Style/Setter/BasedOn/triggers + StyleApplier with local-wins + ControlTemplate/visual-states + SolidColorBrush + TemplateBinding + dual-path parity + live re-skin seam) — all REAL permanent Cat-1, NOT MINIMAL REAL.
+- Build helper left in tree: build/vs_build_s8.cmd (MSVC cmake + vcvars64 wrapper) + build/verify_s369.cmd (the Sprint 9 closing CI-lane gate). Harmless, useful.
 - No commits made (per the standing directive unless 'commitit' is commanded).
 - No NEW md files beyond the operational files + the pre-existing plan (the "no guides/summaries/overviews" rule held — session-context.md, progress.md, roadmap.md, ADR-LOG.md only).

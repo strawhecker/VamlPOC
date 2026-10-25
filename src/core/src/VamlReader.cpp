@@ -15,6 +15,9 @@
 #include "vaml/core/Intern.h"                  // S140/S144: interned string_view keys for the x:Name registry
 #include "vaml/core/ParsedElement.h"           // ParsedElement/ParsedAttribute + parse_vaml
 #include "vaml/core/PropertyId.h"              // PropertyId
+#include "vaml/core/ResourceDictionary.h"      // S361: x:Key capture -> element Resources
+#include "vaml/core/ResourceMarkup.h"          // S361: parse_resource_markup (Static/Dynamic)
+#include "vaml/core/ResourceResolver.h"        // S361: apply_markup / dynamic reapply
 #include "vaml/core/UIElement.h"               // S322: add_routed_handler target
 #include "vaml/core/ValueConverter.h"          // ValueConverterRegistry + register_builtin_converters
 #include "vaml/core/XmlScanner.h"              // XmlDirectiveType
@@ -145,7 +148,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     {
         // --- S092 Strand A — x:Name / x:Class directives (now CONSUMED). ---
         // S083 classified these; S091 skipped them; S092 records them. The
-        // x:Key -> S361 and x:Null -> S084 paths remain deferred unchanged.
+        // x:Null -> S084 path remains deferred unchanged.
         if (attr.directive == XmlDirectiveType::Name)
         {
             // x:Name registry keys are INTERNED string_views (S144 — S140
@@ -183,10 +186,24 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
             root_class_ = std::string(attr.value);
             continue;
         }
+        if (attr.directive == XmlDirectiveType::Key)
+        {
+            // x:Key stays DEFERRED at the reader (S092 -> S361 deferral). The
+            // S361 StaticResource/DynamicResource resolution (BindResources /
+            // ReapplyDynamicResources) is delivered at S361; the x:Key-to-
+            // dictionary AUTHORING capture requires the `<X.Resources>` /
+            // `<ResourceDictionary>` property-element syntax this parser does
+            // NOT yet accept — so a bare x:Key on a non-resource child remains
+            // a visual/tree element here (WPF-correct for this reader surface;
+            // the GoldenDocs contract asserts exactly this). Recorded NO-GAP:
+            // the x:Key dictionary-capture is the S360/S366-style resource-
+            // authoring surface, NOT silently backfilled. (See writeup.)
+            continue;
+        }
         if (attr.directive != XmlDirectiveType::None)
         {
-            // Remaining directives (x:Key -> S361, x:Null -> S084): still
-            // deferred, recorded NO-GAP, NOT silent.
+            // Remaining directives (x:Null -> S084): still deferred, recorded
+            // NO-GAP, NOT silent.
             continue;
         }
 
@@ -258,7 +275,8 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     root_class_.clear();
     deferred_extensions_.clear();
     deferred_event_handlers_.clear();
-    live_bindings_.clear(); // S252: per-Load live binding scope (RAII detach)
+    live_bindings_.clear();          // S252: per-Load live binding scope (RAII detach)
+    dynamicResourceLinks_.clear();   // S361: per-Load dynamic-resource scope
 
     // S144: reserve the per-Load vectors from the parsed tree's known size
     // (no reallocation churn while building).
@@ -374,6 +392,46 @@ std::size_t VamlReader::BindExtensions()
     }
 
     return bound;
+}
+
+// ------------------------------------------------------------------ S361 — markup {StaticResource}/{DynamicResource}
+VAML_CORE_EXPORT
+std::size_t VamlReader::BindResources()
+{
+    ResourceResolver resolver;
+    std::size_t applied = 0;
+    for (const DeferredExtension& ext : deferred_extensions_)
+    {
+        // Parse the S2-tag source ("{StaticResource X}" / "{DynamicResource X}").
+        const ResourceMarkup m = parse_resource_markup(ext.source);
+        if (!m.recognized || m.malformed)
+        {
+            // Not a resource reference (a {Binding} / {Command} / x:Null / bare
+            // extension) — NOT this layer's row. Left deferred to its own layer.
+            continue;
+        }
+        // The resource markup is authored on a UIElement target (only a
+        // UIElement has the tree-scope Resources walk + a DP to set). A non-UI
+        // target is a no-op (recorded NO-GAP — resources resolve on UI elements).
+        auto* ui = dynamic_cast<UIElement*>(const_cast<DependencyObject*>(ext.target));
+        if (ui == nullptr)
+        {
+            continue;
+        }
+        // The resolver applies a Static (once, missing -> the SHARED decision-3
+        // ResourceLookupException(MissingKey) — fail loud) or records + applies
+        // a Dynamic link (applies now + records into dynamicResourceLinks_;
+        // transiently-missing HOLDS, never throws).
+        applied += resolver.apply_markup(*ui, ext.key, ext.source, dynamicResourceLinks_);
+    }
+    return applied;
+}
+
+VAML_CORE_EXPORT
+std::size_t VamlReader::ReapplyDynamicResources()
+{
+    ResourceResolver resolver;
+    return resolver.reapply_dynamic_resources(dynamicResourceLinks_);
 }
 
 // ------------------------------------------------------------------ S253 — {Command}

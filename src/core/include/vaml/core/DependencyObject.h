@@ -199,6 +199,15 @@ public:
     //     that disagree on the value type).
     const PropertyKey& register_property(PropertyKey key, PropertyMetadata metadata);
 
+    // True when this object holds a LOCAL override for the property named by
+    // `id` (i.e. a value was Set on THIS object, distinct from an inherited or
+    // default value). S363 (the style applier) uses this for the WPF-faithful
+    // LOCAL-WINS contract: a style setter must NOT clobber an authored local
+    // value. A Null-valued local IS a local (a store entry with local != Null).
+    // Returns false for an unregistered/absent property or an inherited/default
+    // value. Never throws.
+    [[nodiscard]] bool has_local_value(PropertyId id) const noexcept;
+
     // Reads the property's current EFFECTIVE value. S039 is the read-side
     // resolution primitive; `Get` delegates to it. Resolution order:
     //   - NOT Inherits:          local ?? default

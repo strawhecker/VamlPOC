@@ -295,6 +295,22 @@ Value DependencyObject::Get(PropertyId id) const
 }
 
 VAML_CORE_EXPORT
+bool DependencyObject::has_local_value(PropertyId id) const noexcept
+{
+    const PD* entry = store_.find(id.name());
+    if (entry == nullptr)
+    {
+        return false; // absent / no local override for an unattached read
+    }
+    // A local override is stored as a non-Null local in the object's OWN store.
+    // (An inherited value never lands here — it resolves through the parent
+    // chain, not the object's store; a Null-valued local is genuinely a local,
+    // but DependencyObject stores absent == Null, so a present non-Null entry
+    // flags a real authored/Set local override.)
+    return !entry->local.isNull();
+}
+
+VAML_CORE_EXPORT
 Value DependencyObject::GetEffectiveValue(PropertyId id) const
 {
     const PD* entry = store_.find(id.name());
