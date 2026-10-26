@@ -22,7 +22,44 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
+#include <atomic>
 #include <utility>
+
+namespace {
+
+// S446 hardening — GLFW process-lifetime singleton ownership.
+//
+// GLFW is a PROCESS-LIFETIME library: `glfwInit()` allocates an internal
+// `_glfw` context, and `glfwCreateWindow()` allocates the `_glfw.window` heap
+// block. Nothing is reclaimed until `glfwTerminate()` runs, and GLFW has
+// explicit lifetime rules:
+//   * every window must be `glfwDestroyWindow`'d;
+//   * `glfwTerminate()` must only run AFTER the last window is destroyed.
+//
+// Before S446, PlatformWindow created windows but NEVER destroyed them nor
+// terminated GLFW, so the library context + every window silently outlived the
+// whole process — a genuine leak the S446 LSan lane (verify_s446_asan.cmd,
+// clang-asan + detect_leaks=1 on the Ubuntu VM) caught:
+//
+//   allocated by vaml::vulkan::PlatformWindow::create
+//     -> ViewerApp::create_compiled (the pre-existing S293 test builds a REAL
+//        GLFW window)
+//   ERROR: LeakSanitizer: detected memory leaks
+//
+// This was a REAL defect (not a false positive), and the S446 "no leaks over
+// 10k frames / no leaks" contract is exactly the warrant to close it — the
+// retained app-shell / viewer windows must fully release at teardown.
+//
+// Fix: PlatformWindow now REFERENCE-COUNTS its GLFW windows. The first window
+// runs `glfwInit()` (returns false and drops the ref if init is unavailable);
+// each window is `glfwDestroyWindow`'d in its destructor (the TRUE RAII close);
+// and the LAST window to be destroyed runs `glfwTerminate()` — the only legal
+// caller, after all windows are gone (GLFW's own lifetime rule). This makes the
+// window+library lifetime exactly match PlatformWindow's own lifetime on BOTH
+// backends (Win32 + X11), so a fully-torn-down window leaves a clean LSan heap.
+std::atomic<int> g_glfwWindowCount{0};
+
+} // namespace
 
 namespace vaml::vulkan {
 
@@ -118,18 +155,47 @@ struct PlatformWindow::Impl
 {
     GLFWwindow* window = nullptr;
     WindowCallbacks callbacks;
+
+    // S446 RAII close: destroy THIS window, and when it is the last one, legally
+    // terminate GLFW (GLFW requires every window be glfwDestroyWindow'd before
+    // glfwTerminate). This is what releases the library context + window that
+    // previously leaked for the whole process lifetime.
+    ~Impl()
+    {
+        if (window)
+            glfwDestroyWindow(window);
+        if (--g_glfwWindowCount == 0)
+            glfwTerminate();
+    }
 };
 
 PlatformWindow::PlatformWindow() = default;
 
-PlatformWindow::PlatformWindow(PlatformWindow&&) noexcept = default;
-PlatformWindow& PlatformWindow::operator=(PlatformWindow&&) noexcept = default;
-PlatformWindow::~PlatformWindow() = default;
+PlatformWindow::PlatformWindow(PlatformWindow&& other) noexcept
+    : impl_(std::move(other.impl_))
+{
+}
+
+PlatformWindow& PlatformWindow::operator=(PlatformWindow&& other) noexcept
+{
+    if (this != &other)
+    {
+        // Release any window THIS object currently owns before adopting other's.
+        impl_.reset();
+        impl_ = std::move(other.impl_);
+    }
+    return *this;
+}
+
+PlatformWindow::~PlatformWindow()
+{
+    impl_.reset();  // destroys the Impl (and its GLFW window when owned)
+}
 
 std::unique_ptr<PlatformWindow> PlatformWindow::create(Config config, WindowCallbacks callbacks)
 {
-    if (!glfwInit())
-        return nullptr;
+    if (g_glfwWindowCount == 0 && !glfwInit())
+        return nullptr;   // first window: init GLFW; bail out clean if unavailable
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);  // Vulkan host, no GL context
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -143,9 +209,12 @@ std::unique_ptr<PlatformWindow> PlatformWindow::create(Config config, WindowCall
                                            nullptr, nullptr);
     if (!self->impl_->window)
     {
-        glfwTerminate();
+        // No live windows remain from this failed attempt => legally terminate.
+        if (g_glfwWindowCount == 0)
+            glfwTerminate();
         return nullptr;
     }
+    ++g_glfwWindowCount;  // OWN one GLFW window; the Impl's destructor will release it
 
     // Own the callback surface through GLFW's user pointer (non-owning; the
     // Impl lives as long as the PlatformWindow).

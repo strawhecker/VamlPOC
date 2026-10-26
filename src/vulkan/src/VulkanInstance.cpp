@@ -7,6 +7,7 @@
 #include <vaml/vulkan/VulkanInstance.h>
 
 #include <cstring>
+#include <string>
 #include <vector>
 
 namespace {
@@ -95,26 +96,45 @@ VulkanInstance::create(const VulkanLoader& loader, Config config)
     const bool debug = config.enableValidation && !isReleaseBuild();
 
     // --- Enumerate AVAILABLE instance layers + extensions to filter against.
+    //
+    // S446 hardening: the VkLayerProperties/VkExtensionProperties name fields
+    // (p.layerName/p.extensionName) are only valid for the lifetime of the
+    // `props` vector that backs them. The previous code stored those char*
+    // directly into the `available*` vectors, so when the enclosing block
+    // scopes ended (destroying `props`), the later availableContains() checks
+    // dereferenced DANGLING pointers — a heap-use-after-free the S446 ASan
+    // lane (verify_s446_asan.cmd, msvc-asan under /fsanitize=address) caught.
+    // We now OWN the names as copies that live for the whole create() call.
+    std::vector<std::string> availableLayerNames;
     std::vector<const char*> availableLayers;
     {
         uint32_t count = 0;
         loader.vkEnumerateInstanceLayerProperties(&count, nullptr);
         std::vector<VkLayerProperties> props(count);
         loader.vkEnumerateInstanceLayerProperties(&count, props.data());
+        availableLayerNames.reserve(count);
         availableLayers.reserve(count);
         for (auto& p : props)
-            availableLayers.push_back(p.layerName);
+        {
+            availableLayerNames.emplace_back(p.layerName);
+            availableLayers.push_back(availableLayerNames.back().c_str());
+        }
     }
 
+    std::vector<std::string> availableExtensionNames;
     std::vector<const char*> availableExtensions;
     {
         uint32_t count = 0;
         loader.vkEnumerateInstanceExtensionProperties(nullptr, &count, nullptr);
         std::vector<VkExtensionProperties> props(count);
         loader.vkEnumerateInstanceExtensionProperties(nullptr, &count, props.data());
+        availableExtensionNames.reserve(count);
         availableExtensions.reserve(count);
         for (auto& p : props)
-            availableExtensions.push_back(p.extensionName);
+        {
+            availableExtensionNames.emplace_back(p.extensionName);
+            availableExtensions.push_back(availableExtensionNames.back().c_str());
+        }
     }
 
     // --- Choose layers (debug-gated + availability-filtered).

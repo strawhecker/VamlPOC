@@ -830,6 +830,20 @@ add_executable(vaml-presentation-tests
     # reader) — the "make all S10 controls functional with children defined in a
     # running app" directive of Sprint 11. Header-only seam (app_shell.h).
     AppShellPlan_s440_test.cpp
+    # S446 (dep:S445) — the app-shell HARDENING/VERIFICATION suite (headless Rail
+    # 1, vaml-presentation-tests — it links vaml-presentation so it can drive the
+    # S212 headless VamlRenderer host + the REAL app-shell tree + the S146 funnel).
+    # PROVES the three S446 title claims against the REAL app-shell through the
+    # REAL library surfaces. (a) NO LAYOUT THRASH: the S146 heap-churn contract
+    # (heap_allocation_count/bytes) elevated to the app-shell arrange+encode+
+    # publish steady state (FLAT after warmup across repeated passes). (b) NO LEAK
+    # OVER 10K FRAMES (headless equivalent): 10,000 repeated producer passes stay
+    # heap-flat AND the retained-reader reachability (RunButton/InputBox/DimSlider/
+    # EnabledCheck/StatusText) stays intact. (c) RETAINED-STABLE AFTER 10K: the
+    # S443/S445 TwoWay wires still write back to the VM store. The authoritative
+    # zero-leak on BOTH compilers is the ASan/LSan lane (verify_s446_asan.cmd)
+    # running THIS suite under ASan.
+    AppShellChurn_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
