@@ -601,6 +601,23 @@ add_executable(vaml-tools-tests
     # via InitializeComponentFrom (S289 single-exe path), and malformed bytes →
     # typed never-silent failure. Compiles the ACTUAL CMake-generated embed .cpp.
     AppShellCompile_test.cpp
+    # S447 (dep:S446) — IN-REPO E2E INTEGRATION of the app-shell (lives in
+    # vaml-tools-tests — it links vaml-tools so leg (D) can load the release
+    # compiled sidecar, and it already hosts the S444 suite + the vaml_viewer
+    # include). One coherent narrative across all FIVE surfaces: (A) text parse →
+    # live Window tree (S440), (B) VM/binding/command wiring (S443), (C) each
+    # interaction → VM props + bound target DPs (S445), (D) release-compiled +
+    # dev-text serving the SAME named shell in ONE scene (S444 single-scene
+    # contraction — NOT S444's per-path gold), (E) the LiveReload re-wire (S222_1:
+    # edit → reload → fresh tree → binding plan re-run → S243/S244 wires re-arm).
+    # Necessarily compiles the binding-plan + reload seam TUs (app_shell_vm.cpp +
+    # load_file.cpp + file_watch.cpp + live_reload.cpp — the ADR-021 single source
+    # of truth, per the S443/S445/S221/S222_1 precedent in the other targets).
+    AppShellIntegration_test.cpp
+    ../../vaml_viewer/app_shell_vm.cpp      # S447: run_app_shell_binding_plan + the VM/composition impls
+    ../../vaml_viewer/load_file.cpp         # S447/S221: the reload load path (vaml::load_file)
+    ../../vaml_viewer/file_watch.cpp        # S447/S222_1: the file watcher (LiveReload core)
+    ../../vaml_viewer/live_reload.cpp       # S447/S222_1: the reload coordinator
 )
 
 # Link the S287 test against the CMake-generated embed source (compiles the

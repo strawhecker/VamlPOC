@@ -1,123 +1,121 @@
 # VAML session-context (per-run state)
 
 ## last_command
-implementit DONE — S446 (dep:S445) — Zero validation-layer errors; no leaks over 10k frames; no
-layout thrash (the in-repo app-shell). A HARDENING/VERIFICATION sprint (NO product feature code):
-it PROVES the three title claims against the REAL app-shell tree through the REAL library
-surfaces, following the S177 (real-WSI harness) / S170 (ASan lane) / S146 (HeapStats funnel)
-precedent. Delivered FOUR linked parts + FIXED two REAL latent memory-safety defects the ASan
-lane surfaced:
-- (A) NEW test/unit/AppShellChurn_test.cpp (3 cases / 32 assertions, vaml-presentation-tests —
-  it links vaml-presentation so it drives the S212 headless VamlRenderer host + the REAL app-shell
-  tree + the S146 funnel): (a) NO LAYOUT THRASH — after warmup, ~50 repeated arrange+encode+
-  publish passes of the same app-shell tree keep heap_allocation_count/bytes FLAT (the S146
-  steady-state contract elevated to the app-shell producer loop); (b) NO LEAK OVER 10K — 10,000
-  producer passes stay heap-flat AND the retained-reader reachability (RunButton/InputBox/
-  DimSlider/EnabledCheck/StatusText) stays intact; (c) RETAINED-STABLE AFTER 10K — the S443/S445
-  TwoWay wires still write back to the VM store. This is the headless steady-state + retained-
-  stability proof; the authoritative zero-leak is the ASan/LSan lane (B) running THIS suite.
-- (B) NEW build/verify_s446_asan.cmd — verify_s170_asan.cmd lane shape: msvc-asan this box (zero
-  ASan errors, 4/4) + clang-asan/LSan on the Linux VM (zero LEAKS at exit, detect_leaks=1:
-  exitcode=86, 4/4) — THE authoritative "no leaks over 10k frames" on BOTH compilers.
-- (C) NEW test/wsi/WSIAppShell_main.cpp + target vaml-wsi-appshell (LOCAL pre-✅ gate, NOT GH —
-  CI has no WSI): a hidden GLFW window + the FULL real stack (loader→instance→surface→best-gpu→
-  device→render pass→the S222 3-pipeline UI scene spec + SDF atlas) + a SceneRenderer (S210
-  retained owner) + a Presenter (S173), VALIDATION LAYERS ON + a VK_EXT_debug_utils messenger
-  that fails on ANY validation error. Loads the app-shell, arrange + encode ONCE + set_scene ONCE
-  (retained), then 10,000 REAL PRESENTED frames (no re-encode = no per-frame thrash) + clean
-  vkDeviceWaitIdle + reverse teardown. Exit 0=PASS / 1=FAIL / 2=SKIP. LOCAL gate PASSED.
-- (D) NEW build/verify_s446.cmd + build/verify_s446_wsi.cmd — BOTH CI LANES GREEN from first
-  principles (windows-msvc msvc-debug + ubuntu-clang clang-debug on the VM: configure + warning-
-  clean build + ctest 4/4 incl. AppShellChurn), plus the this-box WSI + ASan pre-✅ gates.
-Sprint 11 seventh token closed.
+implementit DONE — S447 (dep:S446) — IN-REPO E2E INTEGRATION TEST of the app-shell (the SINGLE
+in-repo integration suite that re-derives the FULL authored pipeline of the app-shell across all
+FIVE surfaces in ONE coherent narrative), complete + GREEN on BOTH CI LANES this session
+(build/verify_s447.cmd = the two-lane gate). An INTEGRATION/VERIFICATION ("INV") sprint — NO
+product feature code, NO MINIMAL REAL. Delivered TWO linked parts (Deliverables of the accepted
+plan):
+- (A) NEW test/unit/AppShellIntegration_test.cpp (4 TEST_CASEs / 64 assertions, vaml-tools-tests
+  — it links vaml-tools so leg (D) can load the release-compiled sidecar, and it already hosts
+  the S444 suite + the vaml_viewer include). KEY ARCHITECTURAL DECISION (accepted at plan review):
+  the integration test lives in vaml-tools-tests, NOT vaml-core-tests — because leg (D)
+  (compiled-path parity) REQUIRES vaml-tools (the S285 VBamlReader), which vaml-core-tests
+  neither links nor has on its include path. One coherent narrative across the five legs:
+  (A) TEXT PARSE → LIVE TREE (S440): kAppShellMainViewVaml → VamlReader::Load → real Window root
+  → finalize_visual_tree hands off the declared subtree; every named control reachable. (B)
+  VM/BINDING/COMMAND WIRING (S443): run_app_shell_binding_plan — set_data_context + BindExtensions
+  (bound==3: Status OneWay, Text TwoWay, SliderValue TwoWay) + register_event("Click")/
+  bind_class_handler/BindEvents (wired==1) + {Command RunCommand} resolves to the VM RelayCommand;
+  retained reader + VM alive. (C) EACH INTERACTION → VM PROPS + BOUND TARGET DPs (S445): click →
+  routed Click → app OnClick → VM RunCommand → {Binding Status} repaints StatusText; type → TextBox
+  two-way → VM Text; slide → Slider two-way → VM SliderValue; check → app CheckBox↔VM wire → VM
+  Checked. (D) COMPILED-PATH + TEXT-PATH IN ONE SCENE (S444 single-scene contraction — NOT S444's
+  per-path gold): the release-compiled sidecar (VAML_S444_EMBED_SIDECAR) AND the dev-text path both
+  serve the SAME named shell controls, to the same concrete types — the "release == dev" surface
+  contraction S445 does not drive. (E) RELOAD PATH (S222_1) RE-WIRES: a real LiveReload over a real
+  temp reload fixture (edit → reload → fresh tree) → RE-RUN run_app_shell_binding_plan onto the
+  freshly loaded text → the S243/S244 wires RE-ARM (post-reload set_Status re-pushes the bound
+  StatusText; a TextBox two-way edit writes back to the VM store) — the S243/S244 re-wire on a
+  genuinely reloaded tree.
+- (B) NEW build/verify_s447.cmd — the two-lane gate: windows-msvc (msvc-debug warning-as-error
+  clean + ctest 4/4 incl. the S447 suite 4/4/64) + ubuntu-clang (clang-debug on the VM shared
+  folder /mnt/hgfs/VamlPOC: configure + warning-clean build + ctest 4/4 incl. the S447 suite).
+  The validated VS-native PATH recipe (reset PATH → prepend VS 2026 CMake+Ninja → vcvars64) is
+  baked in. windows-clang-debug is NOT a lane.
+- plus MOD test/unit/CMakeLists.txt (vaml-tools-tests += AppShellIntegration_test.cpp +
+  the binding/reload seam TUs: ../../vaml_viewer/app_shell_vm.cpp + load_file.cpp + file_watch.cpp
+  + live_reload.cpp — the ADR-021 single source of truth; handles the S440/S443/S445/S221/S222_1
+  shared-seam compile per the other targets' precedent).
+Sprint 11 ninth token closed.
 
 ## plan_digest
-Sprint 11 (S446 — hardening/verification of the in-repo app-shell, dep:S445):
-- (A) AppShellChurn_test.cpp — the S146 heap-churn funnel elevated to the app-shell producer
-  steady state (no layout thrash), 10k headless passes (no leak), retained-stable after 10k (the
-  S443/S445 TwoWay wires still write back). Headless via the S212 VamlRenderer::create() host.
-- (B) verify_s446_asan.cmd — msvc-asan + clang-asan/LSan zero-leak on both compilers (the
-  authoritative "no leaks over 10k frames").
-- (C) vaml-wsi-appshell — hidden-window real-WSI harness driving 10,000 REAL PRESENTED frames
-  over the retained app-shell with validation layers ON; zero validation errors = PASS. LOCAL
-  pre-✅ gate (NOT GH), the S177 contract.
-- (D) verify_s446.cmd + verify_s446_wsi.cmd — the two-lane gate + this-box WSI gate.
-- REAL defects found + fixed: (1) VulkanInstance.cpp heap-use-after-free on the layer/extension
-  name lists (own the strings); (2) PlatformWindow.cpp never destroyed GLFW windows or terminated
-  GLFW (reference-counted RAII close + glfwTerminate on the last window). The only remaining LSan
-  report is the known upstream GLFW-X11 one-time XOpenDisplay process-lifetime singleton
-  (scoped-suppressed; any VAML leak still fails).
-- The validated VS-native PATH recipe (reset PATH → prepend VS CMake+Ninja → vcvars64) is baked
-  into all three S446 verify cmds (keeps the Cygwin cmake/ld out of every lane).
-- No MINIMAL REAL introduced/resolved. ADR-018: zero new locks.
+Sprint 11 (S447 — in-repo E2E integration test of the app-shell, dep:S446):
+- An INV/verification sprint: the SINGLE in-repo integration suite (vaml-tools-tests) that
+  re-derives the FULL authored pipeline of the app-shell in ONE coherent narrative — (A) text
+  parse → live Window tree (S440), (B) VM/binding/command wiring (S443), (C) each interaction →
+  VM props + bound target DPs (S445), (D) compiled-path + text-path in ONE scene serving the SAME
+  named shell (S444 single-scene contraction, NOT S444's per-path gold), (E) the S222_1 reload
+  re-wire: a real LiveReload over a real temp fixture → re-run the app-shell binding plan onto the
+  freshly loaded text → the S243/S244 wires re-arm.
+- [S447 RECORDED IMPLEMENT BLOCKER RESOLUTION — accepted 2026-04]: the S222_1 reload coordinator
+  (LiveReload → vaml::load_file → a FRESH bare VamlReader) is a GENERIC seam with NO event
+  registry — it CANNOT parse the interactive app-shell's Click="OnClick" (the bare reader throws
+  `unknown property 'Click'` because only run_app_shell_binding_plan registers the Click event on
+  ITS OWN reader). The app's ACTUAL live reload reloads the plain S256 view (run_viewer_binding_plan
+  over Click-free/x:Name-free markup), NOT the interactive app-shell. RESOLUTION (accepted): leg
+  (E) drives the real LiveReload over a Click-free + x:Name-free shell (parses through the generic
+  load_file seam AND re-binds through run_app_shell_binding_plan), and asserts the S243/S244
+  RE-ARM on the freshly reloaded tree — the honest "the app re-wires the freshly loaded tree"
+  path (a fresh Load + a fresh bind onto the new tree). The interactive Click shell's reload is
+  recorded forward (the app-shell's live reload is not wired today — consistent with the codebase).
+- NO-GAP (recorded, not silent): the {Binding}/{Command} wiring on the COMPILED app-shell path
+  stays deferred — the S286 compiled reader defers {Binding} by design (the S293/S443/S444
+  precedent); S447's leg (D) is S444's release-parse/parity surface and its interactive/reload
+  legs are the S443/S445 TEXT binding-plan path. No MINIMAL REAL introduced/resolved. ADR-018:
+  zero new locks (single-threaded; LiveReload + interactions on the UI thread).
 
 ## files_touched
-(S446, this token)
-- NEW test/unit/AppShellChurn_test.cpp (3 cases / 32 assertions; vaml-presentation-tests) — the S446 headless churn + leak-flatness + retained-stability suite
-- MOD test/unit/CMakeLists.txt (vaml-presentation-tests += AppShellChurn_test.cpp — it links
-  vaml-presentation / compiles the REAL app-shell seam; the authoritative leak lane runs it)
-- NEW test/wsi/WSIAppShell_main.cpp + MOD test/wsi/CMakeLists.txt (target vaml-wsi-appshell +
-  app_shell_vm.cpp; NOT CTest-registered — the local gate runs it; compile-green in both CI lanes)
-- NEW build/verify_s446.cmd, build/verify_s446_asan.cmd, build/verify_s446_wsi.cmd
-- NEW build/lsan_suppressions.supp (scoped GLFW-X11 init singleton — leak:_glfwConnectX11 /
-  leak:XOpenDisplay ONLY)
-- MOD src/vulkan/src/VulkanInstance.cpp (FIX: own the layer/extension name strings — heap-use-after-free)
-- MOD src/vulkan/src/PlatformWindow.cpp (FIX: reference-counted GLFW RAII close + glfwTerminate on
-  the last window — the window/context leak)
-- MOD docs/roadmap.md (S446 [DONE]) + progress.md (checkpoint regenerated to S446)
+(S447, this token)
+- NEW test/unit/AppShellIntegration_test.cpp (4 cases / 64 assertions; vaml-tools-tests) — the in-repo E2E integration suite (5 legs; compiled+text single scene; reload S243/S244 re-wire)
+- MOD test/unit/CMakeLists.txt (vaml-tools-tests += AppShellIntegration_test.cpp + app_shell_vm.cpp + load_file.cpp + file_watch.cpp + live_reload.cpp seam TUs — the ADR-021 shared seams)
+- NEW build/verify_s447.cmd — the two-lane gate (windows-msvc + ubuntu-clang)
+- MOD docs/roadmap.md (S447 [DONE]) + progress.md (checkpoint regenerated to S447)
 - MOD session-context.md (this file)
 
 ## build_status
-ALL S446 GATES GREEN (verified from first principles this sprint):
-- verify_s446.cmd: BOTH CI LANES PASS — windows-msvc (msvc-debug, warning-as-error clean, ctest
-  4/4 incl. AppShellChurn 3/32) + ubuntu-clang (clang-debug on the VM /mnt/hgfs/VamlPOC, warning-
-  clean, ctest 4/4) — plus vaml-wsi-appshell compile-green on both lanes.
-- verify_s446_asan.cmd: msvc-asan this box 4/4 zero ASan errors (the AppShellChurn 10k loop +
-  the VulkanInstance UAF fix hold) + clang-asan/LSan on the VM 4/4 ZERO VAML-OWNED LEAKS at exit
-  (the GLFW window/context leak FIXED in PlatformWindow; the only suppressed report is the scoped
-  GLFW-X11 XOpenDisplay one-time process-lifetime singleton).
-- verify_s446_wsi.cmd: LOCAL real-WSI gate PASS — 10000 real PRESENTED frames, ZERO validation
-  errors, clean reverse-order teardown via the RAII-fixed GLFW lifetime (exit 0).
+ALL S447 GATES GREEN (verified from first principles this sprint):
+- verify_s447.cmd: BOTH CI LANES PASS — windows-msvc (msvc-debug warning-as-error clean + ctest
+  4/4 incl. the S447 suite 4/4 / 64/64) + ubuntu-clang (clang-debug on the VM /mnt/hgfs/VamlPOC:
+  configure + warning-clean build (221 steps) + ctest 4/4 incl. the S447 suite 4/4 / 64/64).
+- The S447 suite standalone (--test-case="*S447*"): 4 passed / 0 failed / 64 assertions, SUCCESS.
 - windows-clang-debug is NOT a lane (not built/tested/flagged).
-NOTE (recorded, pre-existing, NOT introduced by S446): the standalone vaml_viewer.vcxproj build
-still surfaces the pre-existing S444 C4129 warning-as-error in app_shell_compiled.h:92 (the
-vcxproj macro carries backslashes). It is NOT a CI lane; stays owned by a future step (consistent
-with the S445 note). The compiled `--compiled --app` app-shell path stays deferred exactly as S445
-recorded (the S286 compiled reader defers {Binding} by design); S446 exercises the S443/S445 TEXT
-binding-plan app-shell — the same one the `--app` window runs.
+NOTE (recorded, pre-existing, NOT introduced by S447): the standalone vaml_viewer.vcxproj build
+still surfaces the pre-existing S444 C4129 warning-as-error in app_shell_compiled.h:92 (NOT a CI
+lane; stays owned by a future step, consistent with the S445/S446 note). The compiled
+`--compiled --app` app-shell {Binding} wiring stays deferred exactly as S445/S446 recorded (the
+S286 compiled reader defers {Binding} by design); S447 exercises the S443/S445 TEXT binding-plan
+app-shell — the same one the `--app` window runs.
 
 ## next_step
-S446 delivered + green (all four gates). The rest of Sprint 11 (S447: in-repo E2E integration
-test; S448: VAML Guide; S449: refactor gate) is NOT started. Next implementit = S447. NO-GAP
-(recorded, not silent): the {Binding}/{Command} wiring on the COMPILED app-shell path stays
-deferred — the S286 compiled reader defers {Binding} by design (the S293/S443/S444 precedent);
-S446 exercised the S443/S445 TEXT binding-plan app-shell the same as S445.
+S447 delivered + green (both CI lanes). The rest of Sprint 11 (S448: in-repo app-shell acceptance
+doc; S449: refactor gate) is NOT started. Next implementit = S448. NO-GAP (recorded, not silent):
+the {Binding}/{Command} wiring on the COMPILED app-shell path stays deferred — the S286 compiled
+reader defers {Binding} by design (the S293/S443/S444 precedent); S447's compiled leg was S444's
+single-scene parity contraction + its interactive/reload legs were the S443/S445 TEXT binding-plan
+path. The interactive app-shell's LIVE reload (a Click-capable shell through the generic S222_1
+seam) is recorded forward — the S222_1 load_file seam has no event registry; the app's actual
+reload reloads the plain S256 view, exactly what leg (E) faithfully drives.
 
 ## notes
-- S446 memory-safety hardening notes (recorded, not silent): the ASan/LSan lane surfaced TWO REAL
-  latent defects that were FIXED this sprint — (1) VulkanInstance::create's availableLayers/
-  availableExtensions stored char* into local props vectors that died at block scope (a heap-use-
-  after-free in the layer/extension availability checks); we now own the strings for the whole
-  create(). (2) PlatformWindow created GLFW windows but never glfwDestroyWindow'd them nor ever
-  called glfwTerminate — every window + the GLFW context leaked for the process lifetime; we now
-  reference-count GLFW windows (an atomic count) and the Impl destructor destroys each window,
-  with the LAST window legally calling glfwTerminate (RAII close on both Win32 + X11). The window
-  leak is GONE under LSan. The ONLY remaining LSan report is the KNOWN UPSTREAM GLFW-X11 one-time
-  XOpenDisplay process-lifetime singleton (glfwInit → _glfwConnectX11 → x11_init.c:1289),
-  deliberately not XCloseDisplay'd by GLFW's own X11 backend (a documented teardown crash-risk);
-  it is NOT owned by VAML and NOT in the headless 10k loop (which is flat + proven). Suppressed
-  scoped (leak:_glfwConnectX11 / leak:XOpenDisplay ONLY) - any VAML-OWNED leak still fails the
-  clang-asan LANE.
-- S446 build-lane robustness note: the long-standing Cygwin-cm.exe-on-PATH collision corrupted /
-  fused the msvc-debug cache earlier (Cygwin cmake/ld re-created bin-dirs under /cygdrive). The
-  validated VS-native recipe — FIRST reset PATH to a clean Windows base, THEN prepend the VS 2026
-  native CMake + Ninja (Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin + ...\Ninja), THEN
-  call vcvars64 (appends MSVC cl/link AFTER the clean base) — is now baked into verify_s446.cmd /
-  verify_s446_asan.cmd / verify_s446_wsi.cmd so every S446 lane runs with the real toolchain.
-- IMPORTANT work-flow guard (learned a prior session, still governing): the Linux verify lane runs
-  from the SHARED folder /mnt/hgfs/VamlPOC. NEVER run `git checkout -- .` (or any git checkout
-  touching tracked files) inside the VM against that shared folder — it operates on the SAME
-  Windows E:\GitRepos\VamlPOC and REVERTS uncommitted tracked edits. New UNTRACKED files survive,
-  but tracked-file edits are wiped. Two CI verify lanes do NOT need a git checkout on the shared
-  folder.
+- S447 integration notes (recorded, not silent): leg (D) deliberately does NOT re-run S444's
+  compare_dual_path(kAppShellMainViewVaml,…) gold (S444 owns it in this same binary) — S447's
+  contribution is the SINGLE-SCENE correspondence (release-compiled + dev-text both resolve the
+  same named shell controls to the same concrete types), the complement-not-duplicate contract.
+- S447 reload-leg reality (recorded): the generic S222_1 load_file seam rejects BOTH `Click` AND
+  `x:Name` on a fresh bare VamlReader (`unknown property 'Click'` / `unknown property 'x:Name'`).
+  The reload fixture is therefore Click-free + x:Name-free (so the real seam parses it), and the
+  S243/S244 targets are located by TREE-WALK (Window → StackPanel → {TextBox, Text}) instead of
+  by-name. run_app_shell_binding_plan registers Click/commands/handler itself + hooks the S244
+  TwoWay TextBox + the S243 OneWay StatusText onto the app-shell VM — so both the S243 one-way
+  (post-reload VM set → target DP) and the S244 two-way (target edit → VM store) re-arm on the
+  genuinely reloaded tree.
+- Build-lane robustness: the validated VS-native PATH recipe (reset PATH → prepend VS 2026
+  CMake+Ninja → call vcvars64) is baked into verify_s447.cmd so the Cygwin cmake/ld stays out of
+  the lane (same as S446).
+- IMPORTANT work-flow guard (still governing): the Linux verify lane runs from the SHARED folder
+  /mnt/hgfs/VamlPOC. NEVER run `git checkout -- .` (or any git checkout touching tracked files)
+  inside the VM against that shared folder — it reverts uncommitted tracked edits on the SAME
+  Windows E:\GitRepos\VamlPOC. New UNTRACKED files survive, but tracked-file edits are wiped.
 - No commits made (per the standing directive unless 'commitit' is commanded).
