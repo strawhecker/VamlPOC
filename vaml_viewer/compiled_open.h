@@ -63,13 +63,27 @@ struct CompiledOpenResult
 // uses). A malformed `.vbaml` throws VBamlException; it is mapped here to a
 // typed, never-silent failure detail. The reader is returned owned so its
 // retained non-root objects (which the tree borrows via parent links) survive.
+//
+// `events` (optional) — the reader-level EVENT set to register BEFORE Load
+// (the S288/S443 reader contract: an event-shaped key like Click="OnClick"
+// routes to a deferred event handler ONLY when the event name is registered;
+// otherwise it is an unknown-property throw). S444 passes {"Click"} for the
+// app-shell; the S293 callers pass none (their goldens have no events).
 [[nodiscard]] inline CompiledOpenResult
-load_compiled_bytes(const std::vector<std::uint8_t>& bytes)
+load_compiled_bytes(const std::vector<std::uint8_t>& bytes,
+                    const std::vector<std::string>* events = nullptr)
 {
     CompiledOpenResult r;
     try
     {
         r.reader = std::make_unique<vaml::tools::VBamlReader>();
+        if (events)
+        {
+            for (const std::string& ev : *events)
+            {
+                r.reader->register_event(ev);
+            }
+        }
         r.root = r.reader->Load(bytes);   // S285: bytes → live DependencyObject tree
         r.ok = (r.root != nullptr);
     }
@@ -125,8 +139,11 @@ inline bool is_vbaml_path(const std::string& path) noexcept
 //   * a `.vaml` path   → reads the TEXT → compile_to_vbaml (vamlcc in-process)
 //                        → load_compiled_bytes (the "recompiles .vaml→.vbaml
 //                        then reopens" path).
-// The outcome detail carries a structured, never-silent reason on failure.
-[[nodiscard]] inline CompiledOpenResult load_compiled_file(const std::string& path)
+// `events` (optional) — forwarded to load_compiled_bytes (S444 app-shell
+// passes {"Click"}). The outcome detail carries a structured, never-silent
+// reason on failure.
+[[nodiscard]] inline CompiledOpenResult load_compiled_file(const std::string& path,
+                                                           const std::vector<std::string>* events = nullptr)
 {
     // Read the raw bytes (works for both .vaml text and .vbaml binary).
     {
@@ -151,7 +168,7 @@ inline bool is_vbaml_path(const std::string& path) noexcept
         {
             const std::string data = ss.str();
             std::vector<std::uint8_t> bytes(data.begin(), data.end());
-            return load_compiled_bytes(bytes);
+            return load_compiled_bytes(bytes, events);
         }
         // A `.vaml` (or extensionless) source: recompile to .vbaml first.
         const std::string text = ss.str();
@@ -174,7 +191,7 @@ inline bool is_vbaml_path(const std::string& path) noexcept
             r.detail = "compile produced no bytes for '" + path + "'";
             return r;
         }
-        return load_compiled_bytes(bytes);
+        return load_compiled_bytes(bytes, events);
     }
 }
 

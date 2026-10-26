@@ -69,7 +69,7 @@
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;VAML_APPSHELL_SIDECAR="$(IntDir)MainView.vbaml";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <!-- /MTd to match the CMake-built static libs (the msvc-debug preset builds the
@@ -90,7 +90,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;VAML_APPSHELL_SIDECAR="$(IntDir)MainView.vbaml";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -123,6 +123,23 @@
     <ClInclude Include="app_shell_vm.h" />        <!-- S441: the app-shell MainViewModel -->
     <ClInclude Include="demo_service.h" />        <!-- S442: the app-shell demo service + composition seam -->
     <ClInclude Include="app_shell_binding.h" />   <!-- S443: the app-shell ↔ MainViewModel wiring seam -->
+    <ClInclude Include="app_shell_compiled.h" />  <!-- S444: the compiled app-shell load seam (file + embedded) -->
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      S444 (dep:S443) — the vamlcc compile step for the app-shell's authored
+      MainView.vaml (the MSBuild analogue of the S287/S444 CMake custom command).
+      Runs the PREBUILT msvc-debug vamlcc.exe (build\msvc-debug\src\tools\vamlcc.exe)
+      to compile MainView.vaml → a .vbaml SIDE-CAR + an EMBEDDED C++ twin into
+      the intermediate dir. The `-\-compiled -\-app` launch opens the sidecar via
+      the S444 seam (VAML_APPSHELL_SIDECAR); the embed twin is the single-exe path.
+    -->
+    <CustomBuild Include="MainView.vaml">
+      <FileType>Document</FileType>
+      <Message>vamlcc: MainView.vaml -&gt; $(IntDir)MainView.vbaml + embed twin</Message>
+      <Command>..\build\msvc-debug\src\tools\vamlcc.exe "$(ProjectDir)MainView.vaml" "$(IntDir)MainView.vbaml"&#xD;&#xA;..\build\msvc-debug\src\tools\vamlcc.exe --embed "$(IntDir)MainView.vbaml" "$(IntDir)app_shell_MainView_vbaml.h" "$(IntDir)app_shell_MainView_vbaml.cpp" app_shell_MainView</Command>
+      <Outputs>$(IntDir)MainView.vbaml;$(IntDir)app_shell_MainView_vbaml.h;$(IntDir)app_shell_MainView_vbaml.cpp</Outputs>
+    </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

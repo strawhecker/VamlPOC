@@ -86,9 +86,40 @@ int main(int argc, char** argv)
     // because --app needs NO file. Any shell load failure -> exit 4 (never silent).
     if (vaml::viewer::cli_wants_app_shell(argc, argv))
     {
+        // S444 — the `--compiled --app` RELEASE path. When --compiled is also
+        // given, the app-shell loads from the COMPILED MainView.vbaml (built by
+        // the vamlcc compile step, S444 -> S293 compiled-open seam -> S7
+        // VBamlReader). The EMBEDDED twin (the build-time --embed span) is the
+        // single-exe path; here the app launches from the BUILD-PRODUCED sidecar
+        // via the shared load_compiled_app_shell_file seam. The plain `--app`
+        // (no --compiled) keeps loading the authored TEXT via S440/S443.
+        const bool compiledAppShell = vaml::viewer::cli_wants_compiled(argc, argv);
+
         vaml::viewer::ViewerAppConfig config;
         config.title    = "VAML Viewer - App Shell";   // S224: title = the app-shell title in --app mode
         config.filePath = "";                          // the app-shell is the default shell (no file-watch)
+        if (compiledAppShell)
+        {
+            // The compiled sidecar the vamlcc build step produced (S444). The
+            // S444 test proves this .vbaml decodes to the same tree as the text
+            // path; here the LIVE release app renders it.
+            std::string sidecar = vaml::viewer::compiled_app_shell_sidecar_path();
+            vaml::viewer::AppShellCompiledPlanResult plan =
+                vaml::viewer::load_compiled_app_shell_file(sidecar);
+            if (!plan.ok)
+            {
+                std::fprintf(stderr, "vaml_viewer: compiled app-shell open failed: %s\n",
+                             plan.detail.empty() ? "no root" : plan.detail.c_str());
+                return render_init_failed("--compiled --app (app-shell)");
+            }
+            auto app = vaml::viewer::ViewerApp::create_compiled_app_shell(config, std::move(plan));
+            if (!app)
+                return render_init_failed("--compiled --app (app-shell)");
+
+            std::printf("vaml_viewer: launching the COMPILED APP-SHELL (MainView.vbaml -> VBamlReader -> render)\n");
+            return app->run_loop();
+        }
+
         auto app = vaml::viewer::ViewerApp::create_app_shell(config);
         if (!app)
             return render_init_failed("--app (app-shell)");

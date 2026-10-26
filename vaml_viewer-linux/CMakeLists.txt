@@ -45,6 +45,15 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLFW3 REQUIRED IMPORTED_TARGET glfw3)
 pkg_check_modules(VULKAN REQUIRED IMPORTED_TARGET vulkan)
 
+# --- S444: the SHARED vaml_compile_vaml() module (cmake/vaml-compile.cmake) ----
+# The whole point of the "common folder" directive: vaml_compile_vaml() lives in
+# the shared cmake/vaml-compile.cmake (included by BOTH the top-level library
+# build AND this STANDALONE Linux consumer project), so the Linux app can call it
+# here without duplicating the function. It compiles the authored MainView.vaml
+# → a .vbaml sidecar + an EMBEDDED C++ twin at build time (the S444 compile
+# step; the S287 integration, reused).
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/vaml-compile.cmake)
+
 # --- Consume the STATIC libraries from the clang-debug build -----------------
 # Public include roots (the CONSUMER-APP PATTERN per ADR-021) + the built
 # archives. Link order matters for the single-pass GNU ld: vaml-presentation
@@ -87,3 +96,34 @@ target_link_libraries(vaml-viewer-linux PRIVATE
     PkgConfig::VULKAN
     dl
 )
+
+# ----------------------------------------------------------------------------
+# S444 (dep:S443) — the vamlcc compile step for the app-shell's MainView.vaml.
+# At build time the prebuilt clang-debug vamlcc executable compiles
+# ../vaml_viewer/MainView.vaml → a .vbaml SIDE-CAR + an EMBEDDED C++ twin in
+# THIS project's binary dir. The `--compiled --app` launch opens the sidecar via
+# the S444 seam; the embed twin is the single-exe path. Uses the SHARED
+# vaml_compile_vaml() (cmake/vaml-compile.cmake) — ONE definition, NO
+# duplication across the two build systems.
+# ----------------------------------------------------------------------------
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../vaml_viewer/MainView.vaml")
+    set(S444_LINUX_VBAML "${CMAKE_CURRENT_BINARY_DIR}/MainView.vbaml")
+    set(S444_LINUX_EMBED_H "${CMAKE_CURRENT_BINARY_DIR}/app_shell_MainView_vbaml.h")
+    set(S444_LINUX_EMBED_CPP "${CMAKE_CURRENT_BINARY_DIR}/app_shell_MainView_vbaml.cpp")
+    # The prebuilt clang-debug vamlcc (the standalone app consumes prebuilt libs
+    # per ADR-021; there is no vamlcc TARGET in this project to reference).
+    set(S444_LINUX_VAMLCC "${CMAKE_CURRENT_SOURCE_DIR}/../build/clang-debug/src/tools/vamlcc")
+    vaml_compile_vaml(vamlcc_app_shell_linux
+        VAML       "${CMAKE_CURRENT_SOURCE_DIR}/../vaml_viewer/MainView.vaml"
+        OUTPUT     "${S444_LINUX_VBAML}"
+        VAMLCC_EXE "${S444_LINUX_VAMLCC}"
+        EMBED_ON   "${S444_LINUX_EMBED_H}" "${S444_LINUX_EMBED_CPP}"
+        NAME       "app_shell_MainView"
+        DEPS       "${S444_LINUX_VAMLCC}"
+    )
+    # Feed the sidecar path to the app so `--compiled --app` can open it.
+    target_compile_definitions(vaml-viewer-linux PRIVATE
+        VAML_APPSHELL_SIDECAR="${S444_LINUX_VBAML}")
+    # The app target must build AFTER the compile step produces the sidecar.
+    add_dependencies(vaml-viewer-linux vamlcc_app_shell_linux)
+endif()

@@ -22,6 +22,7 @@
 #include "app.h"
 #include "cli.h"           // S224: cli_action / cli_usage (the PURE --help entry seam)
 #include "compiled_open.h" // S293: load_compiled_file + CompiledOpenResult (the compiled .vbaml seam)
+#include "app_shell_compiled.h" // S444: load_compiled_app_shell_file + compiled_app_shell_sidecar_path
 
 #include <cstdio>
 #include <cstdlib>
@@ -65,6 +66,34 @@ int main(int argc, char** argv)
     case vaml::viewer::CliAction::Run:
     default:
         break;   // fall through to the launch below
+    }
+
+    // S444 — the `--compiled --app` RELEASE app-shell (mirrors Windows). When BOTH
+    // --app and --compiled appear (the app-shell needs NO file, so it must come
+    // BEFORE the file-arg read below), the app launches the app-shell from the
+    // COMPILED MainView.vbaml (the build step's sidecar, S444 -> S293 compiled
+    // seam -> S7 VBamlReader). Plain `--app` stays on the S440/S443 text path.
+    if (vaml::viewer::cli_wants_app_shell(argc, argv) &&
+        vaml::viewer::cli_wants_compiled(argc, argv))
+    {
+        vaml::viewer::ViewerAppConfig config;
+        config.title    = "VAML Viewer - App Shell";
+        config.filePath = "";
+        const std::string sidecar = vaml::viewer::compiled_app_shell_sidecar_path();
+        vaml::viewer::AppShellCompiledPlanResult plan =
+            vaml::viewer::load_compiled_app_shell_file(sidecar);
+        if (!plan.ok)
+        {
+            std::fprintf(stderr, "vaml_viewer: compiled app-shell open failed: %s\n",
+                         plan.detail.c_str());
+            return 3;
+        }
+        auto app = vaml::viewer::ViewerApp::create_compiled_app_shell(config, std::move(plan));
+        if (!app)
+            return render_init_failed("--compiled --app (app-shell)");
+
+        std::printf("vaml_viewer-linux: launching the COMPILED APP-SHELL (MainView.vbaml -> VBamlReader -> render)\n");
+        return app->run_loop();
     }
 
     // S293 — the COMPILED open dispatch (mirrors Windows). --compiled forces the

@@ -1268,7 +1268,35 @@ Growth tokens by sprint:
       BOTH CI LANES green (build/verify_s441.cmd).]  in-repo demo infra service + the app-shell's own constructor
       wiring (the S250 static app-owned composition pattern — no library CompositionRoot).
 - S443 dep:S442  [DONE — VERIFIED from first principles BOTH CI lanes. APP-SHELL ↔ MAINVIEWMODEL wired via markup {Binding}+{Command}. NEW vaml_viewer/app_shell_binding.h (the S443 seam, header-only, ADR-021 consumer path) + NEW test/unit/AppShellBinding_test.cpp (7 cases / 37 assertions) + MOD vaml_viewer/MainView.vaml + vaml_viewer/app_shell.h (kAppShellMainViewVaml + run_app_shell_plan registers the Click event) + test/unit/CMakeLists.txt + vaml_viewer.vcxproj + NEW build/verify_s443.cmd. SURFACE: run_app_shell_binding_plan(text=kAppShellMainViewVaml) REUSES/EXTENDS the S256/S329_1 plan pattern into the app-shell wiring: builds the S442 composition (plain ctors), then on a RETAINED VamlReader does set_data_context(vm) (S252) + register_event("Click") + bind_class_handler("OnClick") (S322) + register_command("RunCommand"/"EchoCommand") (S253) + Load(authored MainView) + BindExtensions ({Binding Status} OneWay + {Binding Text, Mode=TwoWay} — the S244 two-way) + BindEvents (Click) + finalize_visual_tree (S440 render hand-off); returns { ok, root, vm (S441 AppShellViewModel, shared_ptr), retained reader, bound, wired, transferred, detail } + named_element() accessors. The retained reader/VM keep the S243/S244 LIVE WIRES + the S322 wired Click armed after the plan returns. AppShellBinding_test proves (1) the plan wires/loads/binds/wires/finalizes + x:Name lookup of InputBox/StatusText/RunButton; (2) {Binding Status} ONE-WAY FIRST-TRANSFER lands the VM Status on the StatusText.Text target; (3) a later vm->set_Status re-pushes the bound target (S243 live one-way); (4) TextBox.Text TWO-WAY write-back (S244): a target edit (set_text) writes back to the VM's observable Value store; (5) {Command RunCommand} resolves via ResolveCommand to the exact VM RelayCommand; (6) a Click on the RunButton (raise_click) fires the S322 wired OnClick handler → invokes the VM RunCommand → counter++ + Status set → {Binding Status} repaints the target DP (handler → VM → binding repaint); (7) a malformed {Binding} reports a structured, NON-EMPTY detail (never silent). TEST CONTRACT NOTES (recorded, not silent): the S244 two-way write-back writes the VM's ObservableObject VALUE STORE (base Set), so the test seeds via set_Text then reads Get() + the TextBox.Text target; the RunCommand gate is the VM's OWN Checked prop (the markup CheckBox IsChecked="1" is a SEPARATE shell object, NOT linked to the VM) so the test arms set_Checked(true). ADR-018: zero new locks. No MINIMAL REAL introduced. BOTH CI LANES green from first principles: windows-msvc (verify_s443.cmd msvc-debug warning-as-error clean; ctest 4/4 PASS incl. S443 7/7 + S440 4/4 — the MainView change still loads/finalizes) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug configure clean + build 212 steps warnings==0 + ctest 4/4 PASS incl. S443 7/7). No commits.]  App-shell ↔ MainViewModel wired via markup {Binding} + {Command} (the S240–S252 + S256 path).
-- S444 dep:S443  Compile the app-shell MainView.vaml→.vbaml via vamlcc in the CMake custom command (release path).
+- S444 dep:S443  [DONE — VERIFIED from first principles BOTH CI lanes. The vamlcc compile step for the app-shell's
+      MainView.vaml→.vbaml (the RELEASE path), per the S444 "common folder" directive (ADR-021, ONE shared definition
+      across BOTH build systems — NO duplication). The reusable `vaml_compile_vaml()` function MOVED OUT of
+      src/tools/CMakeLists.txt into the COMMON `cmake/vaml-compile.cmake` module, INCLUDED by BOTH the top-level
+      library build (src/tools/CMakeLists.txt) AND the standalone `vaml_viewer-linux/CMakeLists.txt` (which previously
+      could not call it) — each wire compiles `vaml_viewer/MainView.vaml` → a `.vbaml` SIDE-CAR + an `--embed` C++ twin
+      (S287 fn, ADR-021). The vcxproj adds the native MSBuild analogue (a CustomBuild step on MainView.vaml invoking the
+      prebuilt msvc-debug vamlcc.exe → sidecar + embed). NEW shared seam `vaml_viewer/app_shell_compiled.h` (the S444
+      COMPILED app-shell load, compiled by both apps + the test): load_compiled_app_shell_file (the build sidecar via the
+      S293 load_compiled_file seam — the file/`--compiled --app` path), register_compiled_app_shell + load_compiled_app_shell_embedded
+      (the S289 ResourcePack + InitializeComponentFrom compiled-only release entry — the single-exe path), + the
+      compiled_app_shell_sidecar_path seam; all headless + pure. `--compiled --app` wired into BOTH main.cpp + ViewerApp::
+      create_compiled_app_shell (app.{h,cpp}) — the compiled-release launch, while plain `--app` keeps the S440/S443
+      TEXT path. S7 VBamlReader::converterNameFor GAINED the missing `ValueType::Double` arm (the S7 compiled path now
+      converts Double literals exactly as S2 does — a REAL parity gap closed, S288-compliant: MainView's FontSize/
+      Slider.* are Double). compiled_open.{h} load_compiled_bytes/load_compiled_file gained an OPTIONAL events param
+      (S444 passes {"Click"} — the S288/S443 reader-level event contract; S293 callers unchanged). NEW
+      test/unit/AppShellCompile_test.cpp (6 cases / 33 assertions, vaml-tools-tests): .vbaml→VBamlReader decodes to the
+      SAME live tree as the text path (S288 comparator), the on-disk MainView.vaml (the vamlcc INPUT) compiles + decodes
+      to the shell, the embedded span == the build sidecar bytes (S287), the sidecar loads into the live Window tree
+      (S285/S440), the embedded span initializes via InitializeComponentFrom (S289), and malformed bytes → a structured
+      never-silent failure. The test compiles the ACTUAL CMake-generated embed source (ADR-021 single source of truth).
+      NO-GAP (recorded, not silent): the S443 {Binding}/{Command} wiring on the COMPILED path is deferred to S445 (the
+      S286 compiled reader defers {Binding}; the release path hands that to S445's E2E slice — exactly as S293/S443
+      recorded for the compiled/text paths). ADR-018: zero new locks. NO MINIMAL REAL introduced. BOTH CI LANES green
+      from first principles: windows-msvc (build/verify_s444.cmd msvc-debug warning-as-error clean; ctest 4/4 PASS incl.
+      the S444 suite 6/6 + 33/33, prior suites green) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug configure clean +
+      build warnings==0 + ctest 4/4 PASS incl. the S444 suite 6/6, 33/33). No commits.]  Compile the app-shell
+      MainView.vaml→.vbaml via vamlcc in the CMake custom command (release path).
 - S445 dep:S444  Launch vaml_viewer → the app-shell declared UI renders; click/type/slide updates VM-driven
       UI end to end (the in-repo v1 vertical slice).
 - S446 dep:S445  Zero validation-layer errors; no leaks over 10k frames; no layout thrash (app-shell, in-repo).

@@ -10,6 +10,7 @@
 #include "app.h"
 #include "drop_reopen.h"  // S223: is_vaml_drop / drop_choice (the pure drop-decision seams)
 #include "app_shell.h"    // S440: run_app_shell_plan + AppShellPlanResult (the app-shell load seam)
+#include "app_shell_compiled.h" // S444: AppShellCompiledPlanResult (the compiled app-shell load seam)
 
 #include <vaml/core/UIElement.h>        // vaml::UIElement (the REAL visual tree root)
 #include <vaml/vulkan/VulkanSurface.h>
@@ -180,6 +181,34 @@ ViewerApp::create_app_shell(const ViewerAppConfig& config)
         // {Binding}/{Command} wiring armed for the app's lifetime).
         app->appShellReader_ = std::move(plan.reader);
     }
+    return app;
+}
+
+std::unique_ptr<ViewerApp>
+ViewerApp::create_compiled_app_shell(const ViewerAppConfig& config,
+                                     vaml::viewer::AppShellCompiledPlanResult compiled)
+{
+    // S444 — the `--compiled --app` launch path (the RELEASE app-shell). The
+    // MainView.vbaml decoded through the S7 VBamlReader + the S440 finalize hand-off.
+    if (!compiled.ok || !compiled.root)
+    {
+        // Report the structured reason (never silent) — a compiled-shell failure
+        // means the release app cannot render its authored UI.
+        std::fprintf(stderr, "vaml_viewer: compiled app-shell failed to load: %s\n",
+                     compiled.detail.empty() ? "no root" : compiled.detail.c_str());
+        return nullptr;
+    }
+    auto* uiRoot = dynamic_cast<vaml::UIElement*>(compiled.root.get());
+    if (!uiRoot)
+    {
+        std::fprintf(stderr, "vaml_viewer: compiled app-shell root is not a UIElement (cannot render)\n");
+        return nullptr;
+    }
+
+    // create_impl ADOPTS the compiled root + retains the S7 reader (compiledReader_),
+    // the same release-path retention the S293 compiled-open viewer uses.
+    std::unique_ptr<ViewerApp> app =
+        create_impl(config, std::move(compiled.root), uiRoot, std::move(compiled.reader));
     return app;
 }
 

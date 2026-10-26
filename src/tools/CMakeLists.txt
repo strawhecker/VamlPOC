@@ -38,90 +38,14 @@ target_include_directories(vamlcc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 vaml_apply_compiler_policy(vamlcc)
 
 # ============================================================================
-# S287 (dep:S286) — vamlcc integrated in CMake: a custom command per .vaml →
-# a .vbaml sidecar (and, optionally, an EMBEDDED C++ twin via --embed).
-#
-# vaml_compile_vaml(<target> ...) — reusable function that wires the build:
-#   NAME      <symbol>       the embed symbol fragment (default = target name)
-#   VAML      <in.vaml>      the VAML source
-#   OUTPUT    <out.vbaml>    the side-car .vbaml path
-#   EMBED_ON  <h> <cpp>      (optional) also generate the embedded C++ pair
-#   DEPS      <extra deps>   (optional) extra DEPENDS for the .vaml input
-#   ADD_EMBED_DEF            (optional) define VAML_<NAME>_EMBED with the span
-#
-# The function issues an add_custom_command(OUTPUT <out.vbaml> COMMAND vamlcc
-# <in.vaml> <out.vbaml> DEPENDS in.vaml vamlcc) so the .vbaml sidecar is built
-# on demand and re-runs when either the source or the tool changes. If
-# EMBED_ON is given, a SECOND add_custom_command(OUTPUT <h> <cpp> COMMAND
-# vamlcc --embed <out.vbaml> <h> <cpp> <symbol> DEPENDS out.vbaml vamlcc)
-# produces the embedded twin. Both commands depend on the vamlcc EXECUTABLE so
-# a tool rebuild re-runs them. The <target> gains a custom target that owns
-# these outputs and is a build-order dependency of the caller.
-#
-# The embedded + sidecar artifacts are the SAME bytes (a test proves the embed
-# span == the sidecar file) — dev uses the sidecar (reload/live tooling), the
-# release app uses the embedded span (single-exe path). Both lanes test it.
+# S287 (dep:S286) + S444 (dep:S443) — vamlcc integrated in CMake: a custom
+# command per .vaml → a .vbaml sidecar (and, optionally, an EMBEDDED C++ twin
+# via --embed). The reusable `vaml_compile_vaml()` function lives in the COMMON
+# cmake folder (cmake/vaml-compile.cmake) so BOTH the top-level library build
+# AND the standalone Linux viewer app consume ONE definition (NO duplication —
+# the S444 "common folder" directive). See that module for the full contract.
 # ============================================================================
-function(vaml_compile_vaml TGT)
-    cmake_parse_arguments(ARG "" "NAME;VAML;OUTPUT" "EMBED_ON;DEPS;ADD_EMBED_DEF" ${ARGN})
-
-    if(NOT ARG_VAML OR NOT ARG_OUTPUT)
-        message(FATAL_ERROR "vaml_compile_vaml: VAML and OUTPUT are required")
-    endif()
-    set(SYM "${ARG_NAME}")
-    if(NOT SYM)
-        string(MAKE_C_IDENTIFIER "${TGT}" SYM)
-    endif()
-
-    # The full path to the built vamlcc executable ($<TARGET_FILE:vamlcc>).
-    # Generator expressions ARE expanded in add_custom_command COMMAND lines, so
-    # the custom command runs the ACTUAL build artifact on every platform — NOT
-    # a bare `vamlcc` that only resolves when the exe dir is on PATH (Windows
-    # vcvars) but FAILS on Linux ("vamlcc: not found").
-    set(VAMLCC_EXE "$<TARGET_FILE:vamlcc>")
-
-    add_custom_command(
-        OUTPUT "${ARG_OUTPUT}"
-        COMMAND "${VAMLCC_EXE}" "${ARG_VAML}" "${ARG_OUTPUT}"
-        DEPENDS "${ARG_VAML}" vamlcc ${ARG_DEPS}
-        COMMENT "vamlcc: ${ARG_VAML} -> ${ARG_OUTPUT}"
-        VERBATIM
-    )
-
-    set(OUTPUTS "${ARG_OUTPUT}")
-
-    if(ARG_EMBED_ON)
-        list(LENGTH ARG_EMBED_ON N_EMBED)
-        if(NOT N_EMBED EQUAL 2)
-            message(FATAL_ERROR "vaml_compile_vaml: EMBED_ON needs <h> <cpp>")
-        endif()
-        list(GET ARG_EMBED_ON 0 H)
-        list(GET ARG_EMBED_ON 1 CPP)
-        add_custom_command(
-            OUTPUT "${H}" "${CPP}"
-            COMMAND "${VAMLCC_EXE}" --embed "${ARG_OUTPUT}" "${H}" "${CPP}" "${SYM}"
-            DEPENDS "${ARG_OUTPUT}" vamlcc
-            COMMENT "vamlcc --embed: ${ARG_OUTPUT} -> ${CPP}"
-            VERBATIM
-        )
-        list(APPEND OUTPUTS "${H}" "${CPP}")
-    endif()
-
-    add_custom_target("${TGT}" ALL DEPENDS ${OUTPUTS})
-
-    if(ARG_ADD_EMBED_DEF AND ARG_EMBED_ON)
-        list(GET ARG_EMBED_ON 0 H)
-        list(GET ARG_EMBED_ON 1 CPP)
-        add_library("${TGT}_embed" INTERFACE)
-        target_sources("${TGT}_embed" INTERFACE "${CPP}")
-        target_include_directories("${TGT}_embed" INTERFACE
-            "${CMAKE_CURRENT_BINARY_DIR}")
-        # The consumer may request a macro; expose the span accessor declarably.
-        target_compile_definitions("${TGT}_embed" INTERFACE
-            "VAML_${SYM}_HEADER=\"${H}\"")
-        set("${TGT}_EMBED_LIB" "${TGT}_embed" PARENT_SCOPE)
-    endif()
-endfunction()
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/vaml-compile.cmake)
 
 # ----------------------------------------------------------------------------
 # S287 demo + CI test: a small consumer target that compiles a sample .vaml → a
@@ -167,5 +91,40 @@ if(EXISTS "${S287_DEMO_VAML}")
     set(VAML_S287_EMBED_INC "${CMAKE_CURRENT_BINARY_DIR}" CACHE INTERNAL "")
     set(VAML_S287_EMBED_SIDECAR "${S287_DEMO_VBAML}" CACHE INTERNAL "")
     set(VAML_S287_EMBED_LIB "vamlcc_demo_main_embed" CACHE INTERNAL "")
+endif()
+
+# ----------------------------------------------------------------------------
+# S444 (dep:S443) — the vamlcc compile step for the app-shell's authored
+# MainView.vaml. At build time vamlcc compiles vaml_viewer/MainView.vaml → a
+# .vbaml SIDE-CAR + an EMBEDDED C++ twin (--embed). This is the RELEASE-path
+# `.vbaml` the `--compiled --app` app-shell launch loads (the S444 compiled
+# seam + the S289 InitializeComponentFrom embedded path), while the plain
+# `--app` launch keeps loading the authored TEXT via the S440/S443 reader path.
+# The S444 test (AppShellCompile_test.cpp) proves the embed span == the sidecar
+# bytes AND that the .vbaml decodes through the S288 dual-path comparator to the
+# same live tree the text path builds.
+# ----------------------------------------------------------------------------
+set(S444_APP_SHELL_VAML "${CMAKE_CURRENT_SOURCE_DIR}/../../vaml_viewer/MainView.vaml")
+set(S444_APP_SHELL_VBAML "${CMAKE_CURRENT_BINARY_DIR}/MainView.vbaml")
+set(S444_APP_SHELL_EMBED_H "${CMAKE_CURRENT_BINARY_DIR}/app_shell_MainView_vbaml.h")
+set(S444_APP_SHELL_EMBED_CPP "${CMAKE_CURRENT_BINARY_DIR}/app_shell_MainView_vbaml.cpp")
+
+if(EXISTS "${S444_APP_SHELL_VAML}")
+    vaml_compile_vaml(vamlcc_app_shell
+        VAML    "${S444_APP_SHELL_VAML}"
+        OUTPUT  "${S444_APP_SHELL_VBAML}"
+        EMBED_ON "${S444_APP_SHELL_EMBED_H}" "${S444_APP_SHELL_EMBED_CPP}"
+        NAME    "app_shell_MainView"
+        DEPS    "${CMAKE_CURRENT_SOURCE_DIR}/../../vaml_viewer/app_shell.h"
+    )
+    # The embedded twin the test + the embedded app-shell path consume (ADR-021:
+    # compile the ACTUAL generated code, not a copy). Exported to global scope so
+    # test/unit/vaml-tools-tests can compile the generated .cpp + resolve the
+    # generated header + assert the sidecar == the span.
+    set(VAML_S444_EMBED_CPP "${S444_APP_SHELL_EMBED_CPP}" CACHE INTERNAL "")
+    set(VAML_S444_EMBED_HDR "${S444_APP_SHELL_EMBED_H}" CACHE INTERNAL "")
+    set(VAML_S444_EMBED_INC "${CMAKE_CURRENT_BINARY_DIR}" CACHE INTERNAL "")
+    set(VAML_S444_EMBED_SIDECAR "${S444_APP_SHELL_VBAML}" CACHE INTERNAL "")
+    set(VAML_S444_EMBED_INPUT_VAML "${S444_APP_SHELL_VAML}" CACHE INTERNAL "")
 endif()
 

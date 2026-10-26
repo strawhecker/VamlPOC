@@ -583,6 +583,16 @@ add_executable(vaml-tools-tests
     # (.vaml compiles-first vs .vbaml direct-load parity), and the
     # recompile-then-reopen contract (an edited source recompiles to a NEW tree).
     ViewerCompiledOpen_s293_test.cpp
+    # S444 (dep:S443) — the vamlcc compile step for the app-shell's MainView.vaml
+    # (release path). Compiles the REAL viewer seam (vaml_viewer/app_shell_compiled.h)
+    # into the TOOLS test target (links vaml-tools: the S288 comparator + the S285
+    # reader + the S289 pack). Proves .vbaml→VBamlReader decodes to the SAME live
+    # tree as the text path (S288 parity), the on-disk MainView.vaml compiles +
+    # decodes to the shell, the embedded span == the build sidecar (S287), the
+    # sidecar loads (S285/S440 release file path), the embedded twin initializes
+    # via InitializeComponentFrom (S289 single-exe path), and malformed bytes →
+    # typed never-silent failure. Compiles the ACTUAL CMake-generated embed .cpp.
+    AppShellCompile_test.cpp
 )
 
 # Link the S287 test against the CMake-generated embed source (compiles the
@@ -598,6 +608,22 @@ if(VAML_S287_EMBED_CPP AND VAML_S287_EMBED_HDR)
         S287_DEMO_EMBED_H="${VAML_S287_EMBED_HDR}"
     )
     add_dependencies(vaml-tools-tests vamlcc_demo_main)
+endif()
+
+# S444 (dep:S443): compile the ACTUAL CMake-generated app-shell embed source +
+# feed the sidecar + the on-disk MainView.vaml (the vamlcc INPUT) to the S444
+# test. The generated files are produced by the vamlcc_app_shell custom target;
+# the test must DEPEND on it so they exist before AppShellCompile_test.cpp
+# compiles + includes the generated header (ADR-021 single source of truth).
+if(VAML_S444_EMBED_CPP AND VAML_S444_EMBED_HDR)
+    target_sources(vaml-tools-tests PRIVATE "${VAML_S444_EMBED_CPP}")
+    target_include_directories(vaml-tools-tests PRIVATE "${VAML_S444_EMBED_INC}")
+    target_compile_definitions(vaml-tools-tests PRIVATE
+        VAML_S444_EMBED_SIDECAR="${VAML_S444_EMBED_SIDECAR}"
+        VAML_S444_EMBED_H="${VAML_S444_EMBED_HDR}"
+        VAML_S444_EMBED_INPUT_VAML="${VAML_S444_EMBED_INPUT_VAML}"
+    )
+    add_dependencies(vaml-tools-tests vamlcc_app_shell)
 endif()
 
 vaml_apply_compiler_policy(vaml-tools-tests)

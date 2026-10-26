@@ -62,8 +62,11 @@ namespace {
 
 // S285: the type-name a ValueType maps to for VALUE conversion — a mirror of
 // the S2 reader's converterNameFor (S091). Only the tags the S089 built-in
-// converters can produce are represented (Int32/Bool/Color/Thickness); String
-// is handled by identity. Returns an empty view for a type with no converter.
+// converters can produce are represented (Int32/Bool/Color/Thickness +
+// S444's Double — the S7 compiled path must convert Double literals exactly as
+// the S2 text path does per the S288 parity contract: MainView.vaml's
+// FontSize/Slider.* values are Double). String is handled by identity. Returns
+// an empty view for a type with no converter.
 [[nodiscard]] std::string_view converterNameFor(vaml::ValueType t) noexcept
 {
     using vaml::ValueType;
@@ -73,6 +76,7 @@ namespace {
         case ValueType::Bool:      return "Bool";
         case ValueType::Color:     return "Color";
         case ValueType::Thickness: return "Thickness";
+        case ValueType::Double:    return "Double";   // S444: FontSize / Slider.* route through the Double converter
         default:                   return "";
     }
 }

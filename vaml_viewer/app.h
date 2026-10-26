@@ -50,6 +50,7 @@
 #include "view_transform.h"// S224: vaml::viewer::ViewState + the pan/zoom seams (pure)
 #include "viewer_binding.h"// S256: ViewerDemoViewModel + run_viewer_binding_plan (the binding reload seam)
 #include "app_shell.h"     // S440: run_app_shell_plan + AppShellPlanResult (the app-shell load seam)
+#include "app_shell_compiled.h" // S444: load_compiled_app_shell_file/embedded + AppShellCompiledPlanResult
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -197,6 +198,18 @@ public:
     // failure reports its structured `detail` to stderr (never silent).
     [[nodiscard]] static std::unique_ptr<ViewerApp>
     create_app_shell(const ViewerAppConfig& config);
+
+    // S444 — the COMPILED APP-SHELL launch variant (the `--compiled --app`
+    // mode). Builds the stack + the VamlRenderer over the COMPILED app-shell:
+    // `compiled` is the S444 AppShellCompiledPlanResult (the MainView.vbaml
+    // decoded through the S7 VBamlReader + the S440 finalize hand-off). The app
+    // ADOPTS the compiled root (root_) + RETAINS the S7 reader
+    // (compiledReader_) so the tree's borrowed non-root objects + the S286
+    // named() registry stay alive. Returns nullptr on any failure (no throw).
+    // A plan failure reports its structured `detail` to stderr (never silent).
+    [[nodiscard]] static std::unique_ptr<ViewerApp>
+    create_compiled_app_shell(const ViewerAppConfig& config,
+                              vaml::viewer::AppShellCompiledPlanResult compiled);
 
     ~ViewerApp();
     ViewerApp(ViewerApp&&) noexcept;
