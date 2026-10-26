@@ -1247,10 +1247,26 @@ Growth tokens by sprint:
 - S440 dep:S408  vaml_viewer app-shell: an authored `MainView.vaml` (Grid+StackPanel+Button+Text+TextBox+
       Slider+CheckBox) rendered via the public surface (reload + pan/zoom harness it). CHILD TOKENS BELOW ARE
       THE VIEWER'S OWN APP-LAYER DOGFOOD, in-repo.
-- S441 dep:S440  MainViewModel for the app-shell: observable props + RelayCommands wiring to an in-repo demo
+- S441 dep:S440  [DONE — delivered together with S442 per the user decision ("do both 442 and 441 at the same
+      time"), BOTH CI LANES green (build/verify_s441.cmd msvc-debug + /mnt/hgfs/VamlPOC clang-debug). NEW
+      vaml_viewer/app_shell_vm.{h,cpp}: AppShellViewModel final : ObservableObject (S241) with PROPERTY_BINDABLE
+      props the markup binds (Text/Checked/SliderValue/Dim/Status) + RunCommand/EchoCommand RelayCommands
+      (S246/ICommand) wired to the S442 AppShellDemoService via PLAIN CONSTRUCTORS (S250/S256, NO DI).
+      MainView.vaml's {Binding Status} target is included (NO-GAP, not silent). NEW test/unit/AppShellViewModel_
+      test.cpp (7 cases / 32 assertions: props round-trip + real-change-only; commands execute + CanExecute +
+      CanExecuteChanged fire through ICommand; wiring targets the injected service; constructor-only composition
+      path). Build wiring: vaml-core-tests (+test + app_shell_vm.cpp), vaml_viewer.vcxproj, vaml_viewer-linux
+      CMakeLists.]  MainViewModel for the app-shell: observable props + RelayCommands wiring to an in-repo demo
       domain service (the S250 app-constructed composition, no DI).
-- S442 dep:S441  in-repo demo infra service + the app-shell's own constructor wiring (the S250 static
-      app-owned composition pattern — no library CompositionRoot).
+- S442 dep:S441  [DONE — delivered together with S441 (user decision). NEW vaml_viewer/demo_service.h +
+      app_shell_vm.cpp impl: AppShellDemoService (plain constructor; counter/dimmer/echo — mirrors the S256
+      ViewerDemoService precedent) + the app-shell's OWN static wiring seam AppShellComposition +
+      build_app_shell_composition() (S250 pattern — constructor-only, NOTHING registered/resolved, NO library
+      CompositionRoot/DI). S442's plan-diff: the concrete service type is authored under S441 (its wiring
+      target, required to compile/test the VM); S442's NO-GAP resolution point is the static composition seam.
+      Tests: the constructor-only path + the VM-holds-injected-service contract (AppShellViewModel_test.cpp).
+      BOTH CI LANES green (build/verify_s441.cmd).]  in-repo demo infra service + the app-shell's own constructor
+      wiring (the S250 static app-owned composition pattern — no library CompositionRoot).
 - S443 dep:S442  App-shell ↔ MainViewModel wired via markup {Binding} + {Command} (the S240–S252 + S256 path).
 - S444 dep:S443  Compile the app-shell MainView.vaml→.vbaml via vamlcc in the CMake custom command (release path).
 - S445 dep:S444  Launch vaml_viewer → the app-shell declared UI renders; click/type/slide updates VM-driven

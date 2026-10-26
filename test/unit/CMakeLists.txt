@@ -407,6 +407,17 @@ add_executable(vaml-core-tests
     # WPF-faithful single-content slot), and lays its content child out to FILL
     # its box (the implicit single-child layout — a Window root RENDERS content).
     Window_rebase_test.cpp
+    # S440 (dep:S408) — app-shell authored + MainView.vaml + the S120/S121 gap
+    # closure (AppShellPlan_s440_test.cpp) is compiled into the presentation
+    # target below.
+    # S441 (dep:S440) + S442 (dep:S441) — the app-shell MainViewModel (final
+    # ObservableObject + PROPERTY_BINDABLE props the markup binds: Text/Checked/
+    # SliderValue/Dim/Status) + RelayCommands (S246/ICommand) wired to the S442
+    # AppShellDemoService via PLAIN CONSTRUCTORS (the S250/S256 wiring pattern),
+    # + the S442 static composition seam (build_app_shell_composition). Compiled
+    # from the vaml_viewer include + the REAL app_shell_vm.cpp (ADR-021).
+    AppShellViewModel_test.cpp
+    ../../vaml_viewer/app_shell_vm.cpp       # S441/S442: the VM + service impls (single source of truth)
     # S320+S321 (dep:S292/S320) — Signal<T> + RoutedEvent primitive + the routed-
     # event engine (bubbling + tunneling + handled over the REAL parent chain).
     RoutedEvent_test.cpp

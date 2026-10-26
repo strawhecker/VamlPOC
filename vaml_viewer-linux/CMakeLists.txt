@@ -65,6 +65,7 @@ add_executable(vaml-viewer-linux
     ../vaml_viewer/app.cpp         # S222: the shared "soup-to-nuts" render host (single source of truth)
     ../vaml_viewer/file_watch.cpp  # S222_1: the shared file-watch mtime-poll + notify seam
     ../vaml_viewer/live_reload.cpp # S222_1: the shared live-reload coordinator
+    ../vaml_viewer/app_shell_vm.cpp # S441/S442: the app-shell VM + service impls (single source of truth)
     # S224 cli.h + view_transform.h are HEADER-ONLY seams (included from the
     # vaml_viewer include dir below) — no separate TU needed.
 )

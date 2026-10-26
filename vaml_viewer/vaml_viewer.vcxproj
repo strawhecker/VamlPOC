@@ -108,6 +108,7 @@
     <ClCompile Include="app.cpp" />
     <ClCompile Include="file_watch.cpp" />
     <ClCompile Include="live_reload.cpp" />
+    <ClCompile Include="app_shell_vm.cpp" />   <!-- S441/S442: the app-shell VM + service impls -->
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="load_file.h" />
@@ -118,6 +119,9 @@
     <ClInclude Include="live_reload.h" />
     <ClInclude Include="cli.h" />
     <ClInclude Include="view_transform.h" />
+    <ClInclude Include="app_shell.h" />       <!-- S440: the app-shell load seam -->
+    <ClInclude Include="app_shell_vm.h" />    <!-- S441: the app-shell MainViewModel -->
+    <ClInclude Include="demo_service.h" />    <!-- S442: the app-shell demo service + composition seam -->
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
