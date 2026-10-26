@@ -51,6 +51,7 @@
 #include "viewer_binding.h"// S256: ViewerDemoViewModel + run_viewer_binding_plan (the binding reload seam)
 #include "app_shell.h"     // S440: run_app_shell_plan + AppShellPlanResult (the app-shell load seam)
 #include "app_shell_compiled.h" // S444: load_compiled_app_shell_file/embedded + AppShellCompiledPlanResult
+#include "app_shell_vm.h"   // S445: AppShellViewModel (the retained --app VM)
 
 #include <vaml/vulkan/Vulkan.h>
 #include <vaml/vulkan/VulkanLoader.h>
@@ -270,6 +271,13 @@ private:
     // app's lifetime (mirrors the bindingReader_ retention pattern). Null outside
     // --app mode.
     std::unique_ptr<vaml::VamlReader> appShellReader_;
+
+    // S445 — the retained APP-SHELL ViewModel (the --app mode). The S441
+    // MainViewModel (shared_ptr) the live window's {Binding} data-context + the
+    // S445 checkbox↔VM wire need alive for the app's lifetime. Owned here so the
+    // interactive vertical slice stays armed (not just the reader). Null outside
+    // --app mode. Requires the VM type (included via app_shell_vm.h).
+    std::shared_ptr<vaml::viewer::AppShellViewModel> appShellVm_;
 
     // S293 — the retained COMPILED reader (the S7 VBamlReader). When the app was
     // opened via create_compiled, `compiledReader_` owns the non-root retained

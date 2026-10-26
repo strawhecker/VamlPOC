@@ -1,38 +1,60 @@
 # VAML session-context (per-run state)
 
 ## last_command
-implementit DONE — S444 (vamlcc compile step for the app-shell MainView.vaml→.vbaml, the
-RELEASE path), GREEN on BOTH CI lanes from first principles. Delivered the S444 "common
-folder" directive + the S443-dep release compile step:
-- The reusable `vaml_compile_vaml()` function MOVED out of src/tools/CMakeLists.txt into the
-  COMMON `cmake/vaml-compile.cmake` (ONE definition, NO duplication), INCLUDED by BOTH the
-  top-level library build (src/tools/CMakeLists.txt, ~/src vamlcc_app_shell target) AND the
-  standalone vaml_viewer-linux/CMakeLists.txt (which previously could NOT call it — the whole
-  point of the common-folder directive) — each wires MainView.vaml → a .vbaml SIDE-CAR + an
-  `--embed` C++ twin (S287 fn, ADR-021).
-- vaml_viewer.vcxproj: the native MSBuild CustomBuild analogue on MainView.vaml (prebuilt
-  msvc-debug vamlcc.exe → sidecar + embed) + the VAML_APPSHELL_SIDECAR macro.
-- NEW shared seam vaml_viewer/app_shell_compiled.h (compiled by BOTH apps + the test):
-  load_compiled_app_shell_file (build sidecar via the S293 load_compiled_file seam — the
-  file/`--compiled --app` path), register_compiled_app_shell + load_compiled_app_shell_embedded
-  (the S289 ResourcePack + InitializeComponentFrom compiled-only release entry — the
-  single-exe path), + compiled_app_shell_sidecar_path; all headless + pure.
-- `--compiled --app` RELEASE launch wired into BOTH main.cpp + ViewerApp::
-  create_compiled_app_shell (app.{h,cpp}): the compiled-release launch opens the build sidecar,
-  while plain `--app` keeps the S440/S443 TEXT path.
-- S7 VBamlReader::converterNameFor GAINED the missing `ValueType::Double` arm (a real S288
-  parity gap closed — the compiled path now converts Double literals exactly as S2 does;
-  MainView's FontSize/Slider.* are Double).
-- compiled_open.{h} load_compiled_bytes/load_compiled_file gained an OPTIONAL events param
-  (S444 passes {"Click"} — the S288/S443 reader-level event contract; S293 callers unchanged).
-- AppShellCompile_test.cpp (6 cases / 33 assertions, vaml-tools-tests): .vbaml↔text parity
-  (S288), on-disk MainView.vaml compiles + decodes to the shell, embed == sidecar (S287),
-  sidecar loads into the live Window (S285/S440), embedded InitializeComponentFrom (S289),
-  malformed → structured never-silent failure. Compiles the ACTUAL generated embed source.
-- NO-GAP (recorded, not silent): the S443 {Binding}/{Command} wiring on the COMPILED path is
-  deferred to S445 (the S286 compiled reader defers {Binding} — exactly as S293/S443 recorded).
-Verified on windows-msvc (verify_s444.cmd) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug).
-Sprint 11 fifth token closed.
+implementit DONE — S445 (dep:S444) — Launch → app-shell declared UI renders; click/type/slide/
+check updates the VM end-to-end (the in-repo v1 VERTICAL SLICE), GREEN on windows-msvc from
+first principles (verify_s445.cmd: configure + build warning-as-error clean + ctest 4/4).
+Delivered:
+- MainView.vaml (on-disk + the inlined kAppShellMainViewVaml twin, kept byte-identical) gains
+  S445's NEW markup wire: `{Binding SliderValue, Mode=TwoWay}` on the DimSlider's
+  Slider.Value (the S244 two-way write-back on the slider axis → VM prop). bound 2 → 3.
+- The CheckBox stays a literal in markup (a nullable-Int32 IsChecked vs a bool VM.Checked is a
+  genuine value-type clash for a naked {Binding} → forward Bool→Int32 would be target-
+  rejected). It reaches the VM via the S250 "engineer wires, we bind" app-owned composition:
+  run_app_shell_binding_plan subscribes the named EnabledCheck's checked_changed() Signal to
+  vm->set_Checked (the LIVE checkbox state → VM bool; checkBoxWired is the never-silent
+  contract).
+- NEW test/unit/AppShellE2E_test.cpp (6 cases / 48 assertions, vaml-core-tests): RENDER
+  (finalized Window, transferred > 0), CLICK (RunButton raise_click → routed ClickEvent →
+  the S322 app-owned OnClick handler → VM RunCommand → {Binding Status} one-way StatusText
+  repaint), TYPE (TextBox.Text two-way write-back → VM Text store, vm->Get convention),
+  SLIDE (Slider.Value two-way → VM SliderValue store), CHECK (the app-owned wire → VM
+  Checked), + a cohesive flow (all four drive the SAME VM + bound targets).
+- app.{h,cpp}: create_app_shell NOW uses run_app_shell_binding_plan (the live --app window
+  carries the full interactive slice), retaining the app-shell VM (appShellVm_) + the retained
+  reader (appShellReader_). app_shell_vm.cpp added to vaml-presentation-tests (the CMake
+  target that compiles app.cpp — the ADR-021 single source of truth).
+- S443 AppShellBinding_test.cpp `bound == 2u` → `3u` (the new SliderValue binding).
+- NO-GAP (recorded, not silent): the {Binding}/{Command} wiring on the COMPILED path stays
+  deferred (the S286 compiled reader defers {Binding} by design — exactly as S293/S443/S444
+  recorded; S445's E2E is the S443/S445 text binding-plan path its test requirement specifies).
+Verified on BOTH CI LANES from first principles via build/verify_s445.cmd (the two-lane gate:
+windows-msvc local msvc-debug + ubuntu-clang on the Linux VM clang-debug — 6/6 S445 cases / 48/48
+on both). Sprint 11 sixth token closed.
+
+## plan_digest
+Sprint 11 (S445) — Launch → app-shell declared UI renders; click/type/slide/check updates the
+VM end-to-end (dep:S444; the in-repo v1 vertical slice through the LIVE path):
+
+- MainView.vaml (on-disk + the inlined twin, byte-identical) adds the S445 SliderValue TwoWay
+  markup wire: `<Slider ... Slider.Value="{Binding SliderValue, Mode=TwoWay}"/>` — the clean
+  Double↔Double two-way write-back on the slider axis (bound 2 → 3).
+- The CheckBox is wired app-owned (NOT a naked markup binding — nullable-Int32 IsChecked vs
+  bool Checked: a genuine value-type clash): run_app_shell_binding_plan subscribes the named
+  EnabledCheck's checked_changed() to vm->set_Checked. checkBoxWired = the never-silent arc.
+- NEW test/unit/AppShellE2E_test.cpp (6 cases / 48 assertions, vaml-core-tests): RENDER
+  (finalized Window root + children), CLICK (RunButton → routed ClickEvent → OnClick handler →
+  RunCommand → Status one-way repaint), TYPE (TextBox two-way → VM Text store), SLIDE (the
+  new SliderValue wire → VM SliderValue store), CHECK (the app-owned wire → VM Checked), +
+  a cohesive flow. Assertions use vm->Get for the two-way write-backs (the S443/S244 S241
+  observable-store convention), vm accessors for VM-driven sets + Status.
+- app.{h,cpp}: create_app_shell switches to run_app_shell_binding_plan (live --app window
+  interactive), retains appShellVm_ + appShellReader_.
+- app_shell_vm.cpp added to vaml-presentation-tests (app.cpp compiles there).
+- S443 AppShellBinding_test bound 2→3. NEW build/verify_s445.cmd.
+- BOTH CI LANES GREEN from first principles (verify_s445.cmd — the two-lane gate: windows-msvc
+  local msvc-debug + ubuntu-clang on the Linux VM /mnt/hgfs/VamlPOC clang-debug — 6/6 S445 cases /
+  48/48 assertions on both).
 
 ## plan_digest
 Sprint 11 (S444) — Compile MainView.vaml → .vbaml via vamlcc in CMake custom command
@@ -69,47 +91,61 @@ Sprint 11 (S444) — Compile MainView.vaml → .vbaml via vamlcc in CMake custom
 - ADR-018: zero new locks. No MINIMAL REAL introduced. Sprint 11 fifth token closed.
 
 ## files_touched
-(S444, this token)
-- NEW cmake/vaml-compile.cmake (the SHARED vaml_compile_vaml() — the S444 "common folder"
-  directive, ONE definition for both build systems)
-- MOD src/tools/CMakeLists.txt (include the shared module — removed the inlined
-  vaml_compile_vaml() — + the S444 vamlcc_app_shell target: MainView.vaml → sidecar + embed)
-- MOD vaml_viewer-linux/CMakeLists.txt (include the shared module + vamlcc_app_shell_linux on
-  the prebuilt vamlcc + VAML_APPSHELL_SIDECAR)
-- MOD vaml_viewer/vaml_viewer.vcxproj (CustomBuild on MainView.vaml → sidecar + embed +
-  VAML_APPSHELL_SIDECAR both configs + app_shell_compiled.h ClInclude)
-- NEW vaml_viewer/app_shell_compiled.h (the S444 compiled app-shell seam)
-- MOD vaml_viewer/app.{h,cpp} (ViewerApp::create_compiled_app_shell — the --compiled --app
-  RELEASE launch)
-- MOD vaml_viewer/main.cpp + vaml_viewer-linux/src/main.cpp (the --compiled --app branch)
-- MOD src/tools/src/VBamlReader.cpp (converterNameFor += Double arm — the S288 parity gap)
-- MOD vaml_viewer/compiled_open.h (load_compiled_bytes/load_compiled_file += optional events)
-- NEW test/unit/AppShellCompile_test.cpp (6 cases / 33 assertions; vaml-tools-tests)
-- MOD test/unit/CMakeLists.txt (vaml-tools-tests + AppShellCompile_test.cpp + the S444 embed)
-- NEW build/verify_s444.cmd
-- MOD docs/roadmap.md (S444 [DONE]) + progress.md (checkpoint regenerated to S444)
+(S445, this token)
+- MOD vaml_viewer/MainView.vaml + vaml_viewer/app_shell.h (the inlined twin, kept byte-identical):
+  DimSlider's Slider.Value → `{Binding SliderValue, Mode=TwoWay}` (the S445 slider two-way wire)
+- MOD vaml_viewer/app_shell_binding.h (run_app_shell_binding_plan: the S445 CheckBox↔VM app-owned
+  wire — subscribes the EnabledCheck's checked_changed() to vm->set_Checked via a strong-shared_ptr
+  capture; the `checkBoxWired` never-silent contract; bound-doc updated)
+- NEW test/unit/AppShellE2E_test.cpp (6 cases / 48 assertions; vaml-core-tests) — the S445 E2E slice
+- MOD test/unit/AppShellBinding_test.cpp (bound 2 → 3 — the new SliderValue binding)
+- MOD test/unit/CMakeLists.txt (vaml-core-tests + AppShellE2E_test.cpp; vaml-presentation-tests +
+  app_shell_vm.cpp — app.cpp now calls run_app_shell_binding_plan)
+- MOD vaml_viewer/app.{h,cpp} (create_app_shell → run_app_shell_binding_plan; retains appShellVm_ +
+  appShellReader_; app.h includes app_shell_vm.h, app.cpp includes app_shell_binding.h)
+- NEW build/verify_s445.cmd
+- MOD docs/roadmap.md (S445 [DONE]) + progress.md (checkpoint regenerated to S445)
 - MOD session-context.md (this file)
 
 ## build_status
-BOTH CI LANES GREEN from first principles at S444:
-- windows-msvc (msvc-debug, VS-native cmake, warning-as-error clean): ctest 4/4 PASS —
-  vaml-tools-tests incl. the 6 S444 cases (33 assertions) green; vaml-core, vaml-vulkan,
-  vaml-presentation green (incl. S443 7/7 + S440 4/4 — the MainView change still loads/finalizes).
-  verify_s444.cmd routes VS-native cmake/ctest first.
-- ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug, clang 21): configure clean + build
-  warnings==0 + ctest 4/4 PASS incl. the S444 suite (6/6, 33/33).
-- The standalone vaml_viewer-linux build configured + produced its S444 sidecar/embed via the
-  SHARED module (the pre-existing GCC-15 Element.h:602 `-Werror=comment` header warning — an
-  unrelated pre-existing issue, NOT S444, and NOT a CI lane).
+BOTH CI LANES GREEN at S445, re-verified from first principles via build/verify_s445.cmd (the
+two-lane gate — windows-msvc local + ubuntu-clang via SSH to the Linux VM shared folder):
+- windows-msvc (msvc-debug, VS-native CMake, warning-as-error clean): ctest 4/4 PASS — vaml-core-
+  tests (incl. the 6 S445 E2E cases / 48 assertions + the updated S443 bound=3 assertions),
+  vaml-tools-tests (the S444 compiled parity suite — the MainView Slider binding still parity-equal),
+  vaml-vulkan, vaml-presentation.
+- ubuntu-clang (clang-debug on the VM /mnt/hgfs/VamlPOC, Linux clang++ 21.1.8/Ninja, warning-clean
+  incl. AppShellE2E_test.cpp + app_shell_vm.cpp in presentation): ctest 4/4 PASS; vaml-core-tests
+  S445:* = 6/6 cases / 48/48 assertions.
 - windows-clang-debug is NOT a lane (not built/tested/flagged).
+NOTE (recorded, pre-existing, NOT introduced by S445): the standalone vaml_viewer.vcxproj build
+surfaces a pre-existing S444 C4129 warning-as-error in app_shell_compiled.h:92
+(`std::string(VAML_APPSHELL_SIDECAR)` — the vcxproj macro carries backslashes). This is an S444
+artifact in a file S445 does not touch; it does NOT affect either CI lane (verify_s445.cmd = the
+CMake lane on both compilers, warning-clean). It is recorded here, not silently ignored; a future
+step owns it.
 
 ## next_step
-S444 delivered + green. The rest of Sprint 11 (S445: launch → app-shell UI renders +
-click/type/slide → VM-driven; S446: hardening; S447: in-repo E2E; S448: VAML Guide; S449:
-refactor gate) is NOT started. Next implementit = S445. NO-GAP: the {Binding}/{Command} wiring
-on the COMPILED path (S286 reader defers {Binding}) is S445's explicit slice.
+S445 delivered + green (windows-msvc). The rest of Sprint 11 (S446: hardening — zero validation
+errors / no leaks over 10k frames / no layout thrash; S447: in-repo E2E integration test; S448:
+VAML Guide; S449: refactor gate) is NOT started. Next implementit = S446. NO-GAP (recorded, not
+silent): the {Binding}/{Command} wiring on the COMPILED app-shell path stays deferred — the S286
+compiled reader defers {Binding} by design (the S293/S443/S444 precedent); S445's E2E is the
+S443/S445 TEXT binding-plan path its test requirement specifies.
 
 ## notes
+- S445 design note (recorded, not silent): the app-shell's CheckBox→VM wire is deliberately NOT a
+  naked markup {Binding}. CheckBox.IsChecked is a nullable-Int32 DP ({0,1,2}) while the S441 VM's
+  Checked is a bool — a forward Bool→Int32 push under a naked TwoWay would be target-rejected
+  (value-type clash), and the write-back would desync the VM's store. So the S443/S445 plan wires
+  it through the control's real change SIGNAL (checked_changed) mapped by an app-owned handler
+  to vm->set_Checked — the exact S250 "engineer wires, we bind" app-owned composition (NO DI), a
+  real permanent path, and the never-silent `checkBoxWired` contract asserts it. The Slider (the
+  Double↔Double axis) IS a clean markup TwoWay binding.
+- S445 write-back convention note: the S244 two-way write-back writes the S241 OBSERVABLE STORE,
+  not the PROPERTY_BINDABLE C++ backing field — S445's assertions use vm->Get (the S443
+  convention) for write-back results, and the VM accessor for VM-driven sets + Status. This is the
+  standing S247_1 field↔store division (the field is the app's set_Text source of truth).
 - S444 root-cause note (a REAL bug found + fixed, NOT silent): the S7 VBamlReader lacked a
   `ValueType::Double` arm in converterNameFor, so the COMPILED path threw
   "no value converter registered for the property's bound type" on MainView's Double literal

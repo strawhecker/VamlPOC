@@ -71,8 +71,9 @@ TEST_CASE("S443: the plan wires + loads + binds + wires + finalizes the authored
     SHOULD(ShouldlyIntegral((bool)plan.vm).ShouldBe(1));
     SHOULD(ShouldlyIntegral((bool)plan.root).ShouldBe(1));
     // The S252 BindExtensions bound the {Binding Status} (OneWay) + {Binding Text,
-    // Mode=TwoWay} rows. {Command RunCommand} is left deferred by S252 (2 bound).
-    SHOULD(ShouldlyIntegral(plan.bound == 2u).ShouldBe(1));
+    // Mode=TwoWay} + S445's {Binding SliderValue, Mode=TwoWay} rows (3 bound).
+    // {Command RunCommand} is left deferred by S252 (not counted).
+    SHOULD(ShouldlyIntegral(plan.bound == 3u).ShouldBe(1));
     // The S322 BindEvents wired the markup Click="OnClick" (1 wired record).
     SHOULD(ShouldlyIntegral(plan.wired == 1u).ShouldBe(1));
     // The S440 hand-off transferred the declared children (renders).

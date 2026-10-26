@@ -10,6 +10,7 @@
 #include "app.h"
 #include "drop_reopen.h"  // S223: is_vaml_drop / drop_choice (the pure drop-decision seams)
 #include "app_shell.h"    // S440: run_app_shell_plan + AppShellPlanResult (the app-shell load seam)
+#include "app_shell_binding.h" // S443/S445: run_app_shell_binding_plan + AppShellBindingPlanResult (the interactive shell)
 #include "app_shell_compiled.h" // S444: AppShellCompiledPlanResult (the compiled app-shell load seam)
 
 #include <vaml/core/UIElement.h>        // vaml::UIElement (the REAL visual tree root)
@@ -154,11 +155,18 @@ ViewerApp::create_compiled(const ViewerAppConfig& config, vaml::viewer::Compiled
 std::unique_ptr<ViewerApp>
 ViewerApp::create_app_shell(const ViewerAppConfig& config)
 {
-    // S440 — the `--app` launch path (the Sprint 11 v1 app). Load the in-repo
-    // app-shell through the S440 seam (the RETAINED VamlReader + finalize_visual_
-    // tree hand-off that RENDERS the declared shell children), then adopt the
-    // shell tree + retain the shell reader so the S443 live wiring stays armed.
-    vaml::viewer::AppShellPlanResult plan = vaml::viewer::run_app_shell_plan();
+    // S440/S443/S445 — the `--app` launch path (the Sprint 11 v1 app). Load the
+    // in-repo app-shell through the S443/S445 BINDING PLAN (the RETAINED VamlReader
+    // + the S252 {Binding}/{Command} + the S322 Click wiring + the S440
+    // finalize_visual_tree hand-off that RENDERS the declared shell children), so
+    // the LIVE window carries the FULL interactive vertical slice — click → routed
+    // ClickEvent → the app-owned OnClick handler → the VM RunCommand → the {Binding
+    // Status} one-way repaint; the TextBox.Text two-way write-back; the S445
+    // SliderValue two-way wire; the S445 app-owned CheckBox↔VM wire. The bound VM
+    // (a shared_ptr) is retained by the plan result; the reader + VM stay armed for
+    // the app's lifetime. The compiled-release app-shell path stays on the S7
+    // reader via create_compiled_app_shell (S444).
+    vaml::viewer::AppShellBindingPlanResult plan = vaml::viewer::run_app_shell_binding_plan();
     if (!plan.ok || !plan.root)
     {
         // Report the structured reason (never silent) — a shell failure means the
@@ -177,9 +185,14 @@ ViewerApp::create_app_shell(const ViewerAppConfig& config)
     std::unique_ptr<ViewerApp> app = create_impl(config, std::move(plan.root), uiRoot, nullptr);
     if (app)
     {
-        // Retain the app-shell reader (keeps the finalized visual tree + any S443
-        // {Binding}/{Command} wiring armed for the app's lifetime).
+        // Retain the app-shell reader (keeps the finalized visual tree + the S443/
+        // S445 {Binding}/{Command} + checkbox wiring armed for the app's lifetime).
         app->appShellReader_ = std::move(plan.reader);
+        // Retain the app-shell VM (a shared_ptr — the S441 MainViewModel wired to
+        // the S442 composition). The live window's {Binding} data-context + the
+        // S445 checkbox handler (a strong capture) must keep the VM alive for the
+        // app's lifetime; owning it here makes the retention explicit + testable.
+        app->appShellVm_ = std::move(plan.vm);
     }
     return app;
 }

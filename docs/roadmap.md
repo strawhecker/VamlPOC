@@ -1298,7 +1298,12 @@ Growth tokens by sprint:
       build warnings==0 + ctest 4/4 PASS incl. the S444 suite 6/6, 33/33). No commits.]  Compile the app-shell
       MainView.vaml→.vbaml via vamlcc in the CMake custom command (release path).
 - S445 dep:S444  Launch vaml_viewer → the app-shell declared UI renders; click/type/slide updates VM-driven
-      UI end to end (the in-repo v1 vertical slice).
+      UI end to end (the in-repo v1 vertical slice). [DONE — AppShellE2E_test.cpp 6 cases; the app-shell
+      E2E through run_app_shell_binding_plan: RENDER/CLICK/TYPE/SLIDE/CHECK + cohesive flow. The S445
+      CheckBox↔VM wire = the S250 app-owned composition (nullable-Int32 IsChecked vs bool Checked — a
+      naked TwoWay can't bridge; the plan subscribes checked_changed → vm->set_Checked). The S445
+      SliderValue TwoWay markup wire on Slider.Value (bound 2→3). GREEN on BOTH CI LANES via
+      build/verify_s445.cmd (windows-msvc local + ubuntu-clang on the Linux VM).]
 - S446 dep:S445  Zero validation-layer errors; no leaks over 10k frames; no layout thrash (app-shell, in-repo).
 - S447 dep:S446  In-repo E2E integration test of the app-shell (headless/offscreen where feasible).
 - S448 dep:S447  In-repo app-shell acceptance doc written from real behavior (not spec). [v1-app EXTERNAL

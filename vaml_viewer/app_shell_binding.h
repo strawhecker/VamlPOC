@@ -80,6 +80,7 @@ struct AppShellBindingPlanResult
     std::size_t bound = 0;                        // the S252 BindExtensions count ({Binding} + {Command}-deferred)
     std::size_t wired = 0;                        // the S322 BindEvents count (Click handlers wired)
     std::size_t transferred = 0;                  // the S440 finalize_visual_tree child count (renders)
+    bool checkBoxWired = false;                   // S445: the app-owned CheckBox↔VM wire armed (never silent)
     std::string detail;                           // structured failure reason (never silent)
 
     // --- S443 convenience accessors ---------------------------------------
@@ -158,11 +159,47 @@ run_app_shell_binding_plan(std::string_view text = kAppShellMainViewVaml)
         }
         r.root = std::unique_ptr<vaml::UIElement>(static_cast<vaml::UIElement*>(loaded.release()));
 
-        // S252 — resolve the {Binding Status} (OneWay) + {Binding Text, Mode=TwoWay}
-        // (S244 write-back) into live BindingExpressions against the VM.
+        // S252 — resolve the {Binding Status} (OneWay) + {Binding Text,
+        // Mode=TwoWay} (S244 write-back) + S445's {Binding SliderValue,
+        // Mode=TwoWay} into live BindingExpressions against the VM.
         r.bound = r.reader->BindExtensions();
         // S322 — wire the markup Click="OnClick" into the live routed handler.
         r.wired = r.reader->BindEvents();
+        // S445 — the CHECKBOX ↔ VM wire (the S250 "engineer wires, we bind"
+        // headline, app-owned composition — NOT a naked markup binding): the
+        // authored CheckBox's CheckBox.IsChecked is a nullable-Int32 DP while the
+        // VM's Checked is a bool — a genuine value-type clash a naked {Binding}
+        // TwoWay cannot bridge (a forward Bool→Int32 push would be rejected).
+        // So the app-shell wires the check END-TO-END through the control's real
+        // change SIGNAL: a checkbox toggle (S404 on-toggle cycle) fires
+        // `checked_changed()`, whose app-owned handler maps the checkbox's LIVE
+        // nullable state (cb->checked(): 0/1/2) to the VM's bool Checked. This
+        // is the exact "engineer wires, we bind" pattern — the app owns the
+        // mapping, NO DI, staying on the app-shell's plain-composition theme.
+        // `checkedBoxWired` is the never-silent contract: it must be true for
+        // the check→VM slice to be driveable end-to-end.
+        {
+            auto* cb = dynamic_cast<vaml::CheckBox*>(r.reader->named("EnabledCheck"));
+            if (cb != nullptr)
+            {
+                // Capture the VM shared_ptr by value (the composed VM the plan
+                // retains below) so the handler keeps the VM alive for the tree's
+                // lifetime — never a dangling capture.
+                std::shared_ptr<AppShellViewModel> vmStrong = vm;
+                // `checked_changed()` returns the Signal (the subscription
+                // registry); `.add(...)` returns the removal token (nodiscard —
+                // kept in a local so the checkbox→VM wire stays registered for
+                // the tree's lifetime; the plan never removes it).
+                [[maybe_unused]] const auto chkToken =
+                    cb->checked_changed().add([vmStrong, cb] {
+                        // Map the checkbox's present nullable state -> the VM bool
+                        // run gate (checked(1) = true; unchecked(0)/indeterminate(2)
+                        // = false — the WPF-faithful bool? → bool collapse).
+                        (void)vmStrong->set_Checked(cb->checked() == 1);
+                    });
+                r.checkBoxWired = true;
+            }
+        }
         // S440 — the S120/S121 hand-off: render the DECLARED children, not just
         // the root. `transferred` is the never-silent render contract.
         r.transferred = r.reader->finalize_visual_tree();

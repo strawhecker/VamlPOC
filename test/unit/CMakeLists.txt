@@ -428,6 +428,14 @@ add_executable(vaml-core-tests
     # via BindEvents runs handler → VM → binding repaint; malformed binding →
     # structured never-silent error. Header-only seam (app_shell_binding.h), no TU.
     AppShellBinding_test.cpp
+    # S445 (dep:S444) — the app-shell E2E VERTICAL SLICE (headless): the full
+    # authored MainView.vaml driven end-to-end through the S443/S445 binding plan
+    # against the retained reader/VM + the target DPs. Proves RENDER (finalized
+    # Window), CLICK (RunButton → routed Click → handler → VM → one-way Status
+    # repaint), TYPE (TextBox two-way → VM Text), SLIDE (the S445 SliderValue
+    # TwoWay wire → VM prop), CHECK (the S445 app-owned CheckBox↔VM wire → VM
+    # Checked), + a cohesive flow (all four drive the same VM + bound targets).
+    AppShellE2E_test.cpp
     # S320+S321 (dep:S292/S320) — Signal<T> + RoutedEvent primitive + the routed-
     # event engine (bubbling + tunneling + handled over the REAL parent chain).
     RoutedEvent_test.cpp
@@ -760,6 +768,7 @@ add_executable(vaml-presentation-tests
     # [both apps, not CI] — the DISPLAY proof, verified live on this box.
     ViewerRenderPlan_test.cpp
     ../../vaml_viewer/app.cpp
+    ../../vaml_viewer/app_shell_vm.cpp  # S443/S445: the app-shell VM + composition (run_app_shell_binding_plan — app.cpp now uses it)
     ../../vaml_viewer/load_file.cpp  # S221 seam (live_reload.cpp below calls vaml::load_file)
     # S222_1 (dep:S222) — the viewer LIVE-RELOAD plan seam + the reload coordinator
     # sources. Compiles the ACTUAL shared host sources (app.cpp + the file-watch +

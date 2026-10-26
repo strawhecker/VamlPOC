@@ -96,7 +96,7 @@ R"VAML(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="ro
     <StackPanel x:Name="HeaderPanel" Orientation="Horizontal">
       <Text x:Name="TitleText" Text="VAML App Shell" FontSize="18"/>
       <Button x:Name="RunButton" Click="OnClick" Command="{Command RunCommand}"/>
-      <CheckBox x:Name="EnabledCheck" CheckBox.IsChecked="1"/>
+      <CheckBox x:Name="EnabledCheck" CheckBox.IsChecked="0"/>
     </StackPanel>
     <StackPanel x:Name="BodyPanel" Orientation="Vertical">
       <Text x:Name="PromptText" Text="Enter text:" FontSize="14"/>
@@ -105,7 +105,7 @@ R"VAML(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="ro
     </StackPanel>
     <StackPanel x:Name="FooterPanel" Orientation="Vertical">
       <Text x:Name="SliderLabel" Text="Dim:" FontSize="12"/>
-      <Slider x:Name="DimSlider" Slider.Minimum="0" Slider.Maximum="100" Slider.Value="50"/>
+      <Slider x:Name="DimSlider" Slider.Minimum="0" Slider.Maximum="100" Slider.Value="{Binding SliderValue, Mode=TwoWay}"/>
     </StackPanel>
   </Grid>
 </Window>
