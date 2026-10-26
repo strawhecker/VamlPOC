@@ -95,12 +95,12 @@ R"VAML(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="ro
   <Grid x:Name="RootGrid">
     <StackPanel x:Name="HeaderPanel" Orientation="Horizontal">
       <Text x:Name="TitleText" Text="VAML App Shell" FontSize="18"/>
-      <Button x:Name="RunButton"/>
+      <Button x:Name="RunButton" Click="OnClick" Command="{Command RunCommand}"/>
       <CheckBox x:Name="EnabledCheck" CheckBox.IsChecked="1"/>
     </StackPanel>
     <StackPanel x:Name="BodyPanel" Orientation="Vertical">
       <Text x:Name="PromptText" Text="Enter text:" FontSize="14"/>
-      <TextBox x:Name="InputBox" TextBox.Text="Hello, VAML"/>
+      <TextBox x:Name="InputBox" TextBox.Text="{Binding Text, Mode=TwoWay}"/>
       <Text x:Name="StatusText" Text="{Binding Status}" FontSize="12"/>
     </StackPanel>
     <StackPanel x:Name="FooterPanel" Orientation="Vertical">
@@ -126,6 +126,12 @@ R"VAML(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="ro
         // The reader is created once and RETAINED (heap) so finalize_visual_tree()
         // + the S443 bindings (reader-owned, per-Load) survive the plan's return.
         r.reader = std::make_unique<vaml::VamlReader>();
+        // S443: MainView.vaml's RunButton declares `Click="OnClick"` — register the
+        // Click EVENT so the S440 load path routes it to a deferred event handler
+        // (never an unknown-property throw). The full S443 binding plan additionally
+        // binds the OnClick class-owner handler + BindEvents; the S440 harness only
+        // needs the load to parse (the deferred record is harmless).
+        r.reader->register_event("Click");
         std::unique_ptr<vaml::DependencyObject> loaded = r.reader->Load(kAppShellMainViewVaml);
         if (loaded == nullptr)
         {

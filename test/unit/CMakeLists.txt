@@ -418,6 +418,16 @@ add_executable(vaml-core-tests
     # from the vaml_viewer include + the REAL app_shell_vm.cpp (ADR-021).
     AppShellViewModel_test.cpp
     ../../vaml_viewer/app_shell_vm.cpp       # S441/S442: the VM + service impls (single source of truth)
+    # S443 (dep:S442) — app-shell ↔ MainViewModel wired via {Binding}+{Command}:
+    # the authored MainView.vaml driven through the S252/S253/S322 reader path
+    # (set_data_context + BindExtensions + register_event("Click")/bind_class_handler
+    # + BindEvents), reusing/extending the S256/S329_1 plan pattern into
+    # run_app_shell_binding_plan (retained reader/VM alive — S243/S244 wires armed).
+    # Proves one-way first-transfer; VM set re-pushes the target DP; TextBox.Text
+    # two-way write-back (S244); {Command} resolves to the VM RelayCommand + Click
+    # via BindEvents runs handler → VM → binding repaint; malformed binding →
+    # structured never-silent error. Header-only seam (app_shell_binding.h), no TU.
+    AppShellBinding_test.cpp
     # S320+S321 (dep:S292/S320) — Signal<T> + RoutedEvent primitive + the routed-
     # event engine (bubbling + tunneling + handled over the REAL parent chain).
     RoutedEvent_test.cpp

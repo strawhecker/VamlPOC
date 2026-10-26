@@ -2,8 +2,17 @@
      The canonical in-repo app-shell: a Window root (REAL container window-type,
      S440 — re-based onto UIElement) hosting a Grid containing the full S440
      control set (StackPanel + Text + TextBox + Button + Slider + CheckBox), all
-     x:Name'd, with authored literals + a deferred {Binding} (Status) attribute
-     (fully wired at S443 via the VamlReader set_data_context + BindExtensions).
+     x:Name'd, with authored literals + the S443 MVVM wiring surface:
+       {Binding Status}          -- S252: the StatusText Text <- VM.Status (OneWay)
+       {Binding Text, Mode=TwoWay} -- S252/S244: the TextBox.Text <-> VM.Text (two-way
+                                    write-back on a target edit)
+       {Command RunCommand}      -- S253: the RunButton command resolves to the VM's
+                                    registered RelayCommand
+       Click="OnClick"           -- S322: the RunButton's markup Click wires to the
+                                    S443 class-owner OnClick handler
+     Fully wired at S443 via run_app_shell_binding_plan (set_data_context +
+     register_event("Click") + bind_class_handler("OnClick") + register_command +
+     BindExtensions + BindEvents).
 
      Every attribute is a REAL globally-registered DependencyProperty name the
      S2 runtime reader (VamlReader) resolves — no fake S-prefix names. The S10
@@ -20,17 +29,25 @@
      children list so the Window RENDERS its declared Grid/StackPanel/controls —
      not just the root. This is the "make all S10 controls functional with
      children defined in a running app" directive of sprint 11.
+
+     S443 NOTE — the MVVM wiring slice: the same file is loaded through the
+     S443 binding plan, which (per the S252/S253/S322 reader path) sets the
+     app-owned VM as the data context, registers the Click event + the OnClick
+     class-owner handler + the VM's RunCommand/EchoCommand, then BindExtensions
+     ({Binding}/{Command}) + BindEvents (Click) + finalize_visual_tree(). The
+     S243/S244 live wires (one-way re-push + two-way write-back) stay armed
+     through the retained reader/VM.
 -->
 <Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root">
   <Grid x:Name="RootGrid">
     <StackPanel x:Name="HeaderPanel" Orientation="Horizontal">
       <Text x:Name="TitleText" Text="VAML App Shell" FontSize="18"/>
-      <Button x:Name="RunButton"/>
+      <Button x:Name="RunButton" Click="OnClick" Command="{Command RunCommand}"/>
       <CheckBox x:Name="EnabledCheck" CheckBox.IsChecked="1"/>
     </StackPanel>
     <StackPanel x:Name="BodyPanel" Orientation="Vertical">
       <Text x:Name="PromptText" Text="Enter text:" FontSize="14"/>
-      <TextBox x:Name="InputBox" TextBox.Text="Hello, VAML"/>
+      <TextBox x:Name="InputBox" TextBox.Text="{Binding Text, Mode=TwoWay}"/>
       <Text x:Name="StatusText" Text="{Binding Status}" FontSize="12"/>
     </StackPanel>
     <StackPanel x:Name="FooterPanel" Orientation="Vertical">
