@@ -34,32 +34,56 @@
 
 namespace vaml::viewer {
 
-// The EXTENSION GUARD (pure): is `path` a `.vaml` file (case-INSENSITIVE —
-// Windows Explorer / the X11 file manager may hand us ".VAML")? A dropped
-// non-`.vaml` must NEVER be reopened (stray files dragged over the window are
-// ignored — we never render garbage). Pure + deterministic.
+// The EXTENSION GUARD (pure): is `path` a reopenable SOURCE file — a `.vaml`
+// OR a `.xaml` (both case-INSENSITIVE — Windows Explorer / the X11 file manager
+// may hand us ".VAML"/".XAML")? S450_1 extended the viewer to ACCEPT `.xaml`
+// files; the drop seam follows the SAME source set (a dropped `.xaml` reopens
+// exactly like a dropped `.vaml` — `load_file` is extension-agnostic text, so
+// both parse through the selfsame grammar). A dropped NON-source (stray .txt,
+// .xml, .md, etc.) is NEVER reopened — we never render garbage. Pure + deterministic.
 inline bool is_vaml_drop(const std::string& path) noexcept
 {
     const std::size_t n = path.size();
     if (n < 5)
-        return false;                       // too short to end in ".vaml"
-    const char c0 = path[n - 5];            // '.'
-    const char c1 = path[n - 4];            // v
-    const char c2 = path[n - 3];            // a
-    const char c3 = path[n - 2];            // m
-    const char c4 = path[n - 1];            // l
-    const bool dot   = (c0 == '.');
-    const bool v     = (c1 == 'v' || c1 == 'V');
-    const bool a     = (c2 == 'a' || c2 == 'A');
-    const bool m     = (c3 == 'm' || c3 == 'M');
-    const bool l     = (c4 == 'l' || c4 == 'L');
-    return dot && v && a && m && l;
+        return false;                       // too short to end in ".vaml"/".xaml"
+    // .vaml (5 chars)
+    {
+        const char c0 = path[n - 5];            // '.'
+        const char c1 = path[n - 4];            // v
+        const char c2 = path[n - 3];            // a
+        const char c3 = path[n - 2];            // m
+        const char c4 = path[n - 1];            // l
+        const bool dot   = (c0 == '.');
+        const bool v     = (c1 == 'v' || c1 == 'V');
+        const bool a     = (c2 == 'a' || c2 == 'A');
+        const bool m     = (c3 == 'm' || c3 == 'M');
+        const bool l     = (c4 == 'l' || c4 == 'L');
+        if (dot && v && a && m && l)
+            return true;
+    }
+    // .xaml (5 chars)
+    {
+        const char c0 = path[n - 5];            // '.'
+        const char c1 = path[n - 4];            // x
+        const char c2 = path[n - 3];            // a
+        const char c3 = path[n - 2];            // m
+        const char c4 = path[n - 1];            // l
+        const bool dot   = (c0 == '.');
+        const bool x     = (c1 == 'x' || c1 == 'X');
+        const bool a     = (c2 == 'a' || c2 == 'A');
+        const bool m     = (c3 == 'm' || c3 == 'M');
+        const bool l     = (c4 == 'l' || c4 == 'L');
+        if (dot && x && a && m && l)
+            return true;
+    }
+    return false;
 }
 
 // The DISPATCH decision (pure): given a GLFW drop payload (`count` absolute
-// UTF-8 paths), pick the FIRST `.vaml` path to reopen, or nullopt when the drop
-// contains NO `.vaml` (the drop is ignored — nothing reopens). This is the
-// headless-testable "drop → which file reopens" selection. Pure + deterministic.
+// UTF-8 paths), pick the FIRST reopenable SOURCE path (.vaml / .xaml, the
+// S450_1 extension) to reopen, or nullopt when the drop contains NONE (the drop
+// is ignored — nothing reopens). This is the headless-testable "drop → which
+// file reopens" selection. Pure + deterministic.
 inline std::optional<std::string> drop_choice(int count, const char* const* paths) noexcept
 {
     for (int i = 0; i < count; ++i)

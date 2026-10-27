@@ -1,0 +1,12 @@
+<!--
+  vaml_viewer sample XAML document (S450) — the .xaml acceptance demo.
+  A bona-fide XAML-shaped body through the SAME XML/XAML-aware grammar as
+  sample.vaml: the WPF x-language namespace declared, x:Name + x:Class
+  directives, and a nested Button, resolved by local name.
+  Run it with:
+      vaml_viewer sample.xaml            (text path)
+      vaml_viewer --compiled sample.xaml (compiled path: recompile -> render)
+-->
+<StackPanel Margin="8" x:Class="Demo.SamplePanel" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Button x:Name="go"/>
+</StackPanel>

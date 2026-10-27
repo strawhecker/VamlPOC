@@ -132,13 +132,26 @@ inline bool is_vbaml_path(const std::string& path) noexcept
     return true;
 }
 
+// S450_1 (the .xaml acceptance gate): the SOURCE-LANGUAGE extensions the compiled
+// open treats as "recompile text → .vbaml → load". XAML release marks only
+// `.vbaml` as compiled-binary; its TEXT sources are `.vaml` (the canonical
+// VAML markup) and `.xaml` (a bona-fide import: the viewer ACCEPTS .xaml files,
+// which parse through the selfsame XML/XAML-aware grammar). A `.xaml` path is a
+// NON-direct signal to recompile — never silently misread as binary. Returns
+// true for a case-insensitive `.vaml` OR `.xaml` (or extensionless — treated as
+// source text, the long-standing S293 behavior); false for `.vbaml` (binary).
+[[nodiscard]] inline bool is_vaml_or_xaml_source(const std::string& path) noexcept
+{
+    return !detail::is_vbaml_path(path);
+}
+
 } // namespace detail
 
 // THE FILE SEAM. Reads `path` and produces a live compiled tree:
 //   * a `.vbaml` path  → reads the bytes → load_compiled_bytes.
-//   * a `.vaml` path   → reads the TEXT → compile_to_vbaml (vamlcc in-process)
-//                        → load_compiled_bytes (the "recompiles .vaml→.vbaml
-//                        then reopens" path).
+//   * a `.vaml` / `.xaml` / extensionless TEXT source → reads the text →
+//     compile_to_vbaml (vamlcc in-process) → load_compiled_bytes (the
+//     "recompiles source→.vbaml then reopens" path).
 // `events` (optional) — forwarded to load_compiled_bytes (S444 app-shell
 // passes {"Click"}). The outcome detail carries a structured, never-silent
 // reason on failure.
@@ -170,7 +183,8 @@ inline bool is_vbaml_path(const std::string& path) noexcept
             std::vector<std::uint8_t> bytes(data.begin(), data.end());
             return load_compiled_bytes(bytes, events);
         }
-        // A `.vaml` (or extensionless) source: recompile to .vbaml first.
+        // A `.vaml` / `.xaml` (or extensionless) SOURCE: recompile to .vbaml first
+        // (the declared S450_1 source-language gate — see detail::is_vaml_or_xaml_source).
         const std::string text = ss.str();
         std::vector<std::uint8_t> bytes;
         try

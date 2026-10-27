@@ -1042,7 +1042,12 @@ Growth tokens by sprint:
   S11+: concrete — the viewer app-shell (S440–S449, "v1 in-repo deliverable") · S828_1 (Sprint 16 DPI + i18n/RTL). Sprints 11–18
         each carry a `VIEWER GROWTH:` SURVIVOR header marker (docs/perf/hardening/release sprints say "no
         new renderable feature — viewer unchanged; S222_1 RELOAD still demonstrated", so no sprint is
-        marker-free). NO closed list — every renderable-feature sprint from S11 to S989 carries its own token.
+        marker-free). The 11a…11y WPF-completeness series growth = S455 (11a resource/style re-skin) · S465
+        (11b brushes/extensions/attrs) · S475 (11c DockPanel + selection controls) · S486 (11d display/input
+        controls) · S495 (11e containers/menus/DataGrid) · S503 (11f template/converter/behavior) ·
+        S512 (11g animation/effects) · S522 (11h injected 3rd-party control) · S531 (11-series closure) ·
+        S545 (11z injected-dispatch wrap). NO closed list — every renderable-feature sprint from S11 to S989
+        carries its own token.
 
 ---
 ## Sprint 7 — VBAML compiler (BAML analogue; FIRST full pipeline)  (goal: text→vbaml→tree)  [token S280+]
@@ -1179,11 +1184,11 @@ Growth tokens by sprint:
 ---
 ## Sprint 8 — Routed events + input (single-threaded, single-instance)  (goal: real events + input)  [token S320+]
 > SCOPE RE-SCOPED (plan-decision, Sprint-8 review): Sprint 8 is **single-threaded, single-instance, and
-> zero-new-lock** ONLY. The Dispatcher + async continuation model is **DEFERRED to Sprint 11a** (the
-> multithreaded-UI sprint). See the DEFERRAL NOTE below + the Sprint 11a header. The S323 hit-test /
+> zero-new-lock** ONLY. The Dispatcher + async continuation model is **DEFERRED to Sprint 11z** (the
+> injected-dispatcher / multithreaded-UI sprint). See the DEFERRAL NOTE below + the Sprint 11z header. The S323 hit-test /
 > InputMarshaller / S325 focus are the DISPATCHER-FREE single-threaded input surface; the GLFW→routed
 > translation seam lives in the viewer (the S160 resolution). The `{ASYNC/MULTITHREADING DEFERRED}`
-> marker below is the NO-GAP resolver obligation: **Sprint 11a completes these constructs** — it is a
+> marker below is the NO-GAP resolver obligation: **Sprint 11z completes these constructs** — it is a
 > named, scheduled resolution, never a silent backfill.
 - S320 dep:S292  RoutedEvent primitive: Signal<T> + token + route-policy hook; reentrancy-safe add/remove. [DONE]
 - S321 dep:S320  Bubbling + tunneling + handled: child click bubbles to root unless handled; preview tunnel. [DONE]
@@ -1191,18 +1196,18 @@ Growth tokens by sprint:
 - S323 dep:S322  Mouse/keyboard input → routed events via GLFW callbacks + hit-testing (single-threaded; no Dispatcher). [DONE]
 - S324 dep:S323  Click hit-tests element, raises bubbling routed event with correct source. [DONE]
 - S325 dep:S324  Keyboard focus + routed key events (bubble). [DONE]
-- S326 dep:S325  ~~Dispatcher: input→UI-thread marshalling; continuations scheduled (first Task usage) [ADR-010].~~ **DEFERRED → Sprint 11a** (S450+). Removed from Sprint 8 — Sprint 8 stays single-threaded.
-- S327 dep:S326  ~~Async continuation updates VM prop → binding updates UI; no races.~~ **DEFERRED → Sprint 11a** (S452/S455). Removed from Sprint 8 — the "no races" contract is Sprint 11a's.
+- S326 dep:S325  ~~Dispatcher: input→UI-thread marshalling; continuations scheduled (first Task usage) [ADR-010].~~ **DEFERRED → Sprint 11z** (S540+). Removed from Sprint 8 — Sprint 8 stays single-threaded.
+- S327 dep:S326  ~~Async continuation updates VM prop → binding updates UI; no races.~~ **DEFERRED → Sprint 11z** (S540+). Removed from Sprint 8 — the "no races" contract is Sprint 11z's.
 - S328 dep:S325  REFACTOR GATE(S8): events, routing, markup wiring, input all real — **single-threaded, single-instance, ZERO new locks** (no Dispatcher, no Task, no async). [DONE — both CI lanes green (windows-msvc 920/920 core; ubuntu-clang 4/4): the deferred Dispatcher/Task/async code was pulled so S8 is demonstrably single-threaded + zero-lock]
 - S329 dep:S328  SURVIVOR + checkpoint advance to S360. [DONE — SURVIVOR appended to progress.md; checkpoint advanced to S360; Sprint 8 closed]
 - S329_1 dep:S323  VIEWER-GROWTH: vaml_viewer INTERACTIVE — click a rendered element → routed event (S320/321)
       → markup handler (S322) runs → a visible state change in the live window (handler updates the VM →
       binding repaints). [VIEWER GROWTH: input works in the live viewer — single-threaded; no async needed] [DONE — vaml_viewer/viewer_interactive.h + ViewerInteractivePlan_test.cpp: click → routed ClickEvent → handler → VM → binding repaint, headless CI proof green]
-> **DEFERRAL NOTE (ASYNC/MULTITHREADING DEFERRED — resolved by Sprint 11a):** Sprint 8 is
+> **DEFERRAL NOTE (ASYNC/MULTITHREADING DEFERRED — resolved by Sprint 11z):** Sprint 8 is
 > single-threaded + single-instance; the Dispatcher + Task/async + co_async/co_await + InvokeAsync +
-> multi-thread multi-instance model is Sprint 11a's design, at Sprint 11a's own step (NO-GAP, not a
+> multi-thread multi-instance model is Sprint 11z's design, at Sprint 11z's own step (NO-GAP, not a
 > silent backfill). For the time being: ONE vaml tree, ONE thread, ZERO new locks in this sprint.
-> ADR-010 (Task/continuation model) RE-POINTED to Sprint 11a; ADR-018 re-affirmed for Sprint 8 as
+> ADR-010 (Task/continuation model) RE-POINTED to Sprint 11z; ADR-018 re-affirmed for Sprint 8 as
 > ZERO new locks (the S326 Dispatcher-Post mutex idea never shipped — deferred with the Dispatcher).
 
 ---
@@ -1313,110 +1318,337 @@ Growth tokens by sprint:
   - Build-lane robustness (recorded NOT silent): the long-standing Cygwin-cm.exe-on-PATH collision (Cygwin cmake/ld re-created bin-dirs under /cygdrive + fused/corrupted the msvc-debug cache) is closed by the validated VS-native PATH recipe — FIRST reset PATH to a clean Windows base, THEN prepend the VS 2026 native CMake + Ninja, THEN call vcvars64 (appends MSVC cl/link AFTER the clean base). Baked into verify_s446.cmd / verify_s446_asan.cmd / verify_s446_wsi.cmd so every S446 lane runs the real toolchain.
   - NO-GAP (recorded, NOT silent): the pre-existing standalone vaml_viewer.vcxproj C4129 backslash artifact (an S444 file S445 logged; it is NOT a CI lane — stays owned by a future step, consistent with the S445 note); the compiled `--compiled --app` app-shell path stays deferred exactly as S445 recorded (S446 exercises the S443/S445 TEXT binding-plan app-shell — the same one the `--app` window runs). ADR-018: ZERO new locks (churn test + WSI harness single-threaded; ASan spawns none). No MINIMAL REAL introduced/resolved. Both CI lanes + ASan/LSan + local WSI gates verified from first principles; session-checkpoint regenerated to S446.]  Zero validation-layer errors; no leaks over 10k frames; no layout thrash (app-shell, in-repo).
 - S447 dep:S446  [DONE — VERIFIED from first principles BOTH CI lanes this session. IN-REPO E2E INTEGRATION TEST of the app-shell — the SINGLE in-repo integration suite that re-derives the FULL authored pipeline of the app-shell across all FIVE surfaces in ONE coherent narrative (headless/offscreen, the ADR-021 consumer path). NEW test/unit/AppShellIntegration_test.cpp (4 TEST_CASEs / 64 assertions, vaml-tools-tests — it links vaml-tools so leg (D) can load the release-compiled sidecar, and it already hosts the S444 suite + the vaml_viewer include). KEY ARCHITECTURAL DECISION (accepted at plan review, recorded not silent): the integration test lives in vaml-tools-tests, NOT vaml-core-tests — because leg (D) (compiled-path parity) REQUIRES vaml-tools (the S285 VBamlReader), which vaml-core-tests neither links nor has on its include path; vaml-tools-tests is the honest single home spanning the vaml-core binding surface AND the vaml-tools compiled surface. LEGS (complement-not-duplicate vs S444/S445, the surfaces S445 does not touch — compiled parity + reload re-wire — consolidated with parse/wire/interact into ONE narrative): (A) TEXT PARSE → LIVE TREE (S440): kAppShellMainViewVaml → VamlReader::Load → real Window root → finalize_visual_tree hands off the declared subtree; every named control reachable. (B) VM/BINDING/COMMAND WIRING (S443): run_app_shell_binding_plan — set_data_context + BindExtensions (bound==3: Status OneWay, Text TwoWay, SliderValue TwoWay) + register_event("Click")/bind_class_handler/BindEvents (wired==1) + {Command RunCommand} resolves to the VM RelayCommand; retained reader + VM alive. (C) EACH INTERACTION → VM PROPS + BOUND TARGET DPs (S445): click → routed Click → app OnClick → VM RunCommand → {Binding Status} repaints StatusText; type → TextBox two-way → VM Text; slide → Slider two-way → VM SliderValue; check → app CheckBox↔VM wire → VM Checked. (D) COMPILED-PATH + TEXT-PATH IN ONE SCENE (the S444 single-scene contraction — S447 does NOT re-run S444's compare_dual_path gold): the release-compiled sidecar (VAML_S444_EMBED_SIDECAR) AND the dev-text path both serve the SAME named shell controls, to the same concrete types — the "release == dev" surface contraction. (E) RELOAD PATH (S222_1) RE-WIRES: a real LiveReload over a real temp reload fixture (edit → reload → fresh tree) → RE-RUN run_app_shell_binding_plan onto the freshly loaded text → the S243/S244 wires RE-ARM (post-reload set_Status re-pushes the bound StatusText; a TextBox two-way edit writes back to the VM store) — the S243/S244 re-wire on a genuinely reloaded tree. [S447 RECORDED IMPLEMENT BBLOCKER RESOLUTION — accepted: the S222_1 reload coordinator (LiveReload → vaml::load_file → a fresh bare VamlReader) has NO event registry and cannot parse the interactive app-shell's Click="OnClick" (`unknown property 'Click'`) nor `x:Name` (`unknown property 'x:Name'`); the app's ACTUAL live reload reloads the plain S256 view (Click-free/x:Name-free markup the generic seam parses), NOT the interactive shell. Leg (E) therefore drives the real LiveReload over a Click-free + x:Name-free shell (parses through the generic load_file seam AND re-binds through run_app_shell_binding_plan), locates the S243/S244 targets by tree-walk, and asserts the re-arm on the freshly reloaded tree — the honest "the app re-wires the freshly loaded tree" path. Interactive-shell live reload recorded forward.] MOD test/unit/CMakeLists.txt (vaml-tools-tests += AppShellIntegration_test.cpp + the binding/reload seam TUs app_shell_vm.cpp + load_file.cpp + file_watch.cpp + live_reload.cpp — the ADR-021 single source of truth). NEW build/verify_s447.cmd (the two-lane gate). NO-GAP (recorded, not silent): the {Binding}/{Command} wiring on the COMPILED app-shell path stays deferred — the S286 compiled reader defers {Binding} by design (the S293/S443/S444 precedent); S447's leg (D) is S444's release-parse/parity surface (single-scene contraction), its interactive/reload legs are the S443/S445 TEXT binding-plan path. No MINIMAL REAL introduced/resolved. ADR-018: ZERO new locks (single-threaded; LiveReload + interactions on the UI thread). BOTH CI LANES green from first principles: windows-msvc (verify_s447.cmd msvc-debug warning-as-error clean + ctest 4/4 incl. the S447 suite 4/4/64) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug: configure + warning-clean build + ctest 4/4 incl. the S447 suite 4/4/64). windows-clang-debug is NOT a lane. No commits.]  In-repo E2E integration test of the app-shell (headless/offscreen where feasible).
-- S448 dep:S447  In-repo app-shell acceptance doc written from real behavior (not spec). [v1-app EXTERNAL
+- S448 dep:S447  In-repo app-shell acceptance doc written from real behavior (not spec). [DRIVER REVERSED
+      the S448/S449 order at S449 implementit: the guide now follows a VERIFIED viewer — S449 (gate, viewer
+      fully operational) closed FIRST. S448 is the next step, written from the verified viewer. v1-app EXTERNAL
       acceptance is NOT in this repo — see the header marker; this is the VIEWER's acceptance only.]
-- S449 dep:S448  REFACTOR GATE(S11) — v1 vertical slice (the viewer app-shell) COMPLETE in-repo. SURVIVOR.
+- S449 dep:S448  [DONE — VERIFIED from first principles BOTH CI lanes this session + ALL this-box pre-✅ gates
+      (ASan/LSan + real-WSI) re-run + the viewer's 4 launch modes made FULLY OPERATIONAL. DRIVER REVERSED the
+      S448/S449 order and REDEFINED the acceptance at implementit ("a fully operational vaml_viewer that shows
+      .vaml files — no exceptions"): the gate now runs BEFORE S448, and its win condition is a working viewer,
+      not a static re-audit. NEW build/verify_s449.cmd (two-lane gate: windows-msvc + ubuntu-clang, ctest 4/4).
+      NO-EXCEPTIONS CODE FIXES in the STANDALONE vaml_viewer (4 real defects, all warning-clean on both lanes):
+      (1) vaml_viewer.vcxproj `VAML_APPSHELL_SIDECAR="$(IntDir)MainView.vbaml"` -> unescaped-backslash C4129
+      BLOCKED the viewer build (left the shipped exe stale/pre-Sprint-11); root fix in the vcxproj: the
+      CustomBuild + macro use `$(OutDir)` with the `$(OutDir.Replace('\','/'))` forward-slash property function
+      (compiles clean + resolves the real co-located sidecar). (2) NEW pure `cli_file_path()` in cli.h (skips
+      known flags) fixed `--compiled <file>` treating "--compiled" as the path (argv[1] bug). (3) `--compiled
+      --app` fixed `unknown element type 'Window'` — the compiled-only .vbaml direct-load path runs
+      VBamlReader::Load WITHOUT priming the element factory; main.cpp now calls `register_builtin_elements()`.
+      (4) then `no value converter registered for type 'Int32'` — same root for the attribute table; fixed via
+      `register_builtin_converters()`. RESULT: all four modes render `.vaml` on the real NVIDIA RTX A5000, exit
+      0 — `vaml_viewer <file.vaml>`, `--app`, `--compiled <file>` , `--compiled --app`. GREP-AUDIT PASS (no
+      stubs/backfills in the app-shell set; `[MINIMAL REAL] Element Window` greps to ZERO — S440 resolution
+      confirmed; zero `[MINIMAL REAL]` remain in src/). DEAD-SURFACE AUDIT PASS (every S440-S448 seam consumed —
+      no orphans). ASan/LSan ZERO-leak + real-WSI 10k-zero-validation re-verified. These code fixes are SCOPE
+      JUSTIFIED by the driver's "no exceptions" redefinition (the plan's keep-out-of-scope C4129 deferral is
+      OVERRIDDEN by the explicit mandate). NO MINIMAL REAL introduced/resolved. ADR-018 ZERO new locks. Full
+      digest in the S449 SURVIVOR block in progress.md; checkpoint advanced to S449 (next = S448 guide). No
+      commits (per the standing directive).]  REFACTOR GATE(S11) — v1 vertical slice (the viewer app-shell)
+      COMPLETE in-repo + FULLY OPERATIONAL. SURVIVOR.
       (This is NOT a throwaway "POC complete" — it is the working first-version app that v2-as-v1 builds on;
       see ADR-017. The EXTERNAL v1 app acceptance is separate + outside this repo + not CI-gated.)
+- S450_1 dep:S449  VIEWER-GROWTH: the viewer ACCEPTS `.xaml` as a first-class SOURCE (the .xaml acceptance
+      gate). [DONE — implemented this session (a Viewer-GROWTH token at the S11/S11a boundary, distinct from
+      the Sprint 11z injected-dispatcher semantics its S540+ family owns). VERIFIED empirically from first
+      principles BEFORE any code: a `.xaml` file ALREADY parsed + rendered through BOTH the text path
+      (vaml_viewer sample.xaml) and the compiled path (--compiled sample.xaml) on the real NVIDIA RTX A5000 —
+      the pipeline (load_file → VamlReader::Load) is extension-agnostic and the parser is already
+      XAML-namespace-aware (xmlns presentation + x:Name/x:Class/x:Key/x:Null directives + clr-namespace,
+      resolving unprefixed elements by local_name). So the code ACCEPTED .xaml by construction; this token
+      makes it DECLARED, DISCOVERABLE + CI-LOCKED (NO-LAZY: not an accidental byproduct). HARDENING
+      (per the driver's Option A): (1) NEW detail::is_vaml_or_xaml_source(path) in compiled_open.h — the
+      DECLARED source-language split (text source .vaml/.xaml → recompile; .vbaml → binary direct), used by
+      load_compiled_file — a .xaml source is now an EXPLICIT recompile branch, never silently misread as
+      binary. (2) cli_usage() now declares ".vaml and .xaml SOURCE files" + the --compiled line names .xaml;
+      cli_file_path + main.cpp compiled-dispatch comments updated. (3) NEW test/unit .xaml goldens, CI-LOCKED
+      on BOTH lanes: ViewerLoadFile_test (S450_1: a real-WPF-shaped .xaml golden → live tree via load_text +
+      a real temp .xaml FILE via load_file — text path), ViewerCompiledOpen_s293_test (S450_1: a .xaml path
+      recompiles → VBamlReader, root_class + x:Name — compiled path), ViewerCli_test (S450_1: cli_usage
+      declares .xaml + cli_file_path resolves a .xaml past --compiled). (4) NEW vaml_viewer/sample.xaml — the
+      .xaml demo, a bona-fide XAML-shaped body (Window/StackPanel root by local name + x:Class/x:Name +
+      xmlns:x) mirroring sample.vaml. BOTH CI LANES + this-box launch re-verified from first principles.
+      NO MINIMAL REAL introduced/resolved. ADR-018 ZERO new locks. No commits (per the standing directive).
+      Full digest: session-context + the S450_1 SURVIVOR note in progress.md. WHY-B REPORT (recorded here for
+      the driver): Option B (real-WPF fidelity — Style/Setter/Trigger, ResourceDictionary, x:Static/x:Type,
+      {StaticResource}/{TemplateBinding}, IValueConverter XML, etc.) is NOT missing from the roadmap — it is
+      ALREADY DECLARED across the sprints: S9 (S360–S369: ResourceDictionary+merge, StaticResource/
+      DynamicResource, Style/Setter/BasedOn/PropertyTrigger/DataTrigger, ControlTemplate+visual states,
+      TemplateBinding, template lookup parity, S361 resolves x:Key) + Sprint 4 (S252/S253 {Binding}/Command/
+      converters) + Sprint 7 (S293/S7 compiled) + markup-extension work (the S2 tag: x:Static/x:Type →
+      S252/S253 area) + the guide's C#/XAML→VAML-term mapping (S940–S950). The ONLY genuinely-absent
+      declaration was the `.xaml`/`.vaml` FILE-FORMAT acceptance itself — which THIS token (S450_1) closes.
+      Next step: the S448 guide (per the S449 driver reversal) → Sprint 11z (S540+) injected-dispatcher UI.]
+
+## SPRINT SERIES 11a…11y — WPF-completeness + lib close-out, in SHORT sprints
+> DRIVER DIRECTIVE (go mode, sealed): the lib is completed by a series of **short sprints** (11a…11y), each
+> limited and with its LAST step exercising vaml_viewer to show the change works ("rule 1"). The route:
+> complete the non-3rd-party content with ZERO gaps, add the 3rd-party import/inject seam, then wrap at
+> **11z** with the injected-dispatcher interop + a 3rd-party test control + an injected test dispatch
+> demonstrated live. NO silent backfill, NO stub, every sprint's growth token demonstrated in the viewer.
+> CONVENTION: every sprint here ends with a `VIEWER-GROWTH:` token (the anti-grave-whistle clause) + a
+> SURVIVOR (short — the detail digests live in progress.md). The roadmap already ships the *engines*
+> (ResourceDictionary/merge S360–S361, Static/Dynamic S361, Style/Setter/triggers S362–S363, ControlTemplate
+> + visual states + TemplateBinding S364–S365, binding/commands S6, RoutedEvent/input S8); these sprints
+> author them from markup + add the missing controls/layout/types. NOTE: StackPanel (S129), Grid (S131),
+> WrapPanel (S134), Canvas (S136) are ALREADY RESOLVED real panels — the only missing layout container is
+> DockPanel. Viewer remains the permanent visual-feedback vehicle throughout.
 
 ---
-## Sprint 11a — Multithreaded UI, Dispatcher + async (the deferred multithreaded construction)  [token S450+]
-- my notes:
-- this lib does not require a dispatcher nor use it. it does need to function in an eco-system
--   that does. it raises the question of who owns the UI thread. 
-> VIEWER GROWTH: no NEW renderable feature this sprint (threading infrastructure) — the interactive viewer
-> (S329_1) is UNCHANGED; S222_1 RELOAD + S329_1 input still demonstrated. This sprint COMPLETES the
-> Sprint-8 DEFERRAL (the `ASYNC/MULTITHREADING DEFERRED — resolved by Sprint 11a` marker) — the
-> Dispatcher + Task/Executor + co_async/InvokeAsync + multi-thread multi-instance model becomes REAL here,
-> at its OWN step, NOT a silent backfill of Sprint 8.
+## Sprint 11a — Resource/style/template AUTHORING grammar (the S366 NO-GAP, resolved)  (goal: author resources/styles/templates from real `.vaml`)  [token S451+]
+- S451 dep:S450_1  DOCUMENT/NAMESPACE/COMMENT grammar closed: the `.vaml`/`.xaml` document grammar — BOM/
+      prolog/root-element identity, `xmlns` presentation + `clr-namespace` + `x:` directive namespace, and
+      `<!-- -->` comments (S080 dropped comments as non-tree nodes; this step CONFIRMS them discarded
+      consistently in both the text + compiled paths + documents the grammar). Real WPF-shaped documents
+      parse cleanly. NO new MINIMAL REAL.
+- S452 dep:S451  PROPERTY-ELEMENT + ATTRIBUTE-ELEMENT authoring grammar (the S366-recorded NO-GAP hand-off):
+      the S2/S7 parsers accept `<Button.Content><StackPanel .../></Button.Content>` and `<Button.Background>`
+      (content into the named DP, opening/closing over the owned track) → a live tree populated via the DP
+      path. The syntactic seam every later resource/template step rides.
+- S453 dep:S452  RESOURCE-DICTIONARY authoring + `x:Key`: `<ResourceDictionary>`,
+      `ResourceDictionary.MergedDictionaries` (multi `<ResourceDictionary>`), and `x:Key` on authored
+      resources (S361 x:Key resolution now reaches MARKUP-AUTHORED resources, not just pre-registered) +
+      `{StaticResource Key}` / `{DynamicResource Key}` wired to the S360/S361 three-scope + merged lookup.
+- S454 dep:S453  STYLE AUTHORING + TRIGGERS: `<Style TargetType="Button" BasedOn="{StaticResource base}">` +
+      `<Setter Property="..." Value="..."/>` + `<Style.Triggers>` (PropertyTrigger + DataTrigger) — the S362/
+      S363 engine AUTHORED from `.vaml` (was engine-only). Includes implicit-style (no x:Key) application over
+      the matching ElementFactoryRegistry type.
+- S455 dep:S454  VIEWER-GROWTH(11a): sample.vaml authors a ResourceDictionary + a Style + Setter/triggers;
+      vaml_viewer loads it and the REDERIVED style re-skins the LIVE running viewer (the S369 re-skin seam
+      extended to the fresh authoring grammar — LiveChat → live style/resource swap). BOTH CI LANES green.
+- S456 dep:S455  SURVIVOR(11a): consolidated in progress.md (S451..S455: authoring grammar consumed);
+      no new MINIMAL REAL; guard-rail carry-forward intact. Short.
+
+---
+## Sprint 11b — Brushes + markup extensions + event/command attributes  (goal: the remaining attribute surface)  [token S460+]
+- S460 dep:S456  BRUSH AUTHORING: `LinearGradientBrush` (`StartPoint`/`EndPoint`) + `<GradientStop Color="..."
+      Offset="..."/>` as an authored brush resource consumed by `<Button.Background>` (rides the BrushId path).
+- S461 dep:S460  MARKUP EXTENSIONS `x:Static` + `x:Type`: `{x:Static local:Constants.AppName}` (S2-tag deferral
+      resolved — static-field/const access via the reader) + `{x:Type Button}` (type object for TargetType /
+      ContentControl binding). NO-GAP closed.
+- S462 dep:S461  ATTACHED-PROPERTY AUTHORING + FRAMEWORKELEMENT NAME: `<DockPanel.Dock>`, `<Canvas.Left>` (the
+      existing `Grid.Row`/`Grid.Column` already works); `Name="submitButton"` (FrameworkElement) registered in
+      the S092 name registry on par with `x:Name`.
+- S463 dep:S462  EVENT-ATTRIBUTE wiring for the authored set: Window `Loaded`/`Closing`, TextBox `TextChanged`,
+      the RAISED-ATTACHED form `StackPanel.Button.Click="StackPanel_Click"` (WPF-faithful bubbling attach over
+      the Sprint-8 RoutedEvent engine) — completing the S322 event-hook resolution for the authored surface.
+- S464 dep:S463  COMMAND + CommandParameter attributes: `Command="{Binding SaveCommand}"` +
+      `CommandParameter="{Binding SelectedItem}"` (S253 {Command} extended to a parameterized execute);
+      `MenuItem.Header`/`Command` authoring rides the same surface.
+- S465 dep:S464  VIEWER-GROWTH(11b): sample.vaml authors the brush + `{x:Static}`/`{x:Type}` + attached props +
+      event + command attributes; the LIVE viewer renders the gradient + wires a Click/Command visibly.
+      BOTH CI LANES green.
+- S466 dep:S465  SURVIVOR(11b): short block in progress.md; no new MINIMAL REAL.
+
+---
+## Sprint 11c — DockPanel + selection controls (RadioButton/ComboBox/ListBox/ListView)  (goal: the missing layout container + selection set)  [token S470+]
+- S470 dep:S466  DockPanel control RESOLVED (real UIElement re-base; the only missing layout container — the
+      other panels are S129/S131/S134/S136): `Dock` attached DP (Left/Right/Top/Bottom/Fill) + Measure/Arrange
+      stacking children by dock order; classify_element → Solid.
+- S471 dep:S470  RadioButton control RESOLVED: IsChecked + group semantics; routed Checked/Unchecked.
+- S472 dep:S471  ComboBox control RESOLVED: ItemsSource/Items + SelectionChanged + dropdown interaction;
+      classify_element → Solid (editable/chrome is the S649-list continuation, recorded).
+- S473 dep:S472  ListBox + ListView controls RESOLVED: Items/ItemsSource + SelectionChanged +
+      `ListBox.ItemTemplate`/`ListView.ItemTemplate` property-element authoring (a template reusing the S364
+      engine) so items render authored content; classify_element → Solid.
+- S474 dep:S473  REFACTOR GATE(11c): full build + ctest BOTH lanes green; grep-audit — every new control is a
+      REAL re-based UIElement resolved at its own step, ZERO new MINIMAL REAL, zero stubs.
+- S475 dep:S474  VIEWER-GROWTH(11c): sample.vaml authors DockPanel + the selection controls; the LIVE viewer
+      renders the DockPanel layout + each selection control interactive. BOTH CI LANES green.
+- S476 dep:S475  SURVIVOR(11c): short block in progress.md.
+
+---
+## Sprint 11d — Core display + input controls (Label/Border/shapes/Image/ProgressBar/PasswordBox/GroupBox/Expander/Separator/StatusBar)  (goal: breadth of the non-3rd-party control set)  [token S480+]
+> These are the frequency-anchored WPF controls the external app (301 files) actually consumes. Each is a
+> REAL re-based UIElement or a pure content/shape/panel control resolved at its own step — ZERO gaps, no
+> silent backfill, per the hard-goal-2 mandate.
+- S480 dep:S476  Label control RESOLVED (`System.Windows.Controls.Label` — a legacy `ContentControl` kept for
+      compatibility): Content + FontSize/FontFamily/Foreground + HorizontalContentAlignment; classify_element
+      → Solid.
+- S481 dep:S480  Border control RESOLVED: single-child content + BorderBrush/BorderThickness + CornerRadius +
+      Padding; classify_element → Border material.
+- S482 dep:S481  Rectangle + Ellipse + Line shapes RESOLVED: Fill/Stroke/StrokeThickness + Width/Height;
+      classify_element → Solid/Border.
+- S483 dep:S482  Image control RESOLVED (rides the S400_1/S202_1 icon asset pipeline): Source (icon asset /
+      rasterized PNG-SVG once into the atlas) + Stretch; classify_element → the image texture path.
+- S484 dep:S483  ProgressBar control RESOLVED: Value/Min/Max + the determinate fill; classify_element → Solid.
+- S485 dep:S484  PasswordBox + GroupBox + Expander + Separator + StatusBar controls RESOLVED (each a real
+      control: PasswordBox = masked Text input; GroupBox/Expander = header+content containers; Separator =
+      divider; StatusBar = docking item host); classify_element → Solid + Border as appropriate.
+- S486 dep:S485  VIEWER-GROWTH(11d): sample.vaml authors Label/Border/shapes/Image/ProgressBar/PasswordBox/
+      GroupBox/Expander/Separator/StatusBar; the LIVE viewer renders the full breadth. BOTH CI LANES green.
+
+---
+## Sprint 11e — Container + menu controls (TabControl/Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid)  (goal: the container/tab/menu/grid surface)  [token S490+]
+- S490 dep:S486  TabControl + TabItem controls RESOLVED: tab strip + content selection + routed SelectionChanged.
+- S491 dep:S490  Menu + MenuItem + ContextMenu controls RESOLVED: Header/Command/CommandParameter + open/select.
+- S492 dep:S491  ToolTip + Popup controls RESOLVED: deferred show + placement + the routed open/close surface.
+- S493 dep:S492  GridSplitter control RESOLVED: drag-resizes adjacent Grid rows/columns (constant-time dest-rect
+      mapping, the S174-composition spirit).
+- S494 dep:S493  DataGrid control RESOLVED (native VAML analog — NOT a 3rd-party clone): ItemsSource + typed
+      DataGrid*Column set + the editing/selection surface; classify_element → the list/grid fill.
+- S495 dep:S494  VIEWER-GROWTH(11e): sample.vaml authors a TabControl + Menu + ContextMenu + ToolTip + Popup +
+      GridSplitter + DataGrid; the LIVE viewer renders + interacts end-to-end. BOTH CI LANES green.
+
+---
+## Sprint 11f — DataTemplate/ItemsControl authoring + converters + behaviors  (goal: the binding glue surface, ZERO gaps)  [token S500+]
+- S500 dep:S495  ItemsControl + DataTemplate AUTHORING: `ListBox.ItemTemplate`/`ListView.ItemTemplate`/
+      `DataGrid` item templates authored from `.vaml` (the S364 template engine serves item content), so
+      items render authored per-item content.
+- S501 dep:S500  CONVERTER SURFACE completed: the app's `*Converter` patterns (BooleanToVisibility,
+      NullTo*, value converters) through the S242 converter seam + a `{ConverterResource}`-style authoring
+      path — the "converters are logic, not rendering" glue made real, not silently deferred.
+- S502 dep:S501  BEHAVIORS: `i:` Interaction.Behaviors + TriggerAction + InvokeCommandAction-analogue —
+      parse-and-behave (the external app's `i:`/`behaviors:`/`dd:` surface maps here as owned translations).
+- S503 dep:S502  VIEWER-GROWTH(11f): sample.vaml authors a DataTemplate + a converter + a behavior; the LIVE
+      viewer renders templated items + the converter output. BOTH CI LANES green.
+
+---
+## Sprint 11g — Animation + effects (Storyboard/DoubleAnimation/transforms/effects)  (goal: the visual-motion surface)  [token S510+]
+- S510 dep:S503  ANIMATION: Storyboard + DoubleAnimation + keyframes + the per-element transform animation
+      surface (drives the S208 RenderTransform/S208 MVP path), change-driven off the viewer's tick cadence.
+- S511 dep:S510  EFFECTS: DropShadowEffect + BlurEffect (the S208/GPU-blit-able set).
+- S512 dep:S511  VIEWER-GROWTH(11g): sample.vaml authors a Storyboard + a transform animation + an effect;
+      the LIVE viewer animates visibly. BOTH CI LANES green.
+
+---
+## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
+> HARD GOAL 3 (sealed): to close out the lib we implement a means of importing 3rd-party libs and/or DLLs.
+> Likely ONE sprint. We pick something we can put in a lib and INJECT, and the last step vaml_viewer shows the
+> 3rd-party works.
+- S520 dep:S512  IMPORT/INJECT seam: a `vaml::inject` surface that presents a foreign widget as a VAML
+      element — a host-injected native control/layer (a nullable handle + a data bridge + a draw-step hook)
+      WITHOUT VAML owning the foreign type. Single-executable discipline: the injection is a seam the app
+      links, not a runtime DLL shipper.
+- S521 dep:S520  TEST 3RD-PARTY LIB: a small in-repo test widget (a trivial "injected third-party" control, NOT
+      IP-relevant — e.g. a labeled frame with its own draw path) packaged for injection, so the seam is
+      proven against a REAL injected payload.
+- S522 dep:S521  VIEWER-GROWTH(11h): the injected 3rd-party control is composed into a sample.vaml + rendered
+      in the LIVE viewer — **"last step vaml_viewer to show the 3rd party works"** (hard-goal-3 rule 1).
+      The viewer hosts the injected widget + it renders + interacts. BOTH CI LANES green.
+
+---
+## Sprint 11i — lib completion refactor gate + SURVIVOR  (goal: the non-3rd-party content is COMPLETE, ZERO gaps, proven)  [token S530+]
+- S530 dep:S522  REFACTOR GATE(11-series): full build + ctest BOTH lanes green; grep-audit — every new control/
+      layout/converter/behavior is REAL (no stub / no MINIMAL REAL / no silent backfill); the S366 authoring
+      NO-GAP is CONSUMED; the complete non-3rd-party content set is present (hard goal 2, ZERO gaps).
+- S531 dep:S530  VIEWER-GROWTH(11-series-closure): a consolidated sample.series.vaml exercises the ENTIRE
+      non-3rd-party content breadth in the LIVE viewer; every prior sprint's growth redisplays green.
+      BOTH CI LANES green.
+- S532 dep:S531  SURVIVOR + checkpoint: the 11-series (11a…11i) SURVIVOR consolidated in progress.md; the lib
+      is content-complete (non-3rd-party); checkpoint advances toward S540 (Sprint 11z). Short.
+
+---
+## Sprint 11z — Injected-dispatcher interop + injected-dispatch wrap  (goal: the library runs inside a host message pump / dispatcher; the 3rd-party test + injected test dispatch CLOSE OUT the lib roadmap)  [token S540+]
+> VIEWER GROWTH: this sprint's NEW renderable/interop proof = S545 (an injected test dispatch, triggered via the
+> 3rd-party test hook, updates UI content LIVE in the viewer) — the anti-grave-whistle wrap that closes out the lib.
 >
-> RATIONALE / DESIGN FRAME (the architect's reasoning, Sprint-8 review):
-> - S326/S327 were originally scoped into Sprint 8, but the review found the Dispatcher/async is a
->   SEPARATE, LARGER sprint (a whole parallel-threaded-UI construction), not a single-sprint add-on — the
->   "single-threaded smell" argument. Sprint 8 is intentionally single-threaded; 11a owns the threading.
-> - **We do NOT impose a dispatcher/async runtime.** The app MAY inject its own (an `IAsyncDispatcher`
->   seam + an interface to instantiate + replace ours). "we do not force uses that use our framework
->   instead of their own to use our dispatcher" — the plan is a REPLACEABLE seam, per ADR-006's
->   app-owned, NO-DI composition.
-> - Three threads × three independent vaml UI instances (no locks, no knowledge of each other) + ONE
->   shared input pump that routes each mouse/keyboard event to the OWNING instance (the S323 marshaller
->   generalized per-instance) — Axis A (UI-event threading). The Vulkan multi-threaded *command-record*
->   axis (Axis B) is a DIFFERENT, orthogonal concern (already partly in the render path) and is tracked
->   separately, NOT folded into 11a (recorded, not silent).
-> - When the UI thread goes silent it checks the queue and runs co_async/co_await routines (the
->   Dispatcher's deferred-work pump) — the thread-pool-with-spin-check model where many worker threads
->   ACT AS IF they were the UI thread, but a mechanism allows only ONE at a time on the actual UI thread
->   (`InvokeAsync` on that thread); `co_await` places the callback back on the pool.
-- S450 dep:S408  `IAsyncDispatcher` seam (REPLACEABLE — apps may inject their own) + the default
-      `Dispatcher` (single-owner FIFO message pump; owner thread id = the constructing thread; Post /
-      ProcessQueue / PumpInvoke; the ONE Sprint-11a cross-thread lock under ADR-018 — the standing
-      ChangeQueue-mutex precedent). [Completes Sprint-8 S326 deferral]
-- S451 dep:S450  `Task<T>` + `Executor` + SyncExecutor + DispatcherExecutor + CancellationToken — the
-      ADR-010 minimal continuation model (FIRST Task usage). [Completes Sprint-8 S326-first-Task deferral]
-- S452 dep:S451  co_async / co_await (C++20 coroutines) over the injected dispatcher: the library exposes
-      an awaitable that resumes on the owner (UI) thread; full continuation scheduling + cancellation.
-- S453 dep:S452  `InvokeAsync`: schedule a runnable on the Dispatcher's owner thread + return an awaitable
-      Task; the app/library idiom for "do X on the UI thread".
-- S454 dep:S453  Async continuation updates a VM prop → binding updates UI (no races: VM written ONLY on
-      its owner thread; binding fires on that same thread; the Dispatcher marshals). [Completes the
-      Sprint-8 S327 deferral — the no-races contract, real]
-- S455 dep:S454  Multi-instance per-thread model: N independent vaml trees, each on its OWN thread;
-      one shared input pump (S323 generalized) routes each event to the owning instance; NO locks between
-      instances, no shared knowledge.
-- S456 dep:S455  Thread-pool-as-UI model: worker threads act as the UI thread but only one drains at a
-      time on the real UI thread; `co_await` returns work to the pool (the "one-at-a-time on the actual
-      UI thread" invariant).
-- S457 dep:S456  ADR-018 lock governance for 11a: catalog EVERY lock this sprint adds (the Dispatcher
-      Post queue + the co_async resume handoff), each approved under the standing precedent + declared in
-      the public surface; everything else lockless (relaxed atomics, thread-affinity).
-- S458 dep:S457  REFACTOR GATE(S11a): multithreaded constructs real + green both CI lanes; TSan-clean on
-      the multi-thread suites; no deadlocks; replacement seam proven (an app-injected custom dispatcher
-      substitutes the default).
-- S459 dep:S458  SURVIVOR + checkpoint note (Sprint 8's deferral RESOLVED; Sprint 11a owns the threading).
+> DESIGN FRAME (consistent with the "we do NOT impose a dispatcher/async runtime" decision, ADR-006
+> app-owned composition): **this library does
+> NOT require a dispatcher nor use one.** It must function inside an ecosystem that DOES own one. The library
+> therefore exposes a REPLACEABLE executor seam — `IUiExecutor` — that a HOST chooses to inject to claim
+> ownership of the real UI thread's message pump. The question **"who owns the UI thread?"** is answered by
+> the host: the default is library-driven (the framework drains its own queue via `IdleForOneTask`), but an
+> app that already runs Win32/X11 pumps may inject `IUiExecutor` to drive our deferred work themselves. The
+> executor is OWNED by the thread that owns the pump, exactly as the S037/S041/S143 thread-affinity model
+> requires.
+- S540 dep:S532  `IUiExecutor` (vaml/core, cross-platform) — the injectable UI-thread executor seam, the
+      REPLACEABLE interop surface (a host injects it; the library never imposes a dispatcher). `NativeMessage`
+      is an opaque cross-platform message carrier: Win32 = `MSG` (windows.h), Linux = `XEvent`-compatible
+      backend struct `{ type, window, x, y, code, modifiers, timestamp }` (enum Type { other, mouse_move,
+      mouse_button, key }); `#error Unsupported platform` for anything else. Interface: `UnhandledMsg(NativeMessage&)`
+      (a native message the library did not handle, forwarded to the app to handle/forward), `IdleForOneTask()`
+      (run AT MOST one ready task on the UI thread; return true iff one was consumed, false if none ready),
+      `Awaken() noexcept` (THREAD-SAFE: wake the pump, including when it is waiting). REAL permanent public
+      surface (NOT a STUB / NOT MINIMAL REAL), kept + extended by S541/S542. Absence of an executor = the
+      library's own default pump behavior.
+- S541 dep:S540  Windows pump adapter — `RunMessagePump(IUiExecutor*)`: the cooperatively-driven Win32
+      message pump. Per turn: `PeekMessageW` (at most one) → `WM_QUIT` returns quit code → `WM_APP_WAKE_PUMP`
+      (`WM_APP + 0x3A1`, posted by `Awaken()`) consumed as a wake (the work itself drains via
+      `IdleForOneTask`) → `HandleLibraryMessage(msg)` if consumed else `executor->UnhandledMsg(msg)` (or
+      `TranslateMessage`/`DispatchMessage` when no executor) → then `executor->IdleForOneTask()`. If nothing
+      was ready, `GetMessageW` sleeps until a native message or `WM_QUIT` arrives — the cross-thread wakeup.
+      The pure dispatch decision seams (the `processMessage` body) are headless-ctestable; the live pump is
+      [both apps, not CI]. Completes the "an app that owns a Win32 pump can drive us" contract.
+- S542 dep:S541  X11 pump adapter — `RunX11MessagePump(Display*, IUiExecutor*, X11Wakeup&)`: the
+      cooperatively-driven Xlib/poll(2) pump. `X11Wakeup` is a self-pipe (pipe() in ctor, read-fd read side,
+      `Signal()` noexcept write-one-byte from ANY thread — EAGAIN = a wake already pending, `Drain()` reads
+      the pipe on the pump thread after readable; non-copyable). Per turn: `XPending`/`XNextEvent` (at most one)
+      → `HandleLibraryEvent(event)` else `executor->UnhandledMsg(event)` (or `HandleDefaultXEvent` when no
+      executor — Xlib has no generic Translate/Dispatch; routing unhandled events is app-specific) →
+      `executor->IdleForOneTask()`. If nothing was ready, `poll(2)` on { xConnection, wakeup.ReadFd() } blocks
+      until either an X event or a wake; poll error/hup → -1. The pure decision seams are headless-ctestable;
+      the live pump is [both apps, not CI].
+- S543 dep:S542  App-side executor consumable — the injected-executor consumer shape documented + proven:
+      an `AppUiExecutor : IUiExecutor` (the X11 app side shown) holds an `X11Wakeup&`, `Awaken() noexcept`
+      → `wakeup_.Signal()`, and supplies the app's `UnhandledMsg`/`IdleForOneTask`. Records the "who owns the
+      UI thread?" contract: **an app that injects an executor OWNS the pump**; the library only drains via
+      `IdleForOneTask()` and is woken via `Awaken()`. ADR-018: ZERO new locks — the wakeup is a lock-free
+      signal (pipe write / posted thread message), the executor is single-thread-owned by the pump thread
+      (the S037/S041/S143 affinity model). [ADR-006: the seam is app-owned + replaceable; the library does
+      NOT ship an executor of its own.]
+- S544 dep:S543  REFACTOR GATE(S11z): the injected-executor surface interops with the existing S323 input /
+      S211 marshalling / S11z pump seams (a host may now drive our deferred work from its OWN
+      pump, or keep our default); build + warning-clean + ctest GREEN both CI lanes (windows-msvc +
+      ubuntu-clang); grep-audit: the `IUiExecutor`/`NativeMessage`/`X11Wakeup` seams are all REAL + consumed
+      (no stub / no MINIMAL REAL / nothing orphaned). ADR-018: zero new locks sprints-wide.
+- S545 dep:S544  INJECTED-DISPATCH WRAP (the hard-goal-4 close-out — the "calling the interface works" proof): the
+      S521 in-repo test 3rd-party lib triggers a dispatched UI-content change — the test control's dispatch signal
+      POSTS through the S540 `IUiExecutor::IdleForOneTask()` into the UI thread → a VM property updates → the S252
+      `{Binding}` repaints the LIVE viewer content (the injected-dispatcher UI update, WPF's
+      `Dispatcher.Invoke`-analogue). This PROVES a 3rd-party/async origin can drive UI content through the injected
+      executor end-to-end — the exact proof the external app's splash + async flows depend on. **"last step
+      vaml_viewer shows the injected test dispatch works"** (rule 1). BOTH CI LANES green (the live window proof is
+      [both apps, not CI] on this box).
+- S546 dep:S545  SURVIVOR + LIB ROADMAP CLOSE-OUT: the 11-series + 11z SURVIVOR consolidated in progress.md; the
+      **completed lib roadmap is sealed** (non-3rd-party content COMPLETE — hard goal 2; 3rd-party/injection seam
+      in — hard goal 3; injected dispatcher interface proven in the viewer — hard goal 4). The lib roadmap rests
+      "for a while" (resume later at Sp 12+); the EXTERNAL APP's own roadmap (301 files, IP-walled, separate repo)
+      continues with the splash-first hard goal 5 + the always-in-running-app rule. Short.
 
 ---
-## Sprint 12 — Docs from evidence + production packaging  (goal: production-ready repo + packaging)  [token S480+]
-> VIEWER GROWTH: no NEW renderable feature this sprint (docs + packaging) — viewer UNCHANGED; S222_1 RELOAD
+## Sprint 12 — Docs from evidence + production packaging  (goal: production-ready repo + packaging)  [token S1480+]
+> VIEWER GROWTH: no NEW renderable feature this sprint (docs + packaging) — viewer UNCHANGED; S1222_1 RELOAD
 > still demonstrated per convention. Marker present so a lazy cursor cannot claim "no marker = no obligation."
-- S480 dep:S449  Write architecture.md FINAL from real v1 code (not the seed).
-- S481 dep:S480  Write design docs (measure/arrange, renderer, binding, VBAML schema) from evidence.
-- S482 dep:S481  Complete ADR log (all standing decisions + lessons learned with rationale).
-- S483 dep:S482  v1 lessons document: what to keep/change.
-- S484 dep:S483  Harden repo for production consumers (packaging, exported facade, single-exe demo).
-- S485 dep:S484  Production structure finalization (clean organization of core→vulkan→tools; no throwaway port).
-- S486 dep:S485  REFACTOR GATE(S12) + SURVIVOR. Production repo posture finalized.
-      (ADR-017 RE-SCOPE: this sprint NO LONGER "opens a separate production repo and ports POC." v2 is v1 —
+- S1480 dep:S546  Write architecture.md FINAL from real v1 code (not the seed).
+- S1481 dep:S1480  Write design docs (measure/arrange, renderer, binding, VBAML schema) from evidence.
+- S1482 dep:S1481  Complete ADR log (all standing decisions + lessons learned with rationale).
+- S1483 dep:S1482  v1 lessons document: what to keep/change.
+- S1484 dep:S1483  Harden repo for production consumers (packaging, exported facade, single-exe demo).
+- S1485 dep:S1484  Production structure finalization (clean organization of core→vulkan→tools; no throwaway port).
+- S1486 dep:S1485  REFACTOR GATE(S12) + SURVIVOR. Production repo posture finalized.
+      (ADR-1017 RE-SCOPE: this sprint NO LONGER "opens a separate production repo and ports POC." v2 is v1 —
       the code you are building IS the product; S12 hardens and packages it in place, it does not restart.)
 
 ---
-## Sprint 13 — Test coverage expansion  (goal: CI-grade coverage, property-based, fuzz)  [token S520+]
+## Sprint 13 — Test coverage expansion  (goal: CI-grade coverage, property-based, fuzz)  [token S1520+]
 > VIEWER GROWTH: no NEW renderable feature this sprint (coverage/fuzz) — viewer UNCHANGED; S222_1 RELOAD
-> still demonstrated. S528_1's icon test gallery renders fixtures OFFSCREEN, not in the viewer (it is a test,
+> still demonstrated. S1528_1's icon test gallery renders fixtures OFFSCREEN, not in the viewer (it is a test,
 > not a viewer feature); the viewer's generic renderer already covers icon-drawable paths.
-- S520 dep:S486  Coverage gate (gcov/lcov + llvm-cov) wired into CI on core.
-- S521 dep:S520  Property-system fuzz harness (random value sets → invariants).
-- S522 dep:S521  Parser fuzz harness (malformed VAML → no crash, structure errors only).
-- S523 dep:S522  VBamlReader fuzz harness (random byte stream → no crash).
-- S524 dep:S523  Layout property-based tests (random trees → no negative size, terminate).
-- S525 dep:S524  Binding stress tests (rapid invalidation → coalesced, correct final).
-- S526 dep:S525  Event routing random-tree tests (hit path + handled correctness).
-- S527 dep:S526  Style/resource lookup precedence fuzz.
-- S528 dep:S527  Renderer offscreen correctness tests (pixel-snapshot on fixtures).
-- S528_1 dep:S528  Icon test gallery + rendered-result tests (per ADR-015, GPT point 7): pixel-snapshot the
+- S1520 dep:S486  Coverage gate (gcov/lcov + llvm-cov) wired into CI on core.
+- S1521 dep:S1520  Property-system fuzz harness (random value sets → invariants).
+- S1522 dep:S1521  Parser fuzz harness (malformed VAML → no crash, structure errors only).
+- S1523 dep:S1522  VBamlReader fuzz harness (random byte stream → no crash).
+- S1524 dep:S1523  Layout property-based tests (random trees → no negative size, terminate).
+- S1525 dep:S1524  Binding stress tests (rapid invalidation → coalesced, correct final).
+- S1526 dep:S1525  Event routing random-tree tests (hit path + handled correctness).
+- S1527 dep:S1526  Style/resource lookup precedence fuzz.
+- S1528 dep:S1527  Renderer offscreen correctness tests (pixel-snapshot on fixtures).
+- S1528_1 dep:S1528  Icon test gallery + rendered-result tests (per ADR-015, GPT point 7): pixel-snapshot the
       atlas/framebuffer for transparency + partial-alpha, monochrome tint vs multicolor preserve, strokes/
       clip/viewBox/blank margins, size-family + DPI, missing/malformed/multicolor fallback, cache behavior.
-- S529 dep:S528  REFACTOR GATE(S13) + SURVIVOR. Coverage + fuzz green CI.
+- S1529 dep:S1528  REFACTOR GATE(S13) + SURVIVOR. Coverage + fuzz green CI.
 
 ---
-## Sprint 14 — Performance & GPU-driven rendering  (goal: production perf)  [token S620+]
+## Sprint 14 — Performance & GPU-driven rendering  (goal: production perf)  [token S1620+]
 > VIEWER GROWTH: no NEW renderable feature this sprint (perf/GPU-driven) — viewer UNCHANGED; S222_1 RELOAD
-> still demonstrated. The viewer is the natural BENCHMARK surface for the perf harness (S627 smoke): the
+> still demonstrated. The viewer is the natural BENCHMARK surface for the perf harness (S1627 smoke): the
 > same generic renderer shows the 60fps@10k-elements target live.
-- S620 dep:S529  Async layout: measure/arrange on worker threads, single commit to render; TSan-clean.
-- S621 dep:S620  Async layout correctness == single-threaded (diff test).
-- S622 dep:S621  GPU-driven batching: indirect/draw-list, instance buffer, minimal pipeline switches.
-- S623 dep:S622  Draw-call count near-constant under 10k elements; no correctness drift.
-- S624 dep:S623  Per-frame arena allocator; element pool; no heap churn in steady state.
+- S1620 dep:S1529  Async layout: measure/arrange on worker threads, single commit to render; TSan-clean.
+- S1621 dep:S1620  Async layout correctness == single-threaded (diff test).
+- S1622 dep:S1621  GPU-driven batching: indirect/draw-list, instance buffer, minimal pipeline switches.
+- S1623 dep:S1622  Draw-call count near-constant under 10k elements; no correctness drift.
+- S1624 dep:S1623  Per-frame arena allocator; element pool; no heap churn in steady state.
                  [RESCHEDULED FROM S145 (recorded, NOT silent — NO-GAP): the S142 NO-GAP parenthetical
                  "children slab" — a slab-backed children container to cut vector-reallocation churn on
                  child add/remove — is a DISTINCT low-level data-structure change originally parked in the
@@ -1424,106 +1656,106 @@ Growth tokens by sprint:
                  object churn; children_ stays std::vector, amortized O(1), non-shrinking, element payload
                  already pooled at S145). This step owns the slab-backed children container alongside the
                  arena/element-pool work.]
-- S625 dep:S624  Zero-copy texture update + cache-resident font/brush cache.
-- S626 dep:S625  Thread vs render ring scale-out: multiple UI threads; copy-on-write hot nodes.
-- S627 dep:S626  Perf smoke harness: 60fps @ 10k elements target; profiling budget in CI (event).
-- S628 dep:S627  MEMORY profile gate: bounded memory, no leaks (ASan).
-- S629 dep:S628  REFACTOR GATE(S14) + SURVIVOR. Perf gates met.
+- S1625 dep:S1624  Zero-copy texture update + cache-resident font/brush cache.
+- S1626 dep:S1625  Thread vs render ring scale-out: multiple UI threads; copy-on-write hot nodes.
+- S1627 dep:S1626  Perf smoke harness: 60fps @ 10k elements target; profiling budget in CI (event).
+- S1628 dep:S1627  MEMORY profile gate: bounded memory, no leaks (ASan).
+- S1629 dep:S1628  REFACTOR GATE(S14) + SURVIVOR. Perf gates met.
 
 ---
-## Sprint 15 — Production hardening  (goal: release-quality robustness)  [token S720+]
+## Sprint 15 — Production hardening  (goal: release-quality robustness)  [token S1720+]
 > VIEWER GROWTH: no NEW renderable feature this sprint (robustness/hardening) — viewer UNCHANGED; S222_1
 > RELOAD still demonstrated. The viewer + its reload loop are a primary EXERCISER for the reentrancy/
-> teardown (S721/S725) + TSan/ASan (S723) audits.
-- S720 dep:S629  Cancellation tokens through Task/Executor; no deadlocks; deterministic ordering.
-- S721 dep:S720  Reentrancy audit across property/binding/event paths.
-- S722 dep:S721  Allocator policy finalization (arena/pool rules in ADR).
-- S723 dep:S722  TSan + ASan clean across suite; Valgrind (Linux) spot-check.
-- S724 dep:S723  Thread-affinity enforcement; wrong-thread writes blocked with clear error.
-- S725 dep:S724  Graceful shutdown: device/swapchain teardown ordering, zero validation errors on exit.
-- S726 dep:S725  Error taxonomy: structured codes + diagnostics channel (no exceptions in release hot paths).
-- S727 dep:S726  REFACTOR GATE(S15) + SURVIVOR.
+> teardown (S1721/S1725) + TSan/ASan (S1723) audits.
+- S1720 dep:S1629  Cancellation tokens through Task/Executor; no deadlocks; deterministic ordering.
+- S1721 dep:S1720  Reentrancy audit across property/binding/event paths.
+- S1722 dep:S1721  Allocator policy finalization (arena/pool rules in ADR).
+- S1723 dep:S1722  TSan + ASan clean across suite; Valgrind (Linux) spot-check.
+- S1724 dep:S1723  Thread-affinity enforcement; wrong-thread writes blocked with clear error.
+- S1725 dep:S1724  Graceful shutdown: device/swapchain teardown ordering, zero validation errors on exit.
+- S1726 dep:S1725  Error taxonomy: structured codes + diagnostics channel (no exceptions in release hot paths).
+- S1727 dep:S1726  REFACTOR GATE(S15) + SURVIVOR.
 
 ---
-## Sprint 16 — DPI, i18n, accessibility, tooling  (goal: broad applicability)  [token S820+]
-> VIEWER GROWTH: DPI (S820) + i18n/RTL (S821/S822) DIRECTLY AFFECT THE RENDERED OUTPUT — the viewer must
-> demonstrate them (named token S828_1 below): high-DPI crisp + a localized/RTL view live.
-- S820 dep:S727  Per-monitor DPI correctness across multi-monitor.
-- S821 dep:S820  i18n: resource fallback (culture→neutral), string tables from VAML resources.
-- S822 dep:S821  RTL mirroring + glyph shaping for localized text.
-- S823 dep:S822  Culture-aware number/date formatting in bindings (converters).
-- S824 dep:S823  Accessibility: text alternatives + keyboard navigation completeness.
-- S825 dep:S824  Hot-reload dev loop MATURE (the tooling-integrated form of S222_1 — NOT a re-do): async
+## Sprint 16 — DPI, i18n, accessibility, tooling  (goal: broad applicability)  [token S1820+]
+> VIEWER GROWTH: DPI (S1820) + i18n/RTL (S1821/S1822) DIRECTLY AFFECT THE RENDERED OUTPUT — the viewer must
+> demonstrate them (named token S1828_1 below): high-DPI crisp + a localized/RTL view live.
+- S1820 dep:S1727  Per-monitor DPI correctness across multi-monitor.
+- S1821 dep:S1820  i18n: resource fallback (culture→neutral), string tables from VAML resources.
+- S1822 dep:S1821  RTL mirroring + glyph shaping for localized text.
+- S1823 dep:S1822  Culture-aware number/date formatting in bindings (converters).
+- S1824 dep:S1823  Accessibility: text alternatives + keyboard navigation completeness.
+- S1825 dep:S1824  Hot-reload dev loop MATURE (the tooling-integrated form of S222_1 — NOT a re-do): async
       reload + definition-of-done hardening on the viewer's S222_1 file-watch reload; editor-agnostic
       (any external editor + watch), no in-app editor (no vi/emacs-in-viewer, no distraction).
-- S826 dep:S825  vamlcc diagnostics (nice errors: source line/col, suggested fix).
-- S826_1 dep:S826  Compile-time binding coverage ratio (per ADR-016): vamlcc reports "this build validated
-      N% of bindings at compile time; M% fell back to bind-time" so a large codebase (e.g. 500k lines) can
+- S1826 dep:S1825  vamlcc diagnostics (nice errors: source line/col, suggested fix).
+- S1826_1 dep:S1826  Compile-time binding coverage ratio (per ADR-016): vamlcc reports "this build validated
+      N% of bindings at compile time; M% fell back to bind-time" so a large codebase (e.g. 1500k lines) can
       PROVE its bindings are statically checked rather than assume it — surfaces convention drift where a
       screen's root silently becomes runtime-typed.
-- S827 dep:S826  Packaging: single-exe consumer link demo + install rules.
-- S828 dep:S827  REFACTOR GATE(S16) + SURVIVOR.
-- S828_1 dep:S822  VIEWER-GROWTH: vaml_viewer demonstrates DPI (a high-DPI crisp view on the same .vaml) +
-      a localized/RTL view (the S821/S822 i18n path) live in the viewer. [VIEWER GROWTH: DPI + i18n/RTL
+- S1827 dep:S1826  Packaging: single-exe consumer link demo + install rules.
+- S1828 dep:S1827  REFACTOR GATE(S16) + SURVIVOR.
+- S1828_1 dep:S1822  VIEWER-GROWTH: vaml_viewer demonstrates DPI (a high-DPI crisp view on the same .vaml) +
+      a localized/RTL view (the S1821/S1822 i18n path) live in the viewer. [VIEWER GROWTH: DPI + i18n/RTL
       visible]
 
 ---
-## Sprint 17 — Release readiness + production roadmap  (goal: v1 control set + release)  [token S920+]
+## Sprint 17 — Release readiness + production roadmap  (goal: v1 control set + release)  [token S1920+]
 > VIEWER GROWTH: no NEW renderable feature this sprint (release/API/docs) — viewer UNCHANGED; S222_1 RELOAD
-> still demonstrated. The S923 sample gallery is authored/viewed THROUGH the viewer.
-- S920 dep:S828  Documented v1 control set + API stabilization pass.
-- S921 dep:S920  Public headers/export-surface audit (API surface clean; export machinery is build-model
+> still demonstrated. The S1923 sample gallery is authored/viewed THROUGH the viewer.
+- S1920 dep:S1828  Documented v1 control set + API stabilization pass.
+- S1921 dep:S1920  Public headers/export-surface audit (API surface clean; export machinery is build-model
                  plumbing only, NOT IP hiding — market: public OSS headers + consumer app's own IP compiled
                  into a single exe via static link) [ADR-003 revised].
-- S922 dep:S921  Licensing + dual-license docs (OSS / prod options).
-- S923 dep:S922  Sample gallery + tutorial VAML docs.
-- S924 dep:S923  Full end-to-end release pipeline (tag → build both CI → package → notes).
-- S925 dep:S924  v1 release candidate; regression suite green.
-- S926 dep:S925  REFACTOR GATE(S17) — FINAL. SURVIVOR + close-out.
-- S927 dep:S926  Post-1.0 roadmap drafted (advanced controls, GPU compute, etc.).
-- S928 dep:S927  Documentation site skeleton (from docs/).
-- S929 dep:S928  Community/contribution guide.
-- S930 dep:S929  Roadmap v1.1 planning; guide sprint is Sprint 18 (S940+); reserve S990–S999 for post-release work.
+- S1922 dep:S1921  Licensing + dual-license docs (OSS / prod options).
+- S1923 dep:S1922  Sample gallery + tutorial VAML docs.
+- S1924 dep:S1923  Full end-to-end release pipeline (tag → build both CI → package → notes).
+- S1925 dep:S1924  v1 release candidate; regression suite green.
+- S1926 dep:S1925  REFACTOR GATE(S17) — FINAL. SURVIVOR + close-out.
+- S1927 dep:S1926  Post-1.0 roadmap drafted (advanced controls, GPU compute, etc.).
+- S1928 dep:S1927  Documentation site skeleton (from docs/).
+- S1929 dep:S1928  Community/contribution guide.
+- S1930 dep:S1929  Roadmap v1.1 planning; guide sprint is Sprint 18 (S1940+); reserve S1990–S1999 for post-release work.
 
 ---
-## Sprint 18 — Commercial user guide: authoring a VAML app in C++ (goal: v1.0 commercial guide covering ONLY the C#→C++ application gap)  [token S940+]
+## Sprint 18 — Commercial user guide: authoring a VAML app in C++ (goal: v1.0 commercial guide covering ONLY the C#→C++ application gap)  [token S1940+]
 > VIEWER GROWTH: no NEW renderable feature this sprint (docs/guide) — viewer UNCHANGED; S222_1 RELOAD still
 > demonstrated. Every guide snippet that renders (Ch.1/2/6/9) is evidenced through the viewer/reload.
-- S940 dep:S930  Guide charter + outline + audience + style guide; docs/guide/README.md.
+- S1940 dep:S1930  Guide charter + outline + audience + style guide; docs/guide/README.md.
       Rules: every chapter declares its evidence source = an exact ROADMAP token; no chapter cites an
       unimplemented API (NO-LAZY-LLM gate).
-- S941 dep:S940  Ch.1 Hello VAML (01-hello-vaml.md): bootstrap a consumer app from scratch (CMake +
+- S1941 dep:S1940  Ch.1 Hello VAML (01-hello-vaml.md): bootstrap a consumer app from scratch (CMake +
       preset, link vaml-core/vulkan, static vs shared). C# analog: "New WPF project". Full compilable TU.
-- S942 dep:S941  Ch.2 Markup (02-markup.md): the exact VAML dialect an author writes — elements, properties,
+- S1942 dep:S1941  Ch.2 Markup (02-markup.md): the exact VAML dialect an author writes — elements, properties,
       attached props, resources, styles, templates, x:Name/x:Class, {Binding}/{StaticResource}. Snippets must
       pass vamlcc.
-- S943 dep:S942  Ch.3 MVVM core in C++ — THE HEART OF THE GAP (03-mvvm-core.md): ObservableObject::Set +
+- S1943 dep:S1942  Ch.3 MVVM core in C++ — THE HEART OF THE GAP (03-mvvm-core.md): ObservableObject::Set +
       PropertyChanged vs INotifyPropertyChanged; RelayCommand CanExecute/Changed vs ICommand; header/cpp
       split; value vs reference semantics; ownership (unique_ptr/shared_ptr/raw) vs GC at DI seams; move-only
       discipline. Gate: every class snippet is a full TU compiled in CI.
-- S944 dep:S943  Ch.4 Bindings & commands (04-bindings-commands.md): PropertyPath syntax, one/one-time/two-way,
+- S1944 dep:S1943  Ch.4 Bindings & commands (04-bindings-commands.md): PropertyPath syntax, one/one-time/two-way,
       C++ converter vs IValueConverter, fallback, two-way TextBox→VM, detach/lifetime.
-- S945 dep:S944  Ch.5 Events & input (05-events-input.md): Click="OnClick" wiring + handler declaration on the
+- S1945 dep:S1944  Ch.5 Events & input (05-events-input.md): Click="OnClick" wiring + handler declaration on the
       x:Class owner, routed/bubbling-tunnel/handled, focus/keyboard, async continuation vs async/await (Task/Executor).
-- S946 dep:S945  Ch.6 Layout, styles, templates, controls (06-layout-styles-controls.md): shipped control set,
+- S1946 dep:S1945  Ch.6 Layout, styles, templates, controls (06-layout-styles-controls.md): shipped control set,
       styling, ControlTemplate authored in VAML.
-- S947 dep:S946  Ch.7 Compiled path & release (07-compiled-vbaml-release.md): vamlcc in CMake, InitializeComponent
+- S1947 dep:S1946  Ch.7 Compiled path & release (07-compiled-vbaml-release.md): vamlcc in CMake, InitializeComponent
       analog, dual path, static vs shared, single-exe shipping.
-- S948 dep:S947  Ch.8 Threading model (08-threading.md): render thread vs UI thread, marshalling, thread-affinity,
+- S1948 dep:S1947  Ch.8 Threading model (08-threading.md): render thread vs UI thread, marshalling, thread-affinity,
       and why lifetime/ownership differs from C#.
-- S949 dep:S948  Ch.9 Full worked example (09-worked-example.md): the sample app (mirrors S440–445) as a
+- S1949 dep:S1948  Ch.9 Full worked example (09-worked-example.md): the sample app (mirrors S440–445) as a
       walkthrough, C# sketch vs VAML C++ side-by-side per section.
-- S950 dep:S949  Appendices (appendix-a-glossary.md, appendix-b-cheatsheet.md): C#/XAML term → VAML C++ term
+- S1950 dep:S1949  Appendices (appendix-a-glossary.md, appendix-b-cheatsheet.md): C#/XAML term → VAML C++ term
       mapping table + one-page quick reference.
-- S951 dep:S950  GUIDE GATE: doc→CI job extracts every code block, compiles+runs it, resolves every API reference
+- S1951 dep:S1950  GUIDE GATE: doc→CI job extracts every code block, compiles+runs it, resolves every API reference
       against a real public header symbol; zero snippets using unimplemented features.
-- S952 dep:S951  Ship: mount guide into S928 docs-site skeleton, version-tag with v1.0, index from S923 tutorial docs.
-- S953 dep:S952  REFACTOR GATE(S18): docs-only sprint — no dead code; guide build green both platforms; link-check
+- S1952 dep:S1951  Ship: mount guide into S1928 docs-site skeleton, version-tag with v1.0, index from S1923 tutorial docs.
+- S1953 dep:S1952  REFACTOR GATE(S18): docs-only sprint — no dead code; guide build green both platforms; link-check
       green. SURVIVOR + close-out.
-- S954–S989  Reserved for guide v2 / extra appendix material.
+- S1954–S1989  Reserved for guide v2 / extra appendix material.
 
 ---
-## Reserved / tail (S990–S999)
+## Reserved / tail (S1990–S1999)
 - Reserved tokens for post-1.0 discoveries and next-plan increments. Append new steps here in
   dependency order as work is scoped; never hand-edit the checkpoint in progress.md.
 

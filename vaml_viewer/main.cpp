@@ -29,6 +29,8 @@
 #include "app.h"           // the S222 shared viewer render host
 #include "cli.h"           // S224: cli_action / cli_usage (the PURE --help entry seam), S440: cli_wants_app_shell
 #include "compiled_open.h" // S293: load_compiled_file + CompiledOpenResult (the compiled .vbaml seam)
+#include <vaml/core/Element.h>         // S449: register_builtin_elements (the compiled reader's element table)
+#include <vaml/core/ValueConverter.h>  // S449: register_builtin_converters (the compiled reader's attribute table)
 
 #include <cstdio>
 #include <cstdlib>
@@ -103,6 +105,15 @@ int main(int argc, char** argv)
             // The compiled sidecar the vamlcc build step produced (S444). The
             // S444 test proves this .vbaml decodes to the same tree as the text
             // path; here the LIVE release app renders it.
+            // S449 (no-exceptions): the COMPILED-ONLY open path (VBamlReader::Load
+            // on the sidecar bytes) does NOT run vamlcc and therefore does NOT
+            // populate the element OR value-converter factories — `unknown element
+            // type 'Window'` / `no value converter registered for type 'Int32'`
+            // otherwise. Prime BOTH process-wide built-in tables here (the same
+            // registrations the text reader and vamlcc perform), exactly as the
+            // S444 test does before load_compiled_app_shell_file.
+            vaml::register_builtin_elements();
+            vaml::register_builtin_converters();
             std::string sidecar = vaml::viewer::compiled_app_shell_sidecar_path();
             vaml::viewer::AppShellCompiledPlanResult plan =
                 vaml::viewer::load_compiled_app_shell_file(sidecar);
@@ -131,10 +142,14 @@ int main(int argc, char** argv)
     // S293 — the COMPILED open dispatch. --compiled forces the compiled path;
     // a `.vbaml` extension auto-detects it. In compiled mode the viewer opens
     // via the S7 runtime VBamlReader (load_compiled_file — which recompiles a
-    // .vaml via vamlcc in-process, then loads the .vbaml bytes): the full
-    // text->compiled->render path, LIVE.
+    // .vaml/.xaml source via vamlcc in-process, then loads the .vbaml bytes):
+    // the full text->compiled->render path, LIVE.
     const bool compiled = vaml::viewer::cli_wants_compiled(argc, argv);
-    const std::string path = argv[1];
+    // S449 — the positional FILE PATH, resolved past any leading flags (so
+    // `vaml_viewer --compiled <file>` opens the file, not the "--compiled"
+    // token). `cli_action` already guaranteed a positional exists here (the
+    // --app branch returned above when the arg is a file-less flag).
+    const std::string path = vaml::viewer::cli_file_path(argc, argv);
 
     if (compiled)
     {

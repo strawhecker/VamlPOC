@@ -72,6 +72,27 @@ TEST_CASE("S224: cli_usage is non-empty and documents the pan/zoom + reload/drop
     CHECK(std::strstr(u, "--help") != nullptr);
 }
 
+TEST_CASE("S450_1: cli_usage declares .xaml as an accepted source (the .xaml acceptance gate)")
+{
+    const char* u = cli_usage();
+    REQUIRE(u != nullptr);
+    // The usage now names .xaml alongside .vaml as an accepted SOURCE — a user
+    // can discover that a .xaml file is a valid input (not an accident).
+    CHECK(std::strstr(u, ".vaml") != nullptr);
+    CHECK(std::strstr(u, ".xaml") != nullptr);
+    CHECK(std::strstr(u, ".vbaml") != nullptr);
+}
+
+TEST_CASE("S450_1: cli_file_path resolves a .xaml positional past a leading --compiled flag")
+{
+    // S449 added cli_file_path (first non-flag positional); S450_1 confirms it
+    // serves .xaml files too — `--compiled scene.xaml` -> "scene.xaml".
+    const char* argv[] = { "vaml_viewer", "--compiled", "scene.xaml" };
+    CHECK(cli_file_path(3, argv) == std::string("scene.xaml"));
+    const char* argvPlain[] = { "vaml_viewer", "window.xaml" };
+    CHECK(cli_file_path(2, argvPlain) == std::string("window.xaml"));
+}
+
 TEST_CASE("S440: --app -> Run action + cli_wants_app_shell (the app-shell launch mode)")
 {
     // S440 — `vaml_viewer --app` is the app-shell LAUNCH MODE (Sprint 11 v1 app):

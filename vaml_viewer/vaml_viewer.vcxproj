@@ -69,7 +69,7 @@
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;VAML_APPSHELL_SIDECAR="$(IntDir)MainView.vbaml";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;VAML_APPSHELL_SIDECAR="$(OutDir.Replace('\','/'))MainView.vbaml";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <!-- /MTd to match the CMake-built static libs (the msvc-debug preset builds the
@@ -90,7 +90,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;VAML_APPSHELL_SIDECAR="$(IntDir)MainView.vbaml";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;VAML_APPSHELL_SIDECAR="$(OutDir.Replace('\','/'))MainView.vbaml";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
@@ -136,9 +136,9 @@
     -->
     <CustomBuild Include="MainView.vaml">
       <FileType>Document</FileType>
-      <Message>vamlcc: MainView.vaml -&gt; $(IntDir)MainView.vbaml + embed twin</Message>
-      <Command>..\build\msvc-debug\src\tools\vamlcc.exe "$(ProjectDir)MainView.vaml" "$(IntDir)MainView.vbaml"&#xD;&#xA;..\build\msvc-debug\src\tools\vamlcc.exe --embed "$(IntDir)MainView.vbaml" "$(IntDir)app_shell_MainView_vbaml.h" "$(IntDir)app_shell_MainView_vbaml.cpp" app_shell_MainView</Command>
-      <Outputs>$(IntDir)MainView.vbaml;$(IntDir)app_shell_MainView_vbaml.h;$(IntDir)app_shell_MainView_vbaml.cpp</Outputs>
+      <Message>vamlcc: MainView.vaml -&gt; $(OutDir)MainView.vbaml + embed twin</Message>
+      <Command>..\build\msvc-debug\src\tools\vamlcc.exe "$(ProjectDir)MainView.vaml" "$(OutDir)MainView.vbaml"&#xD;&#xA;..\build\msvc-debug\src\tools\vamlcc.exe --embed "$(OutDir)MainView.vbaml" "$(OutDir)app_shell_MainView_vbaml.h" "$(OutDir)app_shell_MainView_vbaml.cpp" app_shell_MainView</Command>
+      <Outputs>$(OutDir)MainView.vbaml;$(OutDir)app_shell_MainView_vbaml.h;$(OutDir)app_shell_MainView_vbaml.cpp</Outputs>
     </CustomBuild>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

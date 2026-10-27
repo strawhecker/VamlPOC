@@ -147,16 +147,19 @@ enum class CliAction
     return
         "usage: vaml_viewer [--app | --compiled] [<file>]\n"
         "\n"
-        "Renders a VAML document to a window (file -> parse -> tree -> layout -> Vulkan render),\n"
+        "Renders a VAML / XAML document to a window (file -> parse -> tree -> layout -> Vulkan render),\n"
         "or launches the in-repo app-shell (Sprint 11 v1 app) with --app and no file.\n"
+        "\n"
+        "The viewer ACCEPTS .vaml and .xaml SOURCE files (both parse through the SAME\n"
+        "XML/XAML-aware grammar; a .vbaml compiled binary is accepted as-is).\n"
         "\n"
         "Options:\n"
         "  -h, --help     show this help and exit\n"
         "  --app          launch the APP-SHELL (the in-repo v1 app): loads the authored\n"
         "                 MainView.vaml shell with NO file argument. [S440 VIEWER GROWTH: app]\n"
-        "  --compiled     open via the COMPILED path: a .vaml is recompiled to .vbaml\n"
-        "                 (vamlcc, the runtime VBamlReader) before render; a .vbaml is\n"
-        "                 loaded directly. [S293 VIEWER GROWTH: compiled path]\n"
+        "  --compiled     open via the COMPILED path: a .vaml / .xaml source is recompiled\n"
+        "                 to .vbaml (vamlcc, the runtime VBamlReader) before render; a .vbaml\n"
+        "                 is loaded directly. [S293 VIEWER GROWTH: compiled path]\n"
         "\n"
         "The rendered view supports PAN (left-drag) and ZOOM (mouse wheel). The window\n"
         "title shows the loaded file's name (or the app-shell title in --app mode). Live\n"
@@ -178,6 +181,47 @@ enum class CliAction
     if (backslash != std::string::npos && (pos == std::string::npos || backslash > pos))
         pos = backslash;
     return (pos == std::string::npos) ? path : path.substr(pos + 1);
+}
+
+// The S221 CSS / S293 positional FILE PATH — the first NON-FLAG argument. The
+// viewer's flags (--help/-h, --compiled, --app) may precede OR follow the file,
+// so `argv[1]` is NOT a reliable file path when a flag is present (the S449
+// no-exceptions fix: `vaml_viewer --compiled <file>.vaml` must open the file,
+// not treat "--compiled" as the path). Returns the first positional token
+// (a token that is not a known flag), or an empty string when none exists.
+// Works for .vaml AND .xaml positional files alike (S450_1 — the .xaml gate).
+// Pure + headless-testable (the same rule `cli_action` uses).
+[[nodiscard]] inline std::string cli_file_path(int argc, const char* const* argv) noexcept
+{
+    if (!argv)
+        return {};
+    for (int i = 1; i < argc; ++i)
+    {
+        if (argv[i] == nullptr)
+            continue;
+        const char* a = argv[i];
+        // --help / -h : not a file.
+        if (a[0] == '-')
+        {
+            if (a[1] == '-')
+            {
+                const bool isHelp = a[2] == 'h' && a[3] == 'e' && a[4] == 'l' && a[5] == 'p' && a[6] == '\0';
+                const bool isCompiled =
+                    a[2] == 'c' && a[3] == 'o' && a[4] == 'm' && a[5] == 'p' && a[6] == 'i' &&
+                    a[7] == 'l' && a[8] == 'e' && a[9] == 'd' && a[10] == '\0';
+                const bool isApp = a[2] == 'a' && a[3] == 'p' && a[4] == 'p' && a[5] == '\0';
+                if (isHelp || isCompiled || isApp)
+                    continue;   // a known flag -> not the file
+            }
+            else if (a[1] == 'h' && a[2] == '\0')
+            {
+                continue;   // -h
+            }
+        }
+        // A positional (file) token.
+        return std::string(a);
+    }
+    return {};
 }
 
 } // namespace vaml::viewer

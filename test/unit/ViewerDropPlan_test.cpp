@@ -38,29 +38,49 @@ TEST_CASE("S223: is_vaml_drop guards the .vaml extension (case-insensitive)")
     CHECK(is_vaml_drop("hello.VamL"));
     CHECK(is_vaml_drop("a.vaml"));
 
-    // Non-`.vaml` paths -> ignored (never rendered).
+    // S450_1: a dropped .xaml reopens exactly like a dropped .vaml (the viewer
+    // ACCEPTS .xaml files; the drop seam follows the same source set).
+    CHECK(is_vaml_drop("/home/robert/view.xaml"));
+    CHECK(is_vaml_drop("C:/scenes/Main.XAML"));
+    CHECK(is_vaml_drop("a.XAmL"));
+
+    // Non-source paths -> ignored (never rendered).
     CHECK_FALSE(is_vaml_drop("/home/robert/notes.txt"));
     CHECK_FALSE(is_vaml_drop("C:/scenes/scene.xml"));
     CHECK_FALSE(is_vaml_drop("scene"));          // no extension
     CHECK_FALSE(is_vaml_drop("scene.vam"));      // short extension
+    CHECK_FALSE(is_vaml_drop("scene.xam"));      // short extension
     CHECK_FALSE(is_vaml_drop("vaml"));           // < 5 chars
     CHECK_FALSE(is_vaml_drop(""));               // empty path
-    // A bare ".vaml" (hidden file, empty stem) DOES end in the extension -> the
-    // guard accepts it by extension alone; that is correct (guard = extension only).
+    // A bare ".vaml" / ".xaml" (hidden file, empty stem) DOES end in the extension
+    // -> the guard accepts it by extension alone; correct (guard = extension only).
     CHECK(is_vaml_drop(".vaml"));
+    CHECK(is_vaml_drop(".xaml"));
     CHECK_FALSE(is_vaml_drop("scene.vamlx"));    // extra suffix -> not a bare .vaml
+    CHECK_FALSE(is_vaml_drop("scene.xamlx"));    // extra suffix -> not a bare .xaml
 }
 
-TEST_CASE("S223: drop_choice picks the FIRST .vaml from a drop payload")
+TEST_CASE("S223: drop_choice picks the FIRST .vaml/.xaml source from a drop payload")
 {
-    // Multi-file drop where the FIRST is a .vaml -> it is chosen.
+    // Multi-file drop where the FIRST is a source -> it is chosen.
     const char* p0 = "/home/robert/a.vaml";
     const char* p1 = "/home/robert/notes.txt";
-    const char* p2 = "/home/robert/b.vaml";
+    const char* p2 = "/home/robert/b.xaml";
     const char* paths[] = { p0, p1, p2 };
     auto chosen = drop_choice(3, paths);
     REQUIRE(chosen.has_value());
     CHECK(*chosen == std::string("/home/robert/a.vaml"));
+}
+
+TEST_CASE("S450_1: drop_choice picks a .xaml following a non-source (the .xaml drop gate)")
+{
+    // A .xaml that follows a stray .txt -> the .xaml reopens.
+    const char* p0 = "/tmp/notes.txt";
+    const char* p1 = "/tmp/screen.xaml";
+    const char* paths[] = { p0, p1 };
+    auto chosen = drop_choice(2, paths);
+    REQUIRE(chosen.has_value());
+    CHECK(*chosen == std::string("/tmp/screen.xaml"));
 }
 
 TEST_CASE("S223: drop_choice skips non-vaml and picks the first vaml that follows")
@@ -73,12 +93,13 @@ TEST_CASE("S223: drop_choice skips non-vaml and picks the first vaml that follow
     CHECK(*chosen == std::string("/tmp/scene.vaml"));
 }
 
-TEST_CASE("S223: drop_choice returns nullopt when the drop has NO .vaml (drop ignored)")
+TEST_CASE("S223: drop_choice returns nullopt when the drop has NO source (drop ignored)")
 {
     const char* p0 = "/tmp/notes.txt";
     const char* p1 = "/tmp/readme.md";
-    const char* paths[] = { p0, p1 };
-    CHECK_FALSE(drop_choice(2, paths).has_value());
+    const char* p2 = "/tmp/scene.xml";   // NOT a source (a stray XML, not .xaml)
+    const char* paths[] = { p0, p1, p2 };
+    CHECK_FALSE(drop_choice(3, paths).has_value());
 
     // Empty / null payloads -> no choice (silent no-op).
     CHECK_FALSE(drop_choice(0, paths).has_value());

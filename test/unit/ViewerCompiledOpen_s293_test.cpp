@@ -148,6 +148,34 @@ TEST_CASE("S293: load_compiled_file — a .vaml path COMPILES then loads (vamlcc
     }
 }
 
+TEST_CASE("S450_1: load_compiled_file — a .xaml path COMPILES then loads (the .xaml acceptance gate)")
+{
+    // S450_1 — the viewer ACCEPTS .xaml: the compiled open treats a .xaml source as
+    // text to recompile (is_vaml_or_xaml_source true), NOT as a binary .vbaml.
+    // A bona-fide XAML-shaped document (presentation root by local name) recompiles
+    // through vamlcc → VBamlReader exactly like a .vaml.
+    const char* kXamlGolden =
+        R"(<StackPanel x:Class="Demo.XamlPanel"><StackPanel x:Name="panel"/></StackPanel>)";
+
+    // Write it to a temp .xaml path and run the REAL compiled seam.
+    const std::string path = "s450_tmp.xaml";
+    {
+        std::ofstream out(path, std::ios::trunc);
+        out << kXamlGolden;
+    }
+    CompiledOpenResult r = load_compiled_file(path);
+    removeTemp(path);
+
+    REQUIRE(r.ok);
+    REQUIRE(r.root != nullptr);
+    CHECK(dynamic_cast<StackPanel*>(r.root.get()) != nullptr);
+    if (r.reader)
+    {
+        CHECK(r.reader->root_class() == std::string("Demo.XamlPanel"));
+        CHECK(r.reader->named("panel") != nullptr);
+    }
+}
+
 TEST_CASE("S293: load_compiled_file — a .vbaml path loads bytes directly (parity with compile-first)")
 {
     const std::vector<std::uint8_t> bytes = compile_to_vbaml(kS293Golden);

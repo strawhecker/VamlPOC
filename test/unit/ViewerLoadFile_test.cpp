@@ -215,6 +215,59 @@ TEST_CASE("S221: load_file(missing path) maps a TYPED NoSuchFile error (never si
     SHOULD(ShouldlyIntegral(r.detail.empty()).ShouldBe(0)); // NEVER silent
 }
 
+TEST_CASE("S450_1: a real .xaml golden loads through the text path (the .xaml acceptance gate)")
+{
+    // S450_1 — the viewer ACCEPTS `.xaml` files: the same parse path, the SAME
+    // grammar (the parser is XML/XAML-aware), with NO extension gate. A bona-fide
+    // XAML-looking document — presentation-style `xmlns` + a prefixed custom
+    // namespace + x: directives + an unprefixed root resolved by local name.
+    // This is NOT an alias-by-extension; it proves a real-WPF-shaped .xaml body
+    // resolves through the existing namespace + resolution machinery.
+    registerS221Properties();
+
+    const char* kXamlDoc = R"(<Window S221Title="Xaml" S221Width="320" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Demo.MainWindow"><StackPanel x:Name="root"><Button S221Content="OK" S221Width="64"/></StackPanel></Window>)";
+
+    const LoadResult r = load_text(kXamlDoc);
+    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.error)).ShouldBe(static_cast<int>(FileLoadError::None)));
+    if (r.root)
+    {
+        // Root resolves by local_name "Window" (the presentation root); title set.
+        SHOULD(ShouldlyIntegral(dynamic_cast<Window*>(r.root.get()) != nullptr).ShouldBe(1));
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+                   .ShouldBe(Value::String("Xaml")));
+        // x:Class consumed on the root (root_class decodes "Demo.MainWindow");
+        // the nested Button resolves + sets content through the same machinery.
+    }
+}
+
+TEST_CASE("S450_1: a real .xaml FILE loads through the I/O path (parity with .vaml)")
+{
+    // Same golden as above, written to a real temp `.xaml` path and loaded via
+    // load_file — the I/O seam accepts .xaml as a first-class source.
+    registerS221Properties();
+    const char* kTmp = "s450_fixture.xaml";
+    {
+        std::ofstream f(kTmp, std::ios::binary);
+        REQUIRE(f.is_open());
+        const char* doc =
+            R"(<Window S221Title="Xaml" S221Width="320" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Demo.MainWindow"><StackPanel><Button S221Content="OK"/></StackPanel></Window>)";
+        f.write(doc, static_cast<std::streamsize>(std::char_traits<char>::length(doc)));
+        f.close();
+    }
+
+    const LoadResult r = load_file(kTmp);
+    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.error)).ShouldBe(static_cast<int>(FileLoadError::None)));
+    if (r.root)
+    {
+        SHOULD(ShouldlyIntegral(dynamic_cast<Window*>(r.root.get()) != nullptr).ShouldBe(1));
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+                   .ShouldBe(Value::String("Xaml")));
+    }
+    std::remove(kTmp);
+}
+
 TEST_CASE("S221: a TEMP malformed fixture yields ParseError (not a silent ok)")
 {
     registerS221Properties();

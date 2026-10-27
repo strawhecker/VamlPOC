@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <unordered_map>
+#include <limits>   // std::numeric_limits (Width/Height DP auto-NaN sentinel)
 
 namespace vaml {
 
@@ -98,6 +99,24 @@ void register_uielement_properties()
     (void)DependencyProperty::Register(
         "VerticalAlignment", ValueType::Int32, "UIElement",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+
+    // Width / Height (WPF-style layout DPs, added for the .xaml-acceptance /
+    // WPF source import line). WPF-faithful semantics: an EXPLICIT explicit
+    // double (NaN = "auto/unset"), NOT inherited, riding the Double value path.
+    // 0 or NaN mean auto — the element's natural/content size governs the axis,
+    // exactly as VAML's existing panels resolve an unset axis. A positive
+    // explicit value is a HARD constraint the measure pipeline applies
+    // (clamped to the available offer, never producing negative geometry). See
+    // the measure finalizer (reconcile_axis, applied in UIElement::Measure —
+    // genuinely consumed, synthesized in this same translation unit):
+    (void)DependencyProperty::Register(
+        "Width", ValueType::Double, "UIElement",
+        PropertyMetadata::WithDefault(Value::Double(std::numeric_limits<double>::quiet_NaN()),
+                                      PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Height", ValueType::Double, "UIElement",
+        PropertyMetadata::WithDefault(Value::Double(std::numeric_limits<double>::quiet_NaN()),
+                                      PropertyFlags::None));
 
     // Focusable (S325): default true, NOT inherited. Declares whether THIS
     // element can take keyboard focus (WPF-faithful: a focusable leaf is true;
@@ -273,6 +292,47 @@ vaml::VerticalAlignment UIElement::vertical_alignment() const
         Get(PropertyId::of("VerticalAlignment")).get<std::int32_t>());
 }
 
+// --- Width / Height accessors (WPF-style explicit size DPs) -----------------
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_width(double value)
+{
+    return Set(PropertyId::of("Width"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double UIElement::width() const
+{
+    return Get(PropertyId::of("Width")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_height(double value)
+{
+    return Set(PropertyId::of("Height"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double UIElement::height() const
+{
+    return Get(PropertyId::of("Height")).get<double>();
+}
+
+// Applies an EXPLICIT Width/Height to an axis's natural measured extent.
+// WPF-faithful (an explicit FrameworkElement.Width is a hard constraint,
+// clamped to the offer — never negative): returns the explicit value when it is
+// a POSITIVE double, otherwise the natural extent unchanged. NaN or 0 = auto.
+constexpr float reconcile_axis(double explicitValue, float natural) noexcept
+{
+    if (explicitValue > 0.0)
+    {
+        // Clamp explicit >= 0 (never negative geometry). NaN never slips in:
+        // `explicitValue > 0.0` is false for NaN.
+        return std::max(0.0f, static_cast<float>(explicitValue));
+    }
+    return natural;
+}
+
 // --- S123 Measure contract ------------------------------------------------
 
 VAML_CORE_EXPORT
@@ -307,7 +367,15 @@ void UIElement::Measure(const Size& available)
     const float innerAvailH = std::max(0.0f, available.height - m.top - m.bottom);
     const Size inner{ innerAvailW, innerAvailH };
 
-    const Size natural = MeasureOverride(inner);
+    const Size natural0 = MeasureOverride(inner);
+    // WPF-style explicit Width/Height (the .xaml source-import line): an
+    // explicit POSITIVE value becomes the axis's natural extent (a hard
+    // constraint the finalizer then stretches/wraps/clamps WPF-faithfully);
+    // NaN/0 leave the content extent unchanged (auto). Never negative.
+    const Size natural = {
+        reconcile_axis(width(), natural0.width),
+        reconcile_axis(height(), natural0.height),
+    };
     Size d = vaml::compute_measured_desired(
         natural, inner, horizontal_alignment(), vertical_alignment());
 

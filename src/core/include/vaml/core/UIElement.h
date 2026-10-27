@@ -257,6 +257,17 @@ public:
     [[nodiscard]] SetResult set_vertical_alignment(vaml::VerticalAlignment value);
     [[nodiscard]] vaml::VerticalAlignment vertical_alignment() const;
 
+    // --- Width / Height (WPF-style layout DPs; default auto/NaN) -----------
+    // WPF-faithful explicit-size DPs on the element base (the .xaml SOURE-import
+    // line): an explicit positive double constrains that axis; NaN (default) or
+    // 0 means AUTO — the element's natural/content extent governs. Consumed by
+    // UIElement::Measure (see reconcile_width_height below), NOT a dead
+    // registration. Degree-0 type is Double.
+    [[nodiscard]] SetResult set_width(double value);
+    [[nodiscard]] double width() const;
+    [[nodiscard]] SetResult set_height(double value);
+    [[nodiscard]] double height() const;
+
     // --- Visibility (REAL DP; not inherited) ----------------------------
     // Default Visible. Per-element render state (NOT inherited — WPF-faithful).
     // Exposed both via the typed accessors and the standard Set/Get path on
