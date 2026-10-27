@@ -72,6 +72,12 @@ vbaml::Schema build_schema(const CompiledProgram& prog)
                 (void)builder.intern(a.bindingPath);
             }
         }
+        // S452 — intern the object-valued property-element target names so the
+        // serializer can look them up by schema index (the per-child propToken).
+        if (!e.propertyElementTarget.empty())
+        {
+            (void)builder.prop_token(e.propertyElementTarget);
+        }
     }
     return builder.flush();
 }
@@ -143,6 +149,75 @@ void emit_elements(const ParsedElement& node, CompiledProgram& prog, std::size_t
 
     for (const ParsedElement& child : node.children)
     {
+        // S452 — PROPERTY-ELEMENT (the S366 NO-GAP hand-off, RESOLVED). A child
+        // whose LOCAL name (sans prefix) is dotted `<Owner.Property>` sets the
+        // named Property onto THIS parent (the DP path), NOT a visual child —
+        // exactly what the S2 text reader (VamlReader::build) does. Two value
+        // kinds, mirrored here so the S7 compiler reproduces the S2 results:
+        //   (a) OBJECT value — the single child element is emitted as a NORMAL
+        //       child NODE (so it is retained + owns its subtree) but marked
+        //       `propertyElementTarget = <property>` so the S7 reader SETS the
+        //       parent's DP to it (Value::UntypedPtr) instead of transferring it
+        //       as a visual child.
+        //   (b) LITERAL/extension value — folded as a parent ATTRIBUTE `Prop=...`
+        //       with `propertyElement = true`, so the S7 reader Sets the parent
+        //       DP from the literal exactly like the S2 literal property-element.
+        // The owner portion (before the '.') is validated for dotted form only;
+        // resolution is against THIS parent (WPF "this.Element's Property").
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (vaml::is_property_element(childLocal))
+        {
+            const auto propPair = vaml::split_property_element(childLocal);
+            std::string propName(propPair.second);
+
+            // Dotted-name resolution against a registered type: the OWNER must
+            // match this parent's type token for a well-formed property-element,
+            // otherwise it is a plain unknown element (the S2 reader resolves the
+            // property name against the parent regardless). We emit under the
+            // property name only; the compile-time type check still runs later
+            // in the reader via the DP lookup.
+            (void)propPair.first;
+
+            if (child.children.size() == 1)
+            {
+                // (a) object value: emit the child node + mark it as the value of
+                // the parent's named property.
+                const std::size_t cid = prog.elements.size();
+                emit_elements(child.children[0], prog, id);
+                prog.elements[cid].propertyElementTarget = std::move(propName);
+                prog.elements[id].children.push_back(cid);
+            }
+            else if (!child.content.empty())
+            {
+                // (b) literal/extension value: fold into THIS parent's attributes.
+                AttributeRecord ar;
+                ar.key = std::move(propName);
+                ar.value = child.content;
+                // trim the authored literal (leading/trailing whitespace)
+                const std::size_t b = ar.value.find_first_not_of(" \t\r\n");
+                const std::size_t e = ar.value.find_last_not_of(" \t\r\n");
+                if (b != std::string::npos && e != std::string::npos)
+                {
+                    ar.value = ar.value.substr(b, e - b + 1);
+                }
+                else if (b == std::string::npos)
+                {
+                    ar.value.clear();
+                }
+                ar.isExtension = false;
+                const bool looksLikeExtension =
+                    ar.value.size() >= 2 && ar.value.front() == '{' && ar.value.back() == '}';
+                ar.isExtension = looksLikeExtension;
+                ar.propertyElement = true;
+                annotate_attribute(ar);
+                prog.elements[id].attributes.push_back(std::move(ar));
+            }
+            // An empty property-element `<Owner.Prop/>` = degenerate zero case:
+            // no value to set — skipped (matches the S2 reader).
+            continue;
+        }
+
         const std::size_t cid = prog.elements.size();
         emit_elements(child, prog, id);
         prog.elements[id].children.push_back(cid);

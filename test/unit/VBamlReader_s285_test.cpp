@@ -272,3 +272,51 @@ TEST_CASE("S285: malformed value fires VBamlException(MalformedValue)")
     }
     SHOULD(ShouldlyIntegral(static_cast<int>(threw)).ShouldBe(1));
 }
+
+// ---------------------------------------------------------------------------
+// S451 — DOCUMENT grammar on the COMPILED path (BOM + prolog + comment parity)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("S451: a BOM+prolog+comment golden compiles and loads via VBamlReader (comments absent)")
+{
+    registerS285Properties();
+
+    // A real-editor-saved WPF document: UTF-8 BOM + XML declaration + editor
+    // comment + a comment BETWEEN elements. vamlcc compiles via parse_vaml
+    // (which strips BOM/prolog + drops comments), so the .vbaml carries only
+    // the tree — the S7 reader reproduces a comment-free tree, matching the S2
+    // text reader (S288 parity on the document grammar).
+    const std::string bom = std::string("\xEF\xBB\xBF", 3);
+    const std::string golden =
+        bom +
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<!-- header comment -->\n"
+        "<Window S285Width=\"1024\">"
+        "<StackPanel>"
+        "<!-- between children -->"
+        "<Button S285Content=\"Go\" S285Width=\"200\"/>"
+        "</StackPanel>"
+        "</Window>";
+
+    const std::vector<std::uint8_t> bytes = vaml::tools::compile_to_bytes(golden);
+    VBamlReader reader;
+    std::unique_ptr<DependencyObject> root = reader.Load(bytes);
+
+    // Root Window with the BOM+prolog stripped cleanly.
+    SHOULD(ShouldlyIntegral(dynamic_cast<vaml::Window*>(root.get()) != nullptr).ShouldBe(true));
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Width")))
+               .ShouldBe(Value::Int32(1024)));
+
+    // Exactly the declared tree survives — the comments added NOTHING. The
+    // retained set is POST-ORDER (children before their container, S285), so
+    // Button comes first, then StackPanel.
+    const auto& retained = reader.retained_objects();
+    SHOULD(ShouldlyString(retained.size()).ShouldBe(2u));
+    if (retained.size() == 2)
+    {
+        SHOULD(ShouldlyIntegral(dynamic_cast<vaml::Button*>(retained[0].get()) != nullptr).ShouldBe(true));
+        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S285Content")))
+                   .ShouldBe(Value::String("Go")));
+        SHOULD(ShouldlyIntegral(dynamic_cast<vaml::StackPanel*>(retained[1].get()) != nullptr).ShouldBe(true));
+    }
+}

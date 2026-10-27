@@ -318,3 +318,140 @@ TEST_CASE("S085: scanner-level malformed markup (unterminated quote) propagates"
     }
     SHOULD(ShouldlyIntegral(static_cast<int>(threw)).ShouldBe(1));
 }
+
+// ---------------------------------------------------------------------------
+// S451 — DOCUMENT grammar: BOM / XML prolog / real-WPF document acceptance
+// ---------------------------------------------------------------------------
+
+TEST_CASE("S451: a UTF-8 BOM before the root is accepted (not a tree node)")
+{
+    const std::string bom = std::string("\xEF\xBB\xBF", 3);
+    const ParsedElement root = parse_vaml(bom + "<StackPanel Width=\"40\"/>");
+
+    // The BOM is stripped at the document level — root parses cleanly.
+    SHOULD(ShouldlyString(root.tagName).ShouldBe(std::string("StackPanel")));
+    SHOULD(ShouldlyIntegral(root.attributes.size()).ShouldBe(static_cast<std::size_t>(1)));
+    const ParsedAttribute* w = findAttr(root, "Width");
+    SHOULD(ShouldlyIntegral(w != nullptr).ShouldBe(true));
+    if (w)
+    {
+        SHOULD(ShouldlyString(w->value).ShouldBe(std::string("40")));
+    }
+}
+
+TEST_CASE("S451: an XML prolog before a root inside a comment inside a doc is accepted")
+{
+    // A real editor-saved .xaml: BOM + XML declaration + namespace + comment —
+    // the whole document-level prologue + the comment-discard contract.
+    const std::string src =
+        std::string("\xEF\xBB\xBF", 3) +
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<!-- an editor comment -->\n"
+        "<Window xmlns:x=\"" + std::string(kXamlLanguageNamespace) + "\" x:Name=\"Root\">"
+        "<StackPanel/>"
+        "<!-- inner comment -->"
+        "</Window>";
+
+    const ParsedElement root = parse_vaml(src);
+
+    // The document parses cleanly: BOM + prolog + comments all discarded.
+    SHOULD(ShouldlyString(root.tagName).ShouldBe(std::string("Window")));
+    SHOULD(ShouldlyString(root.prefix).ShouldBe(std::string("")));
+
+    // x:Name directive survives the prologue strip (the xmlns:x + x:Name
+    // presentation grammar comes through).
+    SHOULD(ShouldlyIntegral(root.attributes.size()).ShouldBe(static_cast<std::size_t>(1)));
+    const ParsedAttribute* name = findAttr(root, "x:Name");
+    SHOULD(ShouldlyIntegral(name != nullptr).ShouldBe(true));
+    if (name)
+    {
+        SHOULD(ShouldlyString(name->local_name).ShouldBe(std::string("Name")));
+        SHOULD(ShouldlyIntegral(static_cast<int>(name->directive))
+                   .ShouldBe(static_cast<int>(XmlDirectiveType::Name)));
+        SHOULD(ShouldlyString(name->value).ShouldBe(std::string("Root")));
+    }
+
+    // Comments are NOT tree nodes: exactly one child (the StackPanel).
+    SHOULD(ShouldlyIntegral(root.children.size()).ShouldBe(static_cast<std::size_t>(1)));
+    SHOULD(ShouldlyString(root.children[0].tagName).ShouldBe(std::string("StackPanel")));
+    // The comment text did NOT leak into the root's content.
+    SHOULD(ShouldlyString(root.content).ShouldBe(std::string("")));
+}
+
+TEST_CASE("S451: prolog-only (no BOM) + BOM-only both parse cleanly")
+{
+    // Prolog without a BOM.
+    {
+        const ParsedElement root =
+            parse_vaml("<?xml version=\"1.0\"?>\n<a/>");
+        SHOULD(ShouldlyString(root.tagName).ShouldBe(std::string("a")));
+        SHOULD(ShouldlyIntegral(root.children.size()).ShouldBe(static_cast<std::size_t>(0)));
+    }
+    // BOM + whitespace-only prologue (no declaration) + root.
+    {
+        const std::string bom = std::string("\xEF\xBB\xBF", 3);
+        const ParsedElement root = parse_vaml(bom + "   <b/>");
+        SHOULD(ShouldlyString(root.tagName).ShouldBe(std::string("b")));
+    }
+}
+
+TEST_CASE("S451: clr-namespace + xmlns presentation parse through a real WPF-shaped doc")
+{
+    // A full WPF-shaped document: BOM + prolog + xmlns + clr-namespace + x:
+    // directive + a prefixed element + a comment. All S451 grammar surfaces.
+    const std::string src =
+        std::string("\xEF\xBB\xBF", 3) +
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+        "<Window \n"
+        "        xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"\n"
+        "        xmlns:x=\"" + std::string(kXamlLanguageNamespace) + "\"\n"
+        "        xmlns:local=\"clr-namespace:VamlPOC.Demo;assembly=Demo\"\n"
+        "        x:Class=\"VamlPOC.Demo.MainWindow\">\n"
+        "  <!-- a comment -->\n"
+        "  <StackPanel>\n"
+        "    <local:Button x:Name=\"Go\" Width=\"100\"/>\n"
+        "  </StackPanel>\n"
+        "</Window>";
+
+    const ParsedElement root = parse_vaml(src);
+
+    SHOULD(ShouldlyString(root.tagName).ShouldBe(std::string("Window")));
+    SHOULD(ShouldlyString(root.prefix).ShouldBe(std::string("")));
+    // The x:Class directive (root-only) is classified correctly.
+    const ParsedAttribute* klass = findAttr(root, "x:Class");
+    SHOULD(ShouldlyIntegral(klass != nullptr).ShouldBe(true));
+    if (klass)
+    {
+        SHOULD(ShouldlyString(klass->local_name).ShouldBe(std::string("Class")));
+        SHOULD(ShouldlyIntegral(static_cast<int>(klass->directive))
+                   .ShouldBe(static_cast<int>(XmlDirectiveType::Class)));
+        SHOULD(ShouldlyString(klass->value).ShouldBe(std::string("VamlPOC.Demo.MainWindow")));
+    }
+
+    // The prefixed child resolves its namespace + local_name + x:Name.
+    SHOULD(ShouldlyIntegral(root.children.size()).ShouldBe(static_cast<std::size_t>(1)));
+    const ParsedElement& panel = root.children[0];
+    SHOULD(ShouldlyString(panel.tagName).ShouldBe(std::string("StackPanel")));
+    SHOULD(ShouldlyIntegral(panel.children.size()).ShouldBe(static_cast<std::size_t>(1)));
+    const ParsedElement& btn = panel.children[0];
+    SHOULD(ShouldlyString(btn.tagName).ShouldBe(std::string("local:Button")));
+    SHOULD(ShouldlyString(btn.prefix).ShouldBe(std::string("local")));
+    SHOULD(ShouldlyString(btn.local_name).ShouldBe(std::string("Button")));
+    const ParsedAttribute* go = findAttr(btn, "x:Name");
+    SHOULD(ShouldlyIntegral(go != nullptr).ShouldBe(true));
+    if (go)
+    {
+        SHOULD(ShouldlyString(go->value).ShouldBe(std::string("Go")));
+        SHOULD(ShouldlyIntegral(static_cast<int>(go->directive))
+                   .ShouldBe(static_cast<int>(XmlDirectiveType::Name)));
+    }
+
+    // The comments left NO residue in ANY element's content: the only content
+    // is AS-AUTHORED whitespace text between the comment and the next element
+    // (never the '<!-- -->' markup, never the comment body). Assert the
+    // comment text itself is absent from the build tree entirely.
+    const bool rootHasComment = root.content.find("comment") != std::string::npos;
+    const bool panelHasComment = panel.content.find("comment") != std::string::npos;
+    SHOULD(ShouldlyIntegral(static_cast<int>(rootHasComment)).ShouldBe(0));
+    SHOULD(ShouldlyIntegral(static_cast<int>(panelHasComment)).ShouldBe(0));
+}

@@ -1400,24 +1400,73 @@ Growth tokens by sprint:
       prolog/root-element identity, `xmlns` presentation + `clr-namespace` + `x:` directive namespace, and
       `<!-- -->` comments (S080 dropped comments as non-tree nodes; this step CONFIRMS them discarded
       consistently in both the text + compiled paths + documents the grammar). Real WPF-shaped documents
+      parse cleanly. NO new MINIMAL REAL. [DONE — UTF-8 BOM + optional XML prolog stripped at the parse_vaml
+      DOCUMENT choke point (the single point BOTH S2 text + vamlcc recompile share); comment-discard documented
+      on ParsedElement.h + VBamlReader.h (comments never tree nodes on EITHER path); real-WPF-shaped .xaml +
+      clr-namespace + xmlns:x + x:Class parse cleanly (text + compiled parity tests). Both CI lanes green
+      (verify_s451.cmd).]
+      `<!-- -->` comments (S080 dropped comments as non-tree nodes; this step CONFIRMS them discarded
+      consistently in both the text + compiled paths + documents the grammar). Real WPF-shaped documents
       parse cleanly. NO new MINIMAL REAL.
 - S452 dep:S451  PROPERTY-ELEMENT + ATTRIBUTE-ELEMENT authoring grammar (the S366-recorded NO-GAP hand-off):
       the S2/S7 parsers accept `<Button.Content><StackPanel .../></Button.Content>` and `<Button.Background>`
       (content into the named DP, opening/closing over the owned track) → a live tree populated via the DP
-      path. The syntactic seam every later resource/template step rides.
+      path. The syntactic seam every later resource/template step rides. [DONE — on BOTH parsers: pure
+      is_property_element / split_property_element helpers; `<X.Prop>` sets the parent DP via the S043
+      attached-aware path (object→Value::UntypedPtr, literal→convert, empty-skip, unknown-dotted→ the
+      structured UnknownProperty error); NOT auto-attached as a visual child (accepted-decision 2, recorded
+      NO-GAP for ContentControl). S7 parity added via a BACKWARD-COMPATIBLE vbaml per-child property-element
+      wire flag + vamlcc folding + VBamlReader applying + excluding from finalize_visual_tree (regen the
+      pre-built MainView.vbaml/demo_main.vbaml sidecars on both lanes — they were stale from the pre-change
+      vamlcc). Built-in registry count gate 12→14 (SolidColorBrush + Style registered as authorable types).
+      Both CI lanes green (verify_s452.cmd).]
 - S453 dep:S452  RESOURCE-DICTIONARY authoring + `x:Key`: `<ResourceDictionary>`,
       `ResourceDictionary.MergedDictionaries` (multi `<ResourceDictionary>`), and `x:Key` on authored
       resources (S361 x:Key resolution now reaches MARKUP-AUTHORED resources, not just pre-registered) +
       `{StaticResource Key}` / `{DynamicResource Key}` wired to the S360/S361 three-scope + merged lookup.
+      [DONE — S2 TEXT path: `<X.Resources>` property-element → owned ResourceDictionary routed into the S360
+      side-table (set_element_resources — accepted-decision 3, never a DP Set); authored children captured
+      by x:Key (set(key, owned object) — the S361 x:Key deferral RESOLVED); ResourceDictionary.MergedDictionaries
+      merges (self-wins/sibling-last-wins); duplicate x:Key→ResourceAlreadyRegistered; no-x:Key→structured
+      error; missing key via {StaticResource}→MissingKey; find_for_element reaches the authored dict up the
+      parent chain. Test ResourceAuthoring_s453_test.cpp (core). GREEN both lanes. RECORDED NO-GAP (driver-
+      approved): S7 resource-dictionary-authoring PARITY recorded as a scheduled hand-off — the S7 VBamlReader
+      (DependencyObject-factory) cannot yet materialize the non-DO ResourceDictionary; resolution at 11b/11x
+      (a `ResourceDictionary`/`Resources` special-case routing an owned dict into set_element_resources).]
 - S454 dep:S453  STYLE AUTHORING + TRIGGERS: `<Style TargetType="Button" BasedOn="{StaticResource base}">` +
       `<Setter Property="..." Value="..."/>` + `<Style.Triggers>` (PropertyTrigger + DataTrigger) — the S362/
       S363 engine AUTHORED from `.vaml` (was engine-only). Includes implicit-style (no x:Key) application over
-      the matching ElementFactoryRegistry type.
+      the matching ElementFactoryRegistry type. [DONE — S2 TEXT path: `<Style TargetType BasedOn>` + `<Setter
+      Property Value>` (literal/Static/Dynamic/TemplateBinding SetterValues) + `<Style.Triggers>`
+      (PropertyTrigger/DataTrigger with child setters) authored into the live S362 model; BasedOn wired at
+      end-of-Load (resolve_deferred_based_on); implicit `<Style>` (no x:Key) registered under
+      "Style:{TargetType}" + applied via apply_implicit_style; explicit x:Key'd style does NOT auto-apply.
+      Test StyleAuthoring_s454_test.cpp (core). Found + fixed a real dangling-view bug: PropertyId from a
+      local std::string is now interned (vaml::intern, S140/S144). GREEN both lanes. RECORDED NO-GAP
+      (driver-approved, consistent with S453): S7 style-authoring parity — the S7 VBamlReader cannot yet
+      reconstruct a Style's setters/triggers (and its non-DO ResourceDictionary container); resolution at
+      11b/11x via a unified non-DO authoring special-case.]
 - S455 dep:S454  VIEWER-GROWTH(11a): sample.vaml authors a ResourceDictionary + a Style + Setter/triggers;
       vaml_viewer loads it and the REDERIVED style re-skins the LIVE running viewer (the S369 re-skin seam
       extended to the fresh authoring grammar — LiveChat → live style/resource swap). BOTH CI LANES green.
+      [DONE — vaml_viewer/sample_styled.vaml authors a ResourceDictionary + an implicit <Style TargetType>
+      + authored <Setter>s via the fresh S453/S454 grammar; the S369 viewer_restyle.h seam gained
+      run_viewer_style_restyle_plan which re-Loads a styled doc + re-applies the authored IMPLICIT style by
+      target type (apply_implicit_style). Test ViewerRestyleS11a_s455_test.cpp (vaml-tools-tests) proves: the
+      authored <Setter Property="Background"> lands on the named live target; an authored-Background edit +
+      re-Load re-skis red->green; an EXPLICIT-only style does NOT auto-re-skin (implicit only, never silent);
+      missing target + bad markup are readable. GREEN both lanes. NOTE: the live viewer re-skin runs on the S2
+      TEXT reload path (the viewer's live reload is the S2 text reader; the compiled .vbaml interactive
+      re-skin stays deferred exactly as S445/S447 recorded — consistent with the S7 NO-GAP decisions).]
 - S456 dep:S455  SURVIVOR(11a): consolidated in progress.md (S451..S455: authoring grammar consumed);
-      no new MINIMAL REAL; guard-rail carry-forward intact. Short.
+      no new MINIMAL REAL; guard-rail carry-forward intact. Short. [DONE — Sprint 11a closed. S451 (document
+      grammar) + S452 (property-element, S2 + S7) + S453 (resource-dict authoring, S2; S7 parity recorded
+      NO-GAP) + S454 (Style/triggers authoring, S2; S7 parity recorded NO-GAP) + S455 (viewer live re-skin
+      from an authored styled sample, S2) all GREEN on both CI lanes. Consolidated Sprint 11a SURVIVOR block
+      in progress.md; checkpoint regenerated: last = S456, next = S460 (Sprint 11b first token). NO new
+      MINIMAL REAL; guard-rail carry-forward intact (all prior seeds resolved; zero [MINIMAL REAL] remain);
+      ADR-018 ZERO new locks. The two S7 authoring-parity gaps are RECORDED NO-GAP (not silent), resolved at
+      11b/11x.]
 
 ---
 ## Sprint 11b — Brushes + markup extensions + event/command attributes  (goal: the remaining attribute surface)  [token S460+]

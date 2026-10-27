@@ -130,4 +130,67 @@ run_viewer_restyle_plan(const std::string& text, const vaml::Color& brush)
     return r;
 }
 
+// ---------------------------------------------------------------------------
+// S455 (dep:S454) — the AUTHORED-STYLE re-skin seam (VIEWER-GROWTH 11a). The
+// S369 seam above re-skinned via a hardcoded brush; THIS seam re-drives the SAME
+// live-re-skin headline through the NEW resource/style AUTHORING grammar (S453 +
+// S454): a .vaml that authors a ResourceDictionary + an implicit Style (with
+// <Setter> + <Style.Triggers>) is re-Loaded, and the implicit style is RE-APPLIED
+// to the named live target by TARGET TYPE (apply_implicit_style — the S363 seam).
+// Editing a setter/brush color and re-saving -> reload -> the authored style
+// re-applies -> the target re-skis LIVE. The EXACT code path the live reload uses.
+// ---------------------------------------------------------------------------
+
+// The outcome of an authored-style re-skin plan run.
+struct ViewerStyleRestylePlanResult
+{
+    bool ok = false;                       // styled text loaded + style applied cleanly
+    std::unique_ptr<vaml::DependencyObject> root; // the freshly loaded styled tree
+    std::unique_ptr<vaml::VamlReader> reader;     // RETAINED reader (per-Load styling scope)
+    bool reskinned = false;                // true when an authored style setter applied live
+    std::size_t applied = 0;               // number of style setters applied by the re-skin
+    std::string detail;                    // structured failure reason (never silent)
+};
+
+// Loads a styled .vaml (authored dict + implicit Style), locates the named
+// re-skin target (x:Name="S369StyleTarget"), and RE-APPLIES the authored IMPLICIT
+// style by target type (apply_implicit_style). Returns ok=false on ANY
+// reader/parse error with the structured detail; reskinned=true when the authored
+// style actually wrote a property. HEADLESS — the exact code the live reload uses.
+[[nodiscard]] inline ViewerStyleRestylePlanResult
+run_viewer_style_restyle_plan(const std::string& text)
+{
+    ViewerStyleRestylePlanResult r;
+    try
+    {
+        r.reader = std::make_unique<vaml::VamlReader>();
+        r.root = r.reader->Load(text);
+
+        vaml::DependencyObject* target = r.reader->named("S369StyleTarget");
+        auto* element = dynamic_cast<vaml::UIElement*>(target);
+        if (element == nullptr)
+        {
+            r.ok = (r.root != nullptr);
+            r.reskinned = false;
+            r.detail = "no S369StyleTarget UIElement to re-skin";
+            return r;
+        }
+
+        // Re-apply the authored IMPLICIT style (resolved by the element's OWN
+        // authored Resources dict — the S360 tree scope) by target type. The
+        // S363 applier honors the authored setters + currently-firing triggers.
+        std::vector<vaml::DynamicResourceLink> links;
+        const std::size_t applied = vaml::apply_implicit_style(*element, links);
+        r.applied = applied;
+        r.reskinned = (applied > 0);
+        r.ok = (r.root != nullptr);
+    }
+    catch (const std::exception& e)
+    {
+        r.ok = false;
+        r.detail = e.what(); // never silent
+    }
+    return r;
+}
+
 } // namespace vaml::viewer

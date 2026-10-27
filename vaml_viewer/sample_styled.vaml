@@ -1,0 +1,33 @@
+<!--
+  vaml_viewer sample_styled.vaml — the S455 VIEWER-GROWTH(11a) demo: the
+  RESOURCE/STYLE authoring grammar (S453 + S454) driving a LIVE re-skin.
+  This document authors, from real .vaml:
+    * a <StackPanel.Resources> RESOURCE-DICTIONARY with an authored
+      <SolidColorBrush x:Key="Accent"> resource (S453),
+    * an IMPLICIT <Style> (no x:Key, TargetType="StackPanel") whose setter
+      re-skis the authored element's Background (S454), applied by target-type
+      via apply_implicit_style (the S363 seam),
+    * a <Style.Triggers> PropertyTrigger that re-brushes on a property change.
+
+  The viewer's reload re-Loads this document and RE-APPLIES the authored style,
+  so editing a setter/brush color and re-saving re-skis the LIVE window. This is
+  the S369 "you see live re-skin" seam, now driven by the AUTHORED style grammar
+  (not a hardcoded brush).
+
+  Run:  vaml_viewer sample_styled.vaml
+-->
+<StackPanel x:Name="S369StyleTarget"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <StackPanel.Resources>
+    <SolidColorBrush x:Key="Accent" Color="#FFFFFF"/>
+    <Style TargetType="StackPanel">
+      <Setter Property="Background" Value="#FF0000"/>
+      <Style.Triggers>
+        <PropertyTrigger Property="S455_Dim" Value="1">
+          <Setter Property="Background" Value="#0000FF"/>
+        </PropertyTrigger>
+      </Style.Triggers>
+    </Style>
+  </StackPanel.Resources>
+  <Button x:Name="go" Width="100"/>
+</StackPanel>

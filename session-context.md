@@ -1,125 +1,102 @@
 # VAML session-context (per-run state)
 
 ## last_command
-implementit DONE — S449 (dep:S448, DRIVER-REVERSED to run BEFORE S448) — REFACTOR GATE(S11) + SURVIVOR,
-complete + GREEN on BOTH CI LANES + ALL this-box pre-✅ gates re-run + the viewer made FULLY OPERATIONAL
-this session. The DRIVER redefined the acceptance at implementit: *"I want a fully operational
-vaml_viewer that shows .vaml files. no exceptions."* — AND reversed the S448/S449 order (*"it makes no
-sense to me to repair the guide before we have a fully working viewer ... so i reversed the order"*). So
-S449 closed FIRST; S448 (the guide) is now the next step, written from the verified viewer.
-- (A) TWO-LANE CI GATE — NEW build/verify_s449.cmd — GREEN: windows-msvc (msvc-debug warning-as-error
-  clean + ctest 4/4) + ubuntu-clang (clang-debug on the VM /mnt/hgfs/VamlPOC: configure + warning-clean
-  build + ctest 4/4). The ViewerCli_test target compiles cli.h (221 steps both lanes), so the NEW
-  cli_file_path() is warning-clean on both.
-- (B) FULLY OPERATIONAL VIEWER (the redefined core acceptance; this box, real NVIDIA RTX A5000) — FOUR
-  launch modes, each real window + Vulkan stack + VamlRenderer::create_device + retained render + clean
-  teardown, ALL exit 0: `vaml_viewer <file.vaml>` (S221/S222), `--app` (S440/S443/S445), `--compiled
-  <file.vaml>` (S293), `--compiled --app` (S444). THIS REQUIRED 4 REAL CODE FIXES in the STANDALONE
-  vaml_viewer (which was NOT operational):
-  (1) vaml_viewer.vcxproj `VAML_APPSHELL_SIDECAR="$(IntDir)MainView.vbaml"` -> unescaped-backslash C4129
-  (warning-as-error) BLOCKED the viewer build (left the shipped exe stale/pre-Sprint-11, so `--app` failed);
-  root fix in the vcxproj: CustomBuild outputs + the macro use `$(OutDir)` with the
-  `$(OutDir.Replace('\','/'))` forward-slash property function. (2) NEW pure cli_file_path() in cli.h
-  (skips known flags) fixes main.cpp's `--compiled <file>` argv[1] bug. (3) `--compiled --app` got
-  `unknown element type 'Window'` — the compiled-only .vbaml direct-load path runs VBamlReader::Load
-  WITHOUT priming the element factory; main.cpp now calls register_builtin_elements(). (4) then `no value
-  converter registered for type 'Int32'` — same root for the attribute table; fixed via
-  register_builtin_converters(). All four modes now render .vaml, exit 0.
-- (C) GREP-AUDIT PASS: no STUB/TODO/FIXME/backfill/scaffold in the app-shell set; `[MINIMAL REAL] Element
-  Window` greps to ZERO across src/core Element.h + Element.cpp (S440 resolution confirmed); zero
-  `[MINIMAL REAL]` remain in src/ (all Sprint-11 guard-rail seeds already resolved).
-- (D) DEAD-SURFACE AUDIT PASS: run_app_shell_plan 8, run_app_shell_binding_plan 32, cli_wants_app_shell
-  12, load_compiled_app_shell_file 11, load_compiled_app_shell_embedded 2, compiled_app_shell_sidecar_path
-  1, ViewerApp::create_app_shell 4, create_compiled_app_shell 2 — nothing orphaned.
-- (E) ASan/LSan GREEN: verify_s446_asan.cmd from first principles — msvc-asan zero ASan errors (incl.
-  AppShellChurn 10k, ctest 4/4) + clang-asan/LSan on the VM detect_leaks=1:exitcode=86 ZERO VAML-OWNED
-  leaks (only the scoped-suppressed GLFW-X11 singleton, ctest 4/4).
-- (F) real-WSI GREEN: verify_s446_wsi.cmd on the real NVIDIA RTX A5000 — hidden-window real Vulkan
-  app-shell (transferred=12), retained encode + change-driven 10,000 PRESENTED frames, ZERO validation
-  errors, clean teardown (exit 0).
-Sprint 11 closing token done. Full digest in the S449 SURVIVOR block in progress.md + the roadmap S449 [DONE].
+implementit COMPLETE — Sprint 11a (S451..S456): RESOURCE/STYLE/TEMPLATE AUTHORING grammar (the S366
+NO-GAP, RESOLVED). All of S451, S452, S453, S454, S455, S456 delivered + GREEN on BOTH CI LANES
+(windows-msvc via build/verify_s45NN.cmd + ubuntu-clang on the VM from /mnt/hgfs/VamlPOC).
+- S451 DOCUMENT grammar: UTF-8 BOM + optional XML prolog stripped at the parse_vaml DOCUMENT choke point
+  (the single point both S2 text + vamlcc recompile share); comment-discard documented on ParsedElement.h +
+  VBamlReader.h; real-WPF-shaped .xaml + clr-namespace + xmlns:x + x:Class parse cleanly (text + compiled
+  tests). GREEN both lanes.
+- S452 PROPERTY-ELEMENT authoring (the S366 hand-off): pure helpers (is_property_element /
+  split_property_element) + <X.Prop> sets the parent DP via the S043 attached-aware path (object→UntypedPtr,
+  literal→convert, empty-skip, unknown-dotted→UnknownProperty); NOT auto-attached as a visual child; S7
+  parity via a backward-compatible vbaml per-child wire flag + vamlcc folding + VBamlReader applying +
+  excluding from finalize_visual_tree. GREEN both lanes.
+- S453 RESOURCE-DICTIONARY authoring + x:Key: <X.Resources> → owned ResourceDictionary into the S360
+  side-table (accepted-decision 3): authored children captured by x:Key (S361 x:Key deferral RESOLVED);
+  MergedDictionaries merges; duplicate x:Key→ResourceAlreadyRegistered; no-x:Key→structured error; missing
+  key via {StaticResource}→MissingKey; find_for_element reaches authored dicts up the parent chain. GREEN.
+  RECORDED NO-GAP (driver-approved): S7 resource-dict parity → 11b/11x.
+- S454 STYLE AUTHORING + TRIGGERS: <Style TargetType BasedOn> + <Setter Property Value>
+  (literal/Static/Dynamic/TemplateBinding SetterValues) + <Style.Triggers> (PropertyTrigger/DataTrigger)
+  authored into the live S362 model; BasedOn wired end-of-Load; implicit <Style> under "Style:{TargetType}"
+  applied via apply_implicit_style; explicit x:Key'd style does NOT auto-apply. FOUND+FIXED a real
+  dangling-view bug (PropertyId from a local std::string is now interned via vaml::intern). GREEN.
+  RECORDED NO-GAP (driver-approved): S7 style parity → 11b/11x.
+- S455 VIEWER-GROWTH(11a): vaml_viewer/sample_styled.vaml authors a ResourceDictionary + an implicit
+  <Style TargetType> + authored <Setter>s; the S369 viewer_restyle.h seam gained run_viewer_style_restyle_plan
+  (re-Load a styled doc + re-apply the authored implicit style by target type). Test proves the authored
+  Background setter re-skis the live target, an authored-Background edit re-skis red→green, explicit-only
+  style does NOT auto-re-skin, missing target + bad markup readable. GREEN both lanes.
+- S456 SURVIVOR(11a): roadmap S451-456 [DONE] + progress Sprint 11a SURVIVOR block + checkpoint advance
+  (last = S456, next = S460 — Sprint 11b first token). NO new MINIMAL REAL; ADR-018 ZERO new locks.
+Both two-lane gates re-run from first principles; no commits (per the standing directive).
 
 ## plan_digest
-Sprint 11 (S449 — REFACTOR GATE (S11) + SURVIVOR, dep:S448 but run FIRST per the driver's reversal):
-- The driver REVERSED the S448/S449 order (guide follows a verified viewer) and REDEFINED S449's core
-  acceptance: a FULLY OPERATIONAL vaml_viewer that SHOWS .vaml files — NO EXCEPTIONS.
-- Two-lane CI gate (verify_s449.cmd); fully-operational viewer re-verification (4 launch modes, real GPU);
-  grep-audit (no stubs/backfills, Window sentinel removed at S440); dead-surface audit (all S440-S448
-  symbols consumed); ASan/LSan zero-leak; real-WSI 10k-frame; SURVIVOR + checkpoint advance (last = S449,
-  next = S448 guide, then S480 architecture).
-- NO-EXCEPTIONS enforcement: the plan's keep-out-of-scope deferral of the pre-existing vcxproj C4129
-  artifact is OVERRIDDEN by the explicit mandate — the standalone viewer WAS NOT operational (stale exe +
-  C4129 build blocker + compiled-path registration gaps + an argv bug), so 4 real code fixes were required
-  and delivered (vcxproj OutDir/forward-slash macro + cli_file_path() + register_builtin_elements() +
-  register_builtin_converters() in main.cpp).
-- NO MINIMAL REAL introduced/resolved. ADR-018 ZERO new locks. No commits (per the standing directive).
+Sprint 11a (S451..S456), dep chain S451<-S452<-S453<-S454<-S455<-S456 — the S366 NO-GAP (author
+resources/styles/templates from real .vaml) RESOLVED. S451 document grammar → S452 property-element
+(dual-path) → S453 resource-dictionary + x:Key → S454 style + triggers → S455 viewer live re-skin from an
+authored styled sample → S456 SURVIVOR. Accepted decisions: (1) BOM/prolog in parse_vaml (both readers);
+(2) property-element object value sets the DP only (not a visual child — ContentControl NO-GAP); (3)
+<Owner.Resources> → S360 side-table, never a DP Set. Driver-approved: record BOTH S7 authoring-parity gaps
+(resource-dict + style) as scheduled NO-GAPs for 11b/11x (never silent), proceed with the S2 headline
+deliverables. NO MINIMAL REAL introduced; all prior seeds already resolved (zero [MINIMAL REAL] in src/).
+ADR-018 ZERO new locks. No commits.
 
 ## files_touched
-(S450_1 — the `.xaml` acceptance gate + the drop-seam completion)
-- NEW build/verify_s449.cmd — the two-lane gate (windows-msvc + ubuntu-clang) [from S449]
-- MOD vaml_viewer/vaml_viewer.vcxproj — VAML_APPSHELL_SIDECAR macro + CustomBuild now use $(OutDir) with the
-  $(OutDir.Replace('\','/')) forward-slash property function (S449 C4129 root fix) [from S449]
-- MOD vaml_viewer/cli.h — NEW pure cli_file_path() (S449) + cli_usage now DECLARES ".vaml and .xaml SOURCE
-  files" (S450_1); cli_file_path doc states it serves .xaml positionals
-- MOD vaml_viewer/compiled_open.h — NEW detail::is_vaml_or_xaml_source(path) (the DECLARED source-language
-  split: .vaml/.xaml → recompile, .vbaml → binary direct) used by load_compiled_file (S450_1)
-- MOD vaml_viewer/main.cpp — use cli_file_path(); prime register_builtin_elements/converters (S449) +
-  compiled-dispatch comment now names .xaml (S450_1)
-- NEW vaml_viewer/sample.xaml — the .xaml demo (a bona-fide XAML-shaped body: Window/StackPanel root by
-  local name + x:Class/x:Name + xmlns:x)
-- MOD vaml_viewer/drop_reopen.h — is_vaml_drop now ACCEPTS .vaml OR .xaml (case-insensitive): the DROP
-  fix — a dropped .xaml reopens through load_file exactly like a .vaml (the drop seam had not been extended
-  when the viewer learned to accept .xaml; this is what made "dropping files does not change the display")
-- MOD test/unit/ViewerLoadFile_test.cpp — S450_1: a real-WPF-shaped .xaml golden loads via load_text + a
-  real temp .xaml FILE via load_file (text path CI-locked)
-- MOD test/unit/ViewerCompiledOpen_s293_test.cpp — S450_1: a .xaml path recompiles → VBamlReader
-  (root_class + x:Name) (compiled path CI-locked)
-- MOD test/unit/ViewerCli_test.cpp — S450_1: cli_usage declares .xaml + cli_file_path resolves a .xaml past
-  --compiled
-- MOD test/unit/ViewerDropPlan_test.cpp — S450_1: is_vaml_drop accepts .xaml + drop_choice picks a .xaml
-  (the drop gate CI-locked)
-- MOD docs/roadmap.md (S450_1 [DONE] entry + WHY-B report)
-- MOD progress.md (S450_1 SURVIVOR note) — pending final status line
+(Sprint 11a)
+- MOD src/core/src/ParsedElement.cpp — S451 strip_document_prologue() wired into parse_vaml; S452
+  is_property_element / split_property_element
+- MOD src/core/include/vaml/core/ParsedElement.h — S451 document-grammar doc + S452 helpers
+- MOD src/tools/include/vaml/tools/VBamlReader.h — S451 comment-parity doc + S452 property_element_children_
+- MOD src/core/src/VamlReader.cpp — S452 property-element DP-set + S453 build_resource_dictionary +
+  <X.Resources>/MergedDictionaries routing + S454 build_style/parse_setter/resolve_deferred_based_on +
+  interning fix (vaml::intern for PropertyId)
+- MOD src/core/include/vaml/core/VamlReader.h — build_resource_dictionary/build_style/parse_setter decls +
+  owned_merged_/built_dicts_/deferred_based_on_ members + Style/StyleApplier includes
+- MOD src/core/src/Element.cpp — register SolidColorBrush + Style as authorable resource types
+- MOD src/tools/src/Vamlc.cpp — S452 property-element folding + schema intern of targets
+- MOD src/tools/src/vbaml/VbamlSerializer.cpp — S452 per-child property-element flag (encode+decode)
+- MOD src/tools/src/VBamlReader.cpp — S452 object property-element DP-set + skip in finalize_visual_tree
+- NEW test/unit/PropertyElement_s452_test.cpp; NEW test/unit/PropertyElementS7_s452_test.cpp;
+  NEW test/unit/ResourceAuthoring_s453_test.cpp; NEW test/unit/StyleAuthoring_s454_test.cpp;
+  NEW test/unit/ViewerRestyleS11a_s455_test.cpp
+- MOD test/unit/CMakeLists.txt — register the new tests
+- MOD test/unit/ParsedElement_test.cpp — S451 document-grammar tests
+- MOD test/unit/VBamlReader_s285_test.cpp — S451 compiled-path comment/BOM parity test
+- MOD test/unit/ElementFactoryRegistry_test.cpp + test/unit/Milestone407_test.cpp — built-in count gate 12→14
+- NEW vaml_viewer/sample_styled.vaml — the S455 authored styled sample
+- MOD vaml_viewer/viewer_restyle.h — NEW run_viewer_style_restyle_plan (S455 seam)
+- NEW build/verify_s451.cmd, verify_s452.cmd, verify_s453.cmd, verify_s454.cmd, verify_s455.cmd
+- MOD docs/roadmap.md — S451-456 marked [DONE] + S7 NO-GAP records + checkpoint
+- MOD progress.md — Sprint 11a SURVIVOR block + checkpoint (last=S456, next=S460)
 - MOD session-context.md (this file)
 
 ## build_status
-ALL S450_1 BUILD + TEST GATES GREEN this session:
-- Standalone viewer (the VS app) rebuilt clean → vaml_viewer\x64\Debug\vaml_viewer.exe (contains the S450_1
-  .xaml drop fix + the S449 viewer fixes).
-- CMake msvc-debug test build clean (native-PATH recipe, the verify_s449.cmd pattern):
-  vaml-core-tests 1037/1037 PASS (incl. S450_1 .xaml load_text + load_file tests, S450_1 drop tests,
-  S450_1 cli tests) + vaml-tools-tests 100/100 PASS (incl. S450_1 compiled .xaml recompile test). The one
-  "ERROR" shown is S036_1 (a DELIBERATE swallow-demonstration test) — reported as not-failed / SUCCESS.
-- The S450_1 .xaml goldens are CI-LOCKED on BOTH lanes (they compile into the shared vaml-core-tests +
-  vaml-tools-tests targets; they will be verified on ubuntu-clang at the next full two-lane gate run).
-- windows-clang-debug is NOT a lane (not built/tested/flagged).
-- No commits (per the standing directive).
+S451/S452/S453/S454/S455 all re-verified GREEN on BOTH CI LANES from first principles (verify_s451.cmd ..
+verify_s455.cmd — windows-msvc msvc-debug warning-as-error clean + ctest 4/4; ubuntu-clang on the VM
+clang-debug configure + warning-clean build + ctest 4/4). S456 is docs-only (no build — the S451/S454/S455
+gates already both green). IMPORTANT OPS NOTE: the S7 per-child wire-format change (S452) requires
+regenerating the PRE-BUILT vamlcc sidecars on both lanes — MainView.vbaml + demo_main.vbaml must be deleted
+so the custom command regenerates them with the CURRENT vamlcc (the verify_s4NN.cmd scripts do this at the
+top). A stale sidecar yields 'out-of-range child index' / 'truncated VarU32' (a cache issue, NOT a code
+change; delete the two sidecars + rebuild). windows-clang-debug is NOT a lane. No commits.
 
 ## next_step
-S449 delivered + green (both CI lanes) + the viewer FULLY OPERATIONAL (4 modes). NEXT = S448 (the in-repo
-app-shell ACCEPTANCE doc), per the driver's reversal now written from the VERIFIED viewer. Then Sprint 12
-S480 (architecture.md FINAL from real v1 code, dep:S449). The compiled app-shell {Binding}/{Command}
-wiring stays deferred exactly as S445/S447 recorded (the S286 compiled reader defers {Binding} by design —
-NOT a readiness gap: the compiled shell RENDERS; only the interactive binding re-push is deferred on the
-compiled path, and the text `--app` shell carries the interactive slice). The interactive app-shell's LIVE
-reload stays recorded-forward (the S222_1 seam has no event registry; the app's real reload reloads the
-plain S256 view).
+Sprint 11a CLOSED (S456). NEXT = **S460 (dep:S456)** — Sprint 11b first token (brushes + markup extensions
++ event/command attributes). The two S7 authoring-parity NO-GAPs (resource-dictionary + style) are recorded
+scheduled for 11b/11x. S448 (the in-repo app-shell acceptance doc) remains pending after the 11-series + the
+Sprint 11z injected-dispatcher semantics, per the S449 driver reversal.
 
 ## notes
-- S449 NO-EXCEPTIONS finding (recorded, not silent): the standalone vaml_viewer was NOT fully operational
-  before this token — the shipped exe was STALE (10/25, predates all Sprint-11 --app CLI) because the
-  vcxproj C4129 (unescaped backslash in the VAML_APPSHELL_SIDECAR macro) BLOCKED any rebuild. The driver's
-  "no exceptions" mandate REQUIRED fixing it (the plan's earlier keep-out-of-scope deferral was overridden).
-  4 fixes delivered, all warning-clean on both CI lanes. This is the honest interpretation of "fully
-  operational": a viewer whose only shippable build cannot compile is not operational.
-- S449 viewer-fix scope (recorded): the compile-time escape corruption could NOT be repaired at runtime (the
-  \x64/\v/\D/\M sequences are decoded by the C++ compiler before the program runs), so the vcxproj macro was
-  the correct fix point — forward slashes via the MSBuild Replace() property function remove the escapes AND
-  fopen accepts '/' on Windows. The sidecar now co-locates with the exe (both in $(OutDir)).
-- S449 gate (A) build steps: 221 (vs 220 pre-fix) — the +1 is the ViewerCli_test target now compiling cli.h
-  (the S449 CLI seam); warning-clean on both lanes confirms the new cli_file_path compiles portably.
 - IMPORTANT work-flow guard (still governing): the Linux verify lane runs from the SHARED folder
   /mnt/hgfs/VamlPOC. NEVER run `git checkout -- .` (or any git checkout touching tracked files) inside the
   VM against that shared folder — it reverts uncommitted tracked edits on the SAME Windows
   E:\GitRepos\VamlPOC. New UNTRACKED files survive, but tracked-file edits are wiped.
+- The built-in element-registry count gate (12 in ElementFactoryRegistry_test.cpp + Milestone407_test.cpp) is
+  now 14 — the S453 authorable resource types (SolidColorBrush + Style) were added to register_builtin_elements().
+- `PropertyId` created from a dynamic std::string must be interned (vaml::intern) — a raw string_view into a
+  local dangles (the S454 bug). The S363 engine's PropertyId::of("literal") is fine (static storage).
+- The authored resource/style path uses xmlns:x (the canonical XAML namespace) for x:Key/x:Name classification.
 - No commits made (per the standing directive unless 'commitit' is commanded).

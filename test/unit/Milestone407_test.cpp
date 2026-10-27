@@ -62,6 +62,7 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     SHOULD(ShouldlyIntegral(g.is_registered("CheckBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ScrollViewer")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Icon")).ShouldBe(true));
-    // The built-in count: 9 seeds + WrapPanel + Canvas + Icon = 12.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(12u));
+    // The built-in count: 10 roadmap controls + WrapPanel + Canvas + Icon +
+    // S453 (SolidColorBrush + Style) = 14.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(14u));
 }

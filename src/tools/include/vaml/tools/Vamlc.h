@@ -93,6 +93,15 @@ struct AttributeRecord
     bool isBinding   = false; // S252: a {Binding Path} extension (kept for compile)
     std::string bindingPath; // S252/S280_1: the parsed path text ("" when not a binding)
 
+    // S452 — PROPERTY-ELEMENT authoring grammar (the S366 NO-GAP hand-off).
+    // True when this attribute arose from a folded <<Owner.Prop>literal</...>>
+    // property-element (the literal/extension-content case): the S7 reader
+    // must Set it on the PARENT (which is this record's element) exactly like
+    // the S2 text reader's property-element literal path. Serialized as the
+    // wire FLAGS bit2 (S282). The object-valued property-element case does NOT
+    // set this bit — it is carried per-child (see ElementRecord).
+    bool propertyElement = false;
+
     // S280 analysis annotations (NOT structural, NOT serialized by S282):
     bool knownProperty = false; // present in DependencyProperty::global()
     std::string valueType;      // value-table recognized type name ("" if none)
@@ -103,6 +112,15 @@ struct AttributeRecord
 // `children` holds child element ids (document order). `line`/`col` carry the
 // 1-based source position (S085) so S280_1's compile-time errors can name the
 // offending element's location.
+//
+// S452 — PROPERTY-ELEMENT object-value case: when an element IS the object
+// value of a parent's property-element (`<Owner.Prop><Element/></Owner.Prop>`),
+// it is emitted as a normal child NODE (so it is retained + owns its subtree)
+// but carries `propertyElementTarget` = the PARENT property name it is the
+// value of (empty for an ordinary visual child). The S7 reader then SETS the
+// parent's DP `propertyElementTarget` to this child (via Value::UntypedPtr)
+// instead of treating it as a visual child — matching the S2 text reader. It is
+// serialized as the per-child FLAGS bit0 + the propToken (S282).
 struct ElementRecord
 {
     std::size_t id = 0;
@@ -111,6 +129,9 @@ struct ElementRecord
     std::vector<std::size_t> children;
     std::size_t line = 1; // 1-based source line of the element's '<'
     std::size_t col  = 1; // 1-based source column
+    // S452 — empty for a visual child; the parent property NAME this element is
+    // the object value of (object-valued property-element).
+    std::string propertyElementTarget; // "" = ordinary visual child
 };
 
 // The complete compiled program: every element in document order, `id` == index.

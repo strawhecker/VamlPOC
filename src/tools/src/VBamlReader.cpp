@@ -126,6 +126,7 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
     names_.clear();
     deferred_extensions_.clear();
     deferred_event_handlers_.clear();
+    property_element_children_.clear(); // S452: fresh Load re-arms the object-property set
 
     // Decode the .vbaml (S282). A structurally malformed buffer throws
     // VbamlMalformedBuffer; map it to the compiled reader's MalformedBuffer
@@ -311,9 +312,32 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
                 throw VBamlException(VBamlError::MalformedBuffer,
                                      "element references an out-of-range child", id);
             }
-            if (nodes[id])
+            if (!nodes[id])
             {
-                nodes[cid]->set_parent(nodes[id].get());
+                continue;
+            }
+            nodes[cid]->set_parent(nodes[id].get());
+
+            // S452 — an OBJECT-valued PROPERTY-ELEMENT child (the S366 NO-GAP
+            // hand-off, RESOLVED): `cid` is NOT a visual child; it is the value
+            // of the parent's named DP. Set the parent's DP to this child via
+            // Value::UntypedPtr (the S2 text reader's object property-element),
+            // and mark the child so finalize_visual_tree() skips it (it must
+            // NOT be transferred into the S121 visual children).
+            if (!prog.elements[cid].propertyElementTarget.empty())
+            {
+                const std::string& prop = prog.elements[cid].propertyElementTarget;
+                const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGet(prop);
+                if (dp == nullptr)
+                {
+                    throw VBamlException(VBamlError::UnknownProperty,
+                                         "unknown property '" + prop +
+                                             "' (object property-element)",
+                                         cid, prop);
+                }
+                (void)nodes[id]->Set(vaml::PropertyId::of(prop),
+                                     vaml::Value::UntypedPtr(nodes[cid].get()));
+                property_element_children_.insert(nodes[cid].get());
             }
         }
     }
@@ -397,6 +421,17 @@ std::size_t VBamlReader::finalize_visual_tree()
             if (childUI == nullptr || parentUI == nullptr)
             {
                 ++i; // not transferable (non-UIElement child/parent)
+                continue;
+            }
+            // S452 — an OBJECT-VALUED PROPERTY-ELEMENT child is NOT a visual
+            // child: it was already set as the parent's DP value (Value::
+            // UntypedPtr) in Pass 2. Skip it here so it stays OUT of the S121
+            // visual-children list (matching the S2 text reader's property-
+            // element, which never auto-attaches as a render child at S452).
+            if (property_element_children_.find(slot.get()) !=
+                property_element_children_.end())
+            {
+                ++i;
                 continue;
             }
 

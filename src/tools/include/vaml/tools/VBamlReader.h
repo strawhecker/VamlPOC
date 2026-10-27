@@ -62,6 +62,14 @@
 // VbamlMalformedBuffer, mapped to VBamlError::MalformedBuffer), unknown element
 // type, unknown property, malformed value. No silent failures.
 //
+// S451 — COMMENT/DOCUMENT grammar parity on the compiled path: vamlcc compiles
+// via parse_vaml (S085), which STRIPS the BOM + optional XML prolog at the
+// document choke point and DROPS `<!-- -->` comment (and CDATA) tokens as
+// non-tree-nodes. The compiled .vbaml therefore NEVER contains a comment/CData
+// node, and the S7 reader (this class) reproduces a comment-free tree exactly
+// like the S2 text reader — the same grammar on both paths (see ParsedElement.h
+// for the documented S451 contract).
+//
 // PURE + SINGLE-THREADED (ADR-018: zero new locks) — Load is a pure function of
 // the byte stream + the S2 registries. ADR-021-consumable: headless tests in
 // vaml-tools-tests drive the real reader (never a spawned subprocess).
@@ -76,6 +84,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -297,6 +306,14 @@ private:
     std::vector<VBamlDeferredExtension> deferred_extensions_;
     std::vector<std::string> event_names_;
     std::vector<VBamlDeferredEventHandler> deferred_event_handlers_;
+
+    // S452 — the object-valued PROPERTY-ELEMENT children (the S366 NO-GAP
+    // hand-off RESOLVED): non-owning pointers to children that are the VALUE of
+    // a parent's named DP (set in Pass 2 via Value::UntypedPtr). They remain
+    // reader-owned + retained (they own their subtree) but are EXCLUDED from the
+    // S440 finalize_visual_tree() transfer — a property-element is never a
+    // visual child at S452. Emptied/refilled per Load.
+    std::unordered_set<vaml::DependencyObject*> property_element_children_;
 };
 
 } // namespace vaml::tools

@@ -69,6 +69,34 @@ add_executable(vaml-core-tests
     VamlReader_s093_test.cpp
     VamlReader_s094_test.cpp
     GoldenDocs_test.cpp
+    # S452 (dep:S451) — PROPERTY-ELEMENT + ATTRIBUTE-ELEMENT authoring grammar
+    # (the S366 NO-GAP hand-off). The S2 text reader accepts
+    # `<X.Content><StackPanel/></X.Content>` and `<X.Background>Literal</...>` —
+    # content into the named DP via the S043 attached-aware path, NOT a visual
+    # child. Pure dotted-name helpers (is_property_element /
+    # split_property_element) + object-value set as UntypedPtr + literal
+    # content convert + empty skip + unknown-dotted -> the structured
+    # UnknownProperty reader error, + nested property-elements.
+    PropertyElement_s452_test.cpp
+    # S453 (dep:S452) — RESOURCE-DICTIONARY AUTHORING + x:Key (the S366 NO-GAP
+    # hand-off RESOLVED). A `<X.Resources>` property-element routes an OWNED
+    # ResourceDictionary into the S360 side-table; authored children carrying
+    # x:Key are built + captured as S360 Object resources (the S361 x:Key
+    # deferral resolved); MergedDictionaries merges (self-wins + sibling-last-
+    # wins); {StaticResource}/{DynamicResource} resolve over the authored dict
+    # via find_for_element; duplicate x:Key -> ResourceAlreadyRegistered;
+    # missing authored key -> MissingKey (Class A); an authored resource with no
+    # x:Key in a dictionary -> structured reader error.
+    ResourceAuthoring_s453_test.cpp
+    # S454 (dep:S453) — STYLE AUTHORING + TRIGGERS (the S362/S363 engine AUTHORED
+    # from .vaml). <Style TargetType BasedOn> + <Setter Property Value> (literal /
+    # Static/Dynamic/TemplateBinding SetterValues) + <Style.Triggers>
+    # (PropertyTrigger/DataTrigger with child setters) authored into the live S362
+    # model; BasedOn resolved at end-of-Load; explicit-vs-implicit application
+    # (implicit <Style> with no x:Key -> registered under "Style:{TargetType}"
+    # + applied via apply_implicit_style; an explicit x:Key'd style does NOT
+    # auto-apply).
+    StyleAuthoring_s454_test.cpp
     # S360 (dep:S329) — ResourceDictionary + merged dictionaries + three-scope
     # lookup (tree + app + system). The Sprint-9 resource foundation: the
     # OWNED ResourceValue model (Object/Plain/Deferred), interned-keyed ordered
@@ -526,6 +554,14 @@ add_executable(vaml-tools-tests
     # error taxonomy (UnknownProperty/MalformedValue/MalformedBuffer, exported
     # VBamlException element-id + detail).
     VBamlReader_s285_test.cpp
+    # S452 (dep:S451) — PROPERTY-ELEMENT authoring grammar, COMPILED-PATH (S7)
+    # parity. The S7 vamlcc flat-property-element grammar reproduces the SAME
+    # DP-set outcome as the S2 text reader for both value kinds: literal-content
+    # folded as a parent attr (propertyElement bit) Sets the parent's DP; object-
+    # value emitted as a marked child (propertyElementTarget) Sets the parent's
+    # DP to UntypedPtr AND is excluded from the S121 visual-children transfer;
+    # unknown-dotted -> VBamlException(UnknownProperty).
+    PropertyElementS7_s452_test.cpp
     # S286 (dep:S285) — Reader instantiates via factory registry, sets props,
     # attaches deferred events (S8). The full compiled-path deferred surface:
     # x:Name/x:Class/x:Key registries (DuplicateName/ClassOnNonRoot/root_class),
@@ -581,6 +617,16 @@ add_executable(vaml-tools-tests
     # rendered fill re-skis live (edited red -> green). Missing target readable,
     # bad markup fails with structured detail.
     ViewerRestylePlan_test.cpp
+    # S455 (dep:S454) — VIEWER-GROWTH(11a): the RESOURCE/STYLE authoring grammar
+    # (S453 + S454) driving a LIVE re-skin. Extends the S369 viewer_restyle.h seam
+    # with run_viewer_style_restyle_plan: a styled .vaml (authored ResourceDictionary
+    # + implicit Style) is re-Loaded + the authored implicit Style re-applied by
+    # TARGET TYPE (apply_implicit_style) — the re-skin headline driven from the
+    # fresh authoring grammar. Proves the authored <Setter> lands on the target,
+    # an authored-Background edit re-skis red->green, an EXPLICIT-only style does
+    # NOT auto-re-skin (implicit only, never silent), missing target + bad markup
+    # are readable (never silent).
+    ViewerRestyleS11a_s455_test.cpp
     # S293 (dep:S288) — VIEWER-GROWTH: vaml_viewer opens a COMPILED `.vbaml`
     # (the S280→S289 path visible). Compiles the REAL viewer seam
     # (vaml_viewer/compiled_open.h + the shared app.h) into the TOOLS test target

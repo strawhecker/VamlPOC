@@ -257,9 +257,9 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // S400_1: the registry-resolve assertion is authored at THIS step.
     assertConcrete<Icon>(g.create("Icon"));
 
-    // Size matches the full built-in set (12 elements: 9 seeds + WrapPanel +
-    // Canvas + Icon).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(12u));
+    // Size matches the full built-in set (14: the roadmap controls + WrapPanel +
+    // Canvas + Icon + the S453 authored-resource types SolidColorBrush + Style).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(14u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -269,7 +269,7 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     ElementFactoryRegistry& g = ElementFactoryRegistry::global();
     // Exactly the built-in set, no duplicates (a duplicate would have thrown or
     // inflated size). S134: WrapPanel adds the 10th built-in; S136: Canvas the
-    // 11th; S400_1: Icon the 12th.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(12u));
+    // 11th; S400_1: Icon the 12th; S453: SolidColorBrush + Style the 13th/14th.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(14u));
     assertConcrete<Button>(g.create("Button"));
 }

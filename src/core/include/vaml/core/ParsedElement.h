@@ -154,6 +154,60 @@ private:
 // Scanner-level malformed markup propagates as XmlScanException (S081). The
 // returned element is the single root; a later root element is out of scope
 // (VAML/XML require a single root — that is the documented contract here).
+//
+// S451 — the DOCUMENT/NAMESPACE/COMMENT grammar (the S450_1 .xaml acceptance
+// elevated to a documented contract). parse_vaml is the single DOCUMENT-LEVEL
+// choke point for both readers (S2 text + vamlcc's compiled recompile, which
+// parses the same source through this function), and it accepts a real
+// WPF-shaped document:
+//   * ROOT IDENTITY — exactly ONE root element; a second root (post-close) or
+//     NO root throws XmlParseException(UterterminatedElement). BOM + optional
+//     `<?xml ...?>` prolog + leading whitespace are stripped at the document
+//     level before scanning (never a tree node).
+//   * NAMESPACE presentation — `xmlns` (default) + `xmlns:p` (prefixed) are
+//     S082 namespace DECLARATIONS (not attributes), applied self-per-element;
+//     an unprefixed element name resolves the DEFAULT ns, a prefixed one its
+//     mapped URI; an unprefixed ATTRIBUTE is in NO namespace (XML rule);
+//     `clr-namespace:Ns[;assembly=A]` is tokenized as a mapping (S082).
+//   * x: DIRECTIVE namespace — an attribute whose RESOLVED URI is the canonical
+//     XAML language namespace (kXamlLanguageNamespace) is classified as an
+//     x: directive (Name/Class/Key/Null, else None) by S083. `x:Name` /
+//     `x:Key` bookkeeping lives at the S2 reader (S092) / S7 compiler (S286).
+//   * COMMENT discard — `<!-- -->` AND CDATA tokens are NOT tree nodes; both
+//     paths (parse_vaml -> text reader; vamlcc -> compiled reader via the same
+//     parse_vaml) drop them consistently, so a comment never appears in the
+//     children/content of the built tree on EITHER reader. This confirms S080's
+//     "S085 decides" hand-off as: dropped, identically, on both paths.
 VAML_CORE_EXPORT ParsedElement parse_vaml(std::string_view source);
+
+// ---------------------------------------------------------------------------
+// S452 — the PROPERTY-ELEMENT grammar seam (the S366-recorded NO-GAP hand-off,
+// RESOLVED here). A property-element is a child element whose tag is
+// `Owner.Property` where Owner is the PARENT element's local type name; it sets
+// the named Property onto the parent as a DP VALUE (the S043 attached-aware
+// DP path), NOT as a visual child. This is the syntactic seam S453 (Resources /
+// x:Key) and S454 (Style/Setter/Trigger) ride.
+//
+// Two pure, headless-testable helpers:
+//   - `is_property_element(tagName)`  — true when the tag is a dotted name
+//     `<Owner.Property>` (a '.' in the tag, which per S082 is NOT a namespace
+//     separator). The element's `local_name` (sans any `prefix:`) is what is
+//     inspected; a prefixed `<local:Owner.Property>` has local_name
+//     "Owner.Property", which is still a property-element candidate resolved
+//     against its local owner name.
+//   - `split_property_element(tagName) -> (owner, prop)` — the owner (the
+//     portion before the FIRST '.') and the property (the portion after).
+//     A tag with no '.' is not a property-element (owner empty, prop empty).
+//
+// These are the shared, single authority the S2 text reader (VamlReader::build)
+// AND the S7 compiler (vamlcc + VBamlReader) both use, so both parsers agree on
+// exactly which dotted tags are property-elements (parity, not duplication).
+[[nodiscard]] VAML_CORE_EXPORT bool is_property_element(std::string_view tagName) noexcept;
+// Splits at the FIRST '.': <Owner.Property> -> (Owner, Property). When the tag
+// has no '.', both views are empty (not a property-element). `tagName` should
+// be the element's LOCAL name (sans any namespace prefix) so the owner matches
+// the parent's local type name.
+[[nodiscard]] VAML_CORE_EXPORT std::pair<std::string_view, std::string_view>
+split_property_element(std::string_view tagName) noexcept;
 
 } // namespace vaml

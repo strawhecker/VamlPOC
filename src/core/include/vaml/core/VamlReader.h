@@ -53,6 +53,8 @@
 
 #include "vaml/core/BindingExpression.h" // BindingExpression (the S252 live binding)
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
+#include "vaml/core/Style.h"          // S454 — authored <Style>/<Setter>/<Trigger> authoring
+#include "vaml/core/StyleApplier.h"   // S454 — apply (explicit/implicit) + find_implicit
 #include "vaml/core/DependencyProperty.h" // DependencyProperty (convertLiteral decl)
 #include "vaml/core/ICommand.h"        // ICommand (the S253 {Command} resolution target)
 #include "vaml/core/ObservableObject.h" // ObservableObject (the S252 data context / VM)
@@ -408,6 +410,52 @@ private:
     // via the type-name mapping. Throws ValueConversionException (S089/S090).
     static Value convertLiteral(const DependencyProperty& dp, std::string_view literal);
 
+    // S453 (dep:S452) — RESOURCE-DICTIONARY AUTHORING (the S366 NO-GAP
+    // resolved): builds an OWNED ResourceDictionary from a parsed
+    // `<ResourceDictionary>` element (a non-DependencyObject container, so it
+    // gets a dedicated build path). `resourceDict` is the parsed element whose
+    // children are authored resources (each carrying x:Key) and/or nested
+    // `<ResourceDictionary.MergedDictionaries>` property-elements. `parent` is
+    // the object being built (used to parent-link any owned resource objects;
+    // typically the element whose `.Resources` this dictionary becomes, or
+    // nullptr for a standalone dictionary). Returns the owned dictionary.
+    //
+    // Each authored child is captured into the dictionary by its x:Key (the
+    // S361 hand-off RESOLVED): a child carrying `x:Key="..."` is built (via
+    // build()) and `set(key, owned object)` (an Object resource). A duplicate
+    // key -> ResourceAlreadyRegistered (the S360 dedupe-throws-unchanged
+    // contract). A child with NO x:Key in a dictionary is an authoring error ->
+    // a structured VamlReaderException (UnknownProperty-style, naming the key).
+    std::unique_ptr<ResourceDictionary> build_resource_dictionary(
+        const ParsedElement& resourceDict, DependencyObject* parent, std::size_t depth);
+
+    // S454 — resolves every deferred Style InlineDefinitionBasedOn request
+    // (collected during build_style) once all authored Style resources exist:
+    // wires each derived Style's based_on pointer to the base Style found by
+    // key across the built dictionaries. Called at the end of Load.
+    void resolve_deferred_based_on();
+
+    // S454 (dep:S453) — STYLE AUTHORING + TRIGGERS (the S362/S363 engine AUTHORED
+    // from .vaml). Consumes a parsed `<Style>` element (already resolved to a
+    // Style object) into the live S362 data model:
+    //   * `TargetType="X"` -> style.set_target_type();
+    //   * each `<Setter Property="P" Value="V"/>` child -> style.add_setter(
+    //     { PropertyId(P), SetterValue } ) where a `{StaticResource K}` /
+    //     `{DynamicResource K}` / `{TemplateBinding T}` Value becomes the
+    //     respective reference SetterValue and any other literal converts to the
+    //     property's bound type;
+    //   * `<Style.Triggers>` property-element with `<PropertyTrigger Property
+    //     Value>` (+ its child <Setter>s) and `<DataTrigger Binding=Path Value>`
+    //     -> style.add_trigger (S362 Discrimination).
+    // `BasedOn="{StaticResource base}"` is recorded into `deferredBasedOn_` and
+    // wired (style.set_based_on) by resolveDeferredBasedOn() at the end of Load,
+    // once every authored Style (a dict resource) is present.
+    void build_style(Style& style, const ParsedElement& element);
+
+    // S454 — parses ONE `<Setter Property="P" Value="V"/>` element into a live
+    // Setter (used for both top-level Style setters and trigger child setters).
+    void parse_setter(const ParsedElement& el, std::string owner, Setter& out);
+
     // The non-root built objects, in construction (document) order. OWNED by
     // the reader (D1/S091) until `finalize_visual_tree()` hands each child into
     // its parent's S121 visual-children list; after finalize this vector is
@@ -417,6 +465,26 @@ private:
     // S440: set true once finalize_visual_tree() has transferred the built set;
     // a second call is an idempotent no-op. Reset at the start of each Load.
     bool visual_finalized_ = false;
+
+    // S453 — reader-owned merged ResourceDictionaries (per-Load). A
+    // `<ResourceDictionary.MergedDictionaries>` child dictionary is BORROWED by
+    // its parent via the S360 merge_with (non-owning), so this vector keeps each
+    // merged dictionary ALIVE for the parent's lifetime (cleared at Load start,
+    // like the other per-Load scopes).
+    std::vector<std::unique_ptr<ResourceDictionary>> owned_merged_;
+
+    // S454 — reader-owned authored dictionaries (per-Load) used to resolve a
+    // Style BasedOn by key: every ResourceDictionary this Load BUILT
+    // (owned + merged) is listed so a derived Style can find its base Style* by
+    // key. Cleared at Load start. (The dicts themselves live in owned_merged_ +
+    // the S360 set_element_resources side-table; this is a search index, not a
+    // second ownership.)
+    std::vector<ResourceDictionary*> built_dicts_;
+
+    // S454 — deferred Style BasedOn wires: (derived Style*, base key) recorded
+    // during build_style; resolved by resolve_deferred_based_on() at end of Load
+    // once all authored Style resources exist.
+    std::vector<std::pair<Style*, std::string>> deferred_based_on_;
 
     // S092 Strand A — x:Name registry (insertion-ordered; interned string_view
     // keys per S144/S140 — pool-backed, content-equal, stable for this reader's

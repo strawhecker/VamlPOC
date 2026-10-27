@@ -17,6 +17,7 @@
 #include "vaml/core/Element.h"
 
 #include "vaml/core/ControlTemplate.h"   // S364/S365 — the Button's default template + visual states
+#include "vaml/core/Brush.h"             // S453 — SolidColorBrush (authored resource type)
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/FocusManager.h"      // S325/S402 — KeyCode (the TextBox edits on)
@@ -26,6 +27,7 @@
 #include "vaml/core/PropertyFlags.h"
 #include "vaml/core/PropertyMetadata.h"
 #include "vaml/core/RoutedEvent.h"       // S320/S321 — ClickEvent (the Button's routed event)
+#include "vaml/core/Style.h"             // S453/S454 — Style (authored resource type)
 
 #include <algorithm>
 #include <cmath>
@@ -2165,6 +2167,19 @@ void register_builtin_elements()
     // sprint HERE (same as StackPanel/Grid/WrapPanel), so it is registered
     // directly. Built-in count 10 -> 11.
     registry.register_element("Canvas",       [] { return std::make_unique<Canvas>(); });
+
+    // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
+    // visual controls; they are the authored RESOURCE types the resource-
+    // dictionary + style grammar (S453/S454) produce via the S360 Object/Plain
+    // resource-value model. They ARE DependencyObjects (valid Object resources)
+    // so the NORMAL resolve_element -> build path constructs them + sets their
+    // attributes (Color, TargetType, ...) exactly like any control. The
+    // non-DependencyObject `ResourceDictionary` container is handled by a
+    // dedicated authoring path in VamlReader::build (it cannot be produced via
+    // the factory registry, which returns DependencyObjects). Registered here so
+    // `<SolidColorBrush>` / `<Style>` are authorable element types.
+    registry.register_element("SolidColorBrush", [] { return std::make_unique<SolidColorBrush>(); });
+    registry.register_element("Style",           [] { return std::make_unique<Style>(); });
 }
 
 } // namespace vaml

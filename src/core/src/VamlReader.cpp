@@ -15,9 +15,11 @@
 #include "vaml/core/Intern.h"                  // S140/S144: interned string_view keys for the x:Name registry
 #include "vaml/core/ParsedElement.h"           // ParsedElement/ParsedAttribute + parse_vaml
 #include "vaml/core/PropertyId.h"              // PropertyId
+#include "vaml/core/PropertyPath.h"            // S454: DataTrigger Binding path (S240)
 #include "vaml/core/ResourceDictionary.h"      // S361: x:Key capture -> element Resources
 #include "vaml/core/ResourceMarkup.h"          // S361: parse_resource_markup (Static/Dynamic)
 #include "vaml/core/ResourceResolver.h"        // S361: apply_markup / dynamic reapply
+#include "vaml/core/Style.h"                   // S454: authored <Style>/<Setter>/<Trigger>
 #include "vaml/core/UIElement.h"               // S322: add_routed_handler target
 #include "vaml/core/ValueConverter.h"          // ValueConverterRegistry + register_builtin_converters
 #include "vaml/core/XmlScanner.h"              // XmlDirectiveType
@@ -143,6 +145,17 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     // throws ElementResolutionException naming type + line:col — S088).
     std::unique_ptr<DependencyObject> obj = resolve_element(element);
 
+    // S454 — STYLE AUTHORING (the S362/S363 engine authored from .vaml). A
+    // `<Style>` is a RESOURCE (a Dict capture / implicit-style), never a visual:
+    // its TargetType/BasedOn/Setters/Triggers are consumed by build_style into
+    // the live S362 data model, and the Style is returned as an OWNED dict
+    // resource. This replaces the generic attribute/child handling for Style.
+    if (Style* st = dynamic_cast<Style*>(obj.get()))
+    {
+        build_style(*st, element);
+        return obj; // a resource; nothing is retamed as a visual child
+    }
+
     // Step 2 — attributes: set plain-literal properties, CONSUME the S092
     // strands (Name/Class directives, isExtension retention, event routing).
     for (const ParsedAttribute& attr : element.attributes)
@@ -249,29 +262,160 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         (void)obj->Set(PropertyId(attr.key), value); // S043 attached-aware by name
     }
 
-    // Step 3 — build children, TRANSFER into the parent's visual tree (S440),
-    // and keep `retained_` as a non-owning topological view.
+    // Step 3 — property-elements (S452, the S366 NO-GAP hand-off RESOLVED) then
+    // ordinary children (visual tree transfer, S440).
     //
-    // S440 CLOSES the S120/S121 ownership hand-off (the roadmap-recorded NO-GAP
-    // "children transfer into the UIElement visual tree at S120/S121"). When
-    // BOTH the parent and the child are UIElements — the case for every built-in
-    // element type — the child is TRANSFERRED into the parent's S121
-    // visual-children list via add_child, which:
-    //   1. installs the parent-link + S041 inheritance-scope edge (add_child ->
-    //      attach_child -> set_parent(this) + the inverse scope edge), so
-    //      inherited DPs (Opacity) cascade through the visual child, AND
-    //   2. OWNS the child in `children_` (the tree is the single owner).
-    // The root owns its subtree via this chain, so a VAML-loaded Window/Grid/
-    // StackPanel renders/measures/arranges/hit-tests/walks its DECLARED
-    // children — not just the root.
+    // S452 — a PROPERTY-ELEMENT is a child whose tag is `<X.Owner.Property>`
+    // (dotted; the '.' is NOT a namespace separator per S082). It does NOT
+    // produce a visual child; instead it SETS the named Property onto the
+    // PARENT (this built instance) via the S043 attached-aware DP path:
+    //   - an OBJECT child element (`<Button.Content><StackPanel/></Button.Content>`)
+    //     → the owned built child is set as the parent's DP VALUE as
+    //     `Value::UntypedPtr` (the object is reader-retained; x:Name/child
+    //     directives still apply to it). This is the "populated via the DP
+    //     path" headline: a property-element's object value lands on the named
+    //     DP, not in the S121 visual children (a post-S440 ContentControl
+    //     materialization is a later, recorded step — see the S452 scope note).
+    //   - a literal/extension (`<Button.Background>Red</Button.Background>`,
+    //     or `{StaticResource X}`) → converted/resolved through the same DP
+    //     path (a converted literal or a deferred extension).
+    // The property-element itself is KEPT OUT of the ordinary children
+    // recursion (it is not a visual child). The owner name in `<Owner.Property>`
+    // matches the PARENT's local type name — it is a self-referential
+    // "this-element's Property" notation (WPF-faithful).
     //
-    // `retained_` becomes a NON-OWNING raw-pointer view (document order) so the
-    // S091/S092/S361 consumers + tests can introspect the built set without a
-    // tree walk. A NON-UIElement child (none among the built-in vocabulary, kept
-    // safe) stays reader-owned in `non_ui_owned_` (it cannot enter an S121
-    // list, which requires a UIElement).
+    // S452 SCOPE BOUND (recorded NO-GAP, not silent): the property-element
+    // SETS the named DP. Whether an object-valued DP (e.g. a Content DP) ALSO
+    // enters the S121 visual children is ContentControl/control-material work
+    // (11c/11x); a property-element is NOT auto-attached as a render child at
+    // S452. This keeps S452 the clean seam S453/S454 ride (a Resources dict = an
+    // owned object value; a Style = an owned object value) without pre-empting
+    // ContentControl semantics.
     for (const ParsedElement& child : element.children)
     {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+
+        // A bare `<ResourceDictionary>` as a normal child is an authoring error
+        // (it has no visual meaning); it may only appear under `.Resources` /
+        // `.MergedDictionaries`. HANDLED by build_resource_dictionary / the
+        // property-element branch where legal.
+        if (childLocal == "ResourceDictionary")
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string("ResourceDictionary"),
+                "a <ResourceDictionary> may only appear inside <Owner.Resources> or "
+                "<ResourceDictionary.MergedDictionaries>");
+        }
+
+        if (is_property_element(childLocal))
+        {
+            const auto [ownerName, propName] = split_property_element(childLocal);
+
+            // --- S453 (dep:S452) — RESOURCE-DICTIONARY AUTHORING (the S366
+            // NO-GAP hand-off RESOLVED). A `<X.Resources>` property-element
+            // builds an OWNED ResourceDictionary and routes it into the S360
+            // side-table (`set_element_resources`) — the resources dict IS the
+            // S360 three-scope store, NOT a plain DP. Accepted-decision 3:
+            // `<Owner.Resources>` routes into the side-table, never a DP Set.
+            if (propName == "Resources")
+            {
+                UIElement* ownerUI = dynamic_cast<UIElement*>(obj.get());
+                if (ownerUI == nullptr)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string("Resources"),
+                        "resources can only be authored on a UIElement (property-element 'Resources')");
+                }
+                // The `.Resources` may hold a single bare `<ResourceDictionary>`
+                // (its children authored inside that dictionary element) or an
+                // inline dictionary (children authored directly under `.Resources`).
+                std::unique_ptr<ResourceDictionary> ownedDict;
+                if (child.children.size() == 1 &&
+                    (child.children[0].local_name.empty() ? child.children[0].tagName
+                                                          : child.children[0].local_name) ==
+                        "ResourceDictionary")
+                {
+                    ownedDict = build_resource_dictionary(child.children[0], obj.get(), depth);
+                }
+                else
+                {
+                    ownedDict = build_resource_dictionary(child, obj.get(), depth);
+                }
+                detail::set_element_resources(ownerUI, std::move(ownedDict));
+                continue; // NOT a visual child
+            }
+
+            // The OWNER name in a property-element must match the parent's type
+            // name (it is "this.Element's Property"). We don't enforce a match
+            // here beyond the dotted form: the property name is set on THIS
+            // parent regardless (the S043 DP path resolves `propName` against
+            // the parent). The owner portion is validated for a well-formed
+            // dotted name by is_property_element.
+            (void)ownerName;
+
+            // Resolve the named property's global definition. An unknown dotted
+            // property -> the S091 UnknownProperty reader error naming the key.
+            const DependencyProperty* dp = DependencyProperty::TryGet(std::string(propName));
+            if (dp == nullptr)
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, std::string(propName),
+                    "unknown property '" + std::string(propName) + "' (property-element)");
+            }
+
+            // Content: EXACTLY ONE value. That value is either
+            //   (a) an OBJECT child element — built (recursively), retained,
+            //       and set as the parent's DP via Value::UntypedPtr; or
+            //   (b) inline text/extension/literal — converted via convertLiteral
+            //       (or deferred as an extension), set through the DP path.
+            if (child.children.size() == 1)
+            {
+                // (a) object value: build the child, retain it, set as UntypedPtr.
+                std::unique_ptr<DependencyObject> owned = build(child.children[0], depth + 1);
+                DependencyObject* raw = owned.get();
+                raw->set_parent(obj.get()); // S039 parent-link (the object is reader-retained)
+                retained_.push_back(std::move(owned));
+                (void)obj->Set(PropertyId(propName), Value::UntypedPtr(raw));
+            }
+            else if (!child.content.empty())
+            {
+                // (b) inline literal (after trimming whitespace): convert to the
+                // DP's bound type and set.
+                std::string lit = child.content;
+                // Trim leading/trailing whitespace (multi-line authored literals).
+                const std::size_t b = lit.find_first_not_of(" \t\r\n");
+                if (b != std::string::npos)
+                {
+                    const std::size_t e = lit.find_last_not_of(" \t\r\n");
+                    lit = lit.substr(b, e - b + 1);
+                }
+                else
+                {
+                    lit.clear();
+                }
+                if (!lit.empty())
+                {
+                    const Value value = convertLiteral(*dp, lit);
+                    (void)obj->Set(PropertyId(propName), value);
+                }
+                // An extension authored as element content (e.g. a multiline
+                // {StaticResource}) is recorded as a deferred extension on the
+                // PARENT (the property-element's owner) exactly like an attribute
+                // extension — so S361 BindResources resolves it.
+                const std::string_view contentView = child.content;
+                if (!contentView.empty() && contentView.front() == '{' && contentView.back() == '}')
+                {
+                    deferred_extensions_.push_back(
+                        DeferredExtension{obj.get(), propName, vaml::intern(contentView)});
+                }
+            }
+            // An empty property-element `<Owner.Property/>` is the degenerate
+            // zero case (skip — nothing to set).
+            continue; // NOT a visual child — keep it out of the recursion below.
+        }
+
+        // --- Ordinary visual child (S440 transfer into the S121 tree). ------
         std::unique_ptr<DependencyObject> childObj = build(child, depth + 1);
         childObj->set_parent(obj.get()); // S039/S041 parent-link + inheritance-scope seed
         retained_.push_back(std::move(childObj));
@@ -280,6 +424,398 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     // Step 4 — the caller owns the root; children live in `retained_` until
     // the S440 finalize_visual_tree() hand-off (see that method).
     return obj;
+}
+
+VAML_CORE_EXPORT
+std::unique_ptr<ResourceDictionary> VamlReader::build_resource_dictionary(
+    const ParsedElement& resourceDict, DependencyObject* parent, std::size_t depth)
+{
+    // S453 — builds an OWNED ResourceDictionary from a parsed dictionary element.
+    //
+    // Each DIRECT authored child is a resource captured BY ITS x:Key (the S361
+    // hand-off RESOLVED): the child is built (via build(), so a <Style> /
+    // <SolidColorBrush> / nested whatever) and `set(key, owned object)` — an
+    // S360 Object resource owned by the dictionary. The x:Key whose capture was
+    // DEFERRED at S092 (`attr.directive == Key`) now becomes REAL for resource-
+    // dictionary children: authored resources reach the S360 store.
+    //
+    // Children are the S360 merge semantics:
+    //   - a plain resource child (x:Key) -> set(key, owned object);
+    //   - a `<ResourceDictionary.MergedDictionaries>` property-element -> each
+    //     nested `<ResourceDictionary>` child is built + `merge_with(child)`
+    //     (self-wins + sibling-last-wins, the existing S360 semantics).
+    //
+    // A child with NO x:Key (and not a MergedDictionaries container) is an
+    // authoring error — resources must be keyed — -> structured VamlReader
+    // exception. A duplicate x:Key in one dictionary -> ResourceAlreadyRegistered
+    // (the S360 dedupe-throws-unchanged contract).
+
+    auto dict = std::make_unique<ResourceDictionary>();
+
+    for (const ParsedElement& child : resourceDict.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+
+        // --- MergedDictionaries property-element -------------------------
+        if (childLocal == "ResourceDictionary.MergedDictionaries" ||
+            childLocal == "MergedDictionaries")
+        {
+            for (const ParsedElement& mergedChild : child.children)
+            {
+                const std::string_view mcLocal = mergedChild.local_name.empty()
+                                                     ? mergedChild.tagName
+                                                     : mergedChild.local_name;
+                if (mcLocal != "ResourceDictionary")
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(mcLocal),
+                        "MergedDictionaries contains a non-<ResourceDictionary> child");
+                }
+                // Build the merged child dictionary + merge (self-wins /
+                // sibling-last-wins — the existing S360 merge semantics).
+                auto mergedDict = build_resource_dictionary(mergedChild, parent, depth);
+                dict->merge_with(*mergedDict);
+                // Keep the merged dictionary alive: it must outlive the parent.
+                // The S360 merge is a BORROWED child (non-owning). We retain the
+                // owned merged dictionary here (reader-owned, per-Load cleared).
+                owned_merged_.push_back(std::move(mergedDict));
+            }
+            continue;
+        }
+
+        // --- A plain authored resource: x:Key -> set(key, owned object). ----
+        // Find the x:Key directive on the child.
+        std::string_view key;
+        bool haveKey = false;
+        for (const ParsedAttribute& a : child.attributes)
+        {
+            if (a.directive == XmlDirectiveType::Key)
+            {
+                key = a.value;
+                haveKey = true;
+                break;
+            }
+        }
+        std::unique_ptr<DependencyObject> resource = build(child, depth + 1);
+        DependencyObject* raw = resource.get();
+        if (parent != nullptr)
+        {
+            raw->set_parent(parent); // the owned resource is parent-linked to the owner
+        }
+
+        // S454 — IMPLICIT STYLE: a `<Style>` with NO x:Key is an implicit style
+        // for its TargetType, registered under the S363 lookup key
+        // "Style:{TargetType}" (what find_implicit_style / apply_implicit_style
+        // resolve). An explicitly-keyed `<Style x:Key>` is captured under its
+        // x:Key. Any OTHER resource without an x:Key is an authoring error.
+        std::string captureKey;
+        if (haveKey)
+        {
+            captureKey.assign(key);
+        }
+        else if (Style* st = dynamic_cast<Style*>(resource.get()))
+        {
+            if (st->target_type().empty())
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, std::string(childLocal),
+                    "an implicit <Style> (no x:Key) must declare a TargetType "
+                    "(implicit-style key resolution 'Style:{TargetType}')");
+            }
+            captureKey = "Style:" + st->target_type();
+        }
+        else
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(childLocal),
+                "an authored resource in a ResourceDictionary must carry an x:Key "
+                "(resource '" + std::string(childLocal) + "' has none)");
+        }
+
+        dict->set(vaml::intern(captureKey), std::move(resource));
+        (void)raw;
+    }
+
+    // S454 — record this built dictionary as a search target for Style BasedOn
+    // resolution (find_style_by_key walks these to wire a derived Style's base).
+    built_dicts_.push_back(dict.get());
+
+    return dict;
+}
+
+VAML_CORE_EXPORT
+void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter& out)
+{
+    // Reads a `<Setter Property="P" Value="V"/>` (or the trigger-child variant)
+    // into `out`.
+    std::string prop;
+    std::string value;
+    for (const ParsedAttribute& a : el.attributes)
+    {
+        if (a.directive != XmlDirectiveType::None)
+        {
+            continue; // x:Key etc. are not setter fields
+        }
+        if (a.key == "Property")
+        {
+            prop = a.value;
+        }
+        else if (a.key == "Value")
+        {
+            value = a.value;
+        }
+    }
+    if (prop.empty())
+    {
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, owner,
+            "a <Setter> must name a 'Property' (in " + owner + ")");
+    }
+
+    const DependencyProperty* dp = DependencyProperty::TryGet(prop);
+    if (dp == nullptr)
+    {
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, prop,
+            "unknown setter target property '" + prop + "' (in " + owner + ")");
+    }
+
+    // A {StaticResource K} / {DynamicResource K} Value -> the reference SetterValue.
+    const ResourceMarkup rm = parse_resource_markup(value);
+    if (rm.recognized)
+    {
+        if (rm.kind == ResourceReferenceKind::Static)
+        {
+            out = Setter{PropertyId(vaml::intern(prop)), SetterValue::StaticResource(rm.key)};
+            return;
+        }
+        if (rm.kind == ResourceReferenceKind::Dynamic)
+        {
+            out = Setter{PropertyId(vaml::intern(prop)), SetterValue::DynamicResource(rm.key)};
+            return;
+        }
+    }
+    // A {TemplateBinding T} Value -> the control-DP read SetterValue (S365).
+    const std::string_view sv = value;
+    const std::string_view tbMark = "{TemplateBinding ";
+    if (sv.size() > tbMark.size() + 1 && sv.substr(0, tbMark.size()) == tbMark &&
+        sv.back() == '}')
+    {
+        const std::string_view inner =
+            sv.substr(tbMark.size(), sv.size() - tbMark.size() - 1);
+        out = Setter{PropertyId(vaml::intern(prop)), SetterValue::TemplateBinding(inner)};
+        return;
+    }
+
+    // A plain literal (converted to the property's bound type).
+    out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(convertLiteral(*dp, value))};
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_style(Style& style, const ParsedElement& element)
+{
+    // S454 — STYLE AUTHORING. Consumes ONLY the authored `<Style>` content into
+    // the live S362 data model (TargetType, BasedOn, Setters, Triggers); a
+    // Style has NO visual children (it is a resource), so this replaces the
+    // generic build() attr/child handling for Style.
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue; // x:Key is read by the dictionary capture, not here
+        }
+        if (attr.key == "TargetType")
+        {
+            style.set_target_type(std::string(attr.value));
+        }
+        else if (attr.key == "BasedOn")
+        {
+            // `BasedOn="{StaticResource base}"` — record the WIRE for the end-of-
+            // Load based_on resolution (the base Style is a dict resource).
+            const ResourceMarkup rm = parse_resource_markup(attr.value);
+            if (rm.recognized && rm.kind == ResourceReferenceKind::Static)
+            {
+                deferred_based_on_.emplace_back(&style, std::string(rm.key));
+            }
+            else
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, "BasedOn",
+                    "Style BasedOn must be a {StaticResource <key>}");
+            }
+        }
+        // Any other Style attribute (e.g. a future one) is ignored reservedly.
+    }
+
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (childLocal == "Setter")
+        {
+            Setter s;
+            parse_setter(child, "Style", s);
+            style.add_setter(std::move(s));
+            continue;
+        }
+        if (childLocal == "Style.Triggers" || childLocal == "Triggers")
+        {
+            // Each trigger child: <PropertyTrigger Property Value> or
+            // <DataTrigger Binding Value>, optionally with child <Setter>s.
+            for (const ParsedElement& trig : child.children)
+            {
+                const std::string_view tl = trig.local_name.empty() ? trig.tagName
+                                                                    : trig.local_name;
+                if (tl == "PropertyTrigger")
+                {
+                    std::string prop;
+                    std::string value;
+                    for (const ParsedAttribute& a : trig.attributes)
+                    {
+                        if (a.directive == XmlDirectiveType::None && a.key == "Property")
+                        {
+                            prop = a.value;
+                        }
+                        else if (a.directive == XmlDirectiveType::None && a.key == "Value")
+                        {
+                            value = a.value;
+                        }
+                    }
+                    const DependencyProperty* dp = DependencyProperty::TryGet(prop);
+                    if (dp == nullptr)
+                    {
+                        throw VamlReaderException(
+                            VamlReaderError::UnknownProperty, prop,
+                            "unknown PropertyTrigger target property '" + prop + "'");
+                    }
+                    PropertyTrigger pt;
+                    pt.property = PropertyId(vaml::intern(prop));
+                    pt.value = convertLiteral(*dp, value);
+                    // child <Setter>s (triggering setters).
+                    for (const ParsedElement& ts : trig.children)
+                    {
+                        if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
+                        {
+                            Setter s;
+                            parse_setter(ts, "PropertyTrigger", s);
+                            pt.setters.push_back(std::move(s));
+                        }
+                    }
+                    style.add_trigger(Trigger::MakeProperty(std::move(pt)));
+                }
+                else if (tl == "DataTrigger")
+                {
+                    std::string binding;
+                    std::string value;
+                    for (const ParsedAttribute& a : trig.attributes)
+                    {
+                        if (a.directive == XmlDirectiveType::None && a.key == "Binding")
+                        {
+                            binding = a.value;
+                        }
+                        else if (a.directive == XmlDirectiveType::None && a.key == "Value")
+                        {
+                            value = a.value;
+                        }
+                    }
+                    if (binding.empty())
+                    {
+                        throw VamlReaderException(
+                            VamlReaderError::UnknownProperty, "Binding",
+                            "a <DataTrigger> must name a 'Binding' path");
+                    }
+                    DataTrigger dt;
+                    dt.path = PropertyPath::parse(binding);
+                    // The DataTrigger's authored match Value: a plain literal
+                    // String compared (by the S363 applier, S240 data-read
+                    // equality) against the bound path's resolved value. A
+                    // resource-REFERENCE DataTrigger match value is recorded
+                    // forward (NO-GAP — the S363 engine evaluates literal-match
+                    // data triggers today; reference-valued trigger values are
+                    // a later resource/trigger refinement, not silent).
+                    dt.value = Value::String(value);
+                    for (const ParsedElement& ts : trig.children)
+                    {
+                        if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
+                        {
+                            Setter s;
+                            parse_setter(ts, "DataTrigger", s);
+                            dt.setters.push_back(std::move(s));
+                        }
+                    }
+                    style.add_trigger(Trigger::MakeData(std::move(dt)));
+                }
+                // Unknown trigger child -> structured authoring error.
+                else
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(tl),
+                        "unknown Style trigger child '" + std::string(tl) + "'");
+                }
+            }
+            continue;
+        }
+        // A non-trigger/non-setter child of a Style is an authoring error.
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, std::string(childLocal),
+            "a <Style> may only contain <Setter> and <Style.Triggers> (got '" +
+                std::string(childLocal) + "')");
+    }
+}
+
+namespace {
+// S454 — finds a Style* by key across a set of dictionaries (self + merged),
+// used by resolve_deferred_based_on to wire a derived Style's base.
+vaml::Style* find_style_by_key(const std::vector<vaml::ResourceDictionary*>& dicts,
+                               const std::string& key) noexcept
+{
+    for (vaml::ResourceDictionary* d : dicts)
+    {
+        if (d == nullptr)
+        {
+            continue;
+        }
+        const vaml::ResourceValue* v = d->try_get(key);
+        if (v == nullptr)
+        {
+            continue;
+        }
+        if (v->kind() != vaml::ResourceValue::Kind::Object)
+        {
+            continue;
+        }
+        // The authored Style is owned by the dictionary (per-Load); we wire a
+        // NON-OWNING based_on pointer to it. The reader controls both lifetimes
+        // (the dict lives in the S360 side-table / owned_merged_ for the Load),
+        // so the const_cast is safe + documented: we are granting Style* access
+        // to the SAME object the dict owns, for base-wiring within one Load.
+        vaml::Style* s = const_cast<vaml::Style*>(
+            dynamic_cast<const vaml::Style*>(v->object()));
+        if (s != nullptr)
+        {
+            return s;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
+VAML_CORE_EXPORT
+void VamlReader::resolve_deferred_based_on()
+{
+    for (auto& [derived, key] : deferred_based_on_)
+    {
+        vaml::Style* base = find_style_by_key(built_dicts_, key);
+        if (base == nullptr)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, key,
+                "Style BasedOn '{StaticResource " + key +
+                    "}' did not resolve to an authored Style");
+        }
+        derived->set_based_on(base);
+    }
 }
 
 VAML_CORE_EXPORT
@@ -298,6 +834,9 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     deferred_event_handlers_.clear();
     live_bindings_.clear();          // S252: per-Load live binding scope (RAII detach)
     dynamicResourceLinks_.clear();   // S361: per-Load dynamic-resource scope
+    owned_merged_.clear();           // S453: per-Load merged-resource scope
+    built_dicts_.clear();            // S454: per-Load authored-dict index
+    deferred_based_on_.clear();      // S454: per-Load Style BasedOn wires
 
     // S144: reserve the per-Load vectors from the parsed tree's known size
     // (no reallocation churn while building).
@@ -305,7 +844,13 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     deferred_extensions_.reserve(root.attributes.size() + count_non_root_descendants(root));
     deferred_event_handlers_.reserve(root.attributes.size() + count_non_root_descendants(root));
 
-    return build(root, 0);
+    std::unique_ptr<DependencyObject> built = build(root, 0);
+
+    // S454 — resolve every deferred Style BasedOn ({StaticResource base}) now
+    // that all authored Style resources exist (across built_dicts_).
+    resolve_deferred_based_on();
+
+    return built;
 }
 
 // ------------------------------------------------------------------ S092 Strand A

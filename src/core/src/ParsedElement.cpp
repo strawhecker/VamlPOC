@@ -24,6 +24,63 @@ struct ParseFrame
 
 namespace {
 
+// S451 (dep:S450_1) — the DOCUMENT-level prologue strip. A real editor-saved
+// WPF/XAML file begins with an optional UTF-8 byte-order-mark (3 bytes
+// EF BB BF) and/or an optional XML declaration `<?xml version="1.0" ...?>`
+// before the single root element. Neither is a tree node; both are consumed
+// here at the document choke point so BOTH the text path (parse_vaml -> S2
+// reader) AND vamlcc's recompile-on-source (which parses the same source via
+// parse_vaml) accept a real WPF-shaped document identically.
+//
+// Returns the view starting at the FIRST CONTENT byte after the BOM (if any),
+// optional leading whitespace, and one optional `<?...?>` declaration (scanned
+// to its first `?>`; only consumed when it begins at the very start,
+// whitespace-tolerated). Because the whole prologue is a single prologue with
+// no element content, stripping it from the view keeps the scanner's internal
+// line/col correct for everything that follows (the scanner counts the bytes
+// it actually reads, all of which are real content). A BOM/prolog that is NOT
+// at the very start (i.e. leading CDATA/text) is left untouched — it is not a
+// document prologue. This is the single, shared grammar affordance for both
+// readers (S2 text + S7 compiled), recorded, not silent.
+[[nodiscard]] std::string_view strip_document_prologue(std::string_view src)
+{
+    std::size_t i = 0;
+
+    // 1) Optional UTF-8 BOM (EF BB BF), byte-exact.
+    if (src.size() >= i + 3 &&
+        static_cast<unsigned char>(src[i]) == 0xEF &&
+        static_cast<unsigned char>(src[i + 1]) == 0xBB &&
+        static_cast<unsigned char>(src[i + 2]) == 0xBF)
+    {
+        i += 3;
+    }
+
+    // 2) Leading whitespace (tolerated before the declaration/root).
+    while (i < src.size() && (src[i] == ' ' || src[i] == '\t' ||
+                              src[i] == '\r' || src[i] == '\n'))
+    {
+        ++i;
+    }
+
+    // 3) Optional XML declaration `<? ... ?>` — only when it begins the prologue.
+    if (i < src.size() && src[i] == '<' && i + 1 < src.size() && src[i + 1] == '?')
+    {
+        const std::size_t close = src.find("?>", i + 2);
+        if (close != std::string_view::npos)
+        {
+            i = close + 2; // consume through '?>'
+            // (skip trailing whitespace so the root `<` is the next content)
+            while (i < src.size() && (src[i] == ' ' || src[i] == '\t' ||
+                                      src[i] == '\r' || src[i] == '\n'))
+            {
+                ++i;
+            }
+        }
+    }
+
+    return src.substr(i);
+}
+
 // S085: maps one scanned XmlAttribute into its ParsedAttribute, carrying the
 // scanner's already-classified metadata (value_kind/numeric/directive/
 // namespace) forward so consumers never re-scan (NO-LAZY-LLM).
@@ -113,7 +170,10 @@ ParsedElement parse_vaml(std::string_view source)
     ParsedElement root;
     bool haveRoot = false;
 
-    XmlScanner scanner(source);
+    // S451: consume the optional BOM + XML declaration at the DOCUMENT level
+    // (the single choke point for both the S2 text path and vamlcc's
+    // recompile-on-source) BEFORE the scanner sees any content.
+    XmlScanner scanner(strip_document_prologue(source));
     XmlToken tok;
     while (scanner.next(tok))
     {
@@ -209,6 +269,31 @@ ParsedElement parse_vaml(std::string_view source)
     }
 
     return root;
+}
+
+VAML_CORE_EXPORT
+bool is_property_element(std::string_view tagName) noexcept
+{
+    // A dotted tag `<Owner.Property>` is a property-element; per S082 the '.'
+    // is NOT a namespace separator, so any '.' in the LOCAL element name makes
+    // it a candidate. A leading '.' or a trailing '.' (malformed) is not a
+    // property-element (both halves must be non-empty for a valid dotted name).
+    const std::size_t dot = tagName.find('.');
+    return dot != std::string_view::npos && dot > 0 && dot + 1 < tagName.size();
+}
+
+VAML_CORE_EXPORT
+std::pair<std::string_view, std::string_view>
+split_property_element(std::string_view tagName) noexcept
+{
+    // Split at the FIRST '.': <Owner.Property> -> (Owner, Property). A tag with
+    // no '.' (or an empty half) is NOT a property-element — both views empty.
+    const std::size_t dot = tagName.find('.');
+    if (dot == std::string_view::npos || dot == 0 || dot + 1 >= tagName.size())
+    {
+        return {std::string_view(), std::string_view()};
+    }
+    return {tagName.substr(0, dot), tagName.substr(dot + 1)};
 }
 
 } // namespace vaml

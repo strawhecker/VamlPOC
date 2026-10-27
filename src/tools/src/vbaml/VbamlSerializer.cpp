@@ -45,11 +45,22 @@ void put_u32(std::vector<std::uint8_t>& out, std::uint32_t v)
     out.push_back(static_cast<std::uint8_t>(v & 0xFF));
 }
 
-// The attribute FLAGS byte: bit0 isExtension, bit1 isBinding.
+// The attribute FLAGS byte: bit0 isExtension, bit1 isBinding,
+// bit2 propertyElement (S452 — a folded literal-content property-element).
 std::uint8_t attr_flags(const AttributeRecord& a)
 {
     return static_cast<std::uint8_t>(
-        (a.isExtension ? 0x01 : 0) | (a.isBinding ? 0x02 : 0));
+        (a.isExtension ? 0x01 : 0) | (a.isBinding ? 0x02 : 0) |
+        (a.propertyElement ? 0x04 : 0));
+}
+
+// The per-child FLAGS byte (S452, written AFTER each childId): bit0 marks an
+// object-valued PROPERTY-ELEMENT child — the element is the value of a parent's
+// property-element, not a visual child. When set, a propToken (the parent
+// property name) follows. A 0 childFlags means an ordinary visual child.
+std::uint8_t child_flags(const ElementRecord& c)
+{
+    return static_cast<std::uint8_t>(c.propertyElementTarget.empty() ? 0x00 : 0x01);
 }
 
 // Looks up the string-table index of `needle` in the schema (linear scan —
@@ -220,8 +231,23 @@ void encode_program_records(const CompiledProgram& prog, const Schema& schema,
         for (std::size_t c : e.children)
         {
             put_varu32(bytes, static_cast<std::uint32_t>(c));
+            // S452 — per-child property-element flag + propToken.
+            const ElementRecord& child = prog.elements.at(c);
+            const std::uint8_t cf = child_flags(child);
+            bytes.push_back(cf);
+            if (!child.propertyElementTarget.empty())
+            {
+                put_varu32(bytes, schema_index_of(schema, child.propertyElementTarget));
+            }
         }
     }
+}
+
+// S452 — the per-child FLAGS value: bit0 = object-valued property-element;
+// when set the reader expects a following propToken. Mirrors child_flags.
+bool child_property_element(std::uint8_t flags)
+{
+    return (flags & 0x01) != 0;
 }
 
 VAML_TOOLS_EXPORT
@@ -298,6 +324,10 @@ CompiledProgram decode(const std::vector<std::uint8_t>& bytes, const Schema& sch
     const std::uint32_t elementCount = br.varu32("elementCount");
     CompiledProgram prog;
     prog.elements.reserve(elementCount);
+    // S452 — (parentId, childId, propName) property-value edges collected during
+    // decode (children decodes AFTER their parent; the parent declares the
+    // edge, so we apply it to the fully-decoded child at the end).
+    std::vector<std::pair<std::size_t, std::string>> propertyValueEdges;
     for (std::uint32_t eid = 0; eid < elementCount; ++eid)
     {
         ElementRecord e;
@@ -326,6 +356,7 @@ CompiledProgram decode(const std::vector<std::uint8_t>& bytes, const Schema& sch
             (void)br.bytes(1, "flags");
             a.isExtension = (flags & 0x01) != 0;
             a.isBinding = (flags & 0x02) != 0;
+            a.propertyElement = (flags & 0x04) != 0; // S452 literal-content property-element
             if (a.isBinding)
             {
                 const std::uint32_t pathIdx =
@@ -345,8 +376,32 @@ CompiledProgram decode(const std::vector<std::uint8_t>& bytes, const Schema& sch
             const std::uint32_t cid =
                 Reader::checked(br.varu32("childId"), elementCount, "child");
             e.children.push_back(cid);
+            // S452 — per-child property-element flag + propToken (if set). The
+            // child's ElementRecord is NOT yet decoded (children decode before
+            // their container is pushed), so we only COLLECT the edge here and
+            // apply it post-loop, when every element is present.
+            if (br.position() + 1 > body.size())
+            {
+                throw VbamlMalformedBuffer("truncated child flags");
+            }
+            const std::uint8_t cf = body[br.position()];
+            (void)br.bytes(1, "childFlags");
+            if ((cf & 0x01) != 0)
+            {
+                const std::uint32_t propIdx =
+                    Reader::checked(br.varu32("propToken"), schema.strings.size(), "prop");
+                propertyValueEdges.emplace_back(cid, std::string(schema.strings[propIdx]));
+            }
         }
         prog.elements.push_back(std::move(e));
+    }
+    // S452 — apply the collected object-valued property-element edges: mark the
+    // (now fully-decoded) child element as the object value of the named parent
+    // property. All elements are decoded by this point, so a post-loop pass is
+    // safe and keeps decode a pure function of the child's model.
+    for (const auto& edge : propertyValueEdges)
+    {
+        prog.elements[edge.first].propertyElementTarget = edge.second;
     }
     return prog;
 }
