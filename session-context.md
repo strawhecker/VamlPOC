@@ -77,7 +77,13 @@ ADR-018 ZERO new locks. No commits.
 S451/S452/S453/S454/S455 all re-verified GREEN on BOTH CI LANES from first principles (verify_s451.cmd ..
 verify_s455.cmd — windows-msvc msvc-debug warning-as-error clean + ctest 4/4; ubuntu-clang on the VM
 clang-debug configure + warning-clean build + ctest 4/4). S456 is docs-only (no build — the S451/S454/S455
-gates already both green). IMPORTANT OPS NOTE: the S7 per-child wire-format change (S452) requires
+gates already both green). LATEST RUN: implementit re-executed S455 from first principles via
+build/verify_s455.cmd (windows-msvc msvc-debug build warning-clean + ctest 4/4 PASS; ubuntu-clang on the VM
+clang-debug configure + warning-clean build + ctest 4/4 PASS; "S455 BOTH CI LANES OK"). On-disk deliverables
+verified present: sample_styled.vaml, run_viewer_style_restyle_plan seam, ViewerRestyleS11a_s455_test.cpp,
+build/verify_s455.cmd. The S451..S456 deliverables were already [DONE] from the prior run; this is a
+confirmation gate, not a re-implementation. S456 is docs-only (no build lane; the S451/S454/S455 gates both
+green). No commits. IMPORTANT OPS NOTE: the S7 per-child wire-format change (S452) requires
 regenerating the PRE-BUILT vamlcc sidecars on both lanes — MainView.vbaml + demo_main.vbaml must be deleted
 so the custom command regenerates them with the CURRENT vamlcc (the verify_s4NN.cmd scripts do this at the
 top). A stale sidecar yields 'out-of-range child index' / 'truncated VarU32' (a cache issue, NOT a code
