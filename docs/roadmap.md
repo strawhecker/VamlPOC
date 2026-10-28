@@ -152,7 +152,7 @@
 - S084 dep:S083  Attribute value grammar: quoted literal, markup-extension {Binding...} tagged, numeric detection. [DONE — src/core/include/vaml/core/XmlScanner.h + src/core/src/XmlScanner.cpp (MOD) + test/unit/AttributeValueGrammar_test.cpp (NEW) + test/unit/CMakeLists.txt + build/verify_s084.cmd. The scanner classifies EVERY attribute value (ordinary props AND S083 x: directive values) so the S085 ParsedAttribute {key,value,isExtension} consumes isExtension/numeric directly. NEW public surface: enum class AttributeValueKind { QuotedLiteral, MarkupExtension }; XmlAttribute gains value_kind (default QuotedLiteral) + numeric (default false); free VAML_CORE_EXPORT AttributeValueKind classify_attribute_value(std::string_view value, bool* isNumeric = nullptr). Classifier wired into the S082/S083 attribute-resolution loop (after directive) so every scanned attribute carries value_kind + numeric, per-token (no leakage). Three recognitions: (1) QuotedLiteral — the default, a plain decoded quoted string (Width="100", Text="Hello"); (2) MarkupExtension — value begins with '{' AND ends with a BALANCED closing '}' with nesting honored ({Binding X}, {x:Null}, {StaticResource {x:Type Button}} -> MarkupExtension; "{abc" unbalanced -> QuotedLiteral); (3) numeric — a QuotedLiteral whose scalar grammar parses as [-+]?(digits|digits.digits|.digits)[eE][-+]?digits ("100","-45","3.14","+2.5E-3",".5","1e6" -> numeric; "Hello","auto","1.","10,20","-" -> not). Boundary recorded NO-GAP (not silent): scalar numeric DETECTION only — the comma-list thickness form ("10,20"->Thickness) and full type conversion are S089's converter-domain step (S084 detects, S089 converts); the WPF {}-escape-for-a-literal-{ is a parser-level (S085) concern, not scanner scope. 14 NEW TEST_CASEs in AttributeValueGrammar_test.cpp (Shouldly vocabulary): classifier quoted-vs-extension; leading-{ without balanced } -> not extension; nested braces honored; numeric int/sign/frac/exponent; non-numeric + edge cases (trailing dot, bare sign, empty); extension never numeric at the classifier; scanner integration (quoted+flag, {Binding Title} tagged, nested extension, unbalanced-{ stays literal, sign/exponent numeric, x: directive value {x:Null}->MarkupExtension while x:Name="foo"->QuotedLiteral, per-token no leakage). xml-language {x:Null} path resolves S083's recorded NO-GAP hand-off for x:Null null-set. XmlScanError taxonomy UNCHANGED (still 19 categories); the classifier is pure classification, no new malformed path. Both CI lanes verified (windows-msvc via build/verify_s084.cmd msvc-debug + ubuntu-clang via /mnt/hgfs/VamlPOC clang-debug).]
 - S085 dep:S084  ParsedElement {tagName, ns, attributes, children} + ParsedAttribute {key, value, isExtension}. [DONE — src/core/include/vaml/core/ParsedElement.h + src/core/src/ParsedElement.cpp (NEW) + MOD src/core/CMakeLists.txt + test/unit/ParsedElement_test.cpp (NEW) + MOD test/unit/CMakeLists.txt + build/verify_s085.cmd (NEW). The tree that consumes the S080-S084 token stream into a lossless, readable hierarchy — first Sprint-2 step beyond a linear token list. ParsedAttribute {key (full raw name), value, isExtension} + extended scanner metadata carried (prefix/local_name/namespace_uri/directive/value_kind/numeric) so consumers never re-scan (NO-LAZY-LLM). ParsedElement {tagName, ns, attributes, children, content} + extended (prefix/local_name/self_closing); `content` holds an element's text between bounding tokens — the finalized decision is tags+children+content (NOT a pseudo-element sentinel) so readers distinguish elements from text at the type level; CONSCIENCE NOTE recorded in the header: one content string + ordered children does not capture interleaved text/child ordering ("<p>Hello <b>world</b> again</p>") — full mixed-content ordering is a later explicit decision, not this step. Assembly: ElementOpen->frame pushed (self-closing closes immediately), Text accumulates into open frame's content (as authored), ElementClose finalizes/moves the frame to its parent or the single root, Comment/CDATA DROPPED (S080 hand-off resolves: not tree nodes); end-tag matching remains the SCANNER's job (XmlScanException::MismatchedEndTag); the parser's OWN structural path = EOF with an open element / missing root -> NEW XmlParseException + XmlParseError::UnterminatedElement (taxonomy has only what the parser can actually produce — no dead MismatchedEndTag at parse level, S048 discipline). Unknown-ns authority boundary kept (empty ns NOT a parse error; resolution is S087). Both CI lanes green: windows-msvc via build/verify_s085.cmd (msvc-debug warning-clean + ctest 1/1 PASS, 279 cases) + ubuntu-clang via /mnt/hgfs/VamlPOC (configure+build+ctest 1/1 PASS). No MINIMAL REAL introduced/resolved.]
 - S086 dep:S085  Parser round-trips a realistic VAML document into the tree (tests). [DONE — test/unit/ParsedRoundtrip_test.cpp (NEW) + MOD test/unit/CMakeLists.txt + build/verify_s086.cmd (NEW) + MOD docs/roadmap.md + session-context.md. TEST-ONLY — zero new product symbols (S080-S085 pipe consumed as-is); the formal round-trip gate over S085's tree shape. One realistic multi-feature doc (namespaces xmlns:x, x:Class/x:Name directives, attached-style dotted names DockPanel.Dock/Grid.Row/Grid.Column, markup extensions {Binding ...}, numeric Width/Height/Grid.Row/Grid.Column/FontSize, quoted Title/Content, self-closing TextBox/Button/Texts, and a text-content leaf <Text x:Name="SearchLabel">Search:</Text>) is asserted five ways: (1) GOLDEN STRUCTURAL round-trip — a test-local canonicalize() re-serializer (attrs in document order, self-closing preserved, children-then-content, xmlns correctly omitted as declarations) proves canonical(parse(source)) == the hand-written expected string, so text→tree→structure reproduces the authored doc exactly modulo non-semantic whitespace; (2) full tree-shape — root Window tagName/ns/empty-content, containers carry no content, the leaf carries "Search:", self_closing true on TextBox/Button/self-closing Texts and false on containers, DockPanel child ordering SP1/SP2/Grid, Grid.Row/Grid.Column kept as FULL raw keys ('.' is NOT a namespace separator — S082); (3) feature-classification — {Binding SearchText} → isExtension + MarkupExtension + not-numeric, Width/Height → numeric, x:Class/x:Name → Class/Name directive with kXamlLanguageNamespace uri, Margin="10,10,10,10" → quoted literal non-numeric (comma-list is S089 converter domain, S084 detects only scalars); (4) comments dropped (add nothing) + pretty-printed inter-element whitespace kept as-authored in parent content ("\n  \n  \n"); (5) error path — truncated doc (missing </Window>) throws XmlParseException::UnterminatedElement, full doc parses with no throw. Round-trip is text→tree→readable structure (no serializer yet — VBAML serialization is S282/S283); unknown-ns resolution stays S087 (recorded, not silent); mixed-content ordering stays the S085 conscience note. Both CI lanes green: windows-msvc via build/verify_s086.cmd (msvc-debug warning-clean + ctest 1/1 PASS, 291 cases, 12 new S086 cases all green) + ubuntu-clang via /mnt/hgfs/VamlPOC (clang-debug configure+build+ctest 1/1 PASS). No MINIMAL REAL introduced/resolved.]
-- S087 dep:S086  ElementFactoryRegistry: typeName→factory<unique_ptr<DependencyObject>>; startup registration. [DONE — src/core/include/vaml/core/{ElementFactoryRegistry,Element}.h + src/core/src/{ElementFactoryRegistry,Element}.cpp + test/unit/ElementFactoryRegistry_test.cpp + MOD src/core/CMakeLists.txt + test/unit/CMakeLists.txt + build/verify_s087.cmd. vaml::ElementFactoryRegistry (pimpl'd, real, not MINIMAL REAL): maps type NAME -> ElementFactory (std::function<unique_ptr<DependencyObject>()>), name-unique dedupe (duplicate -> ElementAlreadyRegistered, registry UNCHANGED, factory never swapped), try_create (noexcept, nullptr if absent) / create (throws ElementNotFound), is_registered, size/empty, registered_names in INSERTION ORDER (deterministic, never unordered_map iteration). Exceptions mirror the S032 property taxonomy. Global Meyers singleton matches PropertyRegistry/DependencyProperty::global; stores an OWNED name copy (same SSO/dangle discipline as S036/S039). MINIMAL REAL element seeds (vaml::Button/StackPanel/Grid/Text/TextBox/CheckBox/Slider/ScrollViewer/Window — thin concrete DependencyObject subclasses, identity/type only, tagged with searchable `// [MINIMAL REAL] Element <X> — RESOLVED BY S###` sentinels) + register_builtin_elements() (idempotent startup registration of all 9 names -> make_unique<Concrete>()). Tests (Shouldly vocabulary): register+create -> live concrete type (dynamic_cast non-null); fresh instance per call; dedupe throws + unchanged + original factory preserved; create-unknown throws ElementNotFound; try_create-unknown -> nullptr; is_registered/size/empty; insertion-order deterministic; STARTUP GATE — register_builtin_elements() then create("Button"/"StackPanel"/...) yields each concrete seed + global size==9; idempotent second call no-throw. NO-GAP: unknown-type structured error naming type+line is S088's step (registry only throws ElementNotFound here; S088 maps it, recorded not silent). Element classes are seeds only (no logic) — real content at each control's own sprint. Both CI lanes green (msvc-debug via verify_s087.cmd + ubuntu-clang).]
+- S087 dep:S086  ElementFactoryRegistry: typeName→factory<unique_ptr<DependencyObject>>; startup registration. [DONE — src/core/include/vaml/core/{ElementFactoryRegistry,Element}.h + src/core/src/{ElementFactoryRegistry,Element}.cpp + test/unit/ElementFactoryRegistry_test.cpp + MOD src/core/CMakeLists.txt + test/unit/CMakeLists.txt + build/verify_s087.cmd. vaml::ElementFactoryRegistry (pimpl'd, real, not MINIMAL REAL): maps type NAME -> ElementFactory (std::function<unique_ptr<DependencyObject>()>), name-unique dedupe (duplicate -> ElementAlreadyRegistered, registry UNCHANGED, factory never swapped), try_create (noexcept, nullptr if absent) / create (throws ElementNotFound), is_registered, size/empty, registered_names in INSERTION ORDER (deterministic, never unordered_map iteration). Exceptions mirror the S032 property taxonomy. Global Meyers singleton matches PropertyRegistry/DependencyProperty::global; stores an OWNED name copy (same SSO/dangle discipline as S036/S039). MINIMAL REAL element seeds (vaml::Button/StackPanel/Grid/Text/TextBox/CheckBox/Slider/ScrollViewer/Window — thin concrete DependencyObject subclasses, identity/type only, tagged with searchable `// [MINIMAL REAL] Element <X> — RESOLVED BY S###` sentinels) + register_builtin_elements() (idempotent startup registration of all 9 names -> make_unique<Concrete>()). **[FIDELITY NOTE — SUPERSEDED BY 11k-1:] the `Text` seed name is NOT a WPF control (WPF has `TextBlock`/`TextBox`); Sprint 11k-1 re-bases it as the WPF-true `TextBlock` (built-in name NET-NEUTRAL +TextBlock −Text), per the S167_1 corrective convention.** Tests (Shouldly vocabulary): register+create -> live concrete type (dynamic_cast non-null); fresh instance per call; dedupe throws + unchanged + original factory preserved; create-unknown throws ElementNotFound; try_create-unknown -> nullptr; is_registered/size/empty; insertion-order deterministic; STARTUP GATE — register_builtin_elements() then create("Button"/"StackPanel"/...) yields each concrete seed + global size==9; idempotent second call no-throw. NO-GAP: unknown-type structured error naming type+line is S088's step (registry only throws ElementNotFound here; S088 maps it, recorded not silent). Element classes are seeds only (no logic) — real content at each control's own sprint. Both CI lanes green (msvc-debug via verify_s087.cmd + ubuntu-clang).]
 - S088 dep:S087  Resolve "Button"→instance; unknown type → structured error naming type+line. [DONE — src/core/include/vaml/core/ElementResolver.h + src/core/src/ElementResolver.cpp + test/unit/ElementResolver_test.cpp + MOD src/core/{ParsedElement.h,cpp,CMakeLists.txt} + MOD test/unit/CMakeLists.txt + build/verify_s088.cmd. Reader-boundary resolution primitive: `resolve_element(ParsedElement, ElementFactoryRegistry)` (plus a global() overload) resolves one element into a live DependencyObject instance via the S087 registry, keyed on the element's local_name (fallback tagName) so `<local:Button>` resolves "Button". An unknown/absent/empty type -> NEW structured `ElementResolutionException` with `ElementResolutionError::{None,UnknownType}`, exposing `kind()/type_name()/line()/col()` and a what() rendering "unknown element type '<name>' (line N, column M)". Mapping the S087-registry ElementNotFound into the line-carrying reader error is exactly the S087-recorded NO-GAP hand-off: ElementFactoryRegistry itself still carries NO source-location concept. S088 also extends ParsedElement with line/col carried from the scanner's ElementOpen token (S085's "carried, not re-scanned" discipline — no line-map re-derivation) so errors name the real authored position. Scope boundary (NO-GAP, not silent): S088 delivers the SINGLE-ELEMENT primitive + structured error only; child-hierarchy building / property setting is S091's explicit step, which will consume resolve_element. Error split honored: only ElementNotFound -> UnknownType; a throwing factory's construction exception PROPAGATES (never swallowed). Tests (Shouldly): resolve Button -> live Button (custom + global); custom type resolves; fresh instance per resolve; prefixed resolves via local_name; unknown -> exception naming type + real parsed line/col; ShouldThrow form; what() names type + line; deep-doc line accuracy (real multi-line markup, offending element's line reported); parsed line/col carried onto tree; empty name -> UnknownType; throwing factory propagates (registry still reports registered). Both CI lanes green: windows-msvc via build/verify_s088.cmd (msvc-debug warning-clean + ctest 1/1 PASS) + ubuntu-clang via /mnt/hgfs/VamlPOC clang-debug.]
 - S089 dep:S088  Value converter registry: "42"→int, "10,20"→Thickness, "#FF0000"→Color, "true"→bool. [DONE — RESOLVES the S030 Color + Thickness MINIMAL REAL markers: src/core/include/vaml/core/{ValueConverter,ValueConversionError}.h + src/core/src/{ValueConverter,Color,Thickness}.cpp + test/unit/ValueConverter_test.cpp + build/verify_s089.cmd; vaml::ValueConverterRegistry (pimpl'd, real, not MINIMAL REAL): name-unique register_converter (dedupe -> ValueAlreadyRegistered, registry unchanged), convert (unregistered name -> ValueConversionException{UnknownType} naming the type; malformed literal -> {MalformedValue} naming type+literal), is_registered/size/empty/registered_names (insertion order), global() Meyers singleton; register_builtin_converters() (idempotent) installs Int32/Thickness/Color/Bool so "42"->Int32(42), "10,20"->Thickness(10,20,10,20), "#FF0000"->Color(255,0,0,255), "true"->Bool(true) all resolve through the standard global path. The shared error taxonomy was hoisted to its own header (ValueConversionError.h) so parse_color/parse_thickness can throw ValueConversionException without a Color/ValueConverter include cycle. Color + Thickness markers RESOLVED in-place (NO-GAP — resolution at the feature's own step, not a backfill): parse_color ("#RRGGBB"/"#AARRGGBB", case-insensitive, optional '#', alpha honored, named colors OUT of scope -> later brush/resource step) + parse_thickness (WPF-comma-list: 1 uniform / 2 mirrored / 4 explicit; any other count, non-numeric token, or empty -> MalformedValue) now carry the full parsing semantics on the types and their sentinel tags are removed. S089 ships focused happy-path + the S089-relevant error suite; the formal unknown-literal error taxonomy + exhaustive edge/error suite are S090's named step (recorded, not silent). Both CI lanes green: windows-msvc (verify_s089.cmd) + ubuntu-clang (/mnt/hgfs/VamlPOC).]
 - S090 dep:S089  Unknown literal → error; converter registry tests. [DONE — RESOLVES the S089-recorded
@@ -1226,7 +1226,7 @@ Growth tokens by sprint:
 
 ---
 ## Sprint 10 — Core controls  (goal: usable control set)  [token S400+]
-- S400 dep:S368  [DONE - Sprint 10 first token. Text control RESOLVED (the S087 seed re-based onto UIElement): NEW vaml::core TextLayout (the PURE CPU text-layout + word-wrap engine — text_layout_plan + default_text_metric + resolve_foreground_color, headless + device-free); Text the REAL control (Text/FontSize/FontWeight/Foreground DPs — Foreground = BrushId, the WPF-faithful brush read confirmed from E:\GitRepos\wpf; FontSize validated >= 0; MeasureOverride measures the wrapped extent); the RENDER pure seam vaml::vulkan::ui TextGlyphPlan (text_glyph_uv + build_text_glyph_items); classify_element + classify_merge_element map a real Text -> MaterialKind::Text (the S207 text material authored in the classifier; full multi-glyph + REAL SDF atlas = S409_1 viewer growth, recorded NO-GAP not silent). Tests Text_test/TextGlyphPlan_test/ViewerTextMaterial_test. BOTH CI LANES GREEN (build/verify_s400.cmd msvc-debug + /mnt/hgfs/VamlPOC clang-debug).]
+- S400 dep:S368  [DONE - Sprint 10 first token. Text control RESOLVED (the S087 seed re-based onto UIElement): NEW vaml::core TextLayout (the PURE CPU text-layout + word-wrap engine — text_layout_plan + default_text_metric + resolve_foreground_color, headless + device-free); Text the REAL control (Text/FontSize/FontWeight/Foreground DPs — Foreground = BrushId, the WPF-faithful brush read confirmed from E:\GitRepos\wpf; FontSize validated >= 0; MeasureOverride measures the wrapped extent); the RENDER pure seam vaml::vulkan::ui TextGlyphPlan (text_glyph_uv + build_text_glyph_items); classify_element + classify_merge_element map a real Text -> MaterialKind::Text (the S207 text material authored in the classifier; full multi-glyph + REAL SDF atlas = S409_1 viewer growth, recorded NO-GAP not silent). Tests Text_test/TextGlyphPlan_test/ViewerTextMaterial_test. BOTH CI LANES GREEN (build/verify_s400.cmd msvc-debug + /mnt/hgfs/VamlPOC clang-debug).] **[FIDELITY NOTE — SUPERSEDED BY 11k-1:] `Text` is NOT a WPF control name (WPF has `TextBlock`/`TextBox`; no `System.Windows.Controls.Text`). This S400 resolved an INVENTED name (contradicting the fidelity-to-XAML directive). Sprint 11k-1 re-bases this control as the WPF-true `TextBlock` (history preserved + superseded per the S167_1 corrective convention) — the semantic content (TextLayout wrap engine, TextGlyphPlan, MaterialKind::Text) carries over unchanged under the correct name. WPF ground truth: `TextBlock : FrameworkElement` (TextBlock.cs), NOT a `Control`; `TextBox : Control` — so VAML re-bases `TextBlock` onto the FrameworkElement branch (11k-1), distinct from Control.**
 - S400_1 dep:S400  [DONE - Sprint 10 second token. Icon control (per ADR-015): NEW vaml::core Icon (re-based onto UIElement) with the S400_1 DP surface Source/IconKey/TintMode{Preserve|Monochrome}/Foreground/Width/Height/Stretch; IconKey resolves via the S360_1 ResourceDictionary; TintMode -> the S205_1 Monochrome path; the RENDER seam vaml::vulkan::icon IconGlyphPlan (S213_1 best-fit quad + the DELIBERATE fallback glyph + a STRUCTURED diagnostic via the S250_1 view channel — ADR-015 NO-silent); classify_element -> MaterialKind::Monochrome + classify_merge_element -> the headless fallback glyph (real atlas quad = S409_1). Built-in 12th. BOTH CI LANES GREEN (build/verify_s400_1.cmd msvc-debug + /mnt/hgfs/VamlPOC clang-debug).]
 - S401 dep:S400  [DONE - Sprint 10 third token. Button control RESOLVED (the S087 Button seed re-based onto UIElement): IsEnabled DP (Bool via Int32, gates the Click routing — WPF-faithful); the Click routed event (raise_click raises the BUBBLING ClickEvent with source==this; the S324/S323 flow raises Click on a hit Button); the template/visual-state surface (the default implicit template's Normal/Hover/Pressed/Disabled states swap the shared "Background" brush via the S364 state engine); MeasureOverride (bounded default box). classify_element -> MaterialKind::Solid + classify_merge_element -> the Solid fill honoring the visual-state Background + the IsEnabled fade. Tests Button_test + ViewerButtonMaterial_test. BOTH CI LANES GREEN (build/verify_s401.cmd msvc-debug + /mnt/hgfs/VamlPOC clang-debug).]
 - S402 dep:S401  [DONE - Sprint 10 fourth token. TextBox control RESOLVED (the S087 TextBox seed re-based onto UIElement): Text + AcceptsReturn DPs + caret/selection; key-driven editing (handle_key: printable insert, backspace, Left/Right/Home/End, single-line Enter accepts vs multi-line inserts newline, insert-over-selection); the S244 TWO-WAY binding (a TextBox.Text edit writes back to the VM); the multi-line S400 wrap Measure. classify_element -> MaterialKind::Solid + classify_merge_element -> the edit-field fill box. Tests TextBox_test + ViewerTextBoxMaterial_test. BOTH CI LANES GREEN (build/verify_s402.cmd msvc-debug + clang-debug).]
@@ -1736,6 +1736,269 @@ Growth tokens by sprint:
 >       base — all to the Sprint 12 / S490+ window-host + control-material step. ADR-018: ZERO new locks
 >       (all single-threaded registration/parse). ADR-011: all new symbols live in core (data) — no render/
 >       shader change; render stays in vulkan's classifier.
+
+---
+## Sprint 11k — CORRECTIVE: WPF control-NAME fidelity + disclose/add omitted controls  (goal: remove the invented `Text` name, add the WPF-real `TextBlock`/`TextBox`, and add every control/type the WPF corpus consumes that the roadmap omitted)  [token S11k]
+> **WHY THIS SPRINT EXISTS (recorded frankly, NOT a defensible dodge):** a fidelity error was made in the
+> initial control list — `Text` is NOT a WPF control (WPF has `TextBlock` and `TextBox`; no
+> `System.Windows.Controls.Text` exists). It was authored as a seed at S087 and "resolved" as a real control
+> at S400 under an INVENTED name, contrary to the standing directive of fidelity to XAML. The WPF-corpus
+> load dump exposed the consequence directly: `vaml_viewer: unknown element type '<TextBlock>'` across
+> ~10 corpus files (AddPhysicianWindow/MainWindow/InitialViewUserControl/StatusBoard/SplashUserControl/
+> MagneticSystemStatusControl/PreferLocationIndicator/ShadowLocationIndicator/etc.) — i.e. the most common
+> WPF text control does not even load in vaml_viewer. Sprint 11j closed the *load-surface* gaps
+> (elements/DPs/values/doc-level) but never audited the **control-NAME set** against WPF, which is the root
+> cause. This sprint is the correction + the disclosure of what was omitted. It follows the **S167_1
+> corrective-token convention** (supersede in place, history stays intact, no renumber) — NOT a rewrite of
+> history and NOT a silent backfill.
+>
+> **THE FIDELITY CONTRACT (sealed by the closing gate, 11k-7):** from this sprint onward, every authored
+> element/control name MUST exist in real WPF (the registered built-in + classified control names are
+> checked against the WPF type namespace — a name with no WPF type is a defect, not a new element). NO
+> invented control names, ever. A corpus doc that loads a control NOT in WPF is a bug in VAML, not a new
+> element.
+>
+> STATUS: **in-progress (newly scoped; 11k-1..11k-7 not yet DONE; 11k-8 audit RECORDED complete at ground truth,
+> 11k-9/11k-10 pending-forward-tokens — see below).**
+>
+> - 11k-1 — `TextBlock` element; retire the invented `Text` (THE correction).  [dep:S400]
+>       Author the REAL WPF-faithful `TextBlock`. **WPF GROUND TRUTH (source: `E:\GitRepos\wpf`
+>       src\...\Controls\TextBlock.cs): `public class TextBlock : FrameworkElement, IContentHost,
+>       IAddChildInternal, IServiceProvider` — `TextBlock` derives from `FrameworkElement`, NOT `Control`
+>       (hierarchy DependencyObject→Visual→UIElement→FrameworkElement→TextBlock, with NO Control in the
+>       chain). Therefore VAML re-bases `TextBlock` onto the FRAMEWORKELEMENT base (the S649/S470/S480-485
+>       framework-element branch), NOT the Control-base DP bundle from 11j-5 — re-pointing DPs
+>       (Text/FontSize/FontWeight/Foreground) against the FrameworkElement property set. Measure/Arrange via
+>       the S400 TextLayout wrap engine; text CONTENT (`<TextBlock>label</TextBlock>`) lands on the Text DP
+>       (WPF's IAddChild behavior) — the corpus's dominant usage. REGISTER `TextBlock` in
+>       `register_builtin_elements()`; RE-POINT every consumer of the invented `Text` onto `TextBlock`;
+>       REMOVE the `Text` factory name (built-in count NET-NEUTRAL: +TextBlock −Text). Mark the S400/S087
+>       `Text` history **SUPERSEDED BY 11k-1 (TextBlock)** per the S167_1 corrective convention — history
+>       preserved, never edited to hide the error, the semantic intent (an authored text leaf) preserved under
+>       the WPF-true name. The loader MUST accept `<TextBlock>` and classify it MaterialKind::Text (the S400
+>       TextGlyphPlan/classifier unchanged). Test TextBlock_s11k1_test.cpp (a corpus-shaped `<TextBlock
+>       Foreground=... FontSize=...>label</TextBlock>` loads + measures + classifies). 11k-1 RESOLVES the
+>       corpus dump's #1 blocker (`unknown element type '<TextBlock>'`). `TextBox` (S402) is already WPF-true
+>       AND a genuine `Control` (TextBox : Control) — unchanged.
+> - 11k-2 — Add the missing WPF controls the corpus consumes that the roadmap never authored: `RepeatButton`
+>       (toolkit NumericUpDown/NumUpDown spin buttons), `ScrollBar` (the scrollbar chrome ScrollViewer S405
+>       drives), `Viewbox` (scale-contain single-child container, ColorPickerSwatch), `ToolBar` + `ToolBarTray`
+>       (the app's ToolbarControl basis). Each a REAL UIElement re-base, registered as a built-in, classified
+>       (RepeatButton/ScrollBar/ToolBar → Solid; Viewbox → its content). Test 11k2_addedControls_test.cpp.
+> - 11k-3 — Authorable VALUE-TYPE resource ELEMENTS: `<Color>`, `<FontFamily>`, `<Double>`, `<Thickness>`,
+>       `<GridLength>`, `<Geometry>` as authored resource elements (the existing value *parsers* S089/11j-3/
+>       `parse_grid_length` are promoted to authorable *element* types for the Themes.Colors/Theme.FontFamily/
+>       Themes.Layouts/AddPhysicianWindow patterns). **[DEP-PLACEMENT: these atomic value types are a
+>       FOUNDATION — placed BEFORE the brushes/vector resources (11k-4) because Color/Geometry/Thickness are
+>       the value inputs the brush and drawing resources author; authoring them first makes every following
+>       resource-authoring step self-consistent.]** Test 11k3_valueElems_test.cpp.
+> - 11k-4 — Brushes + vector-drawing resources (the corpus's LARGEST omitted volume — the entire `Icons/*.xaml`
+>       + `Icons.xaml`/`NewIcons.xaml` family): `ImageBrush` (TagConfigurationUserControl) + `DrawingBrush` /
+>       `DrawingGroup` / `DrawingImage` + `Geometry` resources authored + resolved through the S360/S453
+>       resource path and drawn via the S202 atlas mesh. **[DEP: depends on 11k-3 value-type authoring (Color
+>       for SolidColor/LinearGradient, Geometry for the drawing channels).]** Test 11k4_vectorResources_test.cpp.
+> - 11k-5 — `EventTrigger` element-level authoring: `<Control.Triggers><EventTrigger RoutedEvent="...">...` —
+>       the event-driven trigger AUTHORING surface (distinct from PropertyTrigger/DataTrigger S454/11j-7),
+>       parsed into the S362 trigger model; full storyboard evaluation links to S510 (recorded NO-GAP, not
+>       silent). Test 11k5_eventTrigger_test.cpp.
+> - 11k-6 — VIEWER-GROWTH(11k): a corpus-shaped `sample.corpus.xaml` authors `TextBlock` + the added controls
+>       + a vector resource + an EventTrigger; the LIVE viewer loads it and renders (including a real
+>       `<TextBlock>` glyph via the S409_1/S400 SDF path). BOTH CI LANES green. [VIEWER GROWTH: TextBlock +
+>       the disclosed control set render in the live viewer]
+> - 11k-7 — CONTROL-NAME FIDELITY GATE + SURVIVOR(11k): full build + ctest BOTH lanes green; grep-audit that
+>       EVERY authored element/control name (in `register_builtin_elements()` + the classified control set)
+>       exists in the WPF type namespace — ZERO invented names (closes the `Text`→`TextBlock` class of error at
+>       the source, binding from now on). Disclosed list reconciled: every corpus element/type not resolvable
+>       as compiled app/3rd-party code (GenderToStringConverter, BindingProxy, Viewport3DX, … → the S501
+>       converter surface + S520 import/inject seam + the app's own registrations, NOT this sprint) is either
+>       authored HERE or explicitly recorded in the SURVIVOR as a named forward token. Short SURVIVOR block
+>       in progress.md; checkpoint advances: last completed = S11k, next = **S540+ (Sprint 11z)**.
+>
+> - 11k-8 — DP-FIDELITY AUDIT + DP-DEPTH CLOSURE (per-control DP/property/event surface against the REAL WPF
+>       source)  [NEWLY SCOPED — token S11k8]. STATUS: **GAP IDENTIFIED + AUDIT RECORDED (deliverable 1 done;
+>       closure implementation = a forward token, see 11k-9).** The roadmap's control tokens each register a
+>       hand-picked handful of DPs; the real WPF controls expose the FULL base-class + own surface (15–70 DPs
+>       each). The audit below is extracted verbatim from `E:\GitRepos\wpf` (PresentationFramework +
+>       PresentationCore) so the gap is CONTROLLED BY GROUND TRUTH, not assumption. **[gap is material: VAML
+>       currently registers a small DP subset; corpus docs that author the unlisted properties throw
+>       UnknownProperty — the exact class of error 11j closed for the load-surface, now accounted at the
+>       per-control DP/property/event level].**
+>
+>   **BASE-CLASS SURFACE (shared by broad classes — the WPF-faithful inheritance, verified from source):**
+>   - `UIElement :` DP: AllowDrop, RenderTransform, RenderTransformOrigin, Opacity, OpacityMask, BitmapEffect,
+>     Effect, BitmapEffectInput, CacheMode, Uid, Visibility, ClipToBounds, Clip, SnapsToDevicePixels, IsFocused,
+>     IsEnabled, IsHitTestVisible, IsVisible, Focusable, IsManipulationEnabled. EV: GotFocus, LostFocus,
+>     ManipulationStarting/Started/Delta/InertiaStarting/BoundaryFeedback/Completed.
+>   - `FrameworkElement : UIElement` DP: Style, OverridesDefaultStyle, UseLayoutRounding, DataContext, BindingGroup,
+>     Language, Name, Tag, InputScope, ActualWidth, ActualHeight, LayoutTransform, Width, MinWidth, MaxWidth,
+>     Height, MinHeight, MaxHeight, FlowDirection, Margin, HorizontalAlignment, VerticalAlignment, FocusVisualStyle,
+>     Cursor, ForceCursor, ToolTip, ContextMenu. EV: RequestBringIntoView, SizeChanged, Loaded, Unloaded,
+>     ToolTipOpening/Closing, ContextMenuOpening/Closing.
+>   - `Control : FrameworkElement` DP: BorderBrush, BorderThickness, Background, Foreground, FontFamily, FontSize,
+>     FontStretch, FontStyle, FontWeight, HorizontalContentAlignment, VerticalContentAlignment, TabIndex, IsTabStop,
+>     Padding, Template. EV: PreviewMouseDoubleClick, MouseDoubleClick.
+>   - `ContentControl : Control` DP: Content, HasContent, ContentTemplate, ContentTemplateSelector, ContentStringFormat.
+>   - `ItemsControl : Control` DP: ItemsSource, HasItems, DisplayMemberPath, ItemTemplate, ItemTemplateSelector,
+>     ItemStringFormat, ItemBindingGroup, ItemContainerStyle, ItemContainerStyleSelector, ItemsPanel, IsGrouping,
+>     GroupStyleSelector, AlternationCount, AlternationIndex, IsTextSearchEnabled, IsTextSearchCaseSensitive.
+>   - `RangeBase : Control` DP: Minimum, Maximum, Value, LargeChange, SmallChange. EV: ValueChanged.
+>   - `ButtonBase : ContentControl` DP: Command, CommandParameter, CommandTarget, IsPressed, ClickMode. EV: Click.
+>   - `TextBoxBase : Control` DP: IsReadOnly, IsReadOnlyCaretVisible, AcceptsReturn, AcceptsTab,
+>     HorizontalScrollBarVisibility, VerticalScrollBarVisibility, IsUndoEnabled, UndoLimit, AutoWordSelection,
+>     SelectionBrush, SelectionTextBrush, SelectionOpacity, CaretBrush, IsSelectionActive,
+>     IsInactiveSelectionHighlightEnabled. EV: TextChanged, SelectionChanged.
+>   - `Selector : ItemsControl` DP: IsSelectionActive, IsSelected, IsSynchronizedWithCurrentItem, SelectedIndex,
+>     SelectedItem, SelectedValue, SelectedValuePath. EV: SelectionChanged, Selected, Unselected.
+>   - `ToggleButton : ButtonBase` DP: IsChecked, IsThreeState. EV: Checked, Unchecked, Indeterminate.
+>   - `Thumb : Control` DP: IsDragging. EV: DragStarted, DragDelta, DragCompleted.
+>   - `HeaderedContentControl : ContentControl` DP: Header, HasHeader, HeaderTemplate, HeaderTemplateSelector, HeaderStringFormat.
+>   - `HeaderedItemsControl : ItemsControl` DP: Header, HasHeader, HeaderTemplate, HeaderTemplateSelector, HeaderStringFormat.
+>
+>   **OWN-SURFACE (the DPs/events each control declares itself, verified from source):**
+>   - `Button` own DP: IsDefault, IsCancel, IsDefaulted. (inherits ButtonBase Click/Command; Control surface)
+>   - `TextBox` own DP: TextWrapping, MinLines, MaxLines, Text, CharacterCasing, MaxLength, TextAlignment,
+>     TextDecorations. (inherits TextBoxBase TextChanged/SelectionChanged + the edit surface)
+>   - `Slider` own DP: Orientation, IsDirectionReversed, Delay, Interval, AutoToolTipPlacement, AutoToolTipPrecision,
+>     IsSnapToTickEnabled, TickPlacement, TickFrequency, Ticks, IsSelectionRangeEnabled, SelectionStart, SelectionEnd,
+>     IsMoveToPointEnabled. (inherits RangeBase Value/Min/Max + ValueChanged)
+>   - `CheckBox` own DP: (ToggleButton has IsChecked/IsThreeState + Checked/Unchecked/Indeterminate; CheckBox adds none)
+>   - `ScrollViewer` own DP: CanContentScroll, HorizontalScrollBarVisibility, VerticalScrollBarVisibility,
+>     ComputedHorizontal/VerticalScrollBarVisibility, VerticalOffset, HorizontalOffset, ContentVerticalOffset,
+>     ContentHorizontalOffset, ExtentWidth, ExtentHeight, ScrollableWidth, ScrollableHeight, ViewportWidth,
+>     ViewportHeight, IsDeferredScrollingEnabled, PanningMode, PanningDeceleration, PanningRatio. EV: ScrollChanged.
+>   - `Label` own DP: Target. (ContentControl + Control surface)
+>   - `ProgressBar` own DP: IsIndeterminate, Orientation. (RangeBase Value/Min/Max + ValueChanged)
+>   - `ComboBox` own DP: MaxDropDownHeight, IsDropDownOpen, ShouldPreserveUserEnteredPrefix, IsEditable, Text,
+>     IsReadOnly, SelectionBoxItem, SelectionBoxItemTemplate, SelectionBoxItemStringFormat, StaysOpenOnEdit.
+>     (Selector + ItemsControl surface)
+>   - `ListBox` own DP: SelectionMode, SelectedItems. (Selector + ItemsControl surface)
+>   - `ListView` own DP: View. (ListBox → Selector + ItemsControl surface)
+>   - `ScrollBar` own DP: Orientation, ViewportSize. EV: Scroll. (RangeBase Value/Min/Max)
+>   - `RepeatButton` own DP: Delay, Interval. (ButtonBase Click/Command + Control surface)
+>   - `Viewbox` own DP: Stretch, StretchDirection. (FrameworkElement, non-control)
+>   - `ToolBar` own DP: Orientation, Band, BandIndex, IsOverflowOpen, HasOverflowItems, IsOverflowItem, OverflowMode.
+>   - `Expander` own DP: ExpandDirection, IsExpanded. EV: Expanded, Collapsed.
+>   - `GroupBox` own DP: none (HeaderedContentControl Header/HeaderTemplate + ContentControl surface)
+>   - `ToolTip` own DP: HorizontalOffset, VerticalOffset, IsOpen, HasDropShadow, PlacementTarget, PlacementRectangle,
+>     Placement, CustomPopupPlacementCallback, StaysOpen, ShowsToolTipOnKeyboardFocus. EV: Opened, Closed.
+>   - `Popup` own DP: Child, IsOpen, Placement, CustomPopupPlacementCallback, StaysOpen, HorizontalOffset,
+>     VerticalOffset, PlacementTarget, PlacementRectangle, PopupAnimation, AllowsTransparency, HasDropShadow.
+>   - `Menu` own DP: IsMainMenu. (ItemsControl + HeaderedItemsControl surface)
+>   - `MenuItem` own DP: Command, CommandParameter, CommandTarget, IsSubmenuOpen, Role, IsCheckable, IsPressed,
+>     IsHighlighted, IsChecked, StaysOpenOnClick, InputGestureText, Icon, IsSuspendingPopupAnimation,
+>     ItemContainerTemplateSelector, UsesItemContainerTemplate. EV: Click, Checked, Unchecked, SubmenuOpened,
+>     SubmenuClosed.
+>   - `ContextMenu` own DP: HorizontalOffset, VerticalOffset, IsOpen, PlacementTarget, PlacementRectangle, Placement,
+>     HasDropShadow, CustomPopupPlacementCallback, StaysOpen. EV: Opened, Closed.
+>   - `TabControl` own DP: TabStripPlacement, SelectedContent, SelectedContentTemplate, SelectedContentTemplateSelector,
+>     SelectedContentStringFormat, ContentTemplate, ContentTemplateSelector, ContentStringFormat. (Selector surface)
+>   - `TabItem` own DP: IsSelected, TabStripPlacement. (HeaderedContentControl)
+>   - `DataGrid` own DP: CanUserResizeColumns, ColumnWidth, MinColumnWidth, MaxColumnWidth, GridLinesVisibility,
+>     HorizontalGridLinesBrush, VerticalGridLinesBrush, HorizontalGridLineThickness, VerticalGridLineThickness,
+>     RowStyle, RowValidationErrorTemplate, RowStyleSelector, RowBackground, AlternatingRowBackground, RowHeight,
+>     MinRowHeight, RowHeaderWidth, RowHeaderActualWidth, ColumnHeaderHeight, HeadersVisibility, CellStyle,
+>     ColumnHeaderStyle, RowHeaderStyle, RowHeaderTemplate, RowHeaderTemplateSelector, HorizontalScrollBarVisibility,
+>     VerticalScrollBarVisibility, IsReadOnly, CurrentItem, CurrentColumn, CurrentCell, CanUserAddRows,
+>     CanUserDeleteRows, RowDetailsVisibilityMode, AreRowDetailsFrozen, RowDetailsTemplate, RowDetailsTemplateSelector,
+>     CanUserResizeRows, NewItemMargin, SelectionMode, SelectionUnit, CanUserSortColumns, AutoGenerateColumns,
+>     FrozenColumnCount, NonFrozenColumnsViewportHorizontalOffset, EnableRowVirtualization, EnableColumnVirtualization,
+>     CanUserReorderColumns, DragIndicatorStyle, DropLocationIndicatorStyle, ClipboardCopyMode,
+>     CellsPanelHorizontalOffset. (Selector + ItemsControl)
+>   - `TreeView` own DP: SelectedItem, SelectedValue, SelectedValuePath. EV: SelectedItemChanged. (ItemsControl)
+>   - `TreeViewItem` own DP: IsExpanded, IsSelected, IsSelectionActive. EV: Expanded, Collapsed, Selected, Unselected.
+>     (HeaderedItemsControl + ItemsControl)
+>   - `DatePicker` own DP: CalendarStyle, DisplayDate, DisplayDateEnd, DisplayDateStart, FirstDayOfWeek,
+>     IsDropDownOpen, IsTodayHighlighted, SelectedDate, SelectedDateFormat, Text. EV: SelectedDateChanged.
+>   - `GridSplitter` own DP: ResizeDirection, ResizeBehavior, ShowsPreview, PreviewStyle, KeyboardIncrement,
+>     DragIncrement. (Thumb + Control surface)
+>   - `Window` own DP: TaskbarItemInfo, AllowsTransparency, Title, Icon, SizeToContent, Top, Left, ShowInTaskbar,
+>     IsActive, WindowStyle, WindowState, ResizeMode, Topmost, ShowActivated. EV: DpiChanged. (11j-4 already
+>     registered AllowsTransparency/WindowStartupLocation/WindowStyle/Topmost/ResizeMode — the audit ADDS Title,
+>     SizeToContent, WindowState, ShowInTaskbar, ShowActivated, Top/Left, Icon.)
+>   - `Border` own DP: BorderThickness, Padding, CornerRadius, BorderBrush, Background. (FrameworkElement, non-control)
+>   - `DockPanel` own DP: LastChildFill, Dock (attached). (Panel → FrameworkElement)
+>   - `RadioButton` own DP: GroupName. (ToggleButton IsChecked/IsThreeState + Checked/Unchecked/Indeterminate)
+>   - `PasswordBox` own DP: PasswordChar, MaxLength, SelectionBrush, SelectionTextBrush, SelectionOpacity,
+>     CaretBrush, IsSelectionActive, IsInactiveSelectionHighlightEnabled. EV: PasswordChanged.
+>   - `StatusBar` own DP: ItemContainerTemplateSelector, UsesItemContainerTemplate. (ItemsControl)
+>   - `Image` own DP: Source, Stretch, StretchDirection. EV: DpiChanged, ImageFailed. (FrameworkElement, non-control)
+>   - `Separator` own DP: none. (Control)
+>   - `TextBlock` own DP (11k-1, verified from TextBlock.cs): BaselineOffset, Text, FontFamily, FontStyle, FontWeight,
+>     FontStretch, FontSize, Foreground, Background, TextDecorations, TextEffects, LineHeight, LineStackingStrategy,
+>     Padding, TextAlignment, TextTrimming, TextWrapping, IsHyphenationEnabled. NOTE: TextBlock has its OWN Padding
+>     + the Font* family (it is a FrameworkElement with its own text DPs, NOT the Control-base bundle) — VAML must
+>     register TextBlock's font/padding DPs, not inherit from Control. (FrameworkElement, non-control)
+>   - **11k-4 brushes (value/resource surfaces, verified):** SolidColorBrush: Color; LinearGradientBrush: StartPoint,
+>     EndPoint; ImageBrush: ImageSource; DrawingBrush: Drawing; DrawingGroup: Children, ClipGeometry, Opacity,
+>     OpacityMask, Transform, GuidelineSet, BitmapEffect, BitmapEffectInput; DrawingImage: Drawing; Geometry: Transform.
+>   - **11k-3 value types (authorable elements — authored at 11k-3, consumed by the brushes at 11k-4):** Color, FontFamily, Double, Thickness, GridLength, Geometry.
+>
+>   **DISTINCTION — DP/property/EVENT vs the CONTROL.NAME fidelity (closed by 11k-7) vs the DP fidelity (this 11k-8):**
+>   the two are SEPARATE gates. 11k-7 proves every element NAME exists in WPF; 11k-8 proves every PROPERTY/
+>   EVENT that corpus docs author on those elements RESOLVES to a real WPF DP/RoutedEvent. The un-audited
+>   property is the same UnknownProperty failure mode as the un-audited element name — the per-property analogue
+>   of the `Text`–`TextBlock` class of error, now CATALOGUED (in the table above, at the ground-truth granularity)
+>   so a corpus doc that authors, e.g., `Button.IsDefault`, `Slider.Ticks`, `TextBox.MaxLength`, `ComboBox.IsEditable`,
+>   `ScrollBar.ViewportSize`, `ToolBar.BandIndex`, `TreeView.SelectedItem`, `Popup.StaysOpen`, or `DataGrid.HeadersVisibility`
+>   no longer throws UnknownProperty.
+>
+> - 11k-9 — DP-FIDELITY CLOSURE IMPLEMENTATION (**FULL closure — every audited control + every audited
+>       DP/property/event**, per the user decision "full closure now", NOT tiered)  [NEWLY SCOPED —
+>       token S11k9; NOT yet DONE — this is where the audit becomes code]. STATUS: **pending (recorded as a
+>       named forward token, not silent).** Author, per the 11k-8 audit, the FULL DP/property/event surface for
+>       the implemented controls (S10: Button/TextBox/Slider/CheckBox/ScrollViewer; S11c: DockPanel/RadioButton/
+>       ComboBox/ListBox/ListView; S11d: Label/Border/shapes/Image/ProgressBar/PasswordBox/GroupBox/Expander/
+>       Separator/StatusBar; S11e: TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid;
+>       Window) AND for the 11k-added controls (11k-1 TextBlock, 11k-2 RepeatButton/ScrollBar/Viewbox/ToolBar/
+>       ToolBarTray, 11k-3 ImageBrush/DrawingBrush/DrawingGroup/DrawingImage/Geometry, 11k-4 EventTrigger, 11k-5
+>       value-type elements) — **EVERY DP in the 11k-8 audit table is registered** with its WPF-faithful
+>       ValueType (per-property; the Control-base bundle 11j-5 owns the shared names once), each RoutedEvent
+>       registered with its routing (bubbling/tunneling per the source), each classified (Solid/Border/Text/etc.).
+>       REGISTER/parse/throw on the FULL surface so a corpus doc authoring ANY WPF-valid property on a supported
+>       control resolves. Test DpFidelity_s11k9_test.cpp
+>       (one test per control asserting the full audited surface: every DP in the 11k-8 table registers + a
+>       corpus-shaped authoring of each class of property resolves end-to-end). VIEWER-GROWTH(11k): a corpus-
+>       shaped `.xaml` exercising a representative spread of the newly-true properties (Button.IsDefault,
+>       Slider.Ticks, ComboBox.IsEditable, ScrollBar.ViewportSize, TreeView.SelectedItem, DataGrid.HeadersVisibility,
+>       TextBlock.TextWrapping/LineHeight, Popup.StaysOpen, ToolBar.BandIndex) loads + renders. BOTH CI LANES
+>       green. The audit table (11k-8) is the acceptance checklist for 11k-9 — **full closure means every row
+>       of the 11k-8 table (every base-class DP/EV was already accounted by the base branch + every own-surface
+>       DP/EV) is registered and resolving; ZERO rows deferred to a later tier.**
+>
+> - 11k-10 — SURVIVOR + checkpoint (DP-fidelity closure)  [NEWLY SCOPED — token S11k10; NOT yet DONE]. Short
+>       SURVIVOR block in progress.md consolidating: the 11k-8 audit recorded at ground truth; the material
+>       (per-control DP/property/event) count gap closed by 11k-9 (**FULL closure** — list the controls + the
+>       DP/EV counts before vs after, from the audit table; every audited DP/EV registered, ZERO rows
+>       deferred to a tier); ZERO MINIMAL REAL + ZERO stubs + ZERO invented names (11k-7) + ZERO
+>       unauthorized DPs (11k-8/9) across the sprint. Both CI lanes green. Explicit NO-GAP accounting of any
+>       property NOT yet closable at this step (e.g., full animation/transform evaluation for RenderTransform,
+>       full storyboard — those ride S510; full DataGrid cell/column interaction — the S649 control-material
+>       continuation), so nothing is silently deferred. Checkpoint advances: last completed = S11k (all
+>       S11k1..S11k10 where DONE), next = **S540+ (Sprint 11z)**.
+>
+> **CONTROL vs FRAMEWORKELEMENT GROUND TRUTH (source: `E:\GitRepos\wpf`, PresentationFramework, audited as the
+> 11k-7 gate basis):** the single base-class marker is `Control : FrameworkElement`. A class is a CONTROL iff
+> it derives (transitively) from `Control`; a class is a non-control FrameworkElement iff it derives from
+> `FrameworkElement` (or `Panel`/`ContentElement`) WITHOUT passing through `Control`. Recorded so the fidelity
+> gate classifies by the WPF-true branch, not by assumption:
+>   - **ABSTRACT CONTROL ANCHORS:** `Control : FrameworkElement`; `ContentControl : Control`;
+>     `ItemsControl : Control`; `ButtonBase : ContentControl`; `RangeBase : Control`; `Selector : ItemsControl`
+>     (`MultiSelector : Selector`); `HeaderedContentControl : ContentControl`; `HeaderedItemsControl : ItemsControl`.
+>   - **CONCRETE CONTROLS (all under `Control`):** Button, ToggleButton, RepeatButton, CheckBox, RadioButton,
+>     Slider, ScrollBar, ProgressBar, ComboBox, ComboBoxItem, ListBox, ListBoxItem, ListView, ListViewItem,
+>     TabControl, TabItem, DataGrid (+DataGridRow/Cell), Calendar, DatePicker, MenuItem, ToolBar (+ToolBarTray),
+>     TreeView, TreeViewItem, Expander, GroupBox, HeaderedContentControl, HeaderedItemsControl, Label, Frame,
+>     ToolTip, StatusBar, StatusBarItem, Separator, ScrollViewer, UserControl, TextBox, RichTextBox, PasswordBox,
+>     Thumb, ResizeGrip, FlowDocumentReader, FlowDocumentScrollViewer, GridSplitter.
+>   - **NOT CONTROLS (FrameworkElement, NOT under `Control`):** **TextBlock**, Border, Canvas, Grid, StackPanel,
+>     DockPanel, WrapPanel, VirtualizingStackPanel, Viewbox, Image, Path, Shape/Rectangle/Ellipse, Run —
+>     text content hosts and layout primitives, classified on the FrameworkElement branch (S649/S470/S480-485),
+>     NOT given the Control base. `TextBlock` here is the anchor example (TextBlock : FrameworkElement).
+>   - **IMPLICATION FOR 11k-2 (corrected):** RepeatButton and ScrollBar ARE controls (`RepeatButton : ButtonBase`,
+>     `ScrollBar : RangeBase`) — Control-branch. `Viewbox : FrameworkElement` — FrameworkElement-branch. Add the
+>     widened corpus set explicitly to the gate's classified control name list when authored (TextBlock branch,
+>     controls branch, value/brush/trigger surfaces 11k-3/4/5) so the fidelity gate has a complete, WPF-sourced
+>     checklist.
 
 ---
 ## Sprint 11z — Injected-dispatcher interop + injected-dispatch wrap  (goal: the library runs inside a host message pump / dispatcher; the 3rd-party test + injected test dispatch CLOSE OUT the lib roadmap)  [token S540+]
