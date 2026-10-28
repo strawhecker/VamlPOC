@@ -160,6 +160,37 @@ struct DeferredEventHandler
     std::string_view handlerName; // S140: interned
 };
 
+// --------------------------------------------------------------------------
+// 11d-DEBUG — READER SCAN / AGGREGATE-ERRORS MODE (viewer "show all errors",
+// `--fail_on_first_error` default off). Option A scope: A SINGLE DISCOVERED
+// DOCUMENT reports ALL of its unknown-property (and sibling authoring) errors in
+// ONE pass instead of throwing at the first. The reader KEEPS its strict
+// fail-fast default (vamlcc / compiled / release / every existing consumer are
+// bit-identical); this lenient mode is OPT-IN via set_collect_issues(true).
+//
+// In collect mode build() RECORDS each offender into issues() and CONTINUES
+// scanning the rest of the element's attributes + descends into children, so a
+// whole document's errors surface at once (the "find all errors" goal). The
+// viewer's load_text/load_file set collect mode and, on error, return the full
+// aggregated list with ok=false (a strict-fail result, never a silent success).
+//
+// CONTRACT BOUNDARY (recorded, NOT silent): collect mode consumes the
+// attribute-level + property-element unknown-property genre in build() — the
+// exact class that produced `unknown property 'AllowsTransparency'` — which is
+// the reader's OWN error (VamlReaderError::UnknownProperty) and is safe to
+// continue past. The DEEPER authored-resource genres (Style Setter/Trigger,
+// Brush, ResourceDictionary capture, GradientStop) and the lower-layer failures
+// (unknown ELEMENT -> ElementResolutionException, malformed VALUE ->
+// ValueConversionException) stay fail-fast in BOTH modes: they are structural,
+// not safe to skip mid-build without risking a partial tree. Those are
+// surfaced (ever non-silent) on their first occurrence exactly as before. This
+// is a deliberate, bounded scope — recorded here, not a silent backfill.
+struct ScanIssue
+{
+    VamlReaderError kind = VamlReaderError::None;
+    std::string what;   // the same human message the strict throw would carry (never empty)
+};
+
 class VAML_CORE_EXPORT VamlReader
 {
 public:
@@ -180,6 +211,30 @@ public:
     // S092: also records the x:Name registry (Strand A), deferred markup
     // extensions (Strand B) and deferred event handlers (Strand C).
     [[nodiscard]] std::unique_ptr<DependencyObject> Load(const ParsedElement& root);
+
+    // ------------------------------------------------------------------
+    // 11d-DEBUG — reader SCAN / AGGREGATE-ERRORS mode (viewer "show all
+    // errors", `--fail_on_first_error` default off). Option A scope, see the
+    // ScanIssue comment. Strict FAIL-FAST remains the DEFAULT for every
+    // existing consumer; collect mode is OPT-IN.
+    // ------------------------------------------------------------------
+
+    // Enables (true) or disables (false, default) LENIENT scan mode. In collect
+    // mode build() records each reader-owned unknown-property offender into
+    // issues() and keeps scanning the document (one pass, ALL errors), instead
+    // of throwing at the first. NOT per-Load cleared here (an app sets it once
+    // for the scan session); issues() IS cleared at each Load's start. The
+    // structural/lower-layer genres stay fail-fast in both modes (see the
+    // ScanIssue comment — a recorded, deliberate boundary, not a silent gap).
+    void set_collect_issues(bool on) noexcept { collectIssues_ = on; }
+
+    // True iff collect mode is enabled.
+    [[nodiscard]] bool collect_issues() const noexcept { return collectIssues_; }
+
+    // The reader-owned issues recorded by the most recent Load in collect mode.
+    // Cleared at the start of each Load. Empty in strict mode (and empty when a
+    // collect-mode Load found nothing). Document order (first offender first).
+    [[nodiscard]] const std::vector<ScanIssue>& issues() const noexcept { return issues_; }
 
     // The non-root built objects, in construction (document) order. Each is
     // owned exactly once by this reader during parse (the S091/D1 model); the
@@ -493,6 +548,15 @@ private:
     // key across the built dictionaries. Called at the end of Load.
     void resolve_deferred_based_on();
 
+    // 11d-DEBUG — attribute-level unknown-property report/throw decision.
+    // In strict mode (default) throws VamlReaderException(UnknownProperty, key,
+    // what) exactly as before. In collect mode records {What, what} into
+    // issues_ and RETURNS (the caller continues scanning). The two structural
+    // genres it is NOT used for (resource-authoring + lower-layer) stay
+    // fail-fast; only the reader-OWNED attribute/property-element unknown-
+    // property genre is collectible (see ScanIssue's contract note).
+    void report_unknown_property(std::string key, std::string what);
+
     // S454 (dep:S453) — STYLE AUTHORING + TRIGGERS (the S362/S363 engine AUTHORED
     // from .vaml). Consumes a parsed `<Style>` element (already resolved to a
     // Style object) into the live S362 data model:
@@ -565,6 +629,11 @@ private:
 
     // S092 Strand B — deferred markup extensions (document order).
     std::vector<DeferredExtension> deferred_extensions_;
+
+    // 11d-DEBUG — collect mode flag (lenient scan, opt-in; strict default) +
+    // the accumulated ScanIssues (cleared at each Load's start).
+    bool collectIssues_ = false;
+    std::vector<ScanIssue> issues_;
 
     // S092 Strand C — registered event names + deferred event handlers.
     std::vector<std::string> event_names_;

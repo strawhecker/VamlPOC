@@ -63,6 +63,8 @@ using vaml::Value;
 using vaml::ValueType;
 using vaml::Window;
 using vaml::load_file;
+using vaml::load_scan_file;
+using vaml::load_scan_text;
 using vaml::load_text;
 
 namespace {
@@ -289,4 +291,62 @@ TEST_CASE("S221: a TEMP malformed fixture yields ParseError (not a silent ok)")
     SHOULD(ShouldlyIntegral(r.detail.empty()).ShouldBe(0)); // NEVER silent
 
     std::remove(kTmp);
+}
+
+// ---------------------------------------------------------------------------
+// 11d-DEBUG — SCAN mode (option A): ONE document reports ALL of its
+// unknown-property errors in one pass (default), and --fail_on_first_error
+// restores the strict single-error behavior. An errored document is never
+// rendered (ok=false, root=null) in BOTH modes.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("11d-DEBUG: load_scan_text collects ALL unknown properties in ONE pass")
+{
+    // registerS221Properties() registers S221* DPs only; these three Window/
+    // Button attributes are NOT S221* and therefore unknown. In scan mode the
+    // reader must report EVERY one, not just the first.
+    registerS221Properties();
+    // NOTE: `Window` supports arbitrary attributes in the golden set; here we
+    // author genuinely-unknown keys (AllowsTransparency + WindowStartupLocation
+    // + a bogus child attr) to prove aggregation of MULTIPLE errors in one pass.
+    const LoadResult r = load_scan_text(std::string(
+        "<Window AllowsTransparency=\"true\" WindowStartupLocation=\"Center\">"
+        "<Button BogusOne=\"1\" BogusTwo=\"2\"/>"
+        "</Window>"));
+
+    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(0));
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.error))
+               .ShouldBe(static_cast<int>(FileLoadError::ParseError)));
+    SHOULD(ShouldlyIntegral(r.root == nullptr).ShouldBe(1));   // never render from an errored doc
+    SHOULD(ShouldlyIntegral(r.detail.empty()).ShouldBe(0));    // never silent
+    // ALL FOUR authoring errors (2 on the root + 2 on the child Button) are
+    // aggregated into `issues` in ONE pass, not just the first.
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.issues.size())).ShouldBe(4));
+    // Each issue carries a non-empty, authoring-error line.
+    for (const vaml::ScanResultItem& issue : r.issues)
+    {
+        SHOULD(ShouldlyIntegral(issue.what.empty()).ShouldBe(0));
+    }
+}
+
+TEST_CASE("11d-DEBUG: a clean document scans OK (issues empty, root present)")
+{
+    registerS221Properties();
+    const LoadResult r = load_scan_text(std::string(
+        "<Window S221Title=\"Clean\" S221Width=\"100\"><StackPanel/></Window>"));
+    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.error))
+               .ShouldBe(static_cast<int>(FileLoadError::None)));
+    SHOULD(ShouldlyIntegral(r.issues.empty()).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(r.root != nullptr).ShouldBe(1));
+}
+
+TEST_CASE("11d-DEBUG: load_scan_file(missing) maps NoSuchFile (typed, never silent)")
+{
+    const LoadResult r = load_scan_file("s11d_definitely_missing.vaml");
+    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(0));
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.error))
+               .ShouldBe(static_cast<int>(FileLoadError::NoSuchFile)));
+    SHOULD(ShouldlyIntegral(r.issues.empty()).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(r.detail.empty()).ShouldBe(0));
 }

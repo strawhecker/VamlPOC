@@ -318,12 +318,15 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         // Resolve the property definition globally. An attribute naming a
         // property with no global DependencyProperty -> VamlReaderException
         // (S091's unknown-property baseline; S094 owns the full taxonomy).
+        // 11d-DEBUG: strict = the throw (unchanged); collect = record + keep
+        // scanning the document so ALL unknown properties surface in one pass.
         const DependencyProperty* dp = DependencyProperty::TryGet(attr.key);
         if (dp == nullptr)
         {
-            throw VamlReaderException(
-                VamlReaderError::UnknownProperty, std::string(attr.key),
+            report_unknown_property(
+                std::string(attr.key),
                 "unknown property '" + std::string(attr.key) + "'");
+            continue;   // collect mode: skip the (never-valid) set, keep scanning
         }
 
         const Value value = convertLiteral(*dp, attr.value);
@@ -1023,6 +1026,20 @@ void VamlReader::resolve_deferred_based_on()
 }
 
 VAML_CORE_EXPORT
+VAML_CORE_EXPORT
+void VamlReader::report_unknown_property(std::string key, std::string what)
+{
+    // 11d-DEBUG — strict default throws (unchanged, fail-loud); collect mode
+    // records + returns so the build continues scanning the whole document.
+    if (!collectIssues_)
+    {
+        throw VamlReaderException(VamlReaderError::UnknownProperty,
+                                  std::move(key), std::move(what));
+    }
+    issues_.push_back(ScanIssue{VamlReaderError::UnknownProperty, std::move(what)});
+}
+
+VAML_CORE_EXPORT
 std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
 {
     ensure_startup_registrations();
@@ -1041,6 +1058,7 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     owned_merged_.clear();           // S453: per-Load merged-resource scope
     built_dicts_.clear();            // S454: per-Load authored-dict index
     deferred_based_on_.clear();      // S454: per-Load Style BasedOn wires
+    issues_.clear();                 // 11d-DEBUG: per-Load scan-issue scope
 
     // S144: reserve the per-Load vectors from the parsed tree's known size
     // (no reallocation churn while building).

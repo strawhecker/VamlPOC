@@ -69,27 +69,27 @@ LoadResult failure_for(std::exception_ptr ex)
     }
     catch (const XmlScanException& e)
     {
-        return {false, nullptr, FileLoadError::ParseError, e.what()};
+        return {false, nullptr, FileLoadError::ParseError, e.what(), {}};
     }
     catch (const XmlParseException& e)
     {
-        return {false, nullptr, FileLoadError::ParseError, e.what()};
+        return {false, nullptr, FileLoadError::ParseError, e.what(), {}};
     }
     catch (const VamlReaderException& e)
     {
-        return {false, nullptr, FileLoadError::ParseError, e.what()};
+        return {false, nullptr, FileLoadError::ParseError, e.what(), {}};
     }
     catch (const ElementResolutionException& e)
     {
-        return {false, nullptr, FileLoadError::ParseError, e.what()};
+        return {false, nullptr, FileLoadError::ParseError, e.what(), {}};
     }
     catch (const ValueConversionException& e)
     {
-        return {false, nullptr, FileLoadError::ParseError, e.what()};
+        return {false, nullptr, FileLoadError::ParseError, e.what(), {}};
     }
     catch (const std::exception& e)
     {
-        return {false, nullptr, FileLoadError::ParseError, e.what()};
+        return {false, nullptr, FileLoadError::ParseError, e.what(), {}};
     }
 }
 
@@ -101,12 +101,65 @@ LoadResult load_text(const std::string& text)
     {
         VamlReader reader;
         std::unique_ptr<DependencyObject> root = reader.Load(text);
-        return {true, std::move(root), FileLoadError::None, {}};
+        return {true, std::move(root), FileLoadError::None, {}, {}};
     }
     catch (...)
     {
         return failure_for(std::current_exception());
     }
+}
+
+LoadResult load_scan_text(const std::string& text)
+{
+    try
+    {
+        // 11d-DEBUG — COLLECT mode (reader lenient): one pass, ALL of the
+        // document's reader-OWNED unknown-property errors, not just the first.
+        // Default viewer behavior (the "show all errors in a document" goal).
+        VamlReader reader;
+        reader.set_collect_issues(true);
+        std::unique_ptr<DependencyObject> root = reader.Load(text);
+
+        if (root != nullptr && reader.issues().empty())
+        {
+            return {true, std::move(root), FileLoadError::None, {}, {}};
+        }
+        // Any collected issue (or a null root despite no issue) -> the document
+        // is NOT valid: no render (root stays null), full aggregated list in
+        // `issues`, never silent.
+        std::vector<ScanResultItem> items;
+        for (const vaml::ScanIssue& i : reader.issues())
+        {
+            items.push_back(ScanResultItem{i.what});
+        }
+        std::string detail =
+            "document has " + std::to_string(items.size()) +
+            " authoring error(s); none rendered";
+        return {false, nullptr, FileLoadError::ParseError, std::move(detail), std::move(items)};
+    }
+    catch (...)
+    {
+        // A structural/lower-layer failure (not safe to continue past) still
+        // surfaces as a single-line ParseError, exactly like load_text.
+        return failure_for(std::current_exception());
+    }
+}
+
+LoadResult load_scan_file(const std::string& path)
+{
+    std::string contents;
+    switch (read_file(path, contents))
+    {
+    case ReadStatus::Missing:
+        return {false, nullptr, FileLoadError::NoSuchFile,
+                "no such file: '" + path + "'", {}};
+    case ReadStatus::NoRead:
+        return {false, nullptr, FileLoadError::ReadError,
+                "cannot read file: '" + path + "'", {}};
+    case ReadStatus::ReadOk:
+        break; // fall through to the scan path
+    }
+    return load_scan_text(contents);
 }
 
 LoadResult load_file(const std::string& path)
@@ -116,10 +169,10 @@ LoadResult load_file(const std::string& path)
     {
     case ReadStatus::Missing:
         return {false, nullptr, FileLoadError::NoSuchFile,
-                "no such file: '" + path + "'"};
+                "no such file: '" + path + "'", {}};
     case ReadStatus::NoRead:
         return {false, nullptr, FileLoadError::ReadError,
-                "cannot read file: '" + path + "'"};
+                "cannot read file: '" + path + "'", {}};
     case ReadStatus::ReadOk:
         break; // fall through to the parse path
     }

@@ -176,7 +176,15 @@ int main(int argc, char** argv)
         return app->run_loop();
     }
 
-    vaml::LoadResult result = vaml::load_file(path);   // NON-const: moved into ViewerApp::create below
+    // 11d-DEBUG — SCAN mode (default): the viewer parses the document in COLLECT
+    // mode and reports ALL of its authoring errors in one pass (the "find all
+    // errors" goal), unless `--fail_on_first_error` restores the strict
+    // fail-fast pre-scan behavior. Either way, an errored document is NEVER
+    // rendered (no window, exit 3).
+    const bool failFirst = vaml::viewer::cli_wants_fail_first(argc, argv);
+    vaml::LoadResult result =
+        failFirst ? vaml::load_file(path)        // strict: stop at the first error
+                  : vaml::load_scan_file(path);  // scan: report ALL the document's errors
 
     if (!result.ok)
     {
@@ -189,7 +197,13 @@ int main(int argc, char** argv)
             std::fprintf(stderr, "vaml_viewer: %s\n", result.detail.c_str());
             return 1;
         case vaml::FileLoadError::ParseError:
+            // An errored document is never rendered (no window). Scan mode: print
+            // the FULL aggregated list; strict/fail-first: the single first error.
             std::fprintf(stderr, "vaml_viewer: parse error: %s\n", result.detail.c_str());
+            for (const vaml::ScanResultItem& issue : result.issues)
+            {
+                std::fprintf(stderr, "  - %s\n", issue.what.c_str());
+            }
             return 3;
         case vaml::FileLoadError::None:
         default:

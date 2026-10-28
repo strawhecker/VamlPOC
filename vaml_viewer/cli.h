@@ -76,6 +76,15 @@ enum class CliAction
                 // it alone makes the action Run so `vaml_viewer --app` launches.
                 else if (a[2] == 'a' && a[3] == 'p' && a[4] == 'p' && a[5] == '\0')
                     sawApp = true;
+                // 11d-DEBUG: `--fail_on_first_error` is a FLAG (not a positional)
+                // — it must NOT become the file path; it needs a real positional
+                // to launch, so it sets sawArg=false (like --compiled).
+                else if (a[2] == 'f' && a[3] == 'a' && a[4] == 'i' && a[5] == 'l' &&
+                         a[6] == '_' && a[7] == 'o' && a[8] == 'n' && a[9] == '_' &&
+                         a[10] == 'f' && a[11] == 'i' && a[12] == 'r' && a[13] == 's' &&
+                         a[14] == 't' && a[15] == '_' && a[16] == 'e' && a[17] == 'r' &&
+                         a[18] == 'r' && a[19] == 'o' && a[20] == 'r' && a[21] == '\0')
+                    sawArg = false;
                 else
                     sawArg = true;   // some other long option -> treated as a positional
             }
@@ -116,6 +125,34 @@ enum class CliAction
     return false;
 }
 
+// 11d-DEBUG — scans argv for the `--fail_on_first_error` flag. When PRESENT,
+// the viewer stops at the FIRST authoring error (strict fail-fast — the
+// pre-scan default); when ABSENT (the DEFAULT), the viewer scans the whole
+// document and reports ALL of its errors in one pass. Pure + headless.
+[[nodiscard]] inline bool cli_wants_fail_first(int argc, const char* const* argv) noexcept
+{
+    if (!argv)
+    {
+        return false;
+    }
+    for (int i = 1; i < argc; ++i)
+    {
+        if (argv[i] == nullptr)
+            continue;
+        const char* a = argv[i];
+        if (a[0] == '-' && a[1] == '-' &&
+            a[2] == 'f' && a[3] == 'a' && a[4] == 'i' && a[5] == 'l' &&
+            a[6] == '_' && a[7] == 'o' && a[8] == 'n' && a[9] == '_' &&
+            a[10] == 'f' && a[11] == 'i' && a[12] == 'r' && a[13] == 's' &&
+            a[14] == 't' && a[15] == '_' && a[16] == 'e' && a[17] == 'r' &&
+            a[18] == 'r' && a[19] == 'o' && a[20] == 'r' && a[21] == '\0')
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Scans argv for the S440 `--app` flag (launches the in-repo APP-SHELL — the
 // Sprint 11 v1 app — with NO file). Returns true only when the exact `--app`
 // token appears. Pure + headless-testable.
@@ -145,7 +182,7 @@ enum class CliAction
 [[nodiscard]] inline const char* cli_usage() noexcept
 {
     return
-        "usage: vaml_viewer [--app | --compiled] [<file>]\n"
+        "usage: vaml_viewer [--app | --compiled | --fail_on_first_error] [<file>]\n"
         "\n"
         "Renders a VAML / XAML document to a window (file -> parse -> tree -> layout -> Vulkan render),\n"
         "or launches the in-repo app-shell (Sprint 11 v1 app) with --app and no file.\n"
@@ -160,6 +197,9 @@ enum class CliAction
         "  --compiled     open via the COMPILED path: a .vaml / .xaml source is recompiled\n"
         "                 to .vbaml (vamlcc, the runtime VBamlReader) before render; a .vbaml\n"
         "                 is loaded directly. [S293 VIEWER GROWTH: compiled path]\n"
+        "  --fail_on_first_error   stop at the FIRST authoring error (strict fail-fast; the\n"
+        "                 DEFAULT is to scan the whole document and report ALL its errors -\n"
+        "                 see 11d-DEBUG). This flag forces the pre-scan behavior.\n"
         "\n"
         "The rendered view supports PAN (left-drag) and ZOOM (mouse wheel). The window\n"
         "title shows the loaded file's name (or the app-shell title in --app mode). Live\n"
@@ -210,7 +250,14 @@ enum class CliAction
                     a[2] == 'c' && a[3] == 'o' && a[4] == 'm' && a[5] == 'p' && a[6] == 'i' &&
                     a[7] == 'l' && a[8] == 'e' && a[9] == 'd' && a[10] == '\0';
                 const bool isApp = a[2] == 'a' && a[3] == 'p' && a[4] == 'p' && a[5] == '\0';
-                if (isHelp || isCompiled || isApp)
+                // 11d-DEBUG: `--fail_on_first_error` is a known flag (not the file).
+                const bool isFailFirst =
+                    a[2] == 'f' && a[3] == 'a' && a[4] == 'i' && a[5] == 'l' &&
+                    a[6] == '_' && a[7] == 'o' && a[8] == 'n' && a[9] == '_' &&
+                    a[10] == 'f' && a[11] == 'i' && a[12] == 'r' && a[13] == 's' &&
+                    a[14] == 't' && a[15] == '_' && a[16] == 'e' && a[17] == 'r' &&
+                    a[18] == 'r' && a[19] == 'o' && a[20] == 'r' && a[21] == '\0';
+                if (isHelp || isCompiled || isApp || isFailFirst)
                     continue;   // a known flag -> not the file
             }
             else if (a[1] == 'h' && a[2] == '\0')

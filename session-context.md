@@ -1,8 +1,44 @@
-# Session Context — Sprint 11d (S480–S486)
+# Session Context — Sprint 11d-DEBUG (viewer scan/aggregate-errors)
 
-last_command: implementit (COMPLETE) — Sprint 11d DONE
-plan_digest: S480-S486 all implemented. Label (S480) → Border (S481, the FIRST live `MaterialKind::Border`/border_rect — the dormant S205 Border pipeline CLOSED) → Rectangle/Ellipse/Line shapes (S482) → Image (S483) → ProgressBar (S484) → PasswordBox/GroupBox/Expander/Separator/StatusBar (S485) → VIEWER-GROWTH 11d (S486). Registry gate 21→33. BOTH CI LANES green.
-files_touched: src/core/include/vaml/core/Element.h/.cpp (12 REAL UIElements — Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/PasswordBox/GroupBox/Expander/Separator/StatusBar — owner-scoped DPs, measure/arrange, single-content + StatusBar.Dock attached; registry gate 21→33), src/vulkan/src/ui/UiSceneEncoder.cpp (classify_element: Border→Border, Image→Monochrome, the rest→Solid), src/presentation/src/VamlRenderer.cpp (classify_merge_element: Border emits the live border_rect BorderRect; ProgressBar track+fill; Image Monochrome; shapes/panels solids), test/unit/Label, Border, Shapes, Image, ProgressBar, PasswordGroupStatus, ViewerGrowth_s486 + ElementFactoryRegistry/Milestone407/BrushAuthoring gates 21→33, vaml_viewer/sample.vaml (the 11d breadth: Label/Border/shapes/Image/ProgressBar/PasswordBox/GroupBox/Expander/Separator/StatusBar), progress.md (S11d survivor S480-S486), session-context.md (this file), build/verify_s486.cmd
-build_status: S480-S486 DONE — BOTH CI LANES green (windows-msvc msvc-debug warning-as-error CLEAN + ctest 4/4 100%; ubuntu-clang clang-debug ctest 4/4 100%). No warnings.
-next_step: Sprint 12 — S490+ (forward carry: MenuItem element S491/11e; ContentControl/control-material abstraction; ProgressBar indeterminate/segmented chrome; Ellipse curved outline + Image real atlas quad + expand chevron + Border/GroupBox content-child authoring polish → S649)
-notes: Sprint 11d complete. ZERO MINIMAL REAL added in 11d — every control is a REAL re-based UIElement resolved at its own step (S480-S485). No new MaterialKind enums, no ContentControl base (the S649 continuation, recorded NO-GAP not silent). The dormant S205 BorderRect path was made LIVE at S481 (its own step, not a backfill). ADR-018 zero new locks. No commits (standing directive — commitit outstanding, driver's seat is yours).
+last_command: implementit (COMPLETE) — viewer scan/aggregate-errors 11d-DEBUG DONE
+plan_digest: 11d-DEBUG — the viewer parses ONE document in COLLECT mode (reader lenient,
+  opt-in) and reports ALL of its reader-OWNED unknown-property errors in ONE pass
+  (the "find all errors" goal — fixes seeing only `unknown property 'AllowsTransparency'`
+  then whack-a-mole). `--fail_on_first_error` (DEFAULT off) restores the strict
+  fail-fast single-first-error behavior. An errored document is NEVER rendered
+  (root=null, exit 3, no window) — the "stop writing on first error" safety
+  invariant (viewer's write = render surface; never publish a partial doc).
+  BOTH CI LANES green.
+files_touched: src/core/include/vaml/core/VamlReader.h + src/core/src/VamlReader.cpp
+  (ScanIssue struct + set_collect_issues(bool)/issues()/report_unknown_property —
+  strict default unchanged, collect opt-in, per-Load cleared issues_;
+  build() attribute + property-element unknown-property genre routes through
+  report_unknown_property: strict=throw, collect=record+continue),
+  vaml_viewer/load_file.h/.cpp (LoadResult.issues + load_scan_text/load_scan_file —
+  collect mode entry, aggregated ParseError, root=null on any issue),
+  vaml_viewer/cli.h (cli_wants_fail_first + --fail_on_first_error treated as a
+  FLAG not a positional in cli_action/cli_file_path + usage),
+  vaml_viewer/main.cpp (text path: default load_scan_file, fail-first->load_file;
+  prints the FULL aggregated list on ParseError; exit 3),
+  test/unit/VamlReader_test.cpp (collect-mode reader tests),
+  test/unit/ViewerLoadFile_test.cpp (load_scan_text/scan_file tests),
+  test/unit/ViewerCli_test.cpp (cli_wants_fail_first + flag-not-positional + usage),
+  test/unit/LiveReload_test.cpp (LoadResult 5-field aggregate fix)
+build_status: 11d-DEBUG DONE — BOTH CI LANES green (windows-msvc msvc-debug warning-as-error
+  CLEAN + ctest 4/4 100%; ubuntu-clang clang-debug ctest 4/4 100%). No warnings.
+next_step: Sprint 12 — S490+ (forward carry: MenuItem element S491/11e; ContentControl/
+  control-material abstraction; register Window's real DPs — AllowsTransparency,
+  WindowStartupLocation, WindowStyle, Topmost, ResizeMode — so those resolve instead
+  of surfacing as unknown; scanner report to show every attribute incl. Window;
+  ProgressBar indeterminate/segmented chrome; Ellipse curved outline + Image real
+  atlas quad + expand chevron + Border/GroupBox content-child authoring polish -> S649)
+notes: 11d-DEBUG complete (Option A only — ONE document, all its errors in one pass;
+  NO multi-file directory walk per explicit scope). Scope boundary recorded in
+  ScanIssue's comment: collect mode covers the reader-OWNED attribute + property-
+  element unknown-property genre only; the DEEPER authored-resource genres (Style
+  Setter/Trigger, Brush, ResourceDictionary capture, GradientStop) + lower-layer
+  failures (unknown element, malformed value) stay FAIL-FAST in both modes
+  (deliberate, recorded, not silent). New public symbols: ScanIssue,
+  set_collect_issues, issues(), report_unknown_property, load_scan_text,
+  load_scan_file, cli_wants_fail_first. ZERO MINIMAL REAL introduced. No commits
+  (standing directive — commitit outstanding, driver's seat is yours).

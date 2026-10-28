@@ -302,6 +302,58 @@ TEST_CASE("11d: a non-design unknown property still throws UnknownProperty")
 }
 
 // ---------------------------------------------------------------------------
+// 11d-DEBUG — COLLECT mode: one document reports ALL its unknown properties in
+// one pass (strict default is unchanged; collect mode is opt-in).
+// ---------------------------------------------------------------------------
+
+TEST_CASE("11d-DEBUG: collect mode records ALL unknown properties, strict default throws first")
+{
+    registerS091Properties();
+    VamlReader reader;
+
+    // STRICT default: the first unknown property throws (existing contract).
+    bool strictThrew = false;
+    try
+    {
+        (void)reader.Load("<Button BogusA=\"1\" BogusB=\"2\"/>");
+    }
+    catch (const VamlReaderException& e)
+    {
+        strictThrew = (e.kind() == VamlReaderError::UnknownProperty);
+    }
+    SHOULD(ShouldlyIntegral(static_cast<int>(strictThrew)).ShouldBe(1));
+
+    // COLLECT mode (opt-in): BOTH unknown properties recorded in ONE pass,
+    // issues() non-empty, each with a non-empty authoring-error line.
+    VamlReader scan;
+    scan.set_collect_issues(true);
+    (void)scan.Load("<Button BogusA=\"1\" BogusB=\"2\"/>");
+    SHOULD(ShouldlyIntegral(static_cast<int>(scan.issues().size())).ShouldBe(2));
+    SHOULD(ShouldlyIntegral(scan.issues().empty()).ShouldBe(0));
+    for (const vaml::ScanIssue& i : scan.issues())
+    {
+        SHOULD(ShouldlyIntegral(i.what.empty()).ShouldBe(0));
+        SHOULD(ShouldlyIntegral(static_cast<int>(i.kind))
+                   .ShouldBe(static_cast<int>(VamlReaderError::UnknownProperty)));
+    }
+    SHOULD(ShouldlyIntegral(scan.issues()[0].what.find("BogusA") != std::string::npos).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(scan.issues()[1].what.find("BogusB") != std::string::npos).ShouldBe(1));
+}
+
+TEST_CASE("11d-DEBUG: collect mode is per-Load cleared + clean document yields no issues")
+{
+    registerS091Properties();
+    // A second clean Load on the same reader must NOT carry the prior Load's
+    // issues (per-Load scope), matching every other S092 per-Load registry.
+    VamlReader scan;
+    scan.set_collect_issues(true);
+    (void)scan.Load("<Button BogusA=\"1\"/>");
+    SHOULD(ShouldlyIntegral(static_cast<int>(scan.issues().size())).ShouldBe(1));
+    (void)scan.Load("<StackPanel><Button S091Width=\"10\"/></StackPanel>");
+    SHOULD(ShouldlyIntegral(scan.issues().empty()).ShouldBe(1));
+}
+
+// ---------------------------------------------------------------------------
 // 6. malformed literal -> ValueConversionException propagates
 // ---------------------------------------------------------------------------
 

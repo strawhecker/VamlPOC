@@ -107,7 +107,7 @@ TEST_CASE("S222_1: GOLDEN — edit → reload → same tree (real temp file, rea
     vaml::LoadResult lastLoaded;
     int errorCount = 0;
     reload.on_reloaded([&](std::unique_ptr<vaml::DependencyObject> root) {
-        lastLoaded = {true, std::move(root), vaml::FileLoadError::None, {}};
+        lastLoaded = {true, std::move(root), vaml::FileLoadError::None, {}, {}};
         ++loadedCount;
     });
     reload.on_reload_error([&](const std::string&) { ++errorCount; });

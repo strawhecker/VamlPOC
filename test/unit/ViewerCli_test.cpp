@@ -132,6 +132,36 @@ TEST_CASE("S440: --app + a file still prefers the app-shell launch (flag wins th
     CHECK(cli_wants_app_shell(3, argvBoth) == true);
 }
 
+TEST_CASE("11d-DEBUG: cli_wants_fail_first detects --fail_on_first_error (+ null-safe)")
+{
+    const char* argv[] = { "vaml_viewer", "--fail_on_first_error", "scene.vaml" };
+    CHECK(cli_wants_fail_first(3, argv) == true);
+    // Absent by default (scan-all is the default).
+    const char* argvNo[] = { "vaml_viewer", "scene.vaml" };
+    CHECK(cli_wants_fail_first(2, argvNo) == false);
+    // null argv is safe + deterministic.
+    CHECK(cli_wants_fail_first(0, nullptr) == false);
+}
+
+TEST_CASE("11d-DEBUG: --fail_on_first_error is a FLAG, not a positional file")
+{
+    // It must not become the file path, and it needs a real positional to Run.
+    const char* argvFile[] = { "vaml_viewer", "--fail_on_first_error", "scene.vaml" };
+    CHECK(cli_action(3, argvFile) == CliAction::Run);
+    CHECK(cli_file_path(3, argvFile) == std::string("scene.vaml"));
+    // Alone (no file), it is NOT a positional file -> NoArg (usage, exit 2).
+    const char* argvOnly[] = { "vaml_viewer", "--fail_on_first_error" };
+    CHECK(cli_action(2, argvOnly) == CliAction::NoArg);
+    CHECK(cli_file_path(2, argvOnly) == std::string(""));
+}
+
+TEST_CASE("11d-DEBUG: cli_usage documents the scan default + --fail_on_first_error")
+{
+    const char* u = cli_usage();
+    REQUIRE(u != nullptr);
+    CHECK(std::strstr(u, "--fail_on_first_error") != nullptr);
+}
+
 TEST_CASE("S224: loaded_filename derives the basename (title = loaded filename polish)")
 {
     CHECK(loaded_filename("/home/robert/scene.vaml") == "scene.vaml");

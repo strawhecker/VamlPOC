@@ -57,12 +57,25 @@ enum class FileLoadError
 // live tree and `error == FileLoadError::None`. On failure `error` names the
 // category and `detail` carries the underlying structured message (the
 // exception's what() — never a bare silence). `root` is null on failure.
+//
+// 11d-DEBUG — SCAN mode: `issues` carries the FULL aggregated list of the
+// document's reader-OWNED unknown-property errors (option A: all of ONE
+// document's errors in one pass). In strict mode (default / --fail_on_first_error)
+// `issues` is empty and `detail` names the FIRST error. In scan mode `issues`
+// is NON-EMPTY on a failed document, each entry a single authoring error, and
+// `detail` names the count (never a silent success). See load_scan_text.
+struct ScanResultItem
+{
+    std::string what;   // one authoring error line (e.g. "unknown property 'X'")
+};
+
 struct LoadResult
 {
     bool ok = false;
     std::unique_ptr<DependencyObject> root;
     FileLoadError error = FileLoadError::None;
     std::string detail;
+    std::vector<ScanResultItem> issues;   // 11d-DEBUG: aggregated errors (scan mode)
 };
 
 // Reads `path` and Loads a live tree. File I/O failures become NoSuchFile /
@@ -77,5 +90,21 @@ struct LoadResult
 // golden-fixture tests target THIS (deterministic in-memory injection), and
 // load_file delegates its read bytes here (DRY parse-error mapping).
 [[nodiscard]] LoadResult load_text(const std::string& text);
+
+// 11d-DEBUG — SCAN mode: parses a text buffer in COLLECT mode (reader lenient),
+// returning ALL of the document's reader-OWNED unknown-property errors in
+// `issues` instead of stopping at the first, with ok=false. This is what "show
+// all errors in a document" means (option A). The STRICT path (load_text /
+// load_file, default) is unchanged; callers opt into the full scan explicitly.
+// The structural/lower-layer genres + any error not safe to continue past still
+// fail fast and surface as a single-line ParseError, exactly as load_text does.
+[[nodiscard]] LoadResult load_scan_text(const std::string& text);
+
+// 11d-DEBUG — SCAN mode over a path: reads `path`, then load_scan_text. File I/O
+// failures map exactly as load_file (NoSuchFile / ReadError). A document that
+// read + scanned fine is ok=true; a document with any collected issue is
+// ok=false with the full list in `issues` (root is null — never render from an
+// errored document).
+[[nodiscard]] LoadResult load_scan_file(const std::string& path);
 
 } // namespace vaml
