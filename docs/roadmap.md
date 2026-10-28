@@ -1572,6 +1572,7 @@ Growth tokens by sprint:
       ✅ DONE (11d)
 - S486 SURVIVOR(11d): short block in progress.md. ✅ DONE (11d) — registry gate 21→33; no new MaterialKind
       enums / no ContentControl base (S649 continuation, recorded NOT silent); ZERO MINIMAL REAL added.
+      DESIGN-TIME STRIP (11d) [?] [MINIMAL REAL] VamlReader design-time attribute guard - a PREFIX-keyed, d:-abbreviation guard (attr.prefix=="d") that strips design-time attributes (d:DesignHeight, d:DataContext, ...) verbatim, never resolving / never throwing UnknownProperty; mc:Ignorable consumed as belt-and-suspenders; a non-design unknown property still throws UnknownProperty. Scoped hack: NO URI-namespace reading, NO general abbreviation set, NO mc:Ignorable-driven ignorable set. RESOLVED BY 11h/11i (the abbreviation/URI-namespace + mc:Ignorable model) - Do NOT extend silently; do NOT backfill.
 
 ---
 ## Sprint 11e — Container + menu controls (TabControl/Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid)  (goal: the container/tab/menu/grid surface)  [token S490+]
@@ -1627,6 +1628,9 @@ Growth tokens by sprint:
 - S530 dep:S522  REFACTOR GATE(11-series): full build + ctest BOTH lanes green; grep-audit — every new control/
       layout/converter/behavior is REAL (no stub / no MINIMAL REAL / no silent backfill); the S366 authoring
       NO-GAP is CONSUMED; the complete non-3rd-party content set is present (hard goal 2, ZERO gaps).
+      RESOLVES the 11d DESIGN-TIME STRIP [MINIMAL REAL] (11d): the general abbreviation/URI-namespace +
+      mc:Ignorable-driven ignorable-set model is authored HERE, replacing the scoped 11d d:-prefix guard in
+      VamlReader.cpp (design-time attributes resolved via the namespace model, not stripped by prefix).
 - S531 dep:S530  VIEWER-GROWTH(11-series-closure): a consolidated sample.series.vaml exercises the ENTIRE
       non-3rd-party content breadth in the LIVE viewer; every prior sprint's growth redisplays green.
       BOTH CI LANES green.

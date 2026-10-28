@@ -260,6 +260,47 @@ TEST_CASE("S091: ShouldThrow form for the unknown-property error")
     }));
 }
 
+// --- 11d — DESIGN-TIME attributes are stripped (prefix `d`), never resolved.
+// WPF-faithful: d:DesignHeight / d:DataContext / any d:* is skipped verbatim,
+// with NO dependency on mc:Ignorable (the designer abbreviation is auto-ignored).
+
+TEST_CASE("11d: a d: design-time attribute is ignored without mc:Ignorable")
+{
+    registerS091Properties();
+    VamlReader reader;
+    // No mc:Ignorable declared: the d:* attributes must still be stripped, not
+    // thrown as unknown properties.
+    std::unique_ptr<vaml::DependencyObject> root =
+        reader.Load("<Window xmlns:d=\"http://schemas.microsoft.com/expression/blend/2008\""
+                    "        d:DesignHeight=\"420\">"
+                    "  <StackPanel><Button d:DataContext=\"{Binding X}\"/></StackPanel>"
+                    "</Window>");
+    SHOULD(ShouldlyIntegral(root != nullptr).ShouldBe(1));
+}
+
+TEST_CASE("11d: an mc:Ignorable-declared d: attribute is ignored (belt-and-suspenders)")
+{
+    registerS091Properties();
+    VamlReader reader;
+    std::unique_ptr<vaml::DependencyObject> root =
+        reader.Load("<Window xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\""
+                    "        mc:Ignorable=\"d\" d:DesignHeight=\"420\">"
+                    "  <StackPanel><Button d:IsHitTestVisible=\"False\"/></StackPanel>"
+                    "</Window>");
+    SHOULD(ShouldlyIntegral(root != nullptr).ShouldBe(1));
+}
+
+TEST_CASE("11d: a non-design unknown property still throws UnknownProperty")
+{
+    registerS091Properties();
+    VamlReader reader;
+    // The designer-prefix guard strips d:* ONLY; a genuinely-unknown property
+    // on an unprefixed prefix is still the S091 UnknownProperty error.
+    SHOULD(ShouldThrow<VamlReaderException>([&] {
+        (void)reader.Load("<Button Bogus=\"1\"/>");
+    }));
+}
+
 // ---------------------------------------------------------------------------
 // 6. malformed literal -> ValueConversionException propagates
 // ---------------------------------------------------------------------------

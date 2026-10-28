@@ -184,6 +184,24 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     // strands (Name/Class directives, isExtension retention, event routing).
     for (const ParsedAttribute& attr : element.attributes)
     {
+        // --- 11d — DESIGN-TIME attributes stripped, never resolved. --------
+        // WPF-faithful minimal guard: an attribute whose PREFIX is the designer
+        // abbreviation (`d`) is DESIGN-TIME "crap" (d:DesignHeight,
+        // d:DataContext, ...) — skip it verbatim, before ANY directive/value/
+        // extension/property handling, so it never reaches the name-keyed
+        // resolver and never throws UnknownProperty. This is prefix-keyed (not
+        // per-file, not via a propagated ignorable set), so it covers the
+        // attributes on any depth with no propagation cost. `mc:Ignorable` is
+        // honored only as belt-and-suspenders: the `mc:Ignorable` declaration
+        // itself is consumed here too (it is a markup-compatibility directive,
+        // not a property), so a file that declares it still loads. The general
+        // abbreviation/URI namespace model is the 11h/11i syntax work — NOT
+        // this sprint (roadmap token added there).
+        if (attr.prefix == "d" || attr.key == "mc:Ignorable" || attr.key == "Ignorable")
+        {
+            continue;
+        }
+
         // --- S092 Strand A — x:Name / x:Class directives (now CONSUMED). ---
         // S083 classified these; S091 skipped them; S092 records them. The
         // x:Null -> S084 path remains deferred unchanged.
