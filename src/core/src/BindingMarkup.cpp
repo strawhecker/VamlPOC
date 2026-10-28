@@ -55,11 +55,38 @@ BindingMarkup parse_markup_binding(std::string_view source) noexcept
         out.kind = MarkupExtensionKind::Binding;
     else if (kw == "Command")
         out.kind = MarkupExtensionKind::Command;
+    else if (kw == "x:Static")
+        out.kind = MarkupExtensionKind::Static;
+    else if (kw == "x:Type")
+        out.kind = MarkupExtensionKind::Type;
     else
         return out; // StaticResource / x:Null / other naming extension -> None
 
     // The remainder after the keyword (whitespace-trimmed).
     size_t rB = ltrim(source, kwE, inE);
+
+    // {x:Static <token>} / {x:Type <name>} — a SINGLE non-empty token, no comma /
+    // no whitespace inside (mirrors {Command <name>}).
+    if (out.kind == MarkupExtensionKind::Static || out.kind == MarkupExtensionKind::Type)
+    {
+        if (rB >= inE)
+        {
+            out.malformed = true; // {x:Static} / {x:Type} with no token
+            return out;
+        }
+        size_t nmE = rB;
+        while (nmE < inE && !is_space(source[nmE]) && source[nmE] != ',')
+            ++nmE;
+        out.path = source.substr(rB, nmE - rB);
+        // A trailing comma / extra tokens after the token is malformed.
+        size_t tailB = ltrim(source, nmE, inE);
+        if (tailB < inE)
+        {
+            out.malformed = true;
+            return out;
+        }
+        return out;
+    }
 
     // {Command <name>} — a SINGLE non-empty name, no comma / no whitespace inside.
     if (out.kind == MarkupExtensionKind::Command)

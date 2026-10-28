@@ -160,4 +160,13 @@ private:
 [[nodiscard]] const RoutedEvent& KeyDownEvent() noexcept;
 [[nodiscard]] const RoutedEvent& KeyUpEvent() noexcept;
 
+// S463 (dep:S462) — the AUTHORED-SET event identities, wired via markup
+// event attributes (S322 BindEvents table). All Bubbling:
+//   Loaded / Closing   — Window lifecycle events (raised by the Window control,
+//                         wired in the authored set).
+//   TextChanged        — raised by a TextBox on a real edit (the S402 commit).
+[[nodiscard]] const RoutedEvent& LoadedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& ClosingEvent() noexcept;
+[[nodiscard]] const RoutedEvent& TextChangedEvent() noexcept;
+
 } // namespace vaml

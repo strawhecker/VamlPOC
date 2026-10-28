@@ -52,6 +52,7 @@
 // error it can produce: DuplicateName (validated by this step's tests).
 
 #include "vaml/core/BindingExpression.h" // BindingExpression (the S252 live binding)
+#include "vaml/core/Brush.h"          // S460 — GradientStopHost + LinearGradientBrush (BRUSH AUTHORING)
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
 #include "vaml/core/Style.h"          // S454 — authored <Style>/<Setter>/<Trigger> authoring
 #include "vaml/core/StyleApplier.h"   // S454 — apply (explicit/implicit) + find_implicit
@@ -298,6 +299,45 @@ public:
     live_bindings() const noexcept { return live_bindings_; }
 
     // ------------------------------------------------------------------
+    // S461 (dep:S460) — MARKUP EXTENSIONS {x:Static} + {x:Type} (the S2-tag
+    // deferral CLOSED — the remaining attribute surface). The static-field/const
+    // access + the type object both resolve through the READER (app-registered,
+    // S250: no reflection, no DI). REAL permanent core surface.
+    // ------------------------------------------------------------------
+
+    // Registers a static value the markup `{x:Static <token>}` + the reader can
+    // resolve: `token` is the LAST `:`-separated segment after any `local:` /
+    // namespace prefix (WPF-faithful — `{x:Static local:Constants.AppName}`
+    // resolves the token `Constants.AppName`). The app (the S250 pattern) calls
+    // this BEFORE ResolveStatic. Idempotent (first registration wins); the value
+    // is copied by-value. NOT per-Load cleared (app-owned config, like register_command).
+    void register_static_value(std::string token, Value value);
+
+    // Resolves a registered static VALUE by its token (the last `:`-segmented
+    // token, e.g. "Constants.AppName"). Returns Value::Null() when unregistered.
+    [[nodiscard]] Value ResolveStatic(std::string_view token) const noexcept;
+
+    // Registers a type-object the markup `{x:Type <name>}` + the reader can
+    // resolve: `name` -> a `Value::String(<name>)` type object used for
+    // TargetType / ContentControl binding (the S461 {x:Type Button}). The app
+    // registers the known authorable type names (via the factory registry's
+    // registered_names implicitly, plus any explicit ones). Idempotent.
+    void register_type_value(std::string name, std::string typeName);
+
+    // Resolves a registered {x:Type <name>} to its type object
+    // (Value::String(typeName)), or Value::Null() when unregistered.
+    [[nodiscard]] Value ResolveType(std::string_view name) const noexcept;
+
+    // RESOLVES every recorded deferred {x:Static token} / {x:Type name}
+    // extension — a S252 kind-Static/Type row now owned here — by pushing the
+    // resolved value onto the authored target's DP (the extension's key). An
+    // UNRESOLVED static/type is a Class A authoring error -> a structured
+    // VamlReaderException (MalformedBindingMarkup-style), never silent. Returns
+    // the number of static/type rows resolved this call. A {Binding}/{Command}/
+    // {StaticResource} row is NOT this layer's — it stays deferred.
+    [[nodiscard]] std::size_t ResolveStaticTypeExtensions();
+
+    // ------------------------------------------------------------------
     // S361 — markup {StaticResource}/{DynamicResource} resolution (the S252
     // kind-None deferral now resolved). REAL permanent core surface.
     // ------------------------------------------------------------------
@@ -343,6 +383,24 @@ public:
     // (the app owns the command's lifetime). Idempotent for a repeated name
     // (the first registration wins). Cleared at the start of each Load.
     void register_command(std::string_view name, ICommand* command) noexcept;
+
+    // ------------------------------------------------------------------
+    // S464 (dep:S463) — COMMAND + CommandParameter attributes.
+    // ------------------------------------------------------------------
+    // The `Command="{Binding SaveCommand}"` + `CommandParameter="{Binding
+    // SelectedItem}"` markup: the Command's Binding path is the command NAME
+    // (the app-registered S253 command registry), and CommandParameter provides
+    // a parameter VALUE (a resolved binding, a static value, or a literal). The
+    // S246 ICommand::Execute(Value) surface is invoked with the parameter — the
+    // "parameterized execute" extension of S253's {Command}.
+
+    // Executes the registered command under `name` with `parameter`. Returns
+    // true when the command resolved + executed (CanExecute permitting). When
+    // `parameter` is Null, a Null parameter is passed (the command's default).
+    // A command that CanExecute()==false with the parameter does NOT execute
+    // (WPF-faithful) but STILL resolves (returns false). Returns false when no
+    // command is registered under `name` (never throws).
+    [[nodiscard]] bool ExecuteCommand(std::string_view name, const Value& parameter);
 
     // ------------------------------------------------------------------
     // S092 Strand C + S322 — event hooks. RESOLVED by S322 (Sprint 8): the
@@ -456,6 +514,19 @@ private:
     // Setter (used for both top-level Style setters and trigger child setters).
     void parse_setter(const ParsedElement& el, std::string owner, Setter& out);
 
+    // S460 (dep:S456) — BRUSH AUTHORING. Consumes ONE authored `<GradientStop/>`
+    // element (already resolved to a GradientStopHost) into its Color/Offset DPs.
+    // Attributes: `Color="#RRGGBB"` + `Offset="0.5"`. Never a visual child.
+    void build_gradient_stop(GradientStopHost& stop, const ParsedElement& element);
+
+    // S460 (dep:S456) — BRUSH AUTHORING. Consumes ONE authored
+    // `<LinearGradientBrush/>` element (already resolved to a
+    // LinearGradientBrush) into its data model: `StartPoint="x,y"` /
+    // `EndPoint="x,y"` attributes + a `<LinearGradientBrush.GradientStops>`
+    // property-element whose `<GradientStop>` children are folded into the
+    // brush's ordered stop vector. Never a visual child.
+    void build_linear_gradient(LinearGradientBrush& brush, const ParsedElement& element);
+
     // The non-root built objects, in construction (document) order. OWNED by
     // the reader (D1/S091) until `finalize_visual_tree()` hands each child into
     // its parent's S121 visual-children list; after finalize this vector is
@@ -514,6 +585,13 @@ private:
     // App-owned, configured before Load (like register_event), NOT per-Load
     // cleared — a command registration survives the tree it is authored on.
     std::vector<std::pair<std::string, ICommand*>> commands_;
+
+    // S461 — the {x:Static <token>} + {x:Type <name>} registries: (token, Value)
+    // + (name, typeName). App-owned (S250), configured before Load; NOT per-Load
+    // cleared (a static/type registration survives the tree it is authored on,
+    // like register_command).
+    std::vector<std::pair<std::string, Value>> static_values_;
+    std::vector<std::pair<std::string, std::string>> type_values_;
 
     // S361 — the reader-owned dynamic-resource links (created by
     // BindResources), re-evaluated by ReapplyDynamicResources. Per-Load

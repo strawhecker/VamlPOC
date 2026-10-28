@@ -16,6 +16,9 @@
 //   {Binding Title}
 //   {Binding Title, Mode=TwoWay}        (Mode=OneTime | OneWay | TwoWay)
 //   {Command DoIt}
+//   {x:Static local:Constants.AppName}  -> kind Static (S461: a static value,
+//                                          resolved via the S461 static registry)
+//   {x:Type Button}                     -> kind Type (S461: a type object)
 //   {StaticResource X}  ->  kind None (an extension the binding layer does NOT
 //                           own — left deferred; resolution is S361)
 //
@@ -42,11 +45,15 @@
 namespace vaml {
 
 // Which markup extension kind a {Binding ...} / {Command ...} source denotes.
+// S461 (dep:S460) — adds the {x:Static <token>} and {x:Type <name>} kinds (the
+// remaining attribute surface: static-field/const access + a type object).
 enum class MarkupExtensionKind : std::uint8_t
 {
     None    = 0, // not a binding/command extension (StaticResource, x:Null, ...)
     Binding = 1, // {Binding <path>[, Mode=...]}
     Command = 2, // {Command <name>}  (S253 resolves it against a command registry)
+    Static  = 3, // {x:Static <token>}  (S461: a static field/const value, app-registered)
+    Type    = 4, // {x:Type <name>}     (S461: a type object for TargetType/ContentControl binding)
 };
 
 // The structured parse of one deferred markup-extension source text.

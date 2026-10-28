@@ -627,6 +627,59 @@ add_executable(vaml-tools-tests
     # NOT auto-re-skin (implicit only, never silent), missing target + bad markup
     # are readable (never silent).
     ViewerRestyleS11a_s455_test.cpp
+    # S460 (dep:S456) — BRUSH AUTHORING: LinearGradientBrush + GradientStop (11b).
+    # The S2 text reader authors a gradient brush from real .vaml: an authored
+    # <LinearGradientBrush x:Key> (StartPoint/EndPoint + an authored
+    # <LinearGradientBrush.GradientStops> list of <GradientStop Color Offset>)
+    # is captured BY its x:Key as an S360 Object resource, the authored stops +
+    # start/end settle into the brush's data model, and the gradient registers +
+    # resolves by id through the S460 "Brush:<id>" convention
+    # (resolve_foreground_color recognizes a gradient's scalar representative
+    # color — the same BrushId path a SolidColorBrush rides). The element registry
+    # gate grows 14 -> 16. [MINIMAL REAL LinearGradientBrush — RESOLVED BY S465.]
+    BrushAuthoring_s460_test.cpp
+    # S461 (dep:S460) — MARKUP EXTENSIONS x:Static + x:Type (11b; the S2-tag
+    # deferral CLOSED). The {Binding} markup parser recognizes the Static/Type
+    # kinds; the reader resolves an app-registered static VALUE (`{x:Static
+    # local:Constants.AppName}`, WPF tail-token lookup, S250 no-reflection) + a
+    # type OBJECT (`{x:Type Button}`, Value::String for TargetType/ContentControl)
+    # and pushes them onto the authored target DPs; an unresolved / malformed
+    # static or type is a Class A structured reader error (never silent).
+    MarkupStaticType_s461_test.cpp
+    # S462 (dep:S461) — ATTACHED-PROPERTY AUTHORING + FrameworkElement Name (11b).
+    # The generic dotted-key reader path authors attached DPs (Canvas.Left/Top
+    # prove the path; Grid.Row/Grid.Column already worked), and a plain
+    # `Name="submitButton"` attribute registers the object in the S092 name
+    # registry ON PAR with x:Name (named() resolves; a duplicate -> the
+    # DuplicateName authoring error, never silent). DockPanel.Dock is recorded
+    # NO-GAP -> S470. ADR-018 zero locks.
+    AttachedAuthoring_s462_test.cpp
+    # S463 (dep:S462) — EVENT-ATTRIBUTE wiring for the authored set (11b): the
+    # S322 markup-event wiring extends to Window Loaded/Closing (raised by the
+    # Window), TextBox TextChanged (raised on the S402 edit commit), and the
+    # RAISED-ATTACHED form StackPanel.Button.Click (a dotted event key whose
+    # event TAIL "Click" routes + bubbles to the authored-on panel over the
+    # Sprint-8 engine) — completing the S322 event-hook resolution for the
+    # authored surface.
+    EventAttr_s463_test.cpp
+    # S464 (dep:S463) — COMMAND + CommandParameter attributes (11b): the S253
+    # {Command} surface extended to a PARAMETERIZED execute. `Command="{Binding
+    # SaveCommand}"` resolves the command BY NAME (the app-registered S253
+    # registry); `CommandParameter="{Binding SelectedItem}"` provides a parameter
+    # VALUE; VamlReader::ExecuteCommand(name, value) gates on S246 CanExecute then
+    # invokes ICommand::Execute(Value) — the reader seam a Button/MenuItem command
+    # drives. MenuItem.Header/Command/CommandParameter ride the same attribute
+    # surface (element = S491/11e, recorded forward). ADR-018 zero locks.
+    CommandParam_s464_test.cpp
+    # S465 (dep:S464) — VIEWER-GROWTH(11b): the remaining-attribute surface rendered.
+    # A fully-authored S11b sample (gradient brush S460 + x:Static/x:Type S461 +
+    # attached props + Name S462 + event attrs S463 + Command/CommandParameter S464)
+    # LOADS cleanly; resolve_gradient_fill() samples the authored gradient along
+    # its stops (the vertex-sampled tint over the S206 solid-rect path — RESOLVING
+    # the S460 LinearGradientBrush MINIMAL REAL seed at its own step, sentinel
+    # removed); a wired Click + a parameterized Command execute visibly. Headless
+    # Rail 1 (the [both-apps] window display stays the local gate). ADR-018.
+    ViewerGrowth_s465_test.cpp
     # S293 (dep:S288) — VIEWER-GROWTH: vaml_viewer opens a COMPILED `.vbaml`
     # (the S280→S289 path visible). Compiles the REAL viewer seam
     # (vaml_viewer/compiled_open.h + the shared app.h) into the TOOLS test target

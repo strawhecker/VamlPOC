@@ -9,6 +9,7 @@
 #include "vaml/core/BindingAccess.h"           // S250_1: view_binding_diagnostics + view_binding_policy_default
 #include "vaml/core/BindingDiagnostics.h"      // S322: emitting shared binding-diagnostics notes
 #include "vaml/core/BindingMarkup.h"           // S252: parse_markup_binding
+#include "vaml/core/Brush.h"                   // S460: GradientStopHost + LinearGradientBrush
 #include "vaml/core/DependencyProperty.h"      // DependencyProperty
 #include "vaml/core/Element.h"                 // register_builtin_elements
 #include "vaml/core/ElementResolver.h"         // resolve_element + exception
@@ -44,6 +45,17 @@ namespace {
             return entry.first == name;
         });
     return it != names.end();
+}
+
+// S463 — the EVENT TAIL of an event-attribute key. The RAISED-ATTACHED form
+// `Owner.Event` (e.g. `StackPanel.Button.Click="Handler"`) names the EVENT as
+// the LAST dotted segment ("Click"; the WPF `Class.Owner.Event` raised-attached
+// convention, where Owner = the element the event is authored on). A non-dotted
+// key is its own tail. Used to route event declarations + BindEvents.
+[[nodiscard]] std::string_view event_tail(std::string_view key) noexcept
+{
+    const std::size_t dot = key.rfind('.');
+    return (dot == std::string_view::npos) ? key : key.substr(dot + 1);
 }
 
 } // namespace
@@ -156,6 +168,18 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         return obj; // a resource; nothing is retamed as a visual child
     }
 
+    // S460 (dep:S456) — BRUSH AUTHORING. A `<LinearGradientBrush>` is a RESOURCE
+    // (captured by x:Key into the authored dict, registered under its "Brush:<id>"
+    // convention), never a visual: its StartPoint/EndPoint + authored
+    // `<GradientStop>` children are consumed into the brush's data model. A
+    // `<GradientStop>` alone builds into a GradientStopHost (the authored stop is
+    // folded into its owning brush by build_linear_gradient's property-element).
+    if (LinearGradientBrush* lb = dynamic_cast<LinearGradientBrush*>(obj.get()))
+    {
+        build_linear_gradient(*lb, element);
+        return obj; // a resource; nothing is retamed as a visual child
+    }
+
     // Step 2 — attributes: set plain-literal properties, CONSUME the S092
     // strands (Name/Class directives, isExtension retention, event routing).
     for (const ParsedAttribute& attr : element.attributes)
@@ -221,11 +245,37 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
             continue;
         }
 
+        // --- S462 (dep:S461) — FrameworkElement `Name` attribute. ----------
+        // A plain (non-directive) `Name="submitButton"` attribute registers the
+        // built object in the S092 name registry ON PAR with `x:Name` (the
+        // FrameworkElement.Name analogue is not a DP — it is the name-scope
+        // identity, so the same interned-registry path is used). It does NOT set
+        // a DP (no registered "Name" global DP exists; a control that later owns
+        // a Name DP is a recorded-NO-GAP future surface). A duplicate Name, like
+        // a duplicate x:Name, is the DuplicateName authoring error (never last-wins).
+        if (attr.key == "Name")
+        {
+            const std::string_view name = vaml::intern(attr.value);
+            if (name_registered(names_, name))
+            {
+                throw VamlReaderException(
+                    VamlReaderError::DuplicateName, std::string(name),
+                    "duplicate Name '" + std::string(name) + "'");
+            }
+            names_.emplace_back(name, obj.get());
+            continue;
+        }
+
         // --- S092 Strand C — event routing (MINIMAL REAL seed). ------------
-        // An attribute key that exactly matches a registered event name is an
-        // EVENT declaration, not a property: route it to a DeferredEventHandler.
-        // Never a property set, never an unknown-property throw. Resolved by S322.
-        if (std::find(event_names_.begin(), event_names_.end(), attr.key) !=
+        // An attribute key whose EVENT TAIL exactly matches a registered event
+        // name is an EVENT declaration, not a property: route it to a
+        // DeferredEventHandler. S463 — the RAISED-ATTACHED form `Owner.Event`
+        // (`StackPanel.Button.Click`) is recognized here: the key's last dotted
+        // segment ("Click") is the event, so a dotted event key must NOT fall
+        // through to the attached-aware property path. Never a property set,
+        // never an unknown-property throw. Resolved by S322.
+        const std::string_view tail = event_tail(attr.key);
+        if (std::find(event_names_.begin(), event_names_.end(), tail) !=
             event_names_.end())
         {
             deferred_event_handlers_.push_back(
@@ -542,6 +592,142 @@ std::unique_ptr<ResourceDictionary> VamlReader::build_resource_dictionary(
     built_dicts_.push_back(dict.get());
 
     return dict;
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_gradient_stop(GradientStopHost& stop, const ParsedElement& element)
+{
+    // Consumes the authored `<GradientStop Color= Offset=/>` attributes into the
+    // stop's Color/Offset DPs (the S043 attached-aware Set path). GradientStop
+    // has NO child elements (a stop is a scalar pair, not a container); a child
+    // is an authoring error — fail loud, never silently ignored.
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue; // x:Key directives on a stop are ignored (a stop is owned)
+        }
+        if (attr.isExtension)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "a <GradientStop> attribute cannot be a markup extension ('" +
+                    std::string(attr.key) + "')");
+        }
+        const DependencyProperty* dp = DependencyProperty::TryGet(attr.key);
+        if (dp == nullptr)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "unknown <GradientStop> attribute '" + std::string(attr.key) + "'");
+        }
+        const Value value = convertLiteral(*dp, attr.value);
+        (void)stop.Set(PropertyId(attr.key), value);
+    }
+    if (!element.children.empty())
+    {
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, std::string(element.local_name.empty() ? element.tagName
+                                                                                      : element.local_name),
+            "a <GradientStop> may not contain child elements");
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_linear_gradient(LinearGradientBrush& brush, const ParsedElement& element)
+{
+    // Consumes the authored `<LinearGradientBrush/>` content into its data model:
+    //   StartPoint="x,y" / EndPoint="x,y"  (attribute values, "x,y" Double pairs)
+    //   <LinearGradientBrush.GradientStops>  (a property-element whose authored
+    //       <GradientStop Color= Offset=/> children are folded into the ordered
+    //       stop vector — WPF's GradientStopCollection analogue).
+    // The brush is a RESOURCE (never a visual child); its stops are pure data.
+
+    // --- Attributes: StartPoint / EndPoint (Double "x,y" pairs). ----------
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue; // x:Key handled by the dict capture
+        }
+        if (attr.isExtension)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "a <LinearGradientBrush> attribute cannot be a markup extension ('" +
+                    std::string(attr.key) + "')");
+        }
+        if (attr.key == "StartPoint")
+        {
+            // "x,y" -> two Double literals (the S440 Double converter via the
+            // registered GradientStop.Point DPs we reuse by name).
+            const std::string_view v = attr.value;
+            const std::size_t comma = v.find(',');
+            if (comma == std::string_view::npos)
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, std::string("StartPoint"),
+                    "StartPoint must be a 'x,y' Double pair");
+            }
+            const Value x = convertLiteral(
+                DependencyProperty::Get("Offset"), // a bound Double DP
+                v.substr(0, comma));
+            const Value y = convertLiteral(
+                DependencyProperty::Get("Offset"),
+                v.substr(comma + 1));
+            brush.set_start_point(x.get<double>(), y.get<double>());
+        }
+        else if (attr.key == "EndPoint")
+        {
+            const std::string_view v = attr.value;
+            const std::size_t comma = v.find(',');
+            if (comma == std::string_view::npos)
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, std::string("EndPoint"),
+                    "EndPoint must be a 'x,y' Double pair");
+            }
+            const Value x = convertLiteral(
+                DependencyProperty::Get("Offset"),
+                v.substr(0, comma));
+            const Value y = convertLiteral(
+                DependencyProperty::Get("Offset"),
+                v.substr(comma + 1));
+            brush.set_end_point(x.get<double>(), y.get<double>());
+        }
+    }
+
+    // --- Children: the <LinearGradientBrush.GradientStops> property-element. ---
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (childLocal != "LinearGradientBrush.GradientStops")
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(childLocal),
+                "a <LinearGradientBrush> may only contain a "
+                "<LinearGradientBrush.GradientStops> property-element (got '" +
+                    std::string(childLocal) + "')");
+        }
+        // Each authored child must be a <GradientStop>; build + fold its
+        // Color/Offset into the brush's ordered stop vector.
+        for (const ParsedElement& stopEl : child.children)
+        {
+            const std::string_view stopLocal = stopEl.local_name.empty() ? stopEl.tagName
+                                                                         : stopEl.local_name;
+            if (stopLocal != "GradientStop")
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, std::string(stopLocal),
+                    "a <LinearGradientBrush.GradientStops> may only contain "
+                    "<GradientStop> children (got '" + std::string(stopLocal) + "')");
+            }
+            GradientStopHost stopHost;
+            build_gradient_stop(stopHost, stopEl);
+            brush.add_stop(GradientStop{ stopHost.color(), stopHost.offset() });
+        }
+    }
 }
 
 VAML_CORE_EXPORT
@@ -1033,6 +1219,13 @@ std::size_t VamlReader::BindExtensions()
             continue;
         }
 
+        // kind Static / Type -> S461 resolves them (the static/type registries).
+        // Left deferred, not an error, not counted (the S461 extension surface).
+        if (markup.kind == MarkupExtensionKind::Static || markup.kind == MarkupExtensionKind::Type)
+        {
+            continue;
+        }
+
         // kind Binding. A malformed {Binding ...} source is a Class A AUTHORING
         // error — reported loudly, never silently left deferred.
         if (markup.malformed || markup.path.empty())
@@ -1143,6 +1336,156 @@ ICommand* VamlReader::ResolveCommand(std::string_view name)
     return it == commands_.end() ? nullptr : it->second;
 }
 
+VAML_CORE_EXPORT
+bool VamlReader::ExecuteCommand(std::string_view name, const Value& parameter)
+{
+    // S464 — resolve the app-registered command by name and EXECUTE it with the
+    // parameter. When the parameter is Null, pass a Null parameter (the command
+    // treats it as its default — S246). A CanExecute()==false command resolves
+    // but does not execute (WPF-faithful, never a silent no-op: the caller can
+    // query CanExecute separately / via a bound IsEnabled). An unregistered
+    // name returns false (never throws).
+    ICommand* cmd = ResolveCommand(name);
+    if (cmd == nullptr)
+    {
+        return false;
+    }
+    if (!cmd->CanExecute(parameter))
+    {
+        return false; // resolve ok but cannot execute with this parameter
+    }
+    cmd->Execute(parameter);
+    return true;
+}
+
+// ------------------------------------------------------------------ S461 — {x:Static}/{x:Type}
+VAML_CORE_EXPORT
+void VamlReader::register_static_value(std::string token, Value value)
+{
+    if (token.empty())
+    {
+        return;
+    }
+    // Idempotent: a repeated token keeps the FIRST registration (the app owns
+    // the static value; the reader stores a copy). No throw.
+    const auto it = std::find_if(static_values_.begin(), static_values_.end(),
+                                 [&](const std::pair<std::string, Value>& s) {
+                                     return s.first == token;
+                                 });
+    if (it == static_values_.end())
+    {
+        static_values_.emplace_back(std::move(token), std::move(value));
+    }
+}
+
+VAML_CORE_EXPORT
+Value VamlReader::ResolveStatic(std::string_view token) const noexcept
+{
+    // WPF-faithful token resolution: `{x:Static local:Constants.AppName}` names
+    // the LAST `:`-split segment ("Constants.AppName"). The reader resolves by
+    // that tail token (the app registered it without the namespace prefix).
+    std::string_view t = token;
+    const std::size_t colon = token.rfind(':');
+    if (colon != std::string_view::npos)
+    {
+        t = token.substr(colon + 1);
+    }
+    const auto it = std::find_if(static_values_.begin(), static_values_.end(),
+                                 [&](const std::pair<std::string, Value>& s) {
+                                     return s.first == t;
+                                 });
+    return it == static_values_.end() ? Value::Null() : it->second;
+}
+
+VAML_CORE_EXPORT
+void VamlReader::register_type_value(std::string name, std::string typeName)
+{
+    if (name.empty())
+    {
+        return;
+    }
+    const auto it = std::find_if(type_values_.begin(), type_values_.end(),
+                                 [&](const std::pair<std::string, std::string>& t) {
+                                     return t.first == name;
+                                 });
+    if (it == type_values_.end())
+    {
+        type_values_.emplace_back(std::move(name), std::move(typeName));
+    }
+}
+
+VAML_CORE_EXPORT
+Value VamlReader::ResolveType(std::string_view name) const noexcept
+{
+    const auto it = std::find_if(type_values_.begin(), type_values_.end(),
+                                 [&](const std::pair<std::string, std::string>& t) {
+                                     return t.first == name;
+                                 });
+    return it == type_values_.end() ? Value::Null() : Value::String(it->second);
+}
+
+VAML_CORE_EXPORT
+std::size_t VamlReader::ResolveStaticTypeExtensions()
+{
+    std::size_t resolved = 0;
+    for (const DeferredExtension& ext : deferred_extensions_)
+    {
+        const BindingMarkup markup = parse_markup_binding(ext.source);
+        if (markup.kind != MarkupExtensionKind::Static && markup.kind != MarkupExtensionKind::Type)
+        {
+            continue; // not this layer's row
+        }
+        if (markup.malformed || markup.path.empty())
+        {
+            throw VamlReaderException(
+                VamlReaderError::MalformedBindingMarkup, std::string(ext.key),
+                "malformed {x:Static}/{x:Type} markup on property '" +
+                    std::string(ext.key) + "': source '" + std::string(ext.source) + "'");
+        }
+
+        // Resolve the value (a static value / a type object) from the registries.
+        const Value value = (markup.kind == MarkupExtensionKind::Static)
+                                ? ResolveStatic(markup.path)
+                                : ResolveType(markup.path);
+        if (value.isNull())
+        {
+            throw VamlReaderException(
+                VamlReaderError::MalformedBindingMarkup, std::string(ext.key),
+                std::string(markup.kind == MarkupExtensionKind::Static ? "{x:Static }" : "{x:Type }") +
+                    " to unresolved " +
+                    std::string(markup.kind == MarkupExtensionKind::Static ? "static" : "type") +
+                    " '" + std::string(markup.path) + "' on property '" +
+                    std::string(ext.key) + "'");
+        }
+
+        // Push the resolved value onto the authored target's DP (the extension key).
+        auto* target = const_cast<DependencyObject*>(ext.target);
+        if (target != nullptr)
+        {
+            try
+            {
+                (void)target->Set(PropertyId(ext.key), value);
+            }
+            catch (...)
+            {
+                // Wrong-tag target DP — report via the binding-diagnostics channel
+                // (never silent), skip.
+                BindingDiagnostic diag;
+                diag.targetProp = std::string(ext.key);
+                diag.reasonCode = BindingReasonCode::SetTargetFailed;
+                diag.sourcePath = std::string(markup.path);
+                diag.direction  = BindingDirection::OneWay;
+                diag.detail     = "resolve_static_type: target property '" +
+                                  std::string(ext.key) + "' rejected the resolved value";
+                vaml::binding_diagnostics().emit(diag);
+                continue;
+            }
+        }
+        ++resolved;
+    }
+    return resolved;
+}
+
 // ------------------------------------------------------------------ S092 Strand C
 VAML_CORE_EXPORT
 void VamlReader::register_event(std::string_view eventName)
@@ -1192,24 +1535,37 @@ std::size_t VamlReader::BindEvents()
         //    UNREGISTERED event name is NOT wired and is reported through the
         //    S250_1 binding-diagnostics channel (one channel, two consumers) —
         //    never silent. The event must be registered (register_event plus a
-        //    matching RoutedEvent static).
+        //    matching RoutedEvent static). S463 (dep:S462): resolves by the
+        //    EVENT TAIL (so the raised-attached `Owner.Event` form
+        //    `StackPanel.Button.Click` maps "Click") against the known bubbling
+        //    set — the authored-set events Loaded/Closing/TextChanged are added
+        //    to the Click/KeyDown/KeyUp table.
+        const std::string_view tail = event_tail(rec.eventName);
         const RoutedEvent* event = nullptr;
         {
-            // Resolve by scanning the S320 registry content keys via the
-            // RoutedEvent statics we own. A markup event name maps to a real
-            // event by interned-name lookup against the known bubbling set
-            // (ClickEvent / KeyDownEvent / KeyUpEvent); unknown -> report.
-            if (rec.eventName == "Click")
+            if (tail == "Click")
             {
                 event = &ClickEvent();
             }
-            else if (rec.eventName == "KeyDown")
+            else if (tail == "KeyDown")
             {
                 event = &KeyDownEvent();
             }
-            else if (rec.eventName == "KeyUp")
+            else if (tail == "KeyUp")
             {
                 event = &KeyUpEvent();
+            }
+            else if (tail == "Loaded")
+            {
+                event = &LoadedEvent();
+            }
+            else if (tail == "Closing")
+            {
+                event = &ClosingEvent();
+            }
+            else if (tail == "TextChanged")
+            {
+                event = &TextChangedEvent();
             }
         }
 

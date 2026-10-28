@@ -611,6 +611,12 @@ public:
     // accepted" signal a handler can observe). Reset on the next edit.
     [[nodiscard]] bool accepted() const noexcept { return accepted_; }
 
+    // --- S463 TextChanged event -------------------------------------------
+    // Raises the BUBBLING "TextChanged" routed event (source==this textbox) on a
+    // REAL edit commit (handle_key that mutated the Text DP). The authored
+    // `TextChanged="..."` markup (wired via BindEvents) fires on a keystroke.
+    void raise_text_changed();
+
     // --- Selection programmatic --------------------------------------------
     void select_all();
     void clear_selection();
@@ -873,6 +879,14 @@ public:
     // `content()` returns the non-owning pointer (nullptr when empty).
     void set_content(std::unique_ptr<UIElement> child);
     [[nodiscard]] UIElement* content() const noexcept;
+
+    // --- S463 lifecycle events (Window Loaded/Closing) --------------------
+    // Raises the BUBBLING Loaded / Closing events (source==this window) so the
+    // authored `Loaded="..."` / `Closing="..."` markup (wired via BindEvents)
+    // fires. A handle/lifecycle transition (the host shows/closes the window)
+    // calls these.
+    [[nodiscard]] bool raise_loaded();
+    [[nodiscard]] bool raise_closing();
 
 protected:
     // S440 real Window algorithm: MeasureOverride measures the single content

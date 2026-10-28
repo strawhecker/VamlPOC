@@ -91,4 +91,23 @@ const RoutedEvent& KeyUpEvent() noexcept
     return RoutedEvent::registered("KeyUp", RouteEventDirection::Bubble);
 }
 
+// S463 — the authored-set events (Window Loaded/Closing + TextBox TextChanged).
+VAML_CORE_EXPORT
+const RoutedEvent& LoadedEvent() noexcept
+{
+    return RoutedEvent::registered("Loaded", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& ClosingEvent() noexcept
+{
+    return RoutedEvent::registered("Closing", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& TextChangedEvent() noexcept
+{
+    return RoutedEvent::registered("TextChanged", RouteEventDirection::Bubble);
+}
+
 } // namespace vaml

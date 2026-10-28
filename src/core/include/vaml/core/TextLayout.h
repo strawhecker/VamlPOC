@@ -39,6 +39,7 @@
 namespace vaml {
 
 class UIElement; // forward — resolve_foreground_color anchors resolution at an element
+class LinearGradientBrush; // forward — resolve_gradient_fill (S460 seed resolution, S465)
 
 // One glyph's horizontal metric the layout uses. `render=false` for a codepoint
 // that occupies advance width but paints nothing (e.g. a space) — it still
@@ -109,6 +110,21 @@ VAML_CORE_EXPORT TextGlyphMetric default_text_metric(std::uint32_t codepoint,
 // Pure + headless-testable.
 VAML_CORE_EXPORT Color resolve_foreground_color(const UIElement& element,
                                                 std::int32_t brushId) noexcept;
+
+// S465 (dep:S464) — GRADIENT FILL RESOLUTION (RESOLVES the S460
+// LinearGradientBrush MINIMAL REAL seed at its own step — the gradient RENDER).
+// Samples an authored LinearGradientBrush (resolved by BrushId through the
+// "Brush:<id>" three-scope walk) at a NORMALIZED position `t` in [0,1] along the
+// StartPoint->EndPoint axis, interpolating the ordered GradientStops (a "vertex-
+// sampled tint over the S206 solid-rect path" — NO new shader; the S465 viewer
+// samples this at the element's box corners and emits a tinted fill). Returns:
+//   * the sampled Color when the brush resolves,
+//   * opaque black without a diagnostic ONLY when brushId==0 (the default),
+//   * the S250_1-structured fallback (opaque black + a diagnostic) when the id
+//     does NOT resolve to a LinearGradientBrush (never silent).
+[[nodiscard]] VAML_CORE_EXPORT Color resolve_gradient_fill(const UIElement& element,
+                                                           std::int32_t brushId,
+                                                           double t) noexcept;
 
 // The WRAP ENGINE. Flows `content` (ASCII 32..126; out-of-range codepoints use
 // the provider, which usually returns {0,false}) into wrapped lines within

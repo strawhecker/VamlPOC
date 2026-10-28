@@ -34,6 +34,77 @@ TextGlyphMetric default_text_metric(std::uint32_t codepoint, float fontSize) noe
     return TextGlyphMetric{ 0.0f, false };
 }
 
+// S465 — GRADIENT FILL RESOLUTION (RESOLVES the S460 LinearGradientBrush seed).
+// See TextLayout.h. Samples the authored gradient at the normalized position `t`
+// along its Stop sequence.
+Color resolve_gradient_fill(const UIElement& element, std::int32_t brushId, double t) noexcept
+{
+    // Default 0 -> opaque black (the default un-authored fill), no diagnostic.
+    if (brushId == 0)
+    {
+        return Color{ 0, 0, 0, 255 };
+    }
+
+    const std::string key = "Brush:" + std::to_string(brushId);
+    const ResourceValue* rv = vaml::find_for_element(element, key);
+    if (rv && rv->kind() == ResourceValue::Kind::Object && rv->object())
+    {
+        if (const auto* grad = dynamic_cast<const LinearGradientBrush*>(rv->object()))
+        {
+            const auto& stops = grad->stops();
+            // <2 stops -> representative (scalar) color (can't interpolate a
+            // gradient from 0/1 stops); the honest boundary the S465 sampler
+            // reports rather than inventing one.
+            if (stops.size() < 2)
+            {
+                return grad->representative_color();
+            }
+            // Clamp t to [0,1], then interpolate across the ordered stops by
+            // their Offset (the linear ramp between consecutive stops).
+            const double tt = std::clamp(t, 0.0, 1.0);
+            if (tt <= stops.front().offset)
+            {
+                return stops.front().color;
+            }
+            if (tt >= stops.back().offset)
+            {
+                return stops.back().color;
+            }
+            for (std::size_t i = 0; i + 1 < stops.size(); ++i)
+            {
+                const double a = stops[i].offset;
+                const double b = stops[i + 1].offset;
+                if (tt < a || tt > b)
+                {
+                    continue;
+                }
+                const double span = (b - a) == 0.0 ? 1.0 : (b - a);
+                const double f = std::clamp((tt - a) / span, 0.0, 1.0);
+                const Color ca = stops[i].color;
+                const Color cb = stops[i + 1].color;
+                auto lerp = [&](std::uint8_t x, std::uint8_t y) {
+                    return static_cast<std::uint8_t>(
+                        static_cast<unsigned>(x) * (1.0 - f) +
+                        static_cast<unsigned>(y) * f + 0.5);
+                };
+                return Color{ lerp(ca.r, cb.r), lerp(ca.g, cb.g), lerp(ca.b, cb.b), 255u };
+            }
+            return stops.back().color;
+        }
+    }
+
+    // Unresolved non-zero brushId -> opaque black + a structured diagnostic
+    // (the S250_1 channel; NO-silent, mirrors resolve_foreground_color).
+    vaml::BindingDiagnostic d;
+    d.reasonCode = vaml::BindingReasonCode::MissingProperty;
+    d.targetProp = "Background";
+    d.sourcePath = key;
+    d.detail     = "gradient BrushId " + std::to_string(brushId) +
+                   " did not resolve to an authored LinearGradientBrush; defaulted to opaque black";
+    vaml::view_binding_diagnostics().emit(d);
+    return Color{ 0, 0, 0, 255 };
+}
+
 Color resolve_foreground_color(const UIElement& element, std::int32_t brushId) noexcept
 {
     // Default (0) -> opaque black (the Text default foreground). No lookup, no
@@ -53,6 +124,13 @@ Color resolve_foreground_color(const UIElement& element, std::int32_t brushId) n
         if (const auto* brush = dynamic_cast<const SolidColorBrush*>(rv->object()))
         {
             return brush->color();
+        }
+        // S460 (BRUSH AUTHORING): an authored LinearGradientBrush also resolves
+        // by id — its scalar representative color feeds the same scalar-foreground
+        // path (S403-note: S465 upgrades this to the real gradient render).
+        if (const auto* grad = dynamic_cast<const LinearGradientBrush*>(rv->object()))
+        {
+            return grad->representative_color();
         }
     }
 

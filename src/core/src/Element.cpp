@@ -1216,6 +1216,17 @@ bool TextBox::accepts_return() const
 }
 
 VAML_CORE_EXPORT
+VAML_CORE_EXPORT
+void TextBox::raise_text_changed()
+{
+    // S463 — the TextChanged routed event (Bubbling, source==this textbox).
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::TextChangedEvent(), args);
+}
+
+VAML_CORE_EXPORT
 std::size_t TextBox::caret() const noexcept
 {
     return caret_;
@@ -1282,9 +1293,16 @@ bool TextBox::handle_key(vaml::KeyCode key, bool isDown, bool shift)
     std::string s = text();
 
     // A shift+caret-move EXTENDS the selection (WPF-faithful); a bare move
-    // collapses it.
+    // collapses it. S463: a REAL edit with a DETECTED change raises the
+    // Bubbling "TextChanged" routed event (source==this) — the authored
+    // `TextChanged="..."` markup fires on a keystroke.
     const auto commit = [&]() {
+        const std::string before = text();
         (void)Set(PropertyId::of("TextBox.Text"), Value::String(s));
+        if (text() != before)
+        {
+            raise_text_changed();
+        }
     };
     const auto clampCaret = [&](std::size_t p) {
         return std::min(p, s.size());
@@ -1848,6 +1866,29 @@ void Window::ArrangeOverride(const vaml::Rect& finalSlot)
     }
 }
 
+VAML_CORE_EXPORT
+bool Window::raise_loaded()
+{
+    // S463 — the Window Loaded lifecycle event (Bubbling, source==this). A
+    // handler may set handled=true to stop the route.
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::LoadedEvent(), args);
+    return args.handled;
+}
+
+VAML_CORE_EXPORT
+bool Window::raise_closing()
+{
+    // S463 — the Window Closing lifecycle event (Bubbling, source==this).
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::ClosingEvent(), args);
+    return args.handled;
+}
+
 // --- S129 StackPanel: Orientation DP + real panel Measure/Arrange ----------
 
 VAML_CORE_EXPORT
@@ -2179,6 +2220,13 @@ void register_builtin_elements()
     // the factory registry, which returns DependencyObjects). Registered here so
     // `<SolidColorBrush>` / `<Style>` are authorable element types.
     registry.register_element("SolidColorBrush", [] { return std::make_unique<SolidColorBrush>(); });
+    // S460 (dep:S456) — BRUSH AUTHORING: GradientStop + LinearGradientBrush are
+    // authorable element types. GradientStop is a pure value (produced in the
+    // authored <LinearGradientBrush.GradientStops> list); LinearGradientBrush is
+    // a DependencyObject (a valid Object resource registered under a "Brush:<id>"
+    // key, exactly like SolidColorBrush). Built-in count 14 -> 16.
+    registry.register_element("GradientStop",       [] { return std::make_unique<GradientStopHost>(); });
+    registry.register_element("LinearGradientBrush", [] { return std::make_unique<LinearGradientBrush>(); });
     registry.register_element("Style",           [] { return std::make_unique<Style>(); });
 }
 

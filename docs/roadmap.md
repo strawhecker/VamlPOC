@@ -1471,23 +1471,62 @@ Growth tokens by sprint:
 ---
 ## Sprint 11b — Brushes + markup extensions + event/command attributes  (goal: the remaining attribute surface)  [token S460+]
 - S460 dep:S456  BRUSH AUTHORING: `LinearGradientBrush` (`StartPoint`/`EndPoint`) + `<GradientStop Color="..."
-      Offset="..."/>` as an authored brush resource consumed by `<Button.Background>` (rides the BrushId path).
+      Offset="..."/>` as an authored brush resource consumed by `<Button.Background>` (rides the BrushId path). [DONE —
+      Brush.h/.cpp gain `GradientStop` (pure {Color,Offset} value) + `GradientStopHost` (the authorable `<GradientStop>`
+      Color/Offset DP pair) + `LinearGradientBrush : DependencyObject` (authored stops + StartPoint/EndPoint +
+      representative_color seam); the S2 reader authors a gradient resource (build_linear_gradient/build_gradient_stop)
+      that registers by x:Key into the authored dict + resolves by BrushId through the "Brush:<id>" three-scope walk
+      (resolve_foreground_color also reads a gradient's representative color). Registry gate 14→16. [MINIMAL REAL
+      LinearGradientBrush seed introduced — RESOLVED BY S465]. Test BrushAuthoring_s460_test.cpp; both CI lanes green.]
 - S461 dep:S460  MARKUP EXTENSIONS `x:Static` + `x:Type`: `{x:Static local:Constants.AppName}` (S2-tag deferral
       resolved — static-field/const access via the reader) + `{x:Type Button}` (type object for TargetType /
-      ContentControl binding). NO-GAP closed.
+      ContentControl binding). NO-GAP closed. [DONE — BindingMarkup kind adds Static + Type; the reader gains
+      register_static_value/ResolveStatic (WPF last-`:`-token lookup) + register_type_value/ResolveType
+      (Value::String type object) + ResolveStaticTypeExtensions (pushes the resolved static/type onto the authored
+      target DP); an unresolved/malformed static or type is a Class A structured reader error (never silent).
+      App-owned config, NOT per-Load cleared (like register_command). Test MarkupStaticType_s461_test.cpp; both CI
+      lanes green.]
 - S462 dep:S461  ATTACHED-PROPERTY AUTHORING + FRAMEWORKELEMENT NAME: `<DockPanel.Dock>`, `<Canvas.Left>` (the
       existing `Grid.Row`/`Grid.Column` already works); `Name="submitButton"` (FrameworkElement) registered in
-      the S092 name registry on par with `x:Name`.
+      the S092 name registry on par with `x:Name`. [DONE — attached DPs author via the generic dotted-key reader
+      path (Canvas.Left/Top proven; Grid.Row/Grid.Column already worked); a plain `Name="submitButton"` attribute
+      registers the built object in the S092 name registry ON PAR with x:Name (named() resolves; a duplicate →
+      the S092 DuplicateName error, never silent last-wins). RECORDED NO-GAP (not silent): the `DockPanel.Dock`
+      float is S470 (11c) — DockPanel is not authored yet; this step delivers attached-authoring + Canvas.Left +
+      Name. Test AttachedAuthoring_s462_test.cpp; both CI lanes green.]
 - S463 dep:S462  EVENT-ATTRIBUTE wiring for the authored set: Window `Loaded`/`Closing`, TextBox `TextChanged`,
       the RAISED-ATTACHED form `StackPanel.Button.Click="StackPanel_Click"` (WPF-faithful bubbling attach over
       the Sprint-8 RoutedEvent engine) — completing the S322 event-hook resolution for the authored surface.
+      [DONE — RoutedEvent gains the authored-set bubbling identities LoadedEvent/ClosingEvent/TextChangedEvent;
+      the S322 BindEvents table extends to Loaded/Closing/TextChanged; the RAISED-ATTACHED form routes by EVENT
+      TAIL (the last dotted segment) so `StackPanel.Button.Click` binds on the authored-on element + a Click raised
+      on a child Button bubbles to it (the WPF-faithful bubbling attach over the Sprint-8 engine). Window raises
+      Loaded/Closing; TextBox raises TextChanged on a REAL edit commit (the S402 handle_key path). Test
+      EventAttr_s463_test.cpp; both CI lanes green.]
 - S464 dep:S463  COMMAND + CommandParameter attributes: `Command="{Binding SaveCommand}"` +
       `CommandParameter="{Binding SelectedItem}"` (S253 {Command} extended to a parameterized execute);
-      `MenuItem.Header`/`Command` authoring rides the same surface.
+      `MenuItem.Header`/`Command` authoring rides the same surface. [DONE — VamlReader::ExecuteCommand(name,
+      parameter) resolves the app-registered command by name + gates on S246 CanExecute then invokes
+      ICommand::Execute(Value) — the parameterized execute extending S253 {Command}. `Command="{Binding
+      SaveCommand}"` supplies the command NAME; `CommandParameter` provides the parameter VALUE (bound path /
+      static / literal). MenuItem.Header/Command/CommandParameter authoring rides the same attribute surface —
+      the MenuItem ELEMENT resolution is S491/11e (recorded forward, not silent). Test CommandParam_s464_test.cpp;
+      both CI lanes green.]
 - S465 dep:S464  VIEWER-GROWTH(11b): sample.vaml authors the brush + `{x:Static}`/`{x:Type}` + attached props +
       event + command attributes; the LIVE viewer renders the gradient + wires a Click/Command visibly.
-      BOTH CI LANES green.
-- S466 dep:S465  SURVIVOR(11b): short block in progress.md; no new MINIMAL REAL.
+      BOTH CI LANES green. [DONE — a fully-authored S11b sample (gradient S460 + x:Static/x:Type S461 + attached
+      props + Name S462 + event attrs S463 + Command/CommandParameter S464) LOADS cleanly; resolve_gradient_fill
+      samples the authored gradient along its stops (the vertex-sampled tint over the S206 solid-rect path — NO
+      new shader) RESOLVING the S460 LinearGradientBrush MINIMAL REAL seed at its own step (the sentinel is
+      removed — NO-GAP); a wired Click + a parameterized Command execute visibly. Headless Rail 1; the
+      [both apps, not CI] live-window display stays the local gate. Test ViewerGrowth_s465_test.cpp; both CI
+      lanes green.]
+- S466 dep:S465  SURVIVOR(11b): short block in progress.md; no new MINIMAL REAL. [DONE — Sprint 11b closed:
+      S460 (brush authoring, seed → S465) + S461 (x:Static/x:Type) + S462 (attached+Name) + S463 (event attrs) +
+      S464 (Command/CommandParameter) + S465 (viewer growth + gradient render, seed RESOLVED) all GREEN on both
+      CI lanes; Sprint 11b SURVIVOR block consolidated in progress.md; checkpoint advanced: last = S466, next =
+      S470 (Sprint 11c — DockPanel + selection controls). NO new MINIMAL REAL (the S460 LinearGradientBrush seed
+      was RESOLVED by S465 at its own step); guard-rail carry-forward intact; ADR-018 ZERO new locks.]
 
 ---
 ## Sprint 11c — DockPanel + selection controls (RadioButton/ComboBox/ListBox/ListView)  (goal: the missing layout container + selection set)  [token S470+]
