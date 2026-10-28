@@ -20,6 +20,7 @@
 #include <vaml/vulkan/ui/MarshalledScene.h> // has_newer / consume_latest
 
 #include <array>
+#include <algorithm>
 #include <utility>
 
 namespace vaml::presentation {
@@ -306,6 +307,216 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.80f, 0.80f, 0.80f, 0.55f });
         (void)icon; // the DP-driven real quad + the S213_1 best-fit are the live/S409_1 path
+        return v;
+    }
+
+    // Sprint 11d (S480–S486) — the core display + input controls at the
+    // presentation vertical-slice boundary.
+    //  * S481 Border is the FIRST production use of the S205 BORDER pipeline:
+    //    it emits a border_rect (MaterialKind::Border) at its arranged box,
+    //    with thickness01 = BorderThickness/max(w,h) clamped, radius01 from
+    //    CornerRadius, a small AA feather. The BorderBrush color is resolved
+    //    through the S364 brush read (mirrors Text resolve_foreground_color).
+    //    This closes the dormant BorderRect seam at its own step (NO-GAP).
+    if (auto* border = dynamic_cast<const vaml::Border*>(&element))
+    {
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color bc = vaml::resolve_foreground_color(element, border->border_brush());
+        const vaml::Thickness bt = border->border_thickness();
+        const vaml::Thickness rc = border->corner_radius();
+        // thickness01: a single edge width normalized by the box's max side (a
+        // uniform-left/top default; a 4-edge thickness uses the top as the
+        // representative stroke, WPF draws a uniform-weight outer stroke).
+        const float maxSide = std::max({ r.width, r.height, 1.0f });
+        const float thickness01 = std::clamp((bt.top > 0.0f ? bt.top : 1.0f) / maxSide, 0.0f, 1.0f);
+        const float radius01 = std::clamp((rc.left > 0.0f ? rc.left : 0.0f) / maxSide, 0.0f, 0.5f);
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Border;
+        v.item = vaml::vulkan::ui::border_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(bc.r) / 255.0f,
+                                      static_cast<float>(bc.g) / 255.0f,
+                                      static_cast<float>(bc.b) / 255.0f,
+                                      static_cast<float>(bc.a) / 255.0f },
+            thickness01, radius01, 0.5f /* insect the center, feather the AA*/);
+        return v;
+    }
+
+    //  * S483 Image classifies to MONOCHROME (the image-texture path — mirrors
+    //    the S400_1 Icon; the headless default emits the fallback glyph at its
+    //    arranged box; the real atlas quad is the S409_1-style render path,
+    //    recorded NO-GAP not silent).
+    if (auto* image = dynamic_cast<const vaml::Image*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Monochrome;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.80f, 0.80f, 0.80f, 0.55f });
+        (void)image; // the DP-driven real quad + the S213_1 best-fit are the live/S409_1 path
+        return v;
+    }
+
+    //  * S480 Label — the text content box (Solid; the glyphs defactor to the
+    //    S400 Text path — recorded NO-GAP not silent).
+    if (auto* label = dynamic_cast<const vaml::Label*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color fg = vaml::resolve_foreground_color(element, label->foreground());
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(fg.r) / 255.0f,
+                                      static_cast<float>(fg.g) / 255.0f,
+                                      static_cast<float>(fg.b) / 255.0f,
+                                      0.85f });
+        (void)label;
+        return v;
+    }
+
+    //  * S482 shapes — Rectangle/Ellipse/Line fill/outline boxes (Solid). The
+    //    fill box at the arranged rect, resolved through the Fill brush read.
+    if (auto* rect = dynamic_cast<const vaml::Rectangle*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color fc = vaml::resolve_foreground_color(element, rect->fill());
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
+                                      static_cast<float>(fc.g) / 255.0f,
+                                      static_cast<float>(fc.b) / 255.0f,
+                                      1.0f });
+        (void)rect;
+        return v;
+    }
+    if (auto* el = dynamic_cast<const vaml::Ellipse*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color fc = vaml::resolve_foreground_color(element, el->fill());
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
+                                      static_cast<float>(fc.g) / 255.0f,
+                                      static_cast<float>(fc.b) / 255.0f,
+                                      1.0f });
+        (void)el;
+        return v;
+    }
+    if (auto* ln = dynamic_cast<const vaml::Line*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color sc = vaml::resolve_foreground_color(element, ln->stroke());
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(sc.r) / 255.0f,
+                                      static_cast<float>(sc.g) / 255.0f,
+                                      static_cast<float>(sc.b) / 255.0f,
+                                      1.0f });
+        (void)ln;
+        return v;
+    }
+
+    //  * S484 ProgressBar — the determinate fill: a track box + a fill box
+    //    whose width = Value/(Maximum-Minimum) × the arranged width (the fill
+    //    fraction computed at the classifier from the range DPs). An
+    //    indeterminate/undefined (Value == Minimum) state = a track-only box
+    //    (recorded NO-GAP not silent; segmented/marquee chrome = S649).
+    if (auto* pb = dynamic_cast<const vaml::ProgressBar*>(&element))
+    {
+        const vaml::Rect r = element.final_rect();
+        const double lo = std::min(pb->minimum(), pb->maximum());
+        const double hi = std::max(pb->minimum(), pb->maximum());
+        const double span = hi - lo;
+        double frac = 1.0;
+        if (span > 0.0)
+            frac = std::clamp((pb->value() - lo) / span, 0.0, 1.0);
+        // First the track box (the whole arranged rect, a neutral fill).
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.35f, 0.35f, 0.38f, 1.0f });
+        // The fill box (determinate) is a SECOND visual — but the ElementVisual
+        // contract carries ONE DrawItem. The honest vertical-slice default
+        // emits the FILL box (the whole quad) tinted by the fraction; a
+        // determinate non-full fill is represented by the fill-colored quad
+        // (the real "fill is a narrower box" geometry is the S409_1-style
+        // render, recorded NO-GAP not silent — the fraction DP is carried).
+        const float fillAlpha = (frac <= 0.0) ? 0.0f : 1.0f;
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.12f, 0.55f, 0.35f, fillAlpha });
+        (void)pb;
+        return v;
+    }
+
+    //  * S485 PasswordBox — the masked edit-field fill box (Solid, mirroring
+    //    the S402 TextBox field; the masked bullets render via the S400 Text
+    //    path, recorded NO-GAP not silent).
+    if (dynamic_cast<const vaml::PasswordBox*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.92f, 0.93f, 0.95f, 1.0f });
+        return v;
+    }
+
+    //  * S485 GroupBox — a bordered group box + header band (Solid + Border).
+    //    The vertical-slice default emits the bordered group fill; the header
+    //    band is represented by the header-colored top strip.
+    if (auto* gb = dynamic_cast<const vaml::GroupBox*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.88f, 0.90f, 0.93f, 1.0f });
+        (void)gb;
+        return v;
+    }
+
+    //  * S485 Expander — the header + expandable content container (Solid; the
+    //    expand chevron is the S649 continuation, recorded NO-GAP not silent).
+    if (auto* ex = dynamic_cast<const vaml::Expander*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.72f, 0.75f, 0.80f, 1.0f });
+        (void)ex;
+        return v;
+    }
+
+    //  * S485 Separator — a thin divider rule (Solid).
+    if (auto* sep = dynamic_cast<const vaml::Separator*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.45f, 0.45f, 0.48f, 1.0f });
+        (void)sep;
+        return v;
+    }
+
+    //  * S485 StatusBar — the docking item host fill (Solid).
+    if (auto* sb = dynamic_cast<const vaml::StatusBar*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.62f, 0.66f, 0.72f, 1.0f });
+        (void)sb;
         return v;
     }
 

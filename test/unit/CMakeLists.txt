@@ -435,6 +435,16 @@ add_executable(vaml-core-tests
     # WPF-faithful single-content slot), and lays its content child out to FILL
     # its box (the implicit single-child layout — a Window root RENDERS content).
     Window_rebase_test.cpp
+    # Sprint 11d (S480–S486) — the core display + input controls (core:
+    # Label/Border/shapes/Image/ProgressBar/PasswordBox/GroupBox/Expander/
+    # Separator/StatusBar DPs + measure + the S480–S485 core surfaces). The
+    # classifier/material halves live in the vulkan/presentation targets.
+    Label_test.cpp
+    Border_test.cpp
+    Shapes_test.cpp
+    Image_test.cpp
+    ProgressBar_test.cpp
+    PasswordGroupStatus_test.cpp
     # S440 (dep:S408) — app-shell authored + MainView.vaml + the S120/S121 gap
     # closure (AppShellPlan_s440_test.cpp) is compiled into the presentation
     # target below.
@@ -959,6 +969,14 @@ add_executable(vaml-presentation-tests
     # layout + each selection control interactively (RadioButton exclusive group,
     # ComboBox dropdown selection). Headless proof of the [both-apps] sample.
     ViewerGrowth_s475_test.cpp
+    # S486 (dep:S485) — VIEWER-GROWTH(11d): the sample .vaml authors the core
+    # display + input controls (Label/Border/shapes/Image/ProgressBar/
+    # PasswordBox/GroupBox/Expander/Separator/StatusBar); the LIVE viewer
+    # renders the full breadth. Headless proof of the [both-apps] sample:
+    # the 11d sample loads cleanly (no unknown-prop/type/event) + the
+    # classifier emits the right materials (Border -> Border — the first live
+    # BorderRect; Image -> Monochrome; the rest -> Solid).
+    ViewerGrowth_s486_test.cpp
     # S11c (S470–S473) — the DockPanel + selection controls (RadioButton/
     # ComboBox/ListBox/ListView) materials at the vertical-slice boundary:
     # classify_merge_element -> MaterialKind::Solid for each (DockPanel fill /

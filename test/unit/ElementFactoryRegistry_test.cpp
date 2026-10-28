@@ -248,6 +248,19 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     SHOULD(ShouldlyIntegral(g.is_registered("ComboBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ListBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ListView")).ShouldBe(true));
+    // Sprint 11d: the core display + input controls are real built-ins.
+    SHOULD(ShouldlyIntegral(g.is_registered("Label")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Border")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Rectangle")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Ellipse")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Line")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Image")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ProgressBar")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("PasswordBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("GroupBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Expander")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Separator")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("StatusBar")).ShouldBe(true));
 
     // The S087 headline: create("Button") etc. yields the CONCRETE type, not a
     // generic blob — the typeName -> type dispatch is real end-to-end.
@@ -273,12 +286,27 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<vaml::ComboBox>(g.create("ComboBox"));
     assertConcrete<vaml::ListBox>(g.create("ListBox"));
     assertConcrete<vaml::ListView>(g.create("ListView"));
+    // Sprint 11d: registry-resolve assertions for the new controls.
+    assertConcrete<vaml::Label>(g.create("Label"));
+    assertConcrete<vaml::Border>(g.create("Border"));
+    assertConcrete<vaml::Rectangle>(g.create("Rectangle"));
+    assertConcrete<vaml::Ellipse>(g.create("Ellipse"));
+    assertConcrete<vaml::Line>(g.create("Line"));
+    assertConcrete<vaml::Image>(g.create("Image"));
+    assertConcrete<vaml::ProgressBar>(g.create("ProgressBar"));
+    assertConcrete<vaml::PasswordBox>(g.create("PasswordBox"));
+    assertConcrete<vaml::GroupBox>(g.create("GroupBox"));
+    assertConcrete<vaml::Expander>(g.create("Expander"));
+    assertConcrete<vaml::Separator>(g.create("Separator"));
+    assertConcrete<vaml::StatusBar>(g.create("StatusBar"));
 
-    // Size matches the full built-in set (21: the roadmap controls + WrapPanel +
+    // Size matches the full built-in set (33: the roadmap controls + WrapPanel +
     // Canvas + Icon + the S453 authored-resource types SolidColorBrush + Style +
     // the S460 brush-authoring types LinearGradientBrush + GradientStop + the
-    // Sprint 11c controls DockPanel/RadioButton/ComboBox/ListBox/ListView).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
+    // Sprint 11c controls DockPanel/RadioButton/ComboBox/ListBox/ListView + the
+    // Sprint 11d controls Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/
+    // PasswordBox/GroupBox/Expander/Separator/StatusBar).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(33u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -290,7 +318,9 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // inflated size). S134: WrapPanel the 10th; S136: Canvas the 11th; S400_1:
     // Icon the 12th; S453: SolidColorBrush + Style the 13th/14th; S460:
     // LinearGradientBrush + GradientStop the 15th/16th; Sprint 11c: DockPanel/
-    // RadioButton/ComboBox/ListBox/ListView the 17th-21st.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
+    // RadioButton/ComboBox/ListBox/ListView the 17th-21st; Sprint 11d:
+    // Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/PasswordBox/
+    // GroupBox/Expander/Separator/StatusBar the 22nd-33rd.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(33u));
     assertConcrete<Button>(g.create("Button"));
 }

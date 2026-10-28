@@ -74,6 +74,43 @@ MaterialKind classify_element(const vaml::UIElement& element) noexcept
     {
         return MaterialKind::Solid;
     }
+    // Sprint 11d (S480–S486) — the core display + input controls.
+    //  * S481 Border is the FIRST production user of the dormant BORDER
+    //    material: it classifies to MaterialKind::Border (the S205 border_rect
+    //    pipeline), closing the dormant seam at its own step (NO-GAP). The
+    //    full stroke rectangle (thickness/radius) is emitted by
+    //    classify_merge_element at the presentation boundary.
+    if (dynamic_cast<const vaml::Border*>(&element) != nullptr)
+    {
+        return MaterialKind::Border;
+    }
+    //  * S483 Image classifies to MONOCHROME (the S400_1 icon asset pipeline:
+    //    mirrors the Icon — the headless default emits the fallback glyph via
+    //    IconGlyphPlan/IconBestFit; the real atlas quad is the S409_1-style
+    //    render path, recorded NO-GAP not silent).
+    if (dynamic_cast<const vaml::Image*>(&element) != nullptr)
+    {
+        return MaterialKind::Monochrome;
+    }
+    //  * S480 Label (the content box; glyphs defactor to the S400 Text path),
+    //    S482 Rectangle/Ellipse/Line (the fill/stroke solid boxes), S484
+    //    ProgressBar (the track + determinate fill), S485 PasswordBox (the
+    //    masked edit-field fill), GroupBox/Expander (the bordered container),
+    //    Separator (the thin rule), StatusBar (the bar host) all classify to
+    //    SOLID.
+    if (dynamic_cast<const vaml::Label*>(&element) != nullptr ||
+        dynamic_cast<const vaml::Rectangle*>(&element) != nullptr ||
+        dynamic_cast<const vaml::Ellipse*>(&element) != nullptr ||
+        dynamic_cast<const vaml::Line*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ProgressBar*>(&element) != nullptr ||
+        dynamic_cast<const vaml::PasswordBox*>(&element) != nullptr ||
+        dynamic_cast<const vaml::GroupBox*>(&element) != nullptr ||
+        dynamic_cast<const vaml::Expander*>(&element) != nullptr ||
+        dynamic_cast<const vaml::Separator*>(&element) != nullptr ||
+        dynamic_cast<const vaml::StatusBar*>(&element) != nullptr)
+    {
+        return MaterialKind::Solid;
+    }
     return MaterialKind::None;
 }
 

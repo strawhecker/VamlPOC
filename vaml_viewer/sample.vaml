@@ -49,9 +49,51 @@
     </ListBox>
   </StackPanel>
 
+  <!-- Sprint 11d (S486): the core display + input controls — a second
+       Left-docked column hosting the full breadth. -->
+  <StackPanel DockPanel.Dock="0" Width="220" Margin="4" Background="#FFE8ECF4">
+    <Label Label.Content="Core Display Controls" Label.FontSize="14" Margin="2"/>
+    <Separator Separator.Thickness="2" Margin="2"/>
+    <Border x:Name="CardBorder" Border.BorderThickness="2,1"
+            Border.CornerRadius="4" Border.Padding="4" Margin="2">
+      <StackPanel>
+        <Rectangle x:Name="FillRect" Width="40" Height="20"/>
+        <Ellipse x:Name="Dot"/>
+        <Line x:Name="Rule" Line.StrokeThickness="2" Width="60"/>
+      </StackPanel>
+    </Border>
+    <GroupBox GroupBox.Header="Credentials" Margin="2">
+      <StackPanel>
+        <Label Label.Content="User"/>
+        <PasswordBox x:Name="Secret" PasswordBox.Password="hunter2" Margin="2"/>
+      </StackPanel>
+    </GroupBox>
+    <ProgressBar x:Name="Progress" ProgressBar.Value="60" ProgressBar.Maximum="100"
+                 Height="14" Margin="2"/>
+    <Image x:Name="Logo" Image.Source="assets/logo.png" Width="24"
+           Height="24" Margin="2"/>
+  </StackPanel>
+
   <!-- S470: dock the Top header (full remaining width, 24 tall). -->
-  <Text DockPanel.Dock="1" Text="VAML 11c — DockPanel + selection controls"
+  <Text DockPanel.Dock="1" Text="VAML 11d — core display + input controls"
         FontSize="16" Margin="4" Background="#FF223344"/>
+
+  <!-- S486: an Expander hosts the expandable content in the Fill area. -->
+  <Expander x:Name="More" Expander.Header="More controls" Expander.IsExpanded="1"
+            Margin="4">
+    <StackPanel>
+      <Text Text="The live viewer renders the full Sprint 11d breadth: Label,
+Border, Rectangle/Ellipse/Line shapes, Image, ProgressBar, PasswordBox,
+GroupBox, Expander, Separator and a StatusBar — see the Shell chrome for the
+repaint." Margin="4"/>
+    </StackPanel>
+  </Expander>
+
+  <!-- S486: a StatusBar docks items to the bar's bottom edge. -->
+  <StatusBar DockPanel.Dock="3" Height="22" Margin="0,4,0,0">
+    <Text StatusBar.Dock="0" Text="Ready"/>
+    <Text StatusBar.Dock="1" Text="v11d"/>
+  </StatusBar>
 
   <!-- S470: the LAST child takes the ENTIRE remaining interior (Fill=4 default;
        WPF-faithful). -->

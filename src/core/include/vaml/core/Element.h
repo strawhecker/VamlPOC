@@ -1137,6 +1137,369 @@ private:
     UIElement* content_ = nullptr;
 };
 
+// ---------------------------------------------------------------------------
+// SPRINT 11d (S480–S486) — the core display + input controls. All are REAL
+// re-based UIElements (not seeds): each participates in the visual tree +
+// Measure/Arrange + the classifier (ADR-011 — "how to render" stays out of
+// core; the render material is authored at the vulkan/presentation classifier).
+// None of these adds a new MaterialKind; they reuse Solid / Border / Text /
+// Monochrome. No ContentControl base class is introduced here (the control-
+// content abstraction is the S649 continuation, recorded NO-GAP not silent).
+// ---------------------------------------------------------------------------
+
+// Label — REAL control (S480). The WPF-faithful legacy `ContentControl` kept
+// for compatibility: a single string content value rendered as text. It is NOT
+// derived from a ContentControl base (none exists yet); it is a self-contained
+// UIElement whose Content DP is rendered through the S400 Text glyph path.
+//
+// S480 surface:
+//   - Content (String, default "") — the label text.
+//   - FontSize (Double, default 16, validated >= 0).
+//   - FontFamily (String, default "") — a font family name (the embedded font
+//     is single-weight; the DP is the WPF-faithful surface).
+//   - Foreground (BrushId, default 0) — the WPF-faithful brush read (mirrors
+//     Text; unresolved -> opaque black + diagnostic).
+//   - HorizontalContentAlignment (Int32, default Left=0 — reuses the S122
+//     alignment convention).
+//
+// MEASURE: MeasureOverride wraps the Content via the S400 text_layout_plan
+// (the S400 basis) so the Label sizes to its wrapped text extent. The render
+// material is the CLASSIFIER's (Solid at the vertical slice; the content glyphs
+// defactor to the S400 Text path, recorded NO-GAP not silent).
+class VAML_CORE_EXPORT Label final : public UIElement
+{
+public:
+    Label();
+
+    // --- Content (REAL DP; String, default "") ----------------------------
+    [[nodiscard]] SetResult set_content(std::string value);
+    [[nodiscard]] std::string content() const;
+
+    // --- FontSize (REAL DP; Double, default 16, validated >= 0) -----------
+    [[nodiscard]] SetResult set_font_size(double value);
+    [[nodiscard]] double font_size() const;
+
+    // --- FontFamily (REAL DP; String, default "") -------------------------
+    [[nodiscard]] SetResult set_font_family(std::string value);
+    [[nodiscard]] std::string font_family() const;
+
+    // --- Foreground (REAL DP; BrushId, default 0) -------------------------
+    [[nodiscard]] SetResult set_foreground(std::int32_t brushId);
+    [[nodiscard]] std::int32_t foreground() const;
+
+    // --- HorizontalContentAlignment (REAL DP; Int32, default Left=0) ------
+    [[nodiscard]] SetResult set_horizontal_content_alignment(std::int32_t value);
+    [[nodiscard]] std::int32_t horizontal_content_alignment() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// Border — REAL control (S481). A WPF-faithful single-content decorator that
+// draws a border (BorderBrush/BorderThickness/CornerRadius) around its single
+// child, with Padding between the border and the content. This is the FIRST
+// production user of the dormant `MaterialKind::Border` + `border_rect(...)`
+// path — the S205 Border pipeline is made LIVE at S481 (a real NO-GAP closure).
+//
+// S481 surface:
+//   - BorderBrush (BrushId, default 0) — the stroke brush (resolved via the
+//     S364 brush read, mirrors Text).
+//   - BorderThickness (Thickness, default 0) — the four-edge stroke width.
+//   - CornerRadius (Thickness, default 0) — the corner rounding (a uniform/2-
+//     value thickness; the stroke path uses the vertical-slice box).
+//   - Padding (Thickness, default 0) — the inset between border and content.
+//   - Single content child (Window-faithful slot: set_content/content()).
+//
+// MEASURE/ARRANGE: MeasureOverride measures the single child + insets by
+// Padding/BorderThickness; ArrangeOverride arranges the child into the inner
+// slot (the base bezel is drawn by the classifier). The classifier emits the
+// Border material (border_rect) at the arranged box — the FIRST live Border.
+class VAML_CORE_EXPORT Border final : public UIElement
+{
+public:
+    Border();
+
+    // --- BorderBrush (REAL DP; BrushId, default 0) ------------------------
+    [[nodiscard]] SetResult set_border_brush(std::int32_t brushId);
+    [[nodiscard]] std::int32_t border_brush() const;
+
+    // --- BorderThickness (REAL DP; Thickness, default 0) ------------------
+    [[nodiscard]] SetResult set_border_thickness(vaml::Thickness value);
+    [[nodiscard]] vaml::Thickness border_thickness() const;
+
+    // --- CornerRadius (REAL DP; Thickness, default 0) ---------------------
+    [[nodiscard]] SetResult set_corner_radius(vaml::Thickness value);
+    [[nodiscard]] vaml::Thickness corner_radius() const;
+
+    // --- Padding (REAL DP; Thickness, default 0) --------------------------
+    [[nodiscard]] SetResult set_padding(vaml::Thickness value);
+    [[nodiscard]] vaml::Thickness padding() const;
+
+    // --- Content child (WPF-faithful single-content slot) -----------------
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    UIElement* content_ = nullptr;
+};
+
+// Rectangle / Ellipse / Line — REAL shape controls (S482). Each is a
+// self-contained UIElement whose Fill/Stroke DPs drive a solid/border draw at
+// the arranged box.
+//
+// S482 surface (shared shape DP shape):
+//   - Fill (BrushId, default 0) — the interior fill brush.
+//   - Stroke (BrushId, default 0) — the outline stroke brush.
+//   - StrokeThickness (Double, default 0) — the stroke width.
+//   - Width / Height (Double, default 0 = intrinsic box) — the shape's logical
+//     box on each axis; 0 = the authored/derived natural box.
+//
+// CLASSIFIER (recorded, not silent): Rectangle/Ellipse classify to Solid (the
+// fill box — the honest whole-quad vertical-slice default; Ellipse's CURVED
+// outline is the S209/S649 curved-shape continuation, NOT fabricated). Line
+// classifies to Solid/Border (a thin stroke rect along its axis; a zero-length
+// Line is skipped by ui_item_degenerate).
+class VAML_CORE_EXPORT Rectangle final : public UIElement
+{
+public:
+    Rectangle();
+
+    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
+    [[nodiscard]] std::int32_t fill() const;
+    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
+    [[nodiscard]] std::int32_t stroke() const;
+    [[nodiscard]] SetResult set_stroke_thickness(double value);
+    [[nodiscard]] double stroke_thickness() const;
+    // Width/Height are the base UIElement WPF-style layout DPs (auto/NaN — the
+    // S123 reconciler applies them, recorded NO-GAP not silent); a shape's box
+    // is the inherited base Width/Height + the S123 stretch-vs-wrap finalizer.
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+class VAML_CORE_EXPORT Ellipse final : public UIElement
+{
+public:
+    Ellipse();
+
+    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
+    [[nodiscard]] std::int32_t fill() const;
+    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
+    [[nodiscard]] std::int32_t stroke() const;
+    [[nodiscard]] SetResult set_stroke_thickness(double value);
+    [[nodiscard]] double stroke_thickness() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+class VAML_CORE_EXPORT Line final : public UIElement
+{
+public:
+    Line();
+
+    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
+    [[nodiscard]] std::int32_t fill() const;
+    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
+    [[nodiscard]] std::int32_t stroke() const;
+    [[nodiscard]] SetResult set_stroke_thickness(double value);
+    [[nodiscard]] double stroke_thickness() const;
+    // Line has no authored Width/Height DPs of its own; it uses the base
+    // UIElement Width/Height (auto/NaN) + the S123 finalizer, and its stroke
+    // thickness drives the cross-axis rule height.
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// Image — REAL control (S483). Rides the S400_1/S202_1 icon asset pipeline: it
+// resolves its Source (direct asset reference) or IconKey (resource key) through
+// the S400_1 Icon machinery and renders the image at its box.
+//
+// S483 surface:
+//   - Source (String, default "") — a packaged icon asset / direct reference.
+//   - IconKey (String, default "") — the S360_1 resource key resolved via the
+//     S400_1 Icon machinery (wins over Source when both are set, per ADR-015).
+//   - Stretch (Int32, default None=0 — reuses the S400_1 IconStretch enum).
+//   - Width / Height (Double, default 0 = auto) — the image's logical box.
+//
+// CLASSIFIER: Image classifies to Monochrome (the image-texture path — mirrors
+// the S400_1 Icon; the headless default emits the fallback glyph via
+// IconGlyphPlan/IconBestFit; the real atlas quad is the S409_1-style render
+// path, recorded NO-GAP not silent).
+class VAML_CORE_EXPORT Image final : public UIElement
+{
+public:
+    Image();
+
+    [[nodiscard]] SetResult set_source(std::string value);
+    [[nodiscard]] std::string source() const;
+    [[nodiscard]] SetResult set_icon_key(std::string value);
+    [[nodiscard]] std::string icon_key() const;
+    [[nodiscard]] SetResult set_stretch(std::int32_t value);
+    [[nodiscard]] std::int32_t stretch() const;
+    // Width/Height are the base UIElement WPF-style layout DPs (auto/NaN — the
+    // S123 reconciler applies them, recorded NO-GAP not silent).
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// ProgressBar — REAL control (S484). A determinate progress indicator: Value
+// clamped to [Minimum, Maximum], rendered as a track + fill.
+//
+// S484 surface:
+//   - Value (Double, default 0, clamped to [Minimum,Maximum]).
+//   - Minimum (Double, default 0).
+//   - Maximum (Double, default 100).
+//   - A real Value change raises the BUBBLING "ValueChanged" routed event +
+//     the value_changed Signal (the S403 Slider precedent).
+//
+// CLASSIFIER: classifies to Solid — classify_merge_element emits a track box +
+// a fill box whose width = Value/(Maximum-Minimum) × the arranged width (the
+// fill fraction computed at the classifier from the range DPs). Indeterminate
+// (0% or undefined) = a track-only box (recorded NO-GAP not silent; segmented/
+//  marquee indeterminate chrome is the S649 continuation).
+class VAML_CORE_EXPORT ProgressBar final : public UIElement
+{
+public:
+    ProgressBar();
+
+    [[nodiscard]] SetResult set_value(double v);
+    [[nodiscard]] double value() const;
+    [[nodiscard]] SetResult set_minimum(double v);
+    [[nodiscard]] double minimum() const;
+    [[nodiscard]] SetResult set_maximum(double v);
+    [[nodiscard]] double maximum() const;
+
+    [[nodiscard]] vaml::Signal<void()>& value_changed() { return onValueChanged_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onValueChanged_;
+    void apply_change(double newValue);
+};
+
+// PasswordBox — REAL control (S485). A masked single-line text input: the
+// edited content is the Password DP (never the literal text); the on-screen
+// glyphs are masked bullets.
+//
+// S485 surface:
+//   - Password (String, default "") — the edited (masked) content.
+//   - MaxLength (Int32, default 0 = unlimited).
+//   - PasswordChar (String, default "*") — the mask bullet.
+//   - Editing mirrors the S402 TextBox handle_key model (single-line Enter
+//     accepts; a real change raises TextChanged). Classifier -> Solid (the
+//     edit-field fill).
+class VAML_CORE_EXPORT PasswordBox final : public UIElement
+{
+public:
+    PasswordBox();
+
+    [[nodiscard]] SetResult set_password(std::string value);
+    [[nodiscard]] std::string password() const;
+    [[nodiscard]] SetResult set_max_length(std::int32_t value);
+    [[nodiscard]] std::int32_t max_length() const;
+    [[nodiscard]] SetResult set_password_char(std::string value);
+    [[nodiscard]] std::string password_char() const;
+
+    // The S402-faithful single-line editing entry point: returns true when the
+    // key drove a real edit/accept.
+    [[nodiscard]] bool handle_key(vaml::KeyCode key, bool isDown, bool shift);
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    std::size_t caret_ = 0;
+    void raise_password_changed();
+};
+
+// GroupBox / Expander — REAL header+content containers (S485).
+//   - GroupBox: a bordered group with a Header (String) + a single content
+//     child. Classifier -> Solid + Border.
+//   - Expander: a header + expandable content, with IsExpanded (Int32 bool,
+//     WPF-faithful). Classifier -> Solid (the expand chevron = S649).
+class VAML_CORE_EXPORT GroupBox final : public UIElement
+{
+public:
+    GroupBox();
+
+    [[nodiscard]] SetResult set_header(std::string value);
+    [[nodiscard]] std::string header() const;
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    UIElement* content_ = nullptr;
+};
+
+class VAML_CORE_EXPORT Expander final : public UIElement
+{
+public:
+    Expander();
+
+    [[nodiscard]] SetResult set_header(std::string value);
+    [[nodiscard]] std::string header() const;
+    [[nodiscard]] SetResult set_is_expanded(std::int32_t value);
+    [[nodiscard]] bool is_expanded() const;
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    UIElement* content_ = nullptr;
+};
+
+// Separator — REAL control (S485). A thin horizontal/vertical divider.
+class VAML_CORE_EXPORT Separator final : public UIElement
+{
+public:
+    Separator();
+
+    [[nodiscard]] SetResult set_thickness(double value);
+    [[nodiscard]] double thickness() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// StatusBar — REAL control (S485). A docking item host that lays out its
+// children along an edge (reuses the S470 DockPanel dock pattern; StatusBar
+// items may be docked left/right). Classifier -> Solid.
+class VAML_CORE_EXPORT StatusBar final : public UIElement
+{
+public:
+    StatusBar();
+
+    // --- Attached StatusBar.Dock (REAL DP, S485) --------------------------
+    // The item's dock edge (Left=0 / Right=1, the WPF StatusBar left/right
+    // dock). Stored on the child (the S043 attached-aware path). Typed statics.
+    [[nodiscard]] static SetResult set_dock(DependencyObject& obj, std::int32_t value);
+    [[nodiscard]] static std::int32_t dock(const DependencyObject& obj);
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    // StatusBar uses the generic children() list (a bar hosts many items).
+};
+
 // Startup registration: registers every built-in element type name into
 // ElementFactoryRegistry::global(). Called once at process startup (single-
 // threaded) before any VAML document is parsed; S092/S286 reader paths consume

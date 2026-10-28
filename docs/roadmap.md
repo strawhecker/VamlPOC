@@ -1552,19 +1552,26 @@ Growth tokens by sprint:
 > silent backfill, per the hard-goal-2 mandate.
 - S480 dep:S476  Label control RESOLVED (`System.Windows.Controls.Label` — a legacy `ContentControl` kept for
       compatibility): Content + FontSize/FontFamily/Foreground + HorizontalContentAlignment; classify_element
-      → Solid.
+      → Solid.  ✅ DONE (11d)
 - S481 dep:S480  Border control RESOLVED: single-child content + BorderBrush/BorderThickness + CornerRadius +
-      Padding; classify_element → Border material.
+      Padding; classify_element → Border material. ✅ DONE (11d) — the FIRST production closure of the dormant
+      S205 `border_rect`/`MaterialKind::Border` pipeline (classify_merge_element emits BorderRect at S481).
 - S482 dep:S481  Rectangle + Ellipse + Line shapes RESOLVED: Fill/Stroke/StrokeThickness + Width/Height;
-      classify_element → Solid/Border.
+      classify_element → Solid/Border. ✅ DONE (11d) — Width/Height ride the base S123 layout DPs.
 - S483 dep:S482  Image control RESOLVED (rides the S400_1/S202_1 icon asset pipeline): Source (icon asset /
-      rasterized PNG-SVG once into the atlas) + Stretch; classify_element → the image texture path.
+      rasterized PNG-SVG once into the atlas) + Stretch; classify_element → the image texture path. ✅ DONE
+      (11d) — classifier → Monochrome; the real atlas quad is the S409_1-style render continuation (S649).
 - S484 dep:S483  ProgressBar control RESOLVED: Value/Min/Max + the determinate fill; classify_element → Solid.
+      ✅ DONE (11d) — Value clamps to [Minimum,Maximum] + a BUBBLING ValueChanged routed event + value_changed
+      Signal; classifier emits the track + determinate fill fraction.
 - S485 dep:S484  PasswordBox + GroupBox + Expander + Separator + StatusBar controls RESOLVED (each a real
       control: PasswordBox = masked Text input; GroupBox/Expander = header+content containers; Separator =
-      divider; StatusBar = docking item host); classify_element → Solid + Border as appropriate.
+      divider; StatusBar = docking item host); classify_element → Solid + Border as appropriate. ✅ DONE (11d)
 - S486 dep:S485  VIEWER-GROWTH(11d): sample.vaml authors Label/Border/shapes/Image/ProgressBar/PasswordBox/
       GroupBox/Expander/Separator/StatusBar; the LIVE viewer renders the full breadth. BOTH CI LANES green.
+      ✅ DONE (11d)
+- S486 SURVIVOR(11d): short block in progress.md. ✅ DONE (11d) — registry gate 21→33; no new MaterialKind
+      enums / no ContentControl base (S649 continuation, recorded NOT silent); ZERO MINIMAL REAL added.
 
 ---
 ## Sprint 11e — Container + menu controls (TabControl/Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid)  (goal: the container/tab/menu/grid surface)  [token S490+]

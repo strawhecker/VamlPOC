@@ -2854,6 +2854,1228 @@ ListView::ListView()
     ensure_listbox_properties_registered();
 }
 
+// ---------------------------------------------------------------------------
+// SPRINT 11d (S480–S486) — the core display + input controls. Each control is
+// a REAL re-based UIElement with owner-scoped DPs (the established name-keyed
+// registry — a reused name under a different owner would be ambiguous, per the
+// S043/S131 WrapPanel precedent). No new MaterialKind / no ContentControl base
+// (the S649 continuation, recorded NO-GAP not silent). The classifier arms
+// (Solid/Border/Monochrome) live in UiSceneEncoder.cpp + VamlRenderer.cpp.
+// ---------------------------------------------------------------------------
+
+// --- S480 Label: Content/FontSize/FontFamily/Foreground/HContentAlign -------
+
+namespace {
+
+void register_label_properties()
+{
+    (void)DependencyProperty::Register(
+        "Label.Content", ValueType::String, "Label",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Label.FontSize", ValueType::Double, "Label",
+        std::move(PropertyMetadata::WithDefault(Value::Double(16.0), PropertyFlags::None))
+            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
+    (void)DependencyProperty::Register(
+        "Label.FontFamily", ValueType::String, "Label",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Label.Foreground", ValueType::BrushId, "Label",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Label.HorizontalContentAlignment", ValueType::Int32, "Label",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_label_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_label_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Label::Label()
+{
+    ensure_label_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Label::set_content(std::string value)
+{
+    return Set(PropertyId::of("Label.Content"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string Label::content() const
+{
+    return Get(PropertyId::of("Label.Content")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult Label::set_font_size(double value)
+{
+    return Set(PropertyId::of("Label.FontSize"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Label::font_size() const
+{
+    return Get(PropertyId::of("Label.FontSize")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Label::set_font_family(std::string value)
+{
+    return Set(PropertyId::of("Label.FontFamily"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string Label::font_family() const
+{
+    return Get(PropertyId::of("Label.FontFamily")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult Label::set_foreground(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Label.Foreground"), Value::BrushId(brushId));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Label::foreground() const
+{
+    return Get(PropertyId::of("Label.Foreground")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Label::set_horizontal_content_alignment(std::int32_t value)
+{
+    return Set(PropertyId::of("Label.HorizontalContentAlignment"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Label::horizontal_content_alignment() const
+{
+    return Get(PropertyId::of("Label.HorizontalContentAlignment")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+Size Label::MeasureOverride(const Size& available) const
+{
+    // The S480 real Label algorithm: wrap the Content through the S400
+    // text_layout_plan (the S400 basis — same wrap rule S400 Text uses). The
+    // returned extent is the wrapped text box; the base Measure finalizer
+    // applies the S123 stretch-vs-wrap. The content glyphs render via the S400
+    // Text path at the classifier (recorded NO-GAP not silent); the Label
+    // CONTRIBUTES the Solid containing box at the vertical slice.
+    const float fontSize = static_cast<float>(font_size());
+    const std::string content = this->content();
+    const TextLayoutPlan plan = text_layout_plan(
+        content, fontSize, available.width,
+        [fontSize](std::uint32_t cp) { return default_text_metric(cp, fontSize); });
+    return Size{ plan.measuredWidth, plan.measuredHeight };
+}
+
+// --- S481 Border: BorderBrush/BorderThickness/CornerRadius/Padding + content --
+
+namespace {
+
+void register_border_properties()
+{
+    (void)DependencyProperty::Register(
+        "Border.BorderBrush", ValueType::BrushId, "Border",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Border.BorderThickness", ValueType::Thickness, "Border",
+        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Border.CornerRadius", ValueType::Thickness, "Border",
+        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Border.Padding", ValueType::Thickness, "Border",
+        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+}
+
+void ensure_border_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_border_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Border::Border()
+{
+    ensure_border_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Border::set_border_brush(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Border.BorderBrush"), Value::BrushId(brushId));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Border::border_brush() const
+{
+    return Get(PropertyId::of("Border.BorderBrush")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Border::set_border_thickness(vaml::Thickness value)
+{
+    return Set(PropertyId::of("Border.BorderThickness"), Value::Thickness(value));
+}
+
+VAML_CORE_EXPORT
+vaml::Thickness Border::border_thickness() const
+{
+    return Get(PropertyId::of("Border.BorderThickness")).get<vaml::Thickness>();
+}
+
+VAML_CORE_EXPORT
+SetResult Border::set_corner_radius(vaml::Thickness value)
+{
+    return Set(PropertyId::of("Border.CornerRadius"), Value::Thickness(value));
+}
+
+VAML_CORE_EXPORT
+vaml::Thickness Border::corner_radius() const
+{
+    return Get(PropertyId::of("Border.CornerRadius")).get<vaml::Thickness>();
+}
+
+VAML_CORE_EXPORT
+SetResult Border::set_padding(vaml::Thickness value)
+{
+    return Set(PropertyId::of("Border.Padding"), Value::Thickness(value));
+}
+
+VAML_CORE_EXPORT
+vaml::Thickness Border::padding() const
+{
+    return Get(PropertyId::of("Border.Padding")).get<vaml::Thickness>();
+}
+
+VAML_CORE_EXPORT
+void Border::set_content(std::unique_ptr<UIElement> child)
+{
+    // WPF-faithful single-content slot (mirrors Window): replace any prior.
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* Border::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size Border::MeasureOverride(const Size& available) const
+{
+    // The S481 real Border algorithm: measure the single content child within
+    // the offered box minus the Padding + BorderThickness insets; report the
+    // child's desired size PLUS the insets (the border box wraps its content).
+    const vaml::Thickness bt = border_thickness();
+    const vaml::Thickness pd = padding();
+    const float insetW = bt.left + bt.right + pd.left + pd.right;
+    const float insetH = bt.top + bt.bottom + pd.top + pd.bottom;
+    Size inner{ available.width > 0.0f ? std::max(0.0f, available.width - insetW) : 0.0f,
+                available.height > 0.0f ? std::max(0.0f, available.height - insetH) : 0.0f };
+    if (content_)
+        content_->Measure(inner);
+    const float cw = content_ ? content_->desired_size().width : 0.0f;
+    const float ch = content_ ? content_->desired_size().height : 0.0f;
+    return Size{ std::max(0.0f, cw + insetW), std::max(0.0f, ch + insetH) };
+}
+
+VAML_CORE_EXPORT
+void Border::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    // Arrange the single content child into the INNER slot (behind the border +
+    // padding). The border bezel itself is drawn by the classifier (S481 —
+    // MaterialKind::Border at the arranged box).
+    if (!content_)
+        return;
+    const vaml::Thickness bt = border_thickness();
+    const vaml::Thickness pd = padding();
+    const float ox = bt.left + pd.left;
+    const float oy = bt.top + pd.top;
+    const float ow = std::max(0.0f, finalSlot.width - (bt.left + bt.right + pd.left + pd.right));
+    const float oh = std::max(0.0f, finalSlot.height - (bt.top + bt.bottom + pd.top + pd.bottom));
+    content_->Arrange(vaml::Rect{ finalSlot.x + ox, finalSlot.y + oy, ow, oh });
+}
+
+// --- S482 Rectangle/Ellipse/Line shape DPs + measure ------------------------
+
+namespace {
+
+void register_rectangle_properties()
+{
+    (void)DependencyProperty::Register(
+        "Rectangle.Fill", ValueType::BrushId, "Rectangle",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Rectangle.Stroke", ValueType::BrushId, "Rectangle",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Rectangle.StrokeThickness", ValueType::Double, "Rectangle",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    // Width/Height ride the BASE UIElement S123 layout DPs (auto/NaN), NOT a
+    // duplicate custom DP (recorded NO-GAP — the shape box is the inherited
+    // WPF-style Width/Height the S123 reconciler applies).
+}
+
+void ensure_rectangle_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_rectangle_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Rectangle::Rectangle()
+{
+    ensure_rectangle_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Rectangle::set_fill(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Rectangle.Fill"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Rectangle::fill() const
+{
+    return Get(PropertyId::of("Rectangle.Fill")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Rectangle::set_stroke(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Rectangle.Stroke"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Rectangle::stroke() const
+{
+    return Get(PropertyId::of("Rectangle.Stroke")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Rectangle::set_stroke_thickness(double value)
+{
+    return Set(PropertyId::of("Rectangle.StrokeThickness"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double Rectangle::stroke_thickness() const
+{
+    return Get(PropertyId::of("Rectangle.StrokeThickness")).get<double>();
+}
+
+VAML_CORE_EXPORT
+Size Rectangle::MeasureOverride(const Size& available) const
+{
+    // The S482 Rectangle measure: a nominal intrinsic box. The base S123
+    // reconciler applies the WPF-style Width/Height (auto/NaN) + the
+    // stretch-vs-wrap rule, so a bounded offer stretches a default-Stretch
+    // Rectangle. The fill/stroke render is the classifier (Solid).
+    const float w = available.width > 0.0f ? std::min(available.width, 200.0f) : 0.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 120.0f) : 0.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// Ellipse (mirrors Rectangle's DP + measure; the CURVED outline is the S209/
+// S649 continuation, recorded NO-GAP not silent).
+
+namespace {
+
+void register_ellipse_properties()
+{
+    (void)DependencyProperty::Register(
+        "Ellipse.Fill", ValueType::BrushId, "Ellipse",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Ellipse.Stroke", ValueType::BrushId, "Ellipse",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Ellipse.StrokeThickness", ValueType::Double, "Ellipse",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    // Width/Height ride the base UIElement S123 layout DPs (auto/NaN).
+}
+
+void ensure_ellipse_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_ellipse_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Ellipse::Ellipse()
+{
+    ensure_ellipse_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Ellipse::set_fill(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Ellipse.Fill"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Ellipse::fill() const
+{
+    return Get(PropertyId::of("Ellipse.Fill")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Ellipse::set_stroke(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Ellipse.Stroke"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Ellipse::stroke() const
+{
+    return Get(PropertyId::of("Ellipse.Stroke")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Ellipse::set_stroke_thickness(double value)
+{
+    return Set(PropertyId::of("Ellipse.StrokeThickness"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double Ellipse::stroke_thickness() const
+{
+    return Get(PropertyId::of("Ellipse.StrokeThickness")).get<double>();
+}
+
+VAML_CORE_EXPORT
+Size Ellipse::MeasureOverride(const Size& available) const
+{
+    // The S482 Ellipse measure: a nominal intrinsic box; the base S123
+    // reconciler applies the CPI-style Width/Height + stretch-vs-wrap.
+    const float w = available.width > 0.0f ? std::min(available.width, 200.0f) : 0.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 120.0f) : 0.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// Line (has no Width/Height; the stroke axis is the box).
+
+namespace {
+
+void register_line_properties()
+{
+    (void)DependencyProperty::Register(
+        "Line.Fill", ValueType::BrushId, "Line",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Line.Stroke", ValueType::BrushId, "Line",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Line.StrokeThickness", ValueType::Double, "Line",
+        PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
+    // Width/Height ride the base UIElement S123 layout DPs (auto/NaN).
+}
+
+void ensure_line_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_line_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Line::Line()
+{
+    ensure_line_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Line::set_fill(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Line.Fill"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Line::fill() const
+{
+    return Get(PropertyId::of("Line.Fill")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Line::set_stroke(std::int32_t brushId)
+{
+    return Set(PropertyId::of("Line.Stroke"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Line::stroke() const
+{
+    return Get(PropertyId::of("Line.Stroke")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Line::set_stroke_thickness(double value)
+{
+    return Set(PropertyId::of("Line.StrokeThickness"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double Line::stroke_thickness() const
+{
+    return Get(PropertyId::of("Line.StrokeThickness")).get<double>();
+}
+
+VAML_CORE_EXPORT
+Size Line::MeasureOverride(const Size& available) const
+{
+    // A Line renders as a thin stroke rect along its axis: default a rule at
+    // the offered width with the stroke-thickness cross extent (a zero-length
+    // Line -> degenerate, skipped by the classifier). The base S123 reconciler
+    // applies the WPF-style Width/Height + stretch-vs-wrap.
+    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float h = static_cast<float>(stroke_thickness() > 0.0 ? stroke_thickness() : 1.0);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S483 Image: Source/IconKey/Stretch/Width/Height (the S400_1 icon path) ---
+
+namespace {
+
+void register_image_properties()
+{
+    (void)DependencyProperty::Register(
+        "Image.Source", ValueType::String, "Image",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Image.IconKey", ValueType::String, "Image",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Image.Stretch", ValueType::Int32, "Image",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // Width/Height ride the base UIElement S123 layout DPs (auto/NaN) — the
+    // image box is the inherited WPF-style Width/Height the reconciler applies.
+}
+
+void ensure_image_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_image_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Image::Image()
+{
+    ensure_image_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Image::set_source(std::string value)
+{
+    return Set(PropertyId::of("Image.Source"), Value::String(std::move(value)));
+}
+VAML_CORE_EXPORT
+std::string Image::source() const
+{
+    return Get(PropertyId::of("Image.Source")).get<std::string>();
+}
+VAML_CORE_EXPORT
+SetResult Image::set_icon_key(std::string value)
+{
+    return Set(PropertyId::of("Image.IconKey"), Value::String(std::move(value)));
+}
+VAML_CORE_EXPORT
+std::string Image::icon_key() const
+{
+    return Get(PropertyId::of("Image.IconKey")).get<std::string>();
+}
+VAML_CORE_EXPORT
+SetResult Image::set_stretch(std::int32_t value)
+{
+    return Set(PropertyId::of("Image.Stretch"), Value::Int32(value));
+}
+VAML_CORE_EXPORT
+std::int32_t Image::stretch() const
+{
+    return Get(PropertyId::of("Image.Stretch")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+Size Image::MeasureOverride(const Size& available) const
+{
+    // The S483 real Image algorithm: a nominal box; the base S123 reconciler
+    // applies the WPF-style Width/Height (auto/NaN) — a bounded default stands
+    // in for a 0-auto axis (mirroring the S400_1 Icon's nominal 16px box; the
+    // real asset's natural extent is resolved at RENDER by the cached provider
+    // + best-fit (S213_1), recorded NO-GAP not silent).
+    const float w = width() > 0.0 ? static_cast<float>(width())
+                                  : (available.width > 0.0f ? available.width : 16.0f);
+    const float h = height() > 0.0 ? static_cast<float>(height())
+                                   : (available.height > 0.0f ? available.height : 16.0f);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S484 ProgressBar: Value/Min/Max + value_changed + determinate fill -----
+
+namespace {
+
+void register_progressbar_properties()
+{
+    (void)DependencyProperty::Register(
+        "ProgressBar.Value", ValueType::Double, "ProgressBar",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ProgressBar.Minimum", ValueType::Double, "ProgressBar",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ProgressBar.Maximum", ValueType::Double, "ProgressBar",
+        PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
+    (void)RoutedEvent::registered("ValueChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_progressbar_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_progressbar_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+ProgressBar::ProgressBar()
+{
+    ensure_progressbar_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult ProgressBar::set_value(double v)
+{
+    const double lo = std::min(minimum(), maximum());
+    const double hi = std::max(minimum(), maximum());
+    const double clamped = std::clamp(v, lo, hi);
+    const double old = Get(PropertyId::of("ProgressBar.Value")).get<double>();
+    if (old == clamped)
+        return vaml::SetResult::NO_CHANGE;
+    const SetResult r = Set(PropertyId::of("ProgressBar.Value"), Value::Double(clamped));
+    if (r == vaml::SetResult::APPLIED)
+        apply_change(clamped);
+    return r;
+}
+
+VAML_CORE_EXPORT
+double ProgressBar::value() const
+{
+    return Get(PropertyId::of("ProgressBar.Value")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult ProgressBar::set_minimum(double v)
+{
+    return Set(PropertyId::of("ProgressBar.Minimum"), Value::Double(v));
+}
+
+VAML_CORE_EXPORT
+double ProgressBar::minimum() const
+{
+    return Get(PropertyId::of("ProgressBar.Minimum")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult ProgressBar::set_maximum(double v)
+{
+    return Set(PropertyId::of("ProgressBar.Maximum"), Value::Double(v));
+}
+
+VAML_CORE_EXPORT
+double ProgressBar::maximum() const
+{
+    return Get(PropertyId::of("ProgressBar.Maximum")).get<double>();
+}
+
+VAML_CORE_EXPORT
+void ProgressBar::apply_change(double newValue)
+{
+    (void)newValue; // the routed change is the notification; the DP holds the value
+    // The S484 "routed change event": fire the Signal + raise the BUBBLING
+    // "ValueChanged" routed event (source==this). Mirrors the S403 Slider.
+    onValueChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("ValueChanged", vaml::RouteEventDirection::Bubble),
+               args);
+}
+
+VAML_CORE_EXPORT
+Size ProgressBar::MeasureOverride(const Size& available) const
+{
+    // The S484 real ProgressBar algorithm: a bounded horizontal track box (the
+    // S123 finalizer applies the stretch-vs-wrap). The determinate fill is the
+    // classifier (Solid) at the arranged rect.
+    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float h = available.height > 0.0f ? available.height : 12.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S485 PasswordBox: masked single-line edit + TextChanged -----------------
+
+namespace {
+
+void register_passwordbox_properties()
+{
+    (void)DependencyProperty::Register(
+        "PasswordBox.Password", ValueType::String, "PasswordBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "PasswordBox.MaxLength", ValueType::Int32, "PasswordBox",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "PasswordBox.PasswordChar", ValueType::String, "PasswordBox",
+        PropertyMetadata::WithDefault(Value::String(std::string("*")), PropertyFlags::None));
+    (void)RoutedEvent::registered("TextChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_passwordbox_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_passwordbox_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+PasswordBox::PasswordBox()
+{
+    ensure_passwordbox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult PasswordBox::set_password(std::string value)
+{
+    return Set(PropertyId::of("PasswordBox.Password"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string PasswordBox::password() const
+{
+    return Get(PropertyId::of("PasswordBox.Password")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult PasswordBox::set_max_length(std::int32_t value)
+{
+    return Set(PropertyId::of("PasswordBox.MaxLength"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t PasswordBox::max_length() const
+{
+    return Get(PropertyId::of("PasswordBox.MaxLength")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult PasswordBox::set_password_char(std::string value)
+{
+    return Set(PropertyId::of("PasswordBox.PasswordChar"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string PasswordBox::password_char() const
+{
+    return Get(PropertyId::of("PasswordBox.PasswordChar")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+void PasswordBox::raise_password_changed()
+{
+    // S485 — the TextChanged routed event (Bubbling, source==this passwordbox).
+    // Mirrors the S402/S463 TextBox raise; a real password edit fires it.
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::TextChangedEvent(), args);
+}
+
+VAML_CORE_EXPORT
+bool PasswordBox::handle_key(vaml::KeyCode key, bool isDown, bool shift)
+{
+    (void)shift; // single-line masked edit: caret nav collapses selection
+    if (!isDown)
+        return false; // a key-down drives an edit; releases are not edits
+
+    std::string s = password();
+    const std::string before = s;
+
+    // Navigation: Left/Right/Home/End move the caret (no text change).
+    switch (key)
+    {
+    case vaml::KeyCode::Left:  caret_ = caret_ > 0 ? caret_ - 1 : 0; return true;
+    case vaml::KeyCode::Right: caret_ = std::min(caret_ + 1, s.size()); return true;
+    case vaml::KeyCode::Home:  caret_ = 0; return true;
+    case vaml::KeyCode::End:   caret_ = s.size(); return true;
+    default: break;
+    }
+
+    // A printable letter/digit/space inserts at the caret (masked — the stored
+    // Password is the real content; only the RENDER is masked bullets).
+    auto insert = [&](char c) {
+        if (max_length() > 0 && s.size() >= static_cast<std::size_t>(max_length()))
+            return; // max-length reached: the insert is a no-op
+        s.insert(s.begin() + static_cast<std::ptrdiff_t>(caret_), c);
+        caret_ = std::min(caret_ + 1, s.size());
+    };
+    if (key >= vaml::KeyCode::A && key <= vaml::KeyCode::Z)
+    {
+        insert(static_cast<char>('a' + (static_cast<int>(key) - static_cast<int>(vaml::KeyCode::A))));
+    }
+    else if (key >= vaml::KeyCode::Digit0 && key <= vaml::KeyCode::Digit9)
+    {
+        insert(static_cast<char>('0' + (static_cast<int>(key) - static_cast<int>(vaml::KeyCode::Digit0))));
+    }
+    else if (key == vaml::KeyCode::Space || key == vaml::KeyCode::TextBoxAccept)
+    {
+        insert(' ');
+    }
+    else if (key == vaml::KeyCode::Backspace)
+    {
+        if (caret_ > 0)
+        {
+            s.erase(s.begin() + static_cast<std::ptrdiff_t>(caret_ - 1));
+            caret_ = std::min(caret_ - 1, s.size());
+        }
+    }
+    else if (key == vaml::KeyCode::Enter)
+    {
+        // Single-line Accept: consume the key, no text change.
+        return true;
+    }
+    else
+    {
+        return false; // an unhandled key is not an edit
+    }
+
+    (void)Set(PropertyId::of("PasswordBox.Password"), Value::String(s));
+    if (password() != before)
+        raise_password_changed();
+    return true;
+}
+
+VAML_CORE_EXPORT
+Size PasswordBox::MeasureOverride(const Size& available) const
+{
+    // The S485 real PasswordBox algorithm: the masked edit field box (a bounded
+    // default; the S123 finalizer applies the stretch-vs-wrap). The masked
+    // bullets render via the S400 Text path at the classifier (the edit-field
+    // fill box is Solid — mirroring TextBox).
+    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float h = available.height > 0.0f ? available.height : 20.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S485 GroupBox/Expander: header + single content container --------------
+
+namespace {
+
+void register_groupbox_properties()
+{
+    (void)DependencyProperty::Register(
+        "GroupBox.Header", ValueType::String, "GroupBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // The S452 property-element grammar resolves `<GroupBox.Content>` against
+    // the bare "Content" name; the content child is the S121 visual child list,
+    // so no Content DP is registered (the single-content slot is member state,
+    // mirroring Window).
+}
+
+void ensure_groupbox_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_groupbox_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+GroupBox::GroupBox()
+{
+    ensure_groupbox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult GroupBox::set_header(std::string value)
+{
+    return Set(PropertyId::of("GroupBox.Header"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string GroupBox::header() const
+{
+    return Get(PropertyId::of("GroupBox.Header")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+void GroupBox::set_content(std::unique_ptr<UIElement> child)
+{
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* GroupBox::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size GroupBox::MeasureOverride(const Size& available) const
+{
+    // The S485 real GroupBox: the content child + a header band. Measure the
+    // content within the offered box (minus a nominal header band) and report
+    // content + header extent.
+    vaml::Size inner{ available.width > 0.0f ? available.width : 0.0f,
+                      available.height > 0.0f ? std::max(0.0f, available.height - 18.0f) : 0.0f };
+    if (content_)
+        content_->Measure(inner);
+    const float cw = content_ ? content_->desired_size().width : 0.0f;
+    const float ch = content_ ? content_->desired_size().height : 0.0f;
+    return Size{ std::max(0.0f, cw), std::max(0.0f, ch + 18.0f) };
+}
+
+VAML_CORE_EXPORT
+void GroupBox::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    if (!content_)
+        return;
+    // The content child sits below the 18px header band; the classifier draws
+    // the bordered group box (Solid + Border) at the arranged rect.
+    const float headerH = 18.0f;
+    const float ch = std::max(0.0f, finalSlot.height - headerH);
+    content_->Arrange(vaml::Rect{ finalSlot.x, finalSlot.y + headerH, finalSlot.width, ch });
+}
+
+// Expander (header + IsExpanded + expandable content). The expand chevron is
+// the S649 continuation (recorded NO-GAP not silent); the container + header +
+// IsExpanded are the REAL S485 surface.
+
+namespace {
+
+void register_expander_properties()
+{
+    (void)DependencyProperty::Register(
+        "Expander.Header", ValueType::String, "Expander",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Expander.IsExpanded", ValueType::Int32, "Expander",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_expander_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_expander_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Expander::Expander()
+{
+    ensure_expander_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Expander::set_header(std::string value)
+{
+    return Set(PropertyId::of("Expander.Header"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string Expander::header() const
+{
+    return Get(PropertyId::of("Expander.Header")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult Expander::set_is_expanded(std::int32_t value)
+{
+    const int v = value ? 1 : 0;
+    return Set(PropertyId::of("Expander.IsExpanded"), Value::Int32(v));
+}
+
+VAML_CORE_EXPORT
+bool Expander::is_expanded() const
+{
+    return Get(PropertyId::of("Expander.IsExpanded")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+void Expander::set_content(std::unique_ptr<UIElement> child)
+{
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* Expander::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size Expander::MeasureOverride(const Size& available) const
+{
+    // The S485 real Expander: when IsExpanded, measure the content child below
+    // the header band; when collapsed, only the header (content hidden). The
+    // classifier draws the container fill (Solid) at the arranged rect.
+    const float innerH = is_expanded() && available.height > 0.0f
+                             ? std::max(0.0f, available.height - 24.0f)
+                             : 0.0f;
+    vaml::Size inner{ available.width > 0.0f ? available.width : 0.0f, innerH };
+    if (content_ && is_expanded())
+        content_->Measure(inner);
+    const float cw = content_ && is_expanded() ? content_->desired_size().width : 0.0f;
+    const float ch = content_ && is_expanded() ? content_->desired_size().height : 0.0f;
+    const float headerH = is_expanded() ? 24.0f : 24.0f;
+    return Size{ std::max(0.0f, cw), std::max(0.0f, ch + headerH) };
+}
+
+VAML_CORE_EXPORT
+void Expander::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    if (!content_ || !is_expanded())
+        return; // collapsed: the content is hidden (the classifier draws only the header)
+    const float headerH = 24.0f;
+    const float ch = std::max(0.0f, finalSlot.height - headerH);
+    content_->Arrange(vaml::Rect{ finalSlot.x, finalSlot.y + headerH, finalSlot.width, ch });
+}
+
+// --- S485 Separator: a thin divider ----------------------------------------
+
+namespace {
+
+void register_separator_properties()
+{
+    (void)DependencyProperty::Register(
+        "Separator.Thickness", ValueType::Double, "Separator",
+        PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
+}
+
+void ensure_separator_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_separator_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Separator::Separator()
+{
+    ensure_separator_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Separator::set_thickness(double value)
+{
+    return Set(PropertyId::of("Separator.Thickness"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Separator::thickness() const
+{
+    return Get(PropertyId::of("Separator.Thickness")).get<double>();
+}
+
+VAML_CORE_EXPORT
+Size Separator::MeasureOverride(const Size& available) const
+{
+    // The S485 real Separator: a thin rule — default full width × the thickness
+    // (1px). The classifier draws the thin line (Solid).
+    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float h = static_cast<float>(thickness() > 0.0 ? thickness() : 1.0);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S485 StatusBar: a docking item host (attached StatusBar.Dock) ----------
+
+namespace {
+
+void register_statusbar_properties()
+{
+    // The attached StatusBar.Dock edge (Left=0 / Right=1), stored on the child
+    // via the S043 attached-aware path (mirrors DockPanel.Dock).
+    (void)DependencyProperty::Register(
+        "StatusBar.Dock", ValueType::Int32, "StatusBar",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_statusbar_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_statusbar_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+StatusBar::StatusBar()
+{
+    ensure_statusbar_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult StatusBar::set_dock(DependencyObject& obj, std::int32_t value)
+{
+    return obj.Set(PropertyId::of("StatusBar.Dock"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t StatusBar::dock(const DependencyObject& obj)
+{
+    return obj.Get(PropertyId::of("StatusBar.Dock")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+Size StatusBar::MeasureOverride(const Size& available) const
+{
+    // The S485 real StatusBar: a docking host that lays out its children along
+    // the bar. Measure each child unbounded; report the max cross extent (the
+    // bar's height) + consumed width (left-docked items stack left-to-right,
+    // right-docked items stack right-to-left).
+    (void)available; // the bar hosts many items; the offer bounds the wrap only
+    float width = 0.0f;   // consumed by left-docked items
+    float maxH  = 0.0f;   // max child height (the bar's thickness)
+    const std::size_t n = child_count();
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        UIElement* child = child_at(i);
+        if (child->is_measure_dirty())
+            child->Measure(Size::Infinite());
+        if (dock(*child) == 0) // Left
+            width += child->desired_size().width;
+        maxH = std::max(maxH, child->desired_size().height);
+    }
+    return Size{ std::max(0.0f, width), std::max(0.0f, maxH) };
+}
+
+VAML_CORE_EXPORT
+void StatusBar::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    // Place Left-docked items from the left edge; Right-docked items from the
+    // right edge. Each child fills the bar's height (the cross extent).
+    float cursorL = finalSlot.x;
+    float cursorR = finalSlot.right();
+    const std::size_t n = child_count();
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        UIElement* child = child_at(i);
+        if (!child->is_arrange_dirty())
+            continue;
+        if (dock(*child) == 0) // Left — stack left-to-right
+        {
+            const float cw = child->desired_size().width;
+            child->Arrange(vaml::Rect{ cursorL, finalSlot.y, cw, finalSlot.height });
+            cursorL += cw;
+        }
+        else // Right — stack right-to-left
+        {
+            const float cw = child->desired_size().width;
+            cursorR -= cw;
+            child->Arrange(vaml::Rect{ cursorR, finalSlot.y, cw, finalSlot.height });
+        }
+    }
+}
+
 VAML_CORE_EXPORT
 void register_builtin_elements()
 {
@@ -2902,6 +4124,24 @@ void register_builtin_elements()
     registry.register_element("ComboBox",     [] { return std::make_unique<ComboBox>(); });    // 19
     registry.register_element("ListBox",      [] { return std::make_unique<ListBox>(); });     // 20
     registry.register_element("ListView",     [] { return std::make_unique<ListView>(); });    // 21
+    // --- Sprint 11d (S480–S486): the core display + input controls. All are
+    // REAL re-based UIElements resolved at their OWN steps (NO-GAP, no MINIMAL
+    // REAL added). Label (S480) 21 -> 22; Border (S481) 22 -> 23; the shapes
+    // Rectangle/Ellipse/Line (S482) 23 -> 26; Image (S483) 26 -> 27;
+    // ProgressBar (S484) 27 -> 28; the S485 set (PasswordBox/GroupBox/Expander/
+    // Separator/StatusBar) 28 -> 33.
+    registry.register_element("Label",          [] { return std::make_unique<Label>(); });       // 22
+    registry.register_element("Border",         [] { return std::make_unique<Border>(); });      // 23
+    registry.register_element("Rectangle",      [] { return std::make_unique<Rectangle>(); });   // 24
+    registry.register_element("Ellipse",        [] { return std::make_unique<Ellipse>(); });     // 25
+    registry.register_element("Line",           [] { return std::make_unique<Line>(); });        // 26
+    registry.register_element("Image",          [] { return std::make_unique<Image>(); });       // 27
+    registry.register_element("ProgressBar",    [] { return std::make_unique<ProgressBar>(); }); // 28
+    registry.register_element("PasswordBox",    [] { return std::make_unique<PasswordBox>(); }); // 29
+    registry.register_element("GroupBox",       [] { return std::make_unique<GroupBox>(); });    // 30
+    registry.register_element("Expander",       [] { return std::make_unique<Expander>(); });    // 31
+    registry.register_element("Separator",      [] { return std::make_unique<Separator>(); });   // 32
+    registry.register_element("StatusBar",      [] { return std::make_unique<StatusBar>(); });   // 33
 
     // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
     // visual controls; they are the authored RESOURCE types the resource-

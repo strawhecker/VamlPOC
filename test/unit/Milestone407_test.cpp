@@ -83,8 +83,23 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     SHOULD(ShouldlyIntegral(g.is_registered("ComboBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ListBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ListView")).ShouldBe(true));
+    // Sprint 11d: the core display + input controls are registered built-ins.
+    SHOULD(ShouldlyIntegral(g.is_registered("Label")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Border")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Rectangle")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Ellipse")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Line")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Image")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ProgressBar")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("PasswordBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("GroupBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Expander")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Separator")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("StatusBar")).ShouldBe(true));
     // The built-in count: 10 roadmap controls + WrapPanel + Canvas + Icon +
     // S453 (SolidColorBrush + Style) + S460 (LinearGradientBrush + GradientStop)
-    // + Sprint 11c (DockPanel/RadioButton/ComboBox/ListBox/ListView) = 21.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
+    // + Sprint 11c (DockPanel/RadioButton/ComboBox/ListBox/ListView) +
+    // Sprint 11d (Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/
+    // PasswordBox/GroupBox/Expander/Separator/StatusBar) = 33.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(33u));
 }

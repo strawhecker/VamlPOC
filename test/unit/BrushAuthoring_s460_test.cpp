@@ -174,7 +174,10 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     ElementFactoryRegistry& g = ElementFactoryRegistry::global();
     SHOULD(ShouldlyIntegral(g.is_registered("LinearGradientBrush")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("GradientStop")).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
+    // 21 (the pre-11d set) -> 33 (its full built-in register) as Sprint 11d
+    // added the core display + input controls (Label/Border/Rectangle/Ellipse/
+    // Line/Image/ProgressBar/PasswordBox/GroupBox/Expander/Separator/StatusBar).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(33u));
 }
 
 // ---------------------------------------------------------------------------
