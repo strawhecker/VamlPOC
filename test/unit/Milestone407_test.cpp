@@ -46,6 +46,21 @@ TEST_CASE("S407: every S10 control is a real UIElement re-base (no DependencyObj
         SHOULD(ShouldlyIntegral(dynamic_cast<vaml::UIElement*>(icon.get()) != nullptr)
                    .ShouldBe(true));
     }
+
+    // Sprint 11c: the DockPanel + selection controls are REAL UIElement re-bases
+    // (S470–S473 — resolved at their own steps, no DependencyObject-only seeds).
+    const char* controls11c[] = { "DockPanel", "RadioButton", "ComboBox",
+                                  "ListBox", "ListView" };
+    for (const char* name : controls11c)
+    {
+        auto e = g.try_create(name);
+        SHOULD(ShouldlyIntegral(e != nullptr).ShouldBe(true));
+        if (e)
+        {
+            SHOULD(ShouldlyIntegral(dynamic_cast<vaml::UIElement*>(e.get()) != nullptr)
+                       .ShouldBe(true));
+        }
+    }
 }
 
 TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
@@ -62,7 +77,14 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     SHOULD(ShouldlyIntegral(g.is_registered("CheckBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ScrollViewer")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Icon")).ShouldBe(true));
+    // Sprint 11c: the new controls are registered built-ins.
+    SHOULD(ShouldlyIntegral(g.is_registered("DockPanel")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("RadioButton")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ComboBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ListBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ListView")).ShouldBe(true));
     // The built-in count: 10 roadmap controls + WrapPanel + Canvas + Icon +
-    // S453 (SolidColorBrush + Style) + S460 (LinearGradientBrush + GradientStop) = 16.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(16u));
+    // S453 (SolidColorBrush + Style) + S460 (LinearGradientBrush + GradientStop)
+    // + Sprint 11c (DockPanel/RadioButton/ComboBox/ListBox/ListView) = 21.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
 }

@@ -37,13 +37,18 @@
 using vaml::Button;
 using vaml::Canvas;
 using vaml::CheckBox;
+using vaml::ComboBox;
 using vaml::DependencyObject;
+using vaml::DockPanel;
 using vaml::ElementAlreadyRegistered;
 using vaml::ElementFactory;
 using vaml::ElementFactoryRegistry;
 using vaml::ElementNotFound;
 using vaml::Grid;
 using vaml::Icon;
+using vaml::ListBox;
+using vaml::ListView;
+using vaml::RadioButton;
 using vaml::ScrollViewer;
 using vaml::Slider;
 using vaml::StackPanel;
@@ -237,6 +242,12 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     SHOULD(ShouldlyIntegral(g.is_registered("Canvas")).ShouldBe(true));
     // S400_1: Icon is a real control (registered at S400_1, not a seed).
     SHOULD(ShouldlyIntegral(g.is_registered("Icon")).ShouldBe(true));
+    // Sprint 11c: the DockPanel + selection controls are real built-ins.
+    SHOULD(ShouldlyIntegral(g.is_registered("DockPanel")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("RadioButton")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ComboBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ListBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ListView")).ShouldBe(true));
 
     // The S087 headline: create("Button") etc. yields the CONCRETE type, not a
     // generic blob — the typeName -> type dispatch is real end-to-end.
@@ -256,11 +267,18 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<Canvas>(g.create("Canvas"));
     // S400_1: the registry-resolve assertion is authored at THIS step.
     assertConcrete<Icon>(g.create("Icon"));
+    // Sprint 11c: registry-resolve assertions for the new controls.
+    assertConcrete<vaml::DockPanel>(g.create("DockPanel"));
+    assertConcrete<vaml::RadioButton>(g.create("RadioButton"));
+    assertConcrete<vaml::ComboBox>(g.create("ComboBox"));
+    assertConcrete<vaml::ListBox>(g.create("ListBox"));
+    assertConcrete<vaml::ListView>(g.create("ListView"));
 
-    // Size matches the full built-in set (16: the roadmap controls + WrapPanel +
+    // Size matches the full built-in set (21: the roadmap controls + WrapPanel +
     // Canvas + Icon + the S453 authored-resource types SolidColorBrush + Style +
-    // the S460 brush-authoring types LinearGradientBrush + GradientStop).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(16u));
+    // the S460 brush-authoring types LinearGradientBrush + GradientStop + the
+    // Sprint 11c controls DockPanel/RadioButton/ComboBox/ListBox/ListView).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -269,9 +287,10 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     register_builtin_elements(); // second population must NOT throw
     ElementFactoryRegistry& g = ElementFactoryRegistry::global();
     // Exactly the built-in set, no duplicates (a duplicate would have thrown or
-    // inflated size). S134: WrapPanel adds the 10th built-in; S136: Canvas the
-    // 11th; S400_1: Icon the 12th; S453: SolidColorBrush + Style the 13th/14th;
-    // S460: LinearGradientBrush + GradientStop the 15th/16th.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(16u));
+    // inflated size). S134: WrapPanel the 10th; S136: Canvas the 11th; S400_1:
+    // Icon the 12th; S453: SolidColorBrush + Style the 13th/14th; S460:
+    // LinearGradientBrush + GradientStop the 15th/16th; Sprint 11c: DockPanel/
+    // RadioButton/ComboBox/ListBox/ListView the 17th-21st.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
     assertConcrete<Button>(g.create("Button"));
 }

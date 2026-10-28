@@ -562,6 +562,24 @@ add_executable(vaml-tools-tests
     # DP to UntypedPtr AND is excluded from the S121 visual-children transfer;
     # unknown-dotted -> VBamlException(UnknownProperty).
     PropertyElementS7_s452_test.cpp
+    # S470 (dep:S466) — DockPanel control RESOLVED (11c): the ONLY missing layout
+    # container. Attached DockPanel.Dock DP (resolves the S462-recorded NO-GAP),
+    # the WPF-faithful dock-stacking Measure/Arrange (Left/Right consume width,
+    # Top/Bottom consume height, last-child Fill takes the remaining), DesiredSize
+    # = Σ tracks, dirty-respect (S128), registered built-in 16 -> 17.
+    DockPanel_test.cpp
+    # S471 (dep:S470) — RadioButton control RESOLVED (11c): IsChecked + the
+    # honest single-parent exclusive group semantic + routed Checked/Unchecked,
+    # registered built-in 17 -> 18.
+    RadioButton_test.cpp
+    # S472 (dep:S471) — ComboBox control RESOLVED (11c): Items/ItemsSource +
+    # SelectedIndex/SelectedItem + SelectionChanged + the dropdown interaction
+    # (is_open/open/select_item), registered built-in 18 -> 19.
+    ComboBox_test.cpp
+    # S473 (dep:S472) — ListBox + ListView controls RESOLVED (11c): the shared
+    # item-selection base + ItemTemplate property-element authoring -> items
+    # render authored content through the S364 seam, registered built-ins 19->21.
+    ListBoxListView_test.cpp
     # S286 (dep:S285) — Reader instantiates via factory registry, sets props,
     # attaches deferred events (S8). The full compiled-path deferred surface:
     # x:Name/x:Class/x:Key registries (DuplicateName/ClassOnNonRoot/root_class),
@@ -936,6 +954,17 @@ add_executable(vaml-presentation-tests
     # renders EVERY S10 control to a real material (the sample.vaml is the
     # [both-apps] live-display proof).
     ViewerControlsPlan_s409_1_test.cpp
+    # S475 (dep:S474) — VIEWER-GROWTH(11c): the sample .vaml authors the DockPanel
+    # layout + the selection controls; the LIVE viewer renders the DockPanel
+    # layout + each selection control interactively (RadioButton exclusive group,
+    # ComboBox dropdown selection). Headless proof of the [both-apps] sample.
+    ViewerGrowth_s475_test.cpp
+    # S11c (S470–S473) — the DockPanel + selection controls (RadioButton/
+    # ComboBox/ListBox/ListView) materials at the vertical-slice boundary:
+    # classify_merge_element -> MaterialKind::Solid for each (DockPanel fill /
+    # RadioButton check-glyph / ComboBox field / ListBox-ListView fill), + the
+    # checked-vs-unchecked RadioButton alpha. Headless.
+    ViewerSelectionMaterial_test.cpp
     # S440 (dep:S408) — the APP-SHELL: the authored MainView.vaml + the REAL
     # Window (re-based onto UIElement) + run_app_shell_plan, which Loads the
     # shell through a RETAINED VamlReader and calls finalize_visual_tree() — the

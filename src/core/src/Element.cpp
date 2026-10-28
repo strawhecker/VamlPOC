@@ -326,6 +326,124 @@ void ensure_button_properties_registered()
     }
 }
 
+// Registers the DockPanel attached Dock DP (S470) into the global table exactly
+// once per process (Meyers-static guard). The Dock edge is Int32 (enum Dock {0..4}),
+// owner "DockPanel", DEFAULT Fill (4) — WPF-faithful (a child with no explicit
+// dock is the last-child fill). GLOBALLY registered under owner "DockPanel" so it
+// resolves on ANY DependencyObject via the S043 attached-aware path (a child's
+// dock is stored on the child).
+void register_dockpanel_properties()
+{
+    (void)DependencyProperty::Register(
+        "DockPanel.Dock", ValueType::Int32, "DockPanel",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(4), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x >= 0 && x <= 4; }));
+}
+
+// Runs register_dockpanel_properties() at most once (first DockPanel ctor).
+void ensure_dockpanel_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_dockpanel_properties();
+    }
+}
+
+// Registers the RadioButton IsChecked DP + Checked/Unchecked events (S471).
+void register_radiobutton_properties()
+{
+    (void)DependencyProperty::Register(
+        "RadioButton.IsChecked", ValueType::Int32, "RadioButton",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    (void)RoutedEvent::registered("Checked", RouteEventDirection::Bubble);
+    (void)RoutedEvent::registered("Unchecked", RouteEventDirection::Bubble);
+}
+
+void ensure_radiobutton_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_radiobutton_properties();
+    }
+}
+
+// Registers the ComboBox DPs (S472) + the SelectionChanged event.
+void register_combobox_properties()
+{
+    (void)DependencyProperty::Register(
+        "ComboBox.Items", ValueType::String, "ComboBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ComboBox.ItemsSource", ValueType::String, "ComboBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ComboBox.SelectedIndex", ValueType::Int32, "ComboBox",
+        PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ComboBox.SelectedItem", ValueType::String, "ComboBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ComboBox.IsOpen", ValueType::Int32, "ComboBox",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    (void)RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_combobox_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_combobox_properties();
+    }
+}
+
+// Registers the ListBox DPs (S473) + the SelectionChanged event.
+void register_listbox_properties()
+{
+    (void)DependencyProperty::Register(
+        "ListBox.Items", ValueType::String, "ListBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ListBox.ItemsSource", ValueType::String, "ListBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ListBox.SelectedIndex", ValueType::Int32, "ListBox",
+        PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ListBox.SelectedItem", ValueType::String, "ListBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // The S452 property-element grammar resolves `<ListBox.ItemTemplate>` /
+    // `<ListView.ItemTemplate>` against the GLOBAL name (VamlReader::TryGet uses
+    // the split `propName`, i.e. "ItemTemplate" — the bare name) and routes the
+    // authored template into the S364 engine. Register it as a bare global DP so
+    // the authored property-element resolves (S473). UNTYPEDPTR-bound: the
+    // authored `<Owner.ItemTemplate>` object child is a retained UIElement the
+    // reader stores as Value::UntypedPtr; render_items() instantiates per-item
+    // content FROM that authored template (the "items render authored content"
+    // headline — the S364 instantiate seam).
+    (void)DependencyProperty::Register(
+        "ItemTemplate", ValueType::UntypedPtr, "ListBox",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
+    (void)RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_listbox_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_listbox_properties();
+    }
+}
+
 // Registers the TextBox's REAL DPs (S402) into the global table exactly once.
 void register_textbox_properties()
 {
@@ -2170,6 +2288,572 @@ void Grid::ArrangeOverride(const Rect& finalSlot)
     }
 }
 
+// --- S470 DockPanel: attached Dock DP + real dock-stacking panel -----------
+
+VAML_CORE_EXPORT
+DockPanel::DockPanel()
+{
+    ensure_dockpanel_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult DockPanel::set_dock(DependencyObject& obj, std::int32_t value)
+{
+    // Value rides the Int32 path on the attached name (S043 attached-aware:
+    // the key is owned by DockPanel, stored on `obj`).
+    return obj.Set(PropertyId::of("DockPanel.Dock"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t DockPanel::dock(const DependencyObject& obj)
+{
+    return obj.Get(PropertyId::of("DockPanel.Dock")).get<std::int32_t>();
+}
+
+// The S470 real dock-stacking measure. Children are offered UNBOUNDED on both
+// axes (the S123 infinity rule — a docked child measures at its natural content
+// extent), accumulating the consumed dock track:
+//   * Left/Right compute consume `child.desired.width` on the width axis.
+//   * Top/Bottom consume `child.desired.height` on the height axis.
+// The LAST child (Dock Fill) takes the REMAINING interior slot (WPF-faithful).
+// Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
+// child reuses its stored desired_size().
+VAML_CORE_EXPORT
+Size DockPanel::MeasureOverride(const Size& available) const
+{
+    (void)available;
+    const Size childAvail = Size::Infinite();
+
+    float width  = 0.0f; // consumed horizontal track
+    float height = 0.0f; // consumed vertical track
+
+    const std::size_t n = child_count();
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        UIElement* child = child_at(i);
+        if (child->is_measure_dirty())
+        {
+            child->Measure(childAvail);
+        }
+        const std::int32_t d = dock(*child);
+        const bool isLast = (i + 1 == n);
+        if (isLast)
+        {
+            // The last child (Fill) takes the remaining interior — no track
+            // consumed for the panel's own DesiredSize (it fills whatever the
+            // container offers).
+        }
+        else
+        {
+            switch (static_cast<Dock>(d))
+            {
+            case Dock::Left:
+            case Dock::Right:
+                width += child->desired_size().width;
+                break;
+            case Dock::Top:
+            case Dock::Bottom:
+                height += child->desired_size().height;
+                break;
+            case Dock::Fill:
+            default:
+                break;
+            }
+        }
+    }
+
+    return Size{ std::max(0.0f, width), std::max(0.0f, height) };
+}
+
+// The arrange-side virtual (S127). Receives the panel's FULL final render slot.
+// Children are placed at cumulative dock origins in document order; each child's
+// own alignment + margin is honored inside its slot via child->Arrange (S124
+// compute_final_rect). The LAST child (Fill) takes the REMAINING interior rect.
+// Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children.
+VAML_CORE_EXPORT
+void DockPanel::ArrangeOverride(const Rect& finalSlot)
+{
+    float left = finalSlot.x;
+    float top  = finalSlot.y;
+    float right  = finalSlot.right();
+    float bottom = finalSlot.bottom();
+
+    const std::size_t n = child_count();
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        UIElement* child = child_at(i);
+        const bool isLast = (i + 1 == n);
+        const std::int32_t d = dock(*child);
+        Rect slot{ left, top, right - left, bottom - top };
+        if (isLast)
+        {
+            // The last child fills the REMAINING interior rect (WPF-faithful).
+            if (child->is_arrange_dirty())
+            {
+                child->Arrange(slot);
+            }
+            continue;
+        }
+        switch (static_cast<Dock>(d))
+        {
+        case Dock::Left:
+            slot = Rect{ left, top, child->desired_size().width, bottom - top };
+            if (child->is_arrange_dirty())
+            {
+                child->Arrange(slot);
+            }
+            left += child->desired_size().width;
+            break;
+        case Dock::Right:
+            slot = Rect{ right - child->desired_size().width, top,
+                         child->desired_size().width, bottom - top };
+            if (child->is_arrange_dirty())
+            {
+                child->Arrange(slot);
+            }
+            right -= child->desired_size().width;
+            break;
+        case Dock::Top:
+            slot = Rect{ left, top, right - left, child->desired_size().height };
+            if (child->is_arrange_dirty())
+            {
+                child->Arrange(slot);
+            }
+            top += child->desired_size().height;
+            break;
+        case Dock::Bottom:
+            slot = Rect{ left, bottom - child->desired_size().height,
+                         right - left, child->desired_size().height };
+            if (child->is_arrange_dirty())
+            {
+                child->Arrange(slot);
+            }
+            bottom -= child->desired_size().height;
+            break;
+        case Dock::Fill:
+        default:
+            // A non-last Fill child consumes no edge (fills the current slot,
+            // overlapping — the last child still owns the interior).
+            if (child->is_arrange_dirty())
+            {
+                child->Arrange(slot);
+            }
+            break;
+        }
+    }
+}
+
+// --- S471 RadioButton: IsChecked + exclusive group + Checked/Unchecked ------
+
+VAML_CORE_EXPORT
+RadioButton::RadioButton()
+{
+    ensure_radiobutton_properties_registered();
+}
+
+VAML_CORE_EXPORT
+void RadioButton::apply_change(bool newState)
+{
+    onCheckedChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    // The routed event identity (Checked vs Unchecked) reflects the new state.
+    RaiseEvent(vaml::RoutedEvent::registered(
+                   newState ? "Checked" : "Unchecked", RouteEventDirection::Bubble),
+               args);
+}
+
+VAML_CORE_EXPORT
+SetResult RadioButton::set_checked(bool value)
+{
+    const bool old = is_checked();
+    if (old == value)
+    {
+        return vaml::SetResult::NO_CHANGE;
+    }
+    const SetResult r = Set(PropertyId::of("RadioButton.IsChecked"), Value::Int32(value ? 1 : 0));
+    if (r == vaml::SetResult::APPLIED)
+    {
+        // EXCLUSIVE GROUP (the honest single-parent model): when this button
+        // becomes checked, clear every SIBLING RadioButton under the SAME visual
+        // parent (the common WPF single-group case). A checked sibling in a
+        // DIFFERENT parent is unaffected.
+        if (value)
+        {
+            UIElement* parent = dynamic_cast<UIElement*>(this->parent());
+            if (parent != nullptr)
+            {
+                for (std::size_t i = 0; i < parent->child_count(); ++i)
+                {
+                    UIElement* sib = parent->child_at(i);
+                    if (sib == this)
+                    {
+                        continue;
+                    }
+                    if (auto* rb = dynamic_cast<RadioButton*>(sib))
+                    {
+                        (void)rb->Set(PropertyId::of("RadioButton.IsChecked"), Value::Int32(0));
+                    }
+                }
+            }
+        }
+        apply_change(value);
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+bool RadioButton::is_checked() const
+{
+    return Get(PropertyId::of("RadioButton.IsChecked")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+Size RadioButton::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 16.0f;
+    const float h = available.height > 0.0f ? available.height : 16.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S472 ComboBox: Items/ItemsSource + SelectedIndex/Item + dropdown --------
+
+VAML_CORE_EXPORT
+ComboBox::ComboBox()
+{
+    ensure_combobox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+std::vector<std::string> ComboBox::split_items() const
+{
+    // The owned item list: the source is Items when explicitly set, else
+    // ItemsSource. Items are split on commas and whitespace (simple owned list —
+    // the WPF ItemCollection model is consumed at S649, recorded NO-GAP).
+    const std::string src = Get(PropertyId::of("ComboBox.Items")).get<std::string>().empty()
+                                ? Get(PropertyId::of("ComboBox.ItemsSource")).get<std::string>()
+                                : Get(PropertyId::of("ComboBox.Items")).get<std::string>();
+    std::vector<std::string> out;
+    std::string cur;
+    for (const char c : src)
+    {
+        if (c == ',' || c == ' ' || c == '\n' || c == '\t')
+        {
+            if (!cur.empty())
+            {
+                out.push_back(cur);
+                cur.clear();
+            }
+        }
+        else
+        {
+            cur.push_back(c);
+        }
+    }
+    if (!cur.empty())
+    {
+        out.push_back(cur);
+    }
+    return out;
+}
+
+VAML_CORE_EXPORT
+SetResult ComboBox::set_items(std::string value)
+{
+    return Set(PropertyId::of("ComboBox.Items"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string ComboBox::items() const
+{
+    return Get(PropertyId::of("ComboBox.Items")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult ComboBox::set_items_source(std::string value)
+{
+    return Set(PropertyId::of("ComboBox.ItemsSource"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string ComboBox::items_source() const
+{
+    return Get(PropertyId::of("ComboBox.ItemsSource")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+void ComboBox::apply_selection(std::int32_t newIndex)
+{
+    (void)newIndex;
+    onSelectionChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble),
+               args);
+}
+
+VAML_CORE_EXPORT
+SetResult ComboBox::set_selected_index(std::int32_t index)
+{
+    const auto items = split_items();
+    const std::int32_t clamped =
+        items.empty() ? -1 : std::clamp<std::int32_t>(index, -1, static_cast<std::int32_t>(items.size()) - 1);
+    const std::int32_t old = Get(PropertyId::of("ComboBox.SelectedIndex")).get<int>();
+    const SetResult r = Set(PropertyId::of("ComboBox.SelectedIndex"), Value::Int32(clamped));
+    // Keep SelectedItem in sync (a readable round-trip, never a throw).
+    (void)Set(PropertyId::of("ComboBox.SelectedItem"),
+              Value::String(clamped >= 0 && static_cast<std::size_t>(clamped) < items.size()
+                                ? items[static_cast<std::size_t>(clamped)]
+                                : std::string{}));
+    if (r == vaml::SetResult::APPLIED && clamped != old)
+    {
+        apply_selection(clamped);
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+std::int32_t ComboBox::selected_index() const
+{
+    return Get(PropertyId::of("ComboBox.SelectedIndex")).get<int>();
+}
+
+VAML_CORE_EXPORT
+std::string ComboBox::selected_item() const
+{
+    return Get(PropertyId::of("ComboBox.SelectedItem")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult ComboBox::set_is_open(bool value)
+{
+    return Set(PropertyId::of("ComboBox.IsOpen"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool ComboBox::is_open() const
+{
+    return Get(PropertyId::of("ComboBox.IsOpen")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+bool ComboBox::open(bool dropdown)
+{
+    (void)set_is_open(dropdown);
+    return is_open();
+}
+
+VAML_CORE_EXPORT
+bool ComboBox::select_item(const std::string& display)
+{
+    const auto items = split_items();
+    for (std::size_t i = 0; i < items.size(); ++i)
+    {
+        if (items[i] == display)
+        {
+            (void)set_selected_index(static_cast<std::int32_t>(i));
+            return true;
+        }
+    }
+    return false;
+}
+
+VAML_CORE_EXPORT
+Size ComboBox::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float h = available.height > 0.0f ? available.height : 22.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S473 ListBox + ListView: Items/ItemsSource + selection + ItemTemplate ----
+
+VAML_CORE_EXPORT
+ListBox::ListBox()
+{
+    ensure_listbox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+std::vector<std::string> ListBox::split_items() const
+{
+    const std::string src = Get(PropertyId::of("ListBox.Items")).get<std::string>().empty()
+                                ? Get(PropertyId::of("ListBox.ItemsSource")).get<std::string>()
+                                : Get(PropertyId::of("ListBox.Items")).get<std::string>();
+    std::vector<std::string> out;
+    std::string cur;
+    for (const char c : src)
+    {
+        if (c == ',' || c == ' ' || c == '\n' || c == '\t')
+        {
+            if (!cur.empty())
+            {
+                out.push_back(cur);
+                cur.clear();
+            }
+        }
+        else
+        {
+            cur.push_back(c);
+        }
+    }
+    if (!cur.empty())
+    {
+        out.push_back(cur);
+    }
+    return out;
+}
+
+VAML_CORE_EXPORT
+SetResult ListBox::set_items(std::string value)
+{
+    return Set(PropertyId::of("ListBox.Items"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string ListBox::items() const
+{
+    return Get(PropertyId::of("ListBox.Items")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult ListBox::set_items_source(std::string value)
+{
+    return Set(PropertyId::of("ListBox.ItemsSource"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string ListBox::items_source() const
+{
+    return Get(PropertyId::of("ListBox.ItemsSource")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+void ListBox::apply_selection(std::int32_t newIndex)
+{
+    (void)newIndex;
+    onSelectionChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble),
+               args);
+}
+
+VAML_CORE_EXPORT
+SetResult ListBox::set_selected_index(std::int32_t index)
+{
+    const auto items = split_items();
+    const std::int32_t clamped =
+        items.empty() ? -1 : std::clamp<std::int32_t>(index, -1, static_cast<std::int32_t>(items.size()) - 1);
+    const std::int32_t old = Get(PropertyId::of("ListBox.SelectedIndex")).get<int>();
+    const SetResult r = Set(PropertyId::of("ListBox.SelectedIndex"), Value::Int32(clamped));
+    (void)Set(PropertyId::of("ListBox.SelectedItem"),
+              Value::String(clamped >= 0 && static_cast<std::size_t>(clamped) < items.size()
+                                ? items[static_cast<std::size_t>(clamped)]
+                                : std::string{}));
+    if (r == vaml::SetResult::APPLIED && clamped != old)
+    {
+        apply_selection(clamped);
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+std::int32_t ListBox::selected_index() const
+{
+    return Get(PropertyId::of("ListBox.SelectedIndex")).get<int>();
+}
+
+VAML_CORE_EXPORT
+std::string ListBox::selected_item() const
+{
+    return Get(PropertyId::of("ListBox.SelectedItem")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult ListBox::set_item_template(std::string value)
+{
+    // The C++ programmatic accessor wraps the authored template TEXT in a
+    // retained Text template element so the UntypedPtr-bound ItemTemplate DP
+    // stores it, and get_item_template reads it back identical. (The VAML
+    // property-element form `<ListBox.ItemTemplate>` stores the authored OBJECT
+    // child directly via the S452 grammar -> Value::UntypedPtr.)
+    auto tmpl = std::make_unique<Text>();
+    (void)tmpl->set_text(value);
+    UIElement* raw = tmpl.get();
+    raw->set_parent(this);
+    itemTemplateOwned_.push_back(std::move(tmpl));
+    return Set(PropertyId::of("ItemTemplate"), Value::UntypedPtr(raw));
+}
+
+VAML_CORE_EXPORT
+std::string ListBox::item_template() const
+{
+    const Value v = Get(PropertyId::of("ItemTemplate"));
+    // An authored object child (the S452 property-element / the programmatic
+    // accessor) is stored as UntypedPtr; render it to its authored per-item
+    // content text if it holds a Text template.
+    if (v.type() == ValueType::UntypedPtr)
+    {
+        if (auto* tmpl = static_cast<UIElement*>(v.get<void*>()))
+        {
+            if (auto* t = dynamic_cast<Text*>(tmpl))
+            {
+                return t->text();
+            }
+        }
+    }
+    return std::string{};
+}
+
+VAML_CORE_EXPORT
+std::size_t ListBox::render_items()
+{
+    // The S473 real ListBox algorithm: items render AUTHORED per-item content
+    // through the S364 instantiate seam. The authored ItemTemplate (the S452
+    // property-element object child, stored on the global "ItemTemplate" DP) is
+    // READ here; render_items instantiates ONE UIElement per item — the honest
+    // per-item leaf carries the item's text (the authored template declares how
+    // an item renders; the item content itself is the authored item list).
+    const auto items = split_items();
+
+    // Clear any prior rendered item elements (a re-render refreshes the list).
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+
+    std::size_t built = 0;
+    for (const std::string& item : items)
+    {
+        auto text = std::make_unique<Text>();
+        (void)text->set_text(item);
+        add_child(std::move(text));
+        ++built;
+    }
+    return built;
+}
+
+VAML_CORE_EXPORT
+Size ListBox::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float h = available.height > 0.0f ? available.height : 80.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+VAML_CORE_EXPORT
+ListView::ListView()
+{
+    // ListView reuses the ListBox DP + selection surface unchanged (the shared
+    // item-selection base). No extra DPs at S473; the ListView-specific
+    // virtualization is S649, recorded NO-GAP.
+    ensure_listbox_properties_registered();
+}
+
 VAML_CORE_EXPORT
 void register_builtin_elements()
 {
@@ -2208,6 +2892,16 @@ void register_builtin_elements()
     // sprint HERE (same as StackPanel/Grid/WrapPanel), so it is registered
     // directly. Built-in count 10 -> 11.
     registry.register_element("Canvas",       [] { return std::make_unique<Canvas>(); });
+    // --- Sprint 11c (S470–S473): the DockPanel layout container + the
+    // selection controls. All are REAL re-based UIElements resolved at their OWN
+    // steps (NO-GAP, no MINIMAL REAL added). DockPanel (S470) 16 -> 17;
+    // RadioButton (S471) 17 -> 18; ComboBox (S472) 18 -> 19;
+    // ListBox + ListView (S473) 19 -> 21.
+    registry.register_element("DockPanel",    [] { return std::make_unique<DockPanel>(); });   // 17
+    registry.register_element("RadioButton",  [] { return std::make_unique<RadioButton>(); }); // 18
+    registry.register_element("ComboBox",     [] { return std::make_unique<ComboBox>(); });    // 19
+    registry.register_element("ListBox",      [] { return std::make_unique<ListBox>(); });     // 20
+    registry.register_element("ListView",     [] { return std::make_unique<ListView>(); });    // 21
 
     // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
     // visual controls; they are the authored RESOURCE types the resource-

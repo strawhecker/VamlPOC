@@ -351,6 +351,65 @@ protected:
     void ArrangeOverride(const vaml::Rect& finalSlot) override;
 };
 
+// DockPanel — REAL panel control (S470, Sprint 11c). The ONLY missing layout
+// container (StackPanel S129 / Grid S131 / WrapPanel S134 / Canvas S136 are
+// ALREADY REAL). A WPF-faithful dock-stacking panel: each child is docked to an
+// edge (Left/Right/Top/Bottom) in document order, consuming that edge's track,
+// and the LAST child fills the remaining interior slot.
+//
+// WPF-FAITHFUL ALGORITHM (S470):
+//   * ATTACHED `DockPanel.Dock` DP — Int32 path (enum Dock { Left=0, Top=1,
+//     Right=2, Bottom=3, Fill=4 }), owner "DockPanel", globally registered via
+//     the S043 attached-aware machinery. `DockPanel::set_dock/get_dock` typed
+//     statics store the dock on ANY DependencyObject (a child). DEFAULT = FILL
+//     (a child with no explicit Dock lands in the Fill slot) — WPF-faithful.
+//     This RESOLVES the S462-recorded NO-GAP ("DockPanel.Dock float is S470")
+//     at its own step.
+//   * MeasureOverride: children are offered UNBOUNDED on both axes (the S123
+//     infinity rule — a docked child measures at its natural content extent),
+//     accumulating the consumed track: Left/Right consume width, Top/Bottom
+//     consume height; the LAST child (Fill) takes the REMAINING slot. DesiredSize
+//     = Σ consumed tracks. Dirty-respect (S128): re-measure ONLY is_measure_dirty()
+//     children.
+//   * ArrangeOverride: children are placed at cumulative dock origins, honoring
+//     the child's OWN alignment + margin via child->Arrange (S124
+//     compute_final_rect). The LAST (Fill) child takes the remaining interior.
+//     Dirty-respect: re-arrange ONLY is_arrange_dirty() children.
+//
+// classify_element/classify_merge_element -> MaterialKind::Solid (the S207/S212
+// classifier seam — a DockPanel renders as a solid fill at its arranged box,
+// exactly like the other real panels).
+class VAML_CORE_EXPORT DockPanel final : public UIElement
+{
+public:
+    DockPanel();
+
+    // --- ATTACHED DockPanel.Dock (REAL DP, S470) --------------------------
+    // The child's dock edge. The key is owned by DockPanel but the value is
+    // stored on any DependencyObject (the S043 attached-aware path). Default
+    // Fill (a child with no explicit Dock is the last-child fill). Typed statics:
+    [[nodiscard]] static SetResult set_dock(DependencyObject& obj, std::int32_t value);
+    [[nodiscard]] static std::int32_t dock(const DependencyObject& obj);
+
+protected:
+    // S470 real panel algorithm (see Element.cpp): MeasureOverride measures
+    // children unbounded + accumulates the consumed dock tracks; the last
+    // (Fill) child takes the remaining slot. ArrangeOverride places children
+    // at cumulative dock origins. Dirty-respect (S128).
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+};
+
+// The Dock edge enum (S470). Carried as Int32 via the DockPanel.Dock DP path.
+enum class Dock : std::uint8_t
+{
+    Left   = 0,
+    Top    = 1,
+    Right  = 2,
+    Bottom = 3,
+    Fill   = 4,
+};
+
 // Text — REAL control (S400). RESOLVES the S087 MINIMAL REAL seed at its own
 // sprint (NO-GAP, not a backfill): re-based onto UIElement so it participates
 // in the visual tree + Measure/Arrange layout, and supplies a REAL per-control
@@ -703,6 +762,50 @@ private:
 
 // [MINIMAL REAL] Element CheckBox — RESOLVED BY S404 (Sprint 10). Do NOT extend silently; do NOT backfill.
 
+// RadioButton — REAL control (S471, Sprint 11c). RESOLVES the S087 MINIMAL
+// REAL seed at its own sprint (NO-GAP, not a backfill): re-based onto UIElement
+// so it participates in the visual tree + hit-testing + routed events.
+//
+// S471 surface (the S471 title: "IsChecked + group semantics + Checked/Unchecked"):
+//   - IsChecked (REAL DP; Bool via Int32, default false): the checked state.
+//   - GROUP SEMANTICS (the honest single-parent model): a GROUPLESS RadioButton
+//     (no GroupName) excludes ONLY its sibling RadioButtons under the SAME
+//     visual parent. `set_checked(true)` on a button CLEARS every sibling
+//     RadioButton's IsChecked (exclusive within the parent) — WPF-faithful for
+//     the common single-group case. True `GroupName` string grouping is
+//     recorded NO-GAP to a later step (not fabricated here).
+//   - ROUTED Checked/Unchecked events (the Sprint-8 RoutedEvent engine):
+//     checking raises the BUBBLING "Checked" event, unchecking raises
+//     "Unchecked" (source==this), on a REAL check/uncheck.
+//   - The rendered check-glyph (a Solid fill on the shared Background brush,
+//     mirroring the S401 Button default template via the S364 visual-state
+//     engine) is the vulkan classifier; the IsChecked + exclusive-group +
+//     checked-changed are the S471 real algorithm (core, headless-tested).
+class VAML_CORE_EXPORT RadioButton final : public UIElement
+{
+public:
+    RadioButton();
+
+    // --- IsChecked (REAL DP; Bool via Int32, default false) ----------------
+    // Checking clears all SIBLING RadioButtons under the same visual parent
+    // (exclusive group). A real change raises Checked/Unchecked + fires the
+    // checked_changed Signal.
+    [[nodiscard]] SetResult set_checked(bool value);
+    [[nodiscard]] bool is_checked() const;
+
+    // --- Checked/Unchecked routed events -----------------------------------
+    [[nodiscard]] vaml::Signal<void()>& checked_changed() { return onCheckedChanged_; }
+
+protected:
+    // S471 real RadioButton algorithm: the default check-box slot box; the
+    // rendered glyph is the vulkan classifier.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onCheckedChanged_;
+    void apply_change(bool newState);
+};
+
 // Slider — REAL control (S403). RESOLVES the S087 MINIMAL REAL seed at its own
 // sprint (NO-GAP, not a backfill): re-based onto UIElement so it participates
 // in the visual tree + hit-testing + arranged box.
@@ -840,6 +943,135 @@ private:
     double contentH_   = 0.0;
     vaml::Signal<void()> onScrollChanged_;
     void apply_offset(double newV, double newH);
+};
+
+// ComboBox — REAL control (S472, Sprint 11c). RESOLVES the S087 MINIMAL REAL
+// seed at its own sprint (NO-GAP, not a backfill): re-based onto UIElement so
+// it participates in the visual tree + hit-testing + routed events.
+//
+// S472 surface (the S472 title: "ItemsSource/Items + SelectionChanged +
+// dropdown interaction"):
+//   - Items / ItemsSource (REAL DPs; String owned items, the WPF-free owned
+//     item container): the combo's selectable items. Items is a literal (the
+//     authored comma/space list); ItemsSource is the app-supplied source
+//     string. Items is the display source when set.
+//   - SelectedIndex / SelectedItem (REAL DPs): the selection. SelectedIndex
+//     defaults −1 (nothing selected); set + round-trip; a malformed index
+//     clamps and is readable (never a throw).
+//   - SELECTIONCHANGED (real routed event): a real selection change raises the
+//     BUBBLING "SelectionChanged" event (source==this) + fires the
+//     selection_changed Signal.
+//   - DROPDOWN INTERACTION (the minimal interactive surface): `is_open`
+//     (expand) + `open(dropdown=true)` / `select_item(display)` — the S8 input
+//     + the S364 template compose here. select_item(display) selects the item
+//     whose display matches + raises SelectionChanged.
+//   - classify_merge_element -> MaterialKind::Solid (an EditField-style fill
+//     box with a `→` arrow indicator via the S205 Solid path). The editable /
+//     fully-styled chrome is the S649-list continuation, RECORDED NO-GAP (not
+//     fabricated); the ComboBox DP surface + selection + change are REAL.
+class VAML_CORE_EXPORT ComboBox final : public UIElement
+{
+public:
+    ComboBox();
+
+    // --- Items / ItemsSource (REAL DPs; String) ---------------------------
+    // Items is the literal/list source; ItemsSource the app-supplied string.
+    // set_items also refreshes the display list.
+    [[nodiscard]] SetResult set_items(std::string value);
+    [[nodiscard]] std::string items() const;
+    [[nodiscard]] SetResult set_items_source(std::string value);
+    [[nodiscard]] std::string items_source() const;
+
+    // --- SelectedIndex / SelectedItem (REAL DPs; Int32 / String) -----------
+    [[nodiscard]] SetResult set_selected_index(std::int32_t index);
+    [[nodiscard]] std::int32_t selected_index() const;
+    [[nodiscard]] std::string selected_item() const;
+
+    // --- Dropdown interaction (S472) ---------------------------------------
+    [[nodiscard]] SetResult set_is_open(bool value);
+    [[nodiscard]] bool is_open() const;
+    // Opens or closes the dropdown. `open(true)` opens; `open(false)` closes.
+    [[nodiscard]] bool open(bool dropdown);
+    // Selects the item whose display equals `display` (raising SelectionChanged
+    // on a real change). Returns true on a match.
+    [[nodiscard]] bool select_item(const std::string& display);
+
+    // --- SelectionChanged notification -------------------------------------
+    [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
+
+protected:
+    // S472 real ComboBox algorithm: the default combo box slot; the rendered
+    // field + arrow is the vulkan classifier.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onSelectionChanged_;
+    void apply_selection(std::int32_t newIndex);
+    [[nodiscard]] std::vector<std::string> split_items() const;
+};
+
+// ListBox + ListView — REAL controls (S473, Sprint 11c). RESOLVE the S087
+// MINIMAL REAL seeds at their own sprints (NO-GAP, not a backfill): re-based
+// onto UIElement so they participate in the visual tree + hit-testing + routed
+// events. ListView derives ListBox (the shared item-selection base).
+//
+// S473 surface (the S473 title: "Items/ItemsSource + SelectionChanged +
+// ItemTemplate property-element authoring"):
+//   - Items / ItemsSource (REAL DPs; String owned items) + SelectedIndex /
+//     SelectedItem + a real SelectionChanged routed event (shared via ListBox).
+//   - ITEM TEMPLATE: `ListBox.ItemTemplate` / `ListView.ItemTemplate` is a
+//     property-element (the S452 grammar) that routes the authored template
+//     into the S364 engine so items render authored per-item content. The
+//     authored template's TEXT is stored on the ItemTemplate DP; `render_items`
+//     instantiates one UIElement per item through the S364 `instantiate` seam
+//     (the default selector output resolves the authored content). This is the
+//     honest headless seam: authored content -> real element children, not raw
+//     text.
+//   - classify_merge_element -> MaterialKind::Solid (list fill).
+class VAML_CORE_EXPORT ListBox : public UIElement
+{
+public:
+    ListBox();
+
+    // --- Items / ItemsSource (REAL DPs; String) ---------------------------
+    [[nodiscard]] SetResult set_items(std::string value);
+    [[nodiscard]] std::string items() const;
+    [[nodiscard]] SetResult set_items_source(std::string value);
+    [[nodiscard]] std::string items_source() const;
+
+    // --- SelectedIndex / SelectedItem (REAL DPs; Int32 / String) -----------
+    [[nodiscard]] SetResult set_selected_index(std::int32_t index);
+    [[nodiscard]] std::int32_t selected_index() const;
+    [[nodiscard]] std::string selected_item() const;
+
+    // --- SelectionChanged notification (shared via ListBox) ---------------
+    [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
+
+    // --- ItemTemplate (REAL DP; String — the authored template, S452/S364) --
+    [[nodiscard]] SetResult set_item_template(std::string value);
+    [[nodiscard]] std::string item_template() const;
+
+    // --- Rendering (S473) ---------------------------------------------------
+    // Instantiates the authored ItemTemplate through the S364 instantiate seam
+    // producing one UIElement child per item (the "items render authored
+    // content" headline). Returns the number of item elements built.
+    [[nodiscard]] std::size_t render_items();
+
+protected:
+    // S473 real ListBox algorithm: the default list box slot.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onSelectionChanged_;
+    void apply_selection(std::int32_t newIndex);
+    [[nodiscard]] std::vector<std::string> split_items() const;
+    std::vector<std::unique_ptr<UIElement>> itemTemplateOwned_;
+};
+
+class VAML_CORE_EXPORT ListView final : public ListBox
+{
+public:
+    ListView();
 };
 
 // Window — REAL container window-type (S440). RESOLVES the S087 MINIMAL REAL

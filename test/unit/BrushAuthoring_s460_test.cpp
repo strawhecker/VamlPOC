@@ -174,7 +174,7 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     ElementFactoryRegistry& g = ElementFactoryRegistry::global();
     SHOULD(ShouldlyIntegral(g.is_registered("LinearGradientBrush")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("GradientStop")).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(16u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(21u));
 }
 
 // ---------------------------------------------------------------------------

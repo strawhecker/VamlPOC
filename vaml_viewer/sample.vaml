@@ -1,11 +1,64 @@
 <!--
-  vaml_viewer sample document (S222) — the live "soup-to-nuts" demo.
-  A real StackPanel tree whose panels render as solid fills at their arranged
-  final_rects via the S212 default visualOf classifier (the honest first slice
-  of the declared layout — real control materials land at S400/S401).
-  A Button build-in seed is included (resolves at S401). The root StackPanel is
-  a UIElement (re-based at S129), so it is renderable today.
+  vaml_viewer sample document (S475, Sprint 11c) — the live "soup-to-nuts" demo
+  for the DockPanel layout container + the selection controls.
+
+  S470: DockPanel is a REAL re-based UIElement — the ONLY missing layout
+  container (StackPanel/Grid/WrapPanel/Canvas were already REAL). A WPF-faithful
+  dock-stacking panel: each child docks to an edge in document order, and the
+  LAST (Fill) child takes the remaining interior slot. The Dock edge is the
+  attached `DockPanel.Dock` DP (enum Dock: Left=0, Top=1, Right=2, Bottom=3,
+  Fill=4; default Fill). The Int32 literal rides numeric here because the common
+  VAML enum-name surface (Left/Top/Right/Bottom/Fill) maps to the Horizontal/
+  VerticalAlignment/IconStretch enum VALUES, not the Dock edges — a distinct
+  enum; the numeric forms are unambiguous and WPF-faithful for the dock value.
+
+  S471: RadioButton — RadioButton.IsChecked + the honest single-parent exclusive
+  group (checking one clears its sibling RadioButtons under the same parent) +
+  routed Checked/Unchecked.
+
+  S472: ComboBox — ComboBox.Items + ComboBox.SelectedIndex/SelectedItem + the
+  dropdown interaction (is_open/open/select_item) + SelectionChanged.
+
+  S473: ListBox — ListBox.Items + SelectedIndex + SelectionChanged + the
+  `ListBox.ItemTemplate` property-element authoring that routes the S364 engine
+  so items render authored per-item content.
+
+  The LIVE viewer renders the DockPanel layout (Left nav + Top header + Fill
+  content — the canonical dock split) + each selection control interactively.
 -->
-<StackPanel Margin="8" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Button/>
-</StackPanel>
+<DockPanel Margin="8" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- S470: dock the Left nav column (the selection controls stack). -->
+  <StackPanel DockPanel.Dock="0" Width="180" Margin="4">
+    <Text Text="Selection Controls" FontSize="14" Margin="2"/>
+    <Text Text="Pick a color:" Margin="4,8,4,2"/>
+    <!-- S471: a RadioButton group — checking one clears its sibling. -->
+    <RadioButton x:Name="RadioRed" RadioButton.IsChecked="1" Margin="6,2"/>
+    <RadioButton x:Name="RadioGreen" RadioButton.IsChecked="0" Margin="6,2"/>
+    <RadioButton x:Name="RadioBlue" RadioButton.IsChecked="0" Margin="6,2"/>
+    <Text Text="Choose a size:" Margin="4,10,4,2"/>
+    <!-- S472: the ComboBox dropdown (Items + selection). -->
+    <ComboBox x:Name="SizeCombo" ComboBox.Items="Small, Medium, Large"
+              ComboBox.SelectedIndex="1" Margin="6,2"/>
+    <Text Text="Preferred fruit:" Margin="4,10,4,2"/>
+    <!-- S473: a ListBox with an authored per-item ItemTemplate. -->
+    <ListBox x:Name="FruitList" ListBox.Items="Apple, Banana, Cherry" Margin="6,2">
+      <ListBox.ItemTemplate>
+        <Text FontSize="12"/>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </StackPanel>
+
+  <!-- S470: dock the Top header (full remaining width, 24 tall). -->
+  <Text DockPanel.Dock="1" Text="VAML 11c — DockPanel + selection controls"
+        FontSize="16" Margin="4" Background="#FF223344"/>
+
+  <!-- S470: the LAST child takes the ENTIRE remaining interior (Fill=4 default;
+       WPF-faithful). -->
+  <StackPanel>
+    <Text Text="The live viewer renders this DockPanel layout + the Left
+selection controls interactively (RadioButton exclusive check, ComboBox
+selection, ListBox selection) — see the Shell chrome for the repaint." Margin="8"/>
+  </StackPanel>
+
+</DockPanel>

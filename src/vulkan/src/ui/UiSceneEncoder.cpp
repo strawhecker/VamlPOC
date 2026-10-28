@@ -61,6 +61,19 @@ MaterialKind classify_element(const vaml::UIElement& element) noexcept
     {
         return MaterialKind::Solid;
     }
+    // Sprint 11c (S470–S473): the DockPanel layout container + the selection
+    // controls all classify to the SOLID material (the S470 DockPanel fill, the
+    // S471 RadioButton check-glyph, the S472 ComboBox field, the S473 ListBox/
+    // ListView fill). The S207 material authority is real — each contributes its
+    // default draw.
+    if (dynamic_cast<const vaml::DockPanel*>(&element) != nullptr ||
+        dynamic_cast<const vaml::RadioButton*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ComboBox*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ListBox*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ListView*>(&element) != nullptr)
+    {
+        return MaterialKind::Solid;
+    }
     return MaterialKind::None;
 }
 

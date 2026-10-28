@@ -1532,18 +1532,18 @@ Growth tokens by sprint:
 ## Sprint 11c — DockPanel + selection controls (RadioButton/ComboBox/ListBox/ListView)  (goal: the missing layout container + selection set)  [token S470+]
 - S470 dep:S466  DockPanel control RESOLVED (real UIElement re-base; the only missing layout container — the
       other panels are S129/S131/S134/S136): `Dock` attached DP (Left/Right/Top/Bottom/Fill) + Measure/Arrange
-      stacking children by dock order; classify_element → Solid.
-- S471 dep:S470  RadioButton control RESOLVED: IsChecked + group semantics; routed Checked/Unchecked.
+      stacking children by dock order; classify_element → Solid.  ✅ DONE (11c — resolves the S462 DockPanel.Dock NO-GAP)
+- S471 dep:S470  RadioButton control RESOLVED: IsChecked + group semantics; routed Checked/Unchecked.  ✅ DONE (11c)
 - S472 dep:S471  ComboBox control RESOLVED: ItemsSource/Items + SelectionChanged + dropdown interaction;
-      classify_element → Solid (editable/chrome is the S649-list continuation, recorded).
+      classify_element → Solid (editable/chrome is the S649-list continuation, recorded).  ✅ DONE (11c)
 - S473 dep:S472  ListBox + ListView controls RESOLVED: Items/ItemsSource + SelectionChanged +
       `ListBox.ItemTemplate`/`ListView.ItemTemplate` property-element authoring (a template reusing the S364
-      engine) so items render authored content; classify_element → Solid.
+      engine) so items render authored content; classify_element → Solid.  ✅ DONE (11c)
 - S474 dep:S473  REFACTOR GATE(11c): full build + ctest BOTH lanes green; grep-audit — every new control is a
-      REAL re-based UIElement resolved at its own step, ZERO new MINIMAL REAL, zero stubs.
+      REAL re-based UIElement resolved at its own step, ZERO new MINIMAL REAL, zero stubs.  ✅ DONE (11c)
 - S475 dep:S474  VIEWER-GROWTH(11c): sample.vaml authors DockPanel + the selection controls; the LIVE viewer
-      renders the DockPanel layout + each selection control interactive. BOTH CI LANES green.
-- S476 dep:S475  SURVIVOR(11c): short block in progress.md.
+      renders the DockPanel layout + each selection control interactive. BOTH CI LANES green.  ✅ DONE (11c)
+- S476 dep:S475  SURVIVOR(11c): short block in progress.md.  ✅ DONE (11c)
 
 ---
 ## Sprint 11d — Core display + input controls (Label/Border/shapes/Image/ProgressBar/PasswordBox/GroupBox/Expander/Separator/StatusBar)  (goal: breadth of the non-3rd-party control set)  [token S480+]

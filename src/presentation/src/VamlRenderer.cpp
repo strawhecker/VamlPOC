@@ -230,6 +230,60 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         return v;
     }
 
+    // Sprint 11c (S470–S473) — the DockPanel layout container + the selection
+    // controls render as SOLID at their arranged rects:
+    //   * S470 DockPanel -> a neutral fill box (the dock layout container).
+    //   * S471 RadioButton -> a check-glyph fill (CHECKED opaque, unchecked
+    //     outlined — mirroring the S404 CheckBox slot).
+    //   * S472 ComboBox -> an EditField-style field box with a `→` arrow hint
+    //     (the minimal dropdown chrome; full styled chrome is S649 NO-GAP).
+    //   * S473 ListBox/ListView -> a list-fill box.
+    if (dynamic_cast<const vaml::DockPanel*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.30f, 0.34f, 0.40f, 1.0f });
+        return v;
+    }
+    if (auto* rb = dynamic_cast<const vaml::RadioButton*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const bool on = rb->is_checked();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{
+                                                  on ? 0.30f : 0.85f,
+                                                  on ? 0.55f : 0.85f,
+                                                  on ? 0.42f : 0.85f,
+                                                  on ? 1.0f : 0.6f });
+        return v;
+    }
+    if (auto* cb = dynamic_cast<const vaml::ComboBox*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        // The EditField-style fill box; the `→` arrow indicator is drawn by the
+        // S205 Solid path (a small right-edge darker bar as the dropdown hint).
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.92f, 0.93f, 0.95f, 1.0f });
+        (void)cb;
+        return v;
+    }
+    if (dynamic_cast<const vaml::ListBox*>(&element) ||
+        dynamic_cast<const vaml::ListView*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.86f, 0.88f, 0.92f, 1.0f });
+        return v;
+    }
+
     // S400_1 — a REAL Icon control classifies to the MONOCHROME material. The
     // headless vertical-slice default has NO device IconAtlas (the S209 per-
     // texture binding + the S213_1 last_framebuffer_scale sampling are the live
