@@ -41,6 +41,7 @@
 #include "vaml/core/Thickness.h"
 #include "vaml/core/Value.h"
 
+#include <cmath>   // std::isnan (11d-DEBUG Width=\""Auto\"" -> NaN assertion)
 #include <cstdio>
 #include <fstream>
 #include <memory>
@@ -149,6 +150,23 @@ TEST_CASE("S221: load_text maps a structured PARSE error (never silent)")
                .ShouldBe(static_cast<int>(FileLoadError::ParseError)));
     SHOULD(ShouldlyIntegral(r.root == nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(r.detail.empty()).ShouldBe(0)); // NEVER silent
+}
+
+TEST_CASE("11d-DEBUG: Width=\"Auto\" resolves to the auto-size NaN sentinel end-to-end")
+{
+    registerS221Properties();
+    // The window's WIDTH dp is the REAL UIElement Width (Double, default NaN —
+    // the same DP `Width=\"Auto\"` targets). Loading must SUCCEED, and the result
+    // must be NaN (auto), proving the Auto token rides the converter into the DP.
+    const LoadResult r = load_text(std::string("<Window Width=\"Auto\"/>"));
+    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.error)).ShouldBe(static_cast<int>(FileLoadError::None)));
+    SHOULD(ShouldlyIntegral(r.root != nullptr).ShouldBe(1));
+    if (r.root)
+    {
+        SHOULD(ShouldlyIntegral(static_cast<int>(
+            std::isnan(r.root->Get(PropertyId::of("Width")).get<double>()))).ShouldBe(1));
+    }
 }
 
 TEST_CASE("S221: load_text maps a malformed-value conversion error to ParseError")

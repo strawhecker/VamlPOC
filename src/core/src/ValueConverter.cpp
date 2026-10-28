@@ -20,6 +20,7 @@
 
 #include <charconv>
 #include <cmath>
+#include <limits>   // std::numeric_limits (WPF `Auto` -> NaN sentinel)
 #include <string>
 #include <utility>
 
@@ -147,6 +148,12 @@ ValueConversionException::ValueConversionException(ValueConversionError kind,
 namespace {
 
 // Case-insensitive string equality ("true"/"false" / hex handled case-insensitively).
+// NOTE (recorded, NOT touched): this folds ONLY A..F, because it is shared by
+// the Bool "true"/"false" converter whose S090 contract DOCUMENTS + TESTS the
+// hex-only fold quirk (Bool rejects "True"/"TRUE"/"FALSE" — see S090: "rejects
+// non-foldable variants"). It is NOT used for the Auto sentinel (which needs
+// full ASCII case-insensitivity — see convert_double's dedicated check below),
+// so widening it here would silently break that tested contract.
 bool iequals(std::string_view a, std::string_view b)
 {
     if (a.size() != b.size())
@@ -158,6 +165,28 @@ bool iequals(std::string_view a, std::string_view b)
         const char x = a[i] >= 'A' && a[i] <= 'F' ? static_cast<char>(a[i] - 'A' + 'a') : a[i];
         const char y = b[i] >= 'A' && b[i] <= 'F' ? static_cast<char>(b[i] - 'A' + 'a') : b[i];
         if (x != y)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Full ASCII case-insensitive string equality, used ONLY for the WPF `Auto`
+// sentinel (Width="Auto"/"auto"/"AUTO" are all valid XAML authoring). This is
+// deliberately separate from `iequals` (whose A..F fold is the documented S090
+// Bool/hex contract and is left untouched).
+bool iequals_auto(std::string_view s) noexcept
+{
+    if (s.size() != 4)
+    {
+        return false;
+    }
+    for (std::size_t i = 0; i < 4; ++i)
+    {
+        const char c = s[i];
+        const char l = c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c;
+        if (l != "auto"[i])
         {
             return false;
         }
@@ -181,11 +210,28 @@ bool iequals(std::string_view a, std::string_view b)
 // characters — from_chars does not skip whitespace). NaN/Inf reject (Malformed)
 // so no non-finite value can ride a Double DP (the renderer/layout never sees a
 // NaN/Inf where a layout extent is expected — mirrors the finite-layout rule).
+//
+// EXCEPTION (the WPF `Auto` sentinel, 11d-DEBUG-resolved): the literal "Auto"
+// (case-insensitive) maps to the Width/Height auto-size NaN sentinel. WPF
+// authors `Width="Auto"`/`Height="Auto"` to mean "size to content"; the
+// Width/Height DPs ALREADY default to NaN and layout ALREADY honors NaN as
+// auto (UIElement::reconcile_axis returns the content extent for NaN/0, and
+// compute_measured_desired never lets NaN into a measured/arranged rect), so
+// the finite-layout rule is preserved AT THE CONSUMER, not by rejecting Auto
+// here. No bare non-finite literal ("NaN"/"Inf") is accepted — Auto is the
+// ONE authored auto-size token; it is unambiguous and never a typo of a value.
 Value convert_double(std::string_view s)
 {
     if (s.empty())
     {
         throw_malformed("Double", s);
+    }
+    if (iequals_auto(s))
+    {
+        // WPF Width="Auto"/Height="Auto" -> the auto-size NaN sentinel. This is
+        // the ONLY non-numeric literal the Double converter accepts (a size
+        // DP's auto marker); it rides the same NaN payload the DP defaults to.
+        return Value::Double(std::numeric_limits<double>::quiet_NaN());
     }
     double value = 0.0;
     auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), value);

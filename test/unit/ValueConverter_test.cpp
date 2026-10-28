@@ -260,3 +260,43 @@ TEST_CASE("S089: register_builtin_converters then global-path conversions resolv
     register_builtin_converters();
     SHOULD(ShouldlyString(registry.convert("Int32", "7")).ShouldBe(Value::Int32(7)));
 }
+
+// ---------------------------------------------------------------------------
+// 11d-DEBUG — WPF `Auto` sentinel on the Double path (Width/Height auto-size).
+// ---------------------------------------------------------------------------
+
+TEST_CASE("11d-DEBUG: Double converter accepts 'Auto' as the auto-size NaN sentinel")
+{
+    register_builtin_converters();
+    ValueConverterRegistry& registry = ValueConverterRegistry::global();
+
+    const Value v = registry.convert("Double", "Auto");
+    // The Auto token rides the Double payload as the auto-size NaN sentinel.
+    SHOULD(ShouldlyIntegral(static_cast<int>(std::isnan(v.get<double>()))).ShouldBe(1));
+}
+
+TEST_CASE("11d-DEBUG: Double converter 'Auto' is case-insensitive")
+{
+    register_builtin_converters();
+    ValueConverterRegistry& registry = ValueConverterRegistry::global();
+
+    SHOULD(ShouldlyIntegral(static_cast<int>(
+        std::isnan(registry.convert("Double", "auto").get<double>()))).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(
+        std::isnan(registry.convert("Double", "AUTO").get<double>()))).ShouldBe(1));
+}
+
+TEST_CASE("11d-DEBUG: Double converter still REJECTS non-finite + junk (Auto is the ONLY token)")
+{
+    register_builtin_converters();
+    ValueConverterRegistry& registry = ValueConverterRegistry::global();
+
+    // Bare non-finite literals remain Malformed (Auto is the one authored token).
+    SHOULD(ShouldThrow<ValueConversionException>([&] { (void)registry.convert("Double", "NaN"); }));
+    SHOULD(ShouldThrow<ValueConversionException>([&] { (void)registry.convert("Double", "Infinity"); }));
+    SHOULD(ShouldThrow<ValueConversionException>([&] { (void)registry.convert("Double", ""); }));
+    // Auto-like typos are NOT accepted (fail-loud, never a silent NaN/0).
+    SHOULD(ShouldThrow<ValueConversionException>([&] { (void)registry.convert("Double", "Aout"); }));
+    // A real number still converts to its exact value.
+    SHOULD(ShouldlyString(registry.convert("Double", "201")).ShouldBe(Value::Double(201.0)));
+}
