@@ -320,15 +320,13 @@ TEST_CASE("S221: a TEMP malformed fixture yields ParseError (not a silent ok)")
 
 TEST_CASE("11d-DEBUG: load_scan_text collects ALL unknown properties in ONE pass")
 {
-    // registerS221Properties() registers S221* DPs only; these three Window/
-    // Button attributes are NOT S221* and therefore unknown. In scan mode the
-    // reader must report EVERY one, not just the first.
+    // registerS221Properties() registers S221* DPs only; these Window/Button
+    // attributes are genuinely UNKNOWN (11j-4 registers the real Window DPs
+    // AllowsTransparency/WindowStartupLocation — NOT these bogus keys), so every
+    // one reports in scan mode. proves aggregation of MULTIPLE errors in one pass.
     registerS221Properties();
-    // NOTE: `Window` supports arbitrary attributes in the golden set; here we
-    // author genuinely-unknown keys (AllowsTransparency + WindowStartupLocation
-    // + a bogus child attr) to prove aggregation of MULTIPLE errors in one pass.
     const LoadResult r = load_scan_text(std::string(
-        "<Window AllowsTransparency=\"true\" WindowStartupLocation=\"Center\">"
+        "<Window BogusRootOne=\"1\" BogusRootTwo=\"2\">"
         "<Button BogusOne=\"1\" BogusTwo=\"2\"/>"
         "</Window>"));
 

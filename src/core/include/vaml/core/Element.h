@@ -1137,6 +1137,125 @@ private:
     UIElement* content_ = nullptr;
 };
 
+// UserControl — REAL content-container element (11j-1, GAP CLOSE, dep:S450_1).
+// RESOLVES a corpus blocker: ~90 external WPF corpus files author
+// `<UserControl .../>` as a standalone root / nested content container, which
+// previously threw `unknown element 'UserControl'`.
+//
+// 11j-1 makes UserControl a REAL, permanent, loadable element: a self-contained
+// UIElement that hosts EXACTLY ONE logical content child, WPF-faithful to the
+// corpus's UserControl usage (a root/content container with one logical child
+// that renders through the generic classifier). It carries a REAL `"Content"`
+// DP (an owned/borrowed object identity via Value::UntypedPtr) + the Window-
+// faithful single-content child slot (set_content/content()).
+//
+// SCOPE BOUNDARY (recorded, NO-GAP not silent): the full `ContentControl`
+// ABSTRACT BASE is the S649 continuation (see the Sprint-11d header note — the
+// control-content abstraction stays deferred). 11j-1 deliberately does NOT
+// introduce a ContentControl base; UserControl is self-contained (Content DP +
+// single-content slot) so it satisfies the corpus authoring surface WITHOUT
+// pre-empting S649's later design. NO-LAZY: the content slot is REAL +
+// renderable today (a UserControl root RENDERS its content child).
+//
+// Width/Height: inherited from the base UIElement layout DPs (S440-era, real).
+// FontSize inheritance: the DP is hoisted at 11j-5's shared Control base move;
+// 11j-1 uses the bare `"FontSize"` name contract (resolves against that owner
+// once 11j-5 lands — recorded, not silent).
+class VAML_CORE_EXPORT UserControl final : public UIElement
+{
+public:
+    UserControl();
+
+    // --- Content DP + single-content child slot (Window-faithful) ---------
+    // `set_content` adopts an owned child (replacing any prior); the child is
+    // owned by the visual-children list (S121 single owner); `content_` is a
+    // NON-OWNING observer (kept alive by the parent) — no second ownership edge.
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    // 11j-1 real UserControl algorithm: MeasureOverride measures the single
+    // content child at the offered box and reports its desired size (the
+    // UserControl sizes to its content within the offered bounds); ArrangeOverride
+    // arranges the content child to FILL its final rect (implicit single-child
+    // layout — a UserControl root RENDERS its content).
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    UIElement* content_ = nullptr;
+};
+
+// Application — REAL document-root element (11j-6, GAP CLOSE, dep:S450_1).
+// RESOLVES the canonical WPF app entry `<Application ... StartupUri="...">`,
+// which previously threw `unknown element 'Application'`. A thin, permanent,
+// loadable no-op content shell (owner type `"Application"`).
+//
+// WPF-FAITHFUL: `Application` is NOT a FrameworkElement/UIElement — it is the
+// app-level object (a DocumentApplication in XAML), so `Application final :
+// DependencyObject` (NOT UIElement). It carries a REAL `"StartupUri"` DP
+// (String) for the most-common `<Application StartupUri="...">` case; the
+// loader resolves it without throwing. The reader's build() already handles a
+// non-visual DependencyObject element as a root (returns it, nothing retained
+// as a visual child; finalize_visual_tree skips a non-UIElement root).
+//
+// RECORDED NO-GAP (not silent): `StartupUri` is a record-only DP at this step —
+// the NAVIGATION (actually opening the referenced window) is a later app-host
+// concern. The loader only needs it to PARSE the app root.
+class VAML_CORE_EXPORT Application final : public DependencyObject
+{
+public:
+    Application();
+
+    // --- StartupUri (REAL DP; String, default "") -------------------------
+    [[nodiscard]] SetResult set_startup_uri(std::string value);
+    [[nodiscard]] std::string startup_uri() const;
+};
+
+// ResourceDictionaryHolder — REAL document-root element (11j-2, GAP CLOSE,
+// dep:S453). RESOLVES the corpus blocker where a standalone `.xaml` doc is a
+// THEME/ICON/DataTemplate RESOURCE file whose root is `<ResourceDictionary>`.
+//
+// WPF-FAITHFUL (confirmed from the WPF source, ResourceDictionary.cs): WPF's
+// `ResourceDictionary` is a PLAIN class (implements IDictionary /
+// ISupportInitialize — it is NOT a DependencyObject), and it is the legal root
+// of a standalone resource `.xaml`. Our Load API returns
+// `std::unique_ptr<DependencyObject>`, so a root RD cannot be returned directly.
+// The READ-only DependencyObject host below OWNS the built dictionary — the
+// faithful mapping that lets `<ResourceDictionary>` be a loadable ROOT while
+// reusing S453's capture (build_resource_dictionary) verbatim. The host is REAL
+// + permanent (mirrors the S460 `GradientStopHost` pretscedent — a DependencyObject
+// that hosts a non-elementary authored value); it is registered as the element
+// name "ResourceDictionary" in the factory. A NESTED `<ResourceDictionary>` inside
+// a legal container (`.Resources` / `.MergedDictionaries`) stays handled by
+// build_resource_dictionary as before (no host needed there).
+//
+// The owned dictionary is accessible via dictionary() (non-owning) and retrieved
+// by the reader per-Load (the host owns it; the reader keeps it alive). The full
+// WPF resource-scope wiring (app/system) is the S360 lane, unchanged — this step
+// only unblocks PARSING/LOADING the RD root.
+class VAML_CORE_EXPORT ResourceDictionaryHolder final : public DependencyObject
+{
+public:
+    ResourceDictionaryHolder();
+    // Out-of-line destructor: the owned std::unique_ptr<ResourceDictionary>
+    // member can only be destroyed where ResourceDictionary is COMPLETE
+    // (Element.cpp includes ResourceDictionary.h). Declaring it out-of-line
+    // keeps the holder usable via by-value/factory in any TU that only
+    // forward-declares ResourceDictionary (clang requirement).
+    ~ResourceDictionaryHolder() override;
+
+    // The OWNED ResourceDictionary (set by the reader's build_resource_dictionary
+    // root path). `dictionary()` returns the non-owning pointer (nullptr when the
+    // holder has none).
+    void set_dictionary(std::unique_ptr<ResourceDictionary> dict);
+    [[nodiscard]] const ResourceDictionary* dictionary() const noexcept;
+    [[nodiscard]] ResourceDictionary* dictionary() noexcept;
+
+private:
+    std::unique_ptr<ResourceDictionary> dict_;
+};
+
 // ---------------------------------------------------------------------------
 // SPRINT 11d (S480–S486) — the core display + input controls. All are REAL
 // re-based UIElements (not seeds): each participates in the visual tree +

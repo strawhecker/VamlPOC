@@ -13,6 +13,7 @@
 #include "vaml/core/DependencyProperty.h"      // DependencyProperty
 #include "vaml/core/Element.h"                 // register_builtin_elements
 #include "vaml/core/ElementResolver.h"         // resolve_element + exception
+#include "vaml/core/GridLength.h"              // 11j-9: GridLength (grid definition authoring)
 #include "vaml/core/Intern.h"                  // S140/S144: interned string_view keys for the x:Name registry
 #include "vaml/core/ParsedElement.h"           // ParsedElement/ParsedAttribute + parse_vaml
 #include "vaml/core/PropertyId.h"              // PropertyId
@@ -26,6 +27,8 @@
 #include "vaml/core/XmlScanner.h"              // XmlDirectiveType
 
 #include <algorithm>
+#include <charconv> // 11j-9: std::from_chars for Grid track lengths (clang needs it explicitly)
+#include <cmath>    // 11j-9: std::isfinite (clang does not pull <cmath> transitively)
 #include <string>
 #include <utility>
 
@@ -56,6 +59,71 @@ namespace {
 {
     const std::size_t dot = key.rfind('.');
     return (dot == std::string_view::npos) ? key : key.substr(dot + 1);
+}
+
+// 11j-9 (dep:S131) — parses a Grid track length literal ("Auto" / "auto" /
+// numeric / "N*" / "*") into a GridLength. A small pure parser reusing
+// GridLength.h's model: Auto / numeric Pixel / Star. Anything else -> a
+// structured VamlReaderException (MalformedValue-style, never silent).
+[[nodiscard]] GridLength parse_grid_length(std::string_view s)
+{
+    auto asciiLower = [](char c) noexcept {
+        return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+    };
+    auto ieq = [&](std::string_view a, const char* b) noexcept {
+        std::size_t i = 0;
+        for (; i < a.size(); ++i)
+        {
+            if (b[i] == '\0' || asciiLower(a[i]) != asciiLower(b[i]))
+            {
+                return false;
+            }
+        }
+        return b[i] == '\0';
+    };
+
+    if (s.empty())
+    {
+        throw ValueConversionException(
+            ValueConversionError::MalformedValue, std::string("GridLength"),
+            std::string(s), "malformed grid track length (empty)");
+    }
+
+    // Auto / auto / AUTO.
+    if (ieq(s, "Auto"))
+    {
+        return GridLength::Auto();
+    }
+
+    // Star: "*" (weight 1) or "N*" (weight N).
+    if (s.back() == '*')
+    {
+        if (s.size() == 1)
+        {
+            return GridLength::Star(1.0f);
+        }
+        const std::string_view num = s.substr(0, s.size() - 1);
+        double w = 0.0;
+        auto [ptr, ec] = std::from_chars(num.data(), num.data() + num.size(), w);
+        if (ec != std::errc() || ptr != (num.data() + num.size()) || !std::isfinite(w) || w < 0.0)
+        {
+            throw ValueConversionException(
+                ValueConversionError::MalformedValue, std::string("GridLength"),
+                std::string(s), "malformed star grid track length '" + std::string(s) + "'");
+        }
+        return GridLength::Star(static_cast<float>(w));
+    }
+
+    // Numeric -> Pixel (an absolute length).
+    double v = 0.0;
+    auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
+    if (ec != std::errc() || ptr != (s.data() + s.size()) || !std::isfinite(v) || v < 0.0)
+    {
+        throw ValueConversionException(
+            ValueConversionError::MalformedValue, std::string("GridLength"),
+            std::string(s), "malformed grid track length '" + std::string(s) + "'");
+    }
+    return GridLength::Pixel(static_cast<float>(v));
 }
 
 } // namespace
@@ -156,6 +224,20 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     // Step 1 — resolve into a live instance (global registry; unknown type
     // throws ElementResolutionException naming type + line:col — S088).
     std::unique_ptr<DependencyObject> obj = resolve_element(element);
+
+    // 11j-2 (dep:S453) — RESOURCE-DICTIONARY as a LOADABLE ELEMENT (a standalone
+    // `.xaml` root OR a nested legal position). A resolved `ResourceDictionary`
+    // element is the ResourceDictionaryHolder; its authored children are the
+    // RESOURCES (keyed, merged) captured via S453's build_resource_dictionary —
+    // NEVER ordinary visual children. This reuses the existing capture verbatim
+    // and attaches the owned dictionary to the holder.
+    if (ResourceDictionaryHolder* rdh = dynamic_cast<ResourceDictionaryHolder*>(obj.get()))
+    {
+        std::unique_ptr<ResourceDictionary> dict =
+            build_resource_dictionary(element, obj.get(), depth);
+        rdh->set_dictionary(std::move(dict));
+        return obj; // a resource store; nothing is retained as a visual child
+    }
 
     // S454 — STYLE AUTHORING (the S362/S363 engine authored from .vaml). A
     // `<Style>` is a RESOURCE (a Dict capture / implicit-style), never a visual:
@@ -417,6 +499,185 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                 continue; // NOT a visual child
             }
 
+            // --- 11j-7 (dep:S454) — ELEMENT-LEVEL `<Owner.Triggers>`. -------
+            // The corpus authors `<Window.Triggers>` / `<UserControl.Triggers>`
+            // as element-level trigger sets (S454 authored ONLY `<Style.Triggers>`).
+            // The `<Owner.Triggers>` children (PropertyTrigger / DataTrigger with
+            // their child <Setter>s) are parsed into the SAME live S362 trigger
+            // model a Style carries and attached to the element (the owned per-
+            // element trigger set; triggers are behavior, not a DP — mirroring
+            // Style's storage). Authoring is fully real + parseable; element-level
+            // EVALUATION (re-evaluate on DP match) is the recorded continuation to
+            // the control-material/content step (S454 styles already evaluate).
+            if (propName == "Triggers")
+            {
+                DependencyObject* target = obj.get();
+                std::vector<Trigger> trigs;
+                for (const ParsedElement& trig : child.children)
+                {
+                    const std::string_view tl = trig.local_name.empty() ? trig.tagName
+                                                                        : trig.local_name;
+                    if (tl == "PropertyTrigger")
+                    {
+                        std::string prop;
+                        std::string value;
+                        for (const ParsedAttribute& a : trig.attributes)
+                        {
+                            if (a.directive == XmlDirectiveType::None && a.key == "Property")
+                            {
+                                prop = a.value;
+                            }
+                            else if (a.directive == XmlDirectiveType::None && a.key == "Value")
+                            {
+                                value = a.value;
+                            }
+                        }
+                        const DependencyProperty* tdp = DependencyProperty::TryGet(prop);
+                        if (tdp == nullptr)
+                        {
+                            throw VamlReaderException(
+                                VamlReaderError::UnknownProperty, prop,
+                                "unknown PropertyTrigger target property '" + prop + "'");
+                        }
+                        PropertyTrigger pt;
+                        pt.property = PropertyId(vaml::intern(prop));
+                        pt.value = convertLiteral(*tdp, value);
+                        for (const ParsedElement& ts : trig.children)
+                        {
+                            if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
+                            {
+                                Setter s;
+                                parse_setter(ts, "PropertyTrigger", s);
+                                pt.setters.push_back(std::move(s));
+                            }
+                        }
+                        trigs.push_back(Trigger::MakeProperty(std::move(pt)));
+                    }
+                    else if (tl == "DataTrigger")
+                    {
+                        std::string binding;
+                        std::string value;
+                        for (const ParsedAttribute& a : trig.attributes)
+                        {
+                            if (a.directive == XmlDirectiveType::None && a.key == "Binding")
+                            {
+                                binding = a.value;
+                            }
+                            else if (a.directive == XmlDirectiveType::None && a.key == "Value")
+                            {
+                                value = a.value;
+                            }
+                        }
+                        if (binding.empty())
+                        {
+                            throw VamlReaderException(
+                                VamlReaderError::UnknownProperty, "Binding",
+                                "a <DataTrigger> must name a 'Binding' path");
+                        }
+                        DataTrigger dt;
+                        dt.path = PropertyPath::parse(binding);
+                        dt.value = Value::String(value);
+                        for (const ParsedElement& ts : trig.children)
+                        {
+                            if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
+                            {
+                                Setter s;
+                                parse_setter(ts, "DataTrigger", s);
+                                dt.setters.push_back(std::move(s));
+                            }
+                        }
+                        trigs.push_back(Trigger::MakeData(std::move(dt)));
+                    }
+                    else
+                    {
+                        throw VamlReaderException(
+                            VamlReaderError::UnknownProperty, std::string(tl),
+                            "unknown element-level trigger child '" + std::string(tl) + "'");
+                    }
+                }
+                elementTriggers_.emplace_back(target, std::move(trigs));
+                continue; // NOT a visual child
+            }
+
+            // --- 11j-9 (dep:S131) — `<Grid.RowDefinitions>` / `<Grid.ColumnDefinitions>`
+            // markup authoring. S131's Grid track vectors exist in code
+            // (set_row_definitions/set_column_definitions); the MARKUP has no DP
+            // (RowDefinitions is real member state, not a DP — a bogus object DP
+            // would shadow the track container). This arm wires the property-element
+            // surface onto the code-level API: the authored `<RowDefinition Width=..>`
+            // / `<ColumnDefinition Width=..>` children's Width/Height attributes are
+            // parsed into GridLengths (Auto / numeric Pixel / "N*" Star) + handed to
+            // grid->set_row_definitions / set_column_definitions.
+            if (propName == "RowDefinitions" || propName == "ColumnDefinitions")
+            {
+                Grid* grid = dynamic_cast<Grid*>(obj.get());
+                if (grid == nullptr)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(propName),
+                        "RowDefinitions/ColumnDefinitions can only be authored on a <Grid>");
+                }
+                const bool isColumns = (propName == "ColumnDefinitions");
+                std::vector<ColumnDefinition> cols;
+                std::vector<RowDefinition> rows;
+                for (const ParsedElement& def : child.children)
+                {
+                    const std::string_view dl = def.local_name.empty() ? def.tagName
+                                                                       : def.local_name;
+                    const bool isColumnDef = (dl == "ColumnDefinition");
+                    const bool isRowDef = (dl == "RowDefinition");
+                    if (isColumns ? !isColumnDef : !isRowDef)
+                    {
+                        throw VamlReaderException(
+                            VamlReaderError::UnknownProperty, std::string(dl),
+                            std::string(isColumns ? "ColumnDefinitions" : "RowDefinitions") +
+                                " may only contain <" +
+                                std::string(isColumns ? "ColumnDefinition" : "RowDefinition") +
+                                "> children (got '" + std::string(dl) + "')");
+                    }
+                    // Read the Width (column) / Height (row) attribute into a
+                    // GridLength: "Auto"/"auto" -> Auto; a numeric -> Pixel;
+                    // "N*" / "*" -> Star; malformed -> structured error.
+                    const std::string_view lenAttr = isColumns ? "Width" : "Height";
+                    std::string_view len;
+                    for (const ParsedAttribute& a : def.attributes)
+                    {
+                        if (a.directive == XmlDirectiveType::None && a.key == lenAttr)
+                        {
+                            len = a.value;
+                            break;
+                        }
+                    }
+                    if (len.empty())
+                    {
+                        // No explicit length -> an Auto track (GridLength default).
+                        len = "Auto";
+                    }
+                    GridLength gl = parse_grid_length(len);
+                    if (isColumns)
+                    {
+                        ColumnDefinition cd;
+                        cd.width = gl;
+                        cols.push_back(cd);
+                    }
+                    else
+                    {
+                        RowDefinition rd;
+                        rd.height = gl;
+                        rows.push_back(rd);
+                    }
+                }
+                if (isColumns)
+                {
+                    grid->set_column_definitions(std::move(cols));
+                }
+                else
+                {
+                    grid->set_row_definitions(std::move(rows));
+                }
+                continue; // NOT a visual child
+            }
+
             // The OWNER name in a property-element must match the parent's type
             // name (it is "this.Element's Property"). We don't enforce a match
             // here beyond the dotted form: the property name is set on THIS
@@ -447,7 +708,20 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                 DependencyObject* raw = owned.get();
                 raw->set_parent(obj.get()); // S039 parent-link (the object is reader-retained)
                 retained_.push_back(std::move(owned));
-                (void)obj->Set(PropertyId(propName), Value::UntypedPtr(raw));
+                // 11j-8 (dep:S036): the object-typed WPF `Tag` is mapped to a
+                // String-typed DP here (option A — the scalar literal path is the
+                // corpus's PRIMARY use, and VAML's typed Value cannot hold an
+                // arbitrary object in a single bound-typed slot). An OBJECT
+                // `<X.Tag><SomeObject/></X.Tag>` is therefore built + RETAINED
+                // (+ parent-linked) so it is represented in the load result, but
+                // NOT set as the scalar DP value (an UntypedPtr would mismatch
+                // the String-typed Tag and throw). WPF-faithful: the object slot
+                // accepts a scalar (string) OR an object; VAML represents the
+                // scalar on the DP and the object as reader-retained state.
+                if (propName != "Tag")
+                {
+                    (void)obj->Set(PropertyId(propName), Value::UntypedPtr(raw));
+                }
             }
             else if (!child.content.empty())
             {
@@ -1189,7 +1463,21 @@ std::size_t VamlReader::finalize_visual_tree()
                 // add_child requires parent()==nullptr: detach the seed parent
                 // (S039) first, then attach (which re-links to parentUI).
                 childUI->set_parent(nullptr);
-                parentUI->add_child(std::unique_ptr<UIElement>(static_cast<UIElement*>(retained_[i].release())));
+                std::unique_ptr<UIElement> adopt(
+                    static_cast<UIElement*>(retained_[i].release()));
+                // 11j-1 (GAP CLOSE): a `<UserControl>`'s direct child is its
+                // single CONTENT — route it through set_content (the real
+                // content slot, which ALSO add_childs it into the S121 list so
+                // it renders via the generic classifier). This is the corpus's
+                // `<UserControl><Grid/></UserControl>` root/content pattern.
+                if (UserControl* uc = dynamic_cast<UserControl*>(parentUI))
+                {
+                    uc->set_content(std::move(adopt));
+                }
+                else
+                {
+                    parentUI->add_child(std::move(adopt));
+                }
                 retained_.erase(retained_.begin() + static_cast<std::ptrdiff_t>(i));
                 ++transferred;
                 progress = true;

@@ -247,6 +247,15 @@ public:
     [[nodiscard]] const std::vector<std::unique_ptr<DependencyObject>>&
     retained_objects() const noexcept { return retained_; }
 
+    // 11j-7 — the ELEMENT-LEVEL TRIGGERS authored via `<Owner.Triggers>`
+    // property-elements (G7, dep:S454), in document order: (element, its owned
+    // trigger set). The triggers are the SAME live S362 model a Style carries
+    // (PropertyTrigger/DataTrigger + child setters), parsed as REAL authoring;
+    // the element-level EVALUATION (re-evaluate on DP match) is the recorded
+    // continuation to the control-material/content step. Per-Load scope.
+    [[nodiscard]] const std::vector<std::pair<DependencyObject*, std::vector<Trigger>>>&
+    element_triggers() const noexcept { return elementTriggers_; }
+
     // ------------------------------------------------------------------
     // S092 Strand A — x:Name registry (REAL, tested, permanent).
     // ------------------------------------------------------------------
@@ -666,6 +675,16 @@ private:
     // BindResources), re-evaluated by ReapplyDynamicResources. Per-Load
     // (cleared at Load start).
     std::vector<DynamicResourceLink> dynamicResourceLinks_;
+
+    // 11j-7 — ELEMENT-LEVEL TRIGGERS (G7, dep:S454). A per-Load store of the
+    // authored `<Owner.Triggers>` property-element triggers, keyed by the
+    // element they were authored on. The triggers are parsed into the SAME live
+    // S362 trigger model (style.add_trigger), so the authoring surface is fully
+    // real + parseable; full element-level trigger EVALUATION on a live element
+    // is a recorded continuation to the control-material/content step (S454
+    // styles already evaluate; element-level evaluation lands there). Per-Load
+    // (cleared at Load start like the other registries).
+    std::vector<std::pair<DependencyObject*, std::vector<Trigger>>> elementTriggers_;
 };
 
 } // namespace vaml

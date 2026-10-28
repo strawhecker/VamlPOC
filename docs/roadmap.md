@@ -1638,6 +1638,106 @@ Growth tokens by sprint:
       is content-complete (non-3rd-party); checkpoint advances toward S540 (Sprint 11z). Short.
 
 ---
+## Sprint 11j — GAP CLOSE: WPF corpus load surface (unknown-element / DP / value / doc-level)  (goal: close the WPF-corpus LOAD-SURFACE gaps so the external WPF corpus's .xaml docs load through vaml_viewer)  [token S11j]
+> STATUS: **COMPLETE — all nine 11j steps [DONE], BOTH CI LANES green.** This is a GAP-CLOSE sprint (the
+> 11d-DEBUG follow-up's recorded "remaining SplashWindow unknowns" + the broader corpus blockers): no new
+> renderable control chrome — everything lands as loadable **elements**, **DPs**, **values**, and
+> **document-level** authoring surfaces. Every step is a REAL permanent symbol (ZERO MINIMAL REAL introduced);
+> the two flags that surfaced were resolved against the authoritative WPF source (FrameworkElement.cs
+> TagProperty = `typeof(object)`; ResourceDictionary.cs = a plain non-DependencyObject class that is a legal
+> standalone root), recorded in progress.md. The crux of the sprint (11j-5) is the VAML property-registry
+> NAME-UNIQUENESS contract: `DependencyProperty::Register` throws on a duplicate NAME, so the shared Control-base
+> names (Padding/HorizontalContentAlignment/VerticalContentAlignment/FontSize/FontFamily) are registered ONCE
+> under the single canonical owner "Control" and the conflicting prior registrations (Text's bare "FontSize",
+> Label's dotted "Label.FontSize"/"Label.FontFamily"/"Label.HorizontalContentAlignment", Border's dotted
+> "Border.Padding") are MIGRATED (re-pointed to Control; NO backfill).
+>
+> VIEWER GROWTH (anti-grave-whistle): Sprint 11j introduces no NEW renderable feature — it makes the existing
+> S212/S222 viewer **actually OPEN real WPF-shaped corpus docs** that previously failed to load (UserControl
+> roots, ResourceDictionary theme roots, SplashWindow-shaped Window DPs, Application entries, Grid definition
+> markup). Each step records **S222_1 RELOAD still demonstrated** + "a corpus-shaped doc now parses in the
+> viewer" where the step unblocks a loadable doc.
+>
+> - 11j-1 — `UserControl` element (G1 · ~90 corpus files)  [DONE — REAL content-container element,
+>       dep:S450_1]. RESOLVES the single largest corpus blocker (`unknown element 'UserControl'`). `UserControl
+>       final : UIElement` in Element.{h,cpp} + factory registration (built-in 33→34) + a single-content child
+>       slot (set_content/content(), Window-faithful, the finalize hand-off routes a UserControl root's direct
+>       child through it so the content RENDERS via the generic classifier). Width/Height inherit the base
+>       UIElement layout DPs; FontSize resolves against the shared Control base DP hoisted at 11j-5. SCOPE
+>       BOUNDARY (recorded NO-GAP, not silent): the full `ContentControl` ABSTRACT BASE is the **S649**
+>       continuation — deliberately NOT introduced here (a self-contained UserControl satisfies the corpus
+>       surface without pre-empting S649). Test UserControl_s11j1_test.cpp.
+> - 11j-2 — `ResourceDictionary` as a loadable ROOT element (G2 · ~100 corpus files)  [DONE, dep:S453].
+>       RESOLVES the corpus blocker where a standalone resource doc (themes/icons/DataTemplates) has
+>       `<ResourceDictionary>` as its root. WPF-FAITHFUL (verified from ResourceDictionary.cs): RD is a plain
+>       non-DependencyObject class that is still a legal standalone root, so the Load API's
+>       `unique_ptr<DependencyObject>` root cannot return it directly — 11j-2 introduces the REAL
+>       `ResourceDictionaryHolder : DependencyObject` HOST (the S460 GradientStopHost precedent), registered as
+>       the element "ResourceDictionary" (built-in 35→36), which OWNS the dictionary built via S453's
+>       `build_resource_dictionary` (the S360 dup-key/no-key/merged semantics unchanged). A nested
+>       `<ResourceDictionary>` under .Resources/.MergedDictionaries stays on the dedicated build path. Test
+>       RDRoot_s11j2_test.cpp.
+> - 11j-3 — named-colors table (G3)  [DONE, dep:S089/S090]. `Transparent`/`AliceBlue`/`Black`/… parse to Color.
+>       S089 explicitly scoped named colors OUT; 11j-3 RESOLVES that recorded NO-GAP: `parse_color` now accepts
+>       the FULL WPF named-color set, case-insensitive (a bare identifier that is not a valid hex form falls
+>       through to the table; an unknown identifier/`#`-prefixed name still throws MalformedValue — the S090
+>       discipline). `Transparent` = fully-transparent BLACK (0,0,0,0) — the `Transparent` overlay unblock. The
+>       hex path is UNCHANGED (S089 suite stays green). Test NamedColor_s11j3_test.cpp.
+> - 11j-4 — Window DPs (G4 · SplashWindow partial)  [DONE, dep:S440]. S440 seeded Window with NO Window-owner
+>       DPs; SplashWindow's remaining unknowns (AllowsTransparency, WindowStartupLocation, WindowStyle, Topmost,
+>       ResizeMode) previously threw UnknownProperty. 11j-4 registers the real Window-owner DPs (S043
+>       attached-aware on any DependencyObject): `AllowsTransparency`+`Topmost` = **ValueType::Bool** (WPF-
+>       faithful — they ARE bools — so "true"/"false" convert via the Bool converter WITHOUT polluting the
+>       shared Int32 enum map, which would have flipped global inference of "true" to Int32 and regressed the
+>       S090 infer tests); `WindowStartupLocation` {Manual/CenterScreen/CenterOwner}, `WindowStyle`
+>       {None/SingleBorderWindow/ThreeDBorderWindow/ToolWindow}, `ResizeMode`
+>       {NoResize/CanMinimize/CanResize/CanResizeWithGrip} = Int32 enums (the enum NAMES added to the shared
+>       enum-name map). The HOST maps them to the OS window at a later window-host step (recorded NO-GAP, not
+>       silent). Test WindowDp_s11j4_test.cpp.
+> - 11j-5 — shared Control DPs / FontSize base move (G5 · the crux)  [DONE, dep:S400/S480]. Register
+>       `Padding`/`HorizontalContentAlignment`/`VerticalContentAlignment`/`FontSize`/`FontFamily` as the single
+>       Control-base DP bundle (owner "Control", WPF type-inheritance analogue in the name-unique global
+>       registry) so the corpus's UNPREFIXED authoring on Button/TextBox/Label/etc. resolves; and MIGRATE the
+>       prior conflicting registrations (Text's bare "FontSize" + Label's dotted "Label.FontSize"/"Label.FontFamily
+>       "/"Label.HorizontalContentAlignment" + Border's dotted "Border.Padding" are REMOVED, their typed
+>       accessors re-pointed to the bare Control names) — done HERE at this step, never a silent backfill.
+>       RESOLVES Padding/HorizontalContentAlignment/VerticalContentAlignment/FontSize across the corpus. Test
+>       ControlDp_s11j5_test.cpp.
+> - 11j-6 — `Application` root element (G6 · 1 file)  [DONE, dep:S450_1]. Resolvable `<Application>` document
+>       root (no-op content shell for the `@StartupUri` most-common case). WPF-faithful: `Application` is NOT a
+>       FrameworkElement — it is a `DependencyObject` (NOT UIElement) carrying a REAL `StartupUri` String DP so
+>       `<Application StartupUri="MainWindow.xaml">` parses. RECORDED NO-GAP (not silent): StartupUri is
+>       record-only at this step — the NAVIGATION (actually opening the referenced window) is the later app-host
+>       step (Sprint 12/S490+). Test ApplicationRoot_s11j6_test.cpp.
+> - 11j-7 — element-level `X.Triggers` property-element (G7 · 4 files)  [DONE, dep:S454]. S454 authored only
+>       `<Style.Triggers>`; 11j-7 resolves element-level `<Window.Triggers>`/`<UserControl.Triggers>` authoring —
+>       the `<Owner.Triggers>` children (PropertyTrigger/DataTrigger + child setters) are parsed into the SAME
+>       live S362 trigger model and attached to the element (a real owned per-element trigger set, reader-scoped
+>       via `element_triggers()`). Full element-level trigger EVALUATION is a recorded continuation to the
+>       control-material/content step; AUTHORING is fully real + parseable. Test ElementTriggers_s11j7_test.cpp.
+> - 11j-8 — `Tag` DP (G8 · 1 file)  [DONE, dep:S036]. WPF-FAITHFUL (verified from FrameworkElement.cs
+>       TagProperty = `typeof(object)`): Tag is an OBJECT slot that accepts a scalar literal OR any object, and
+>       WPF SetValue never rejects it. VAML's DP model binds ONE ValueType and `Set()` ENFORCES the tag, so a
+>       single typed slot cannot hold an arbitrary object — 11j-8's option A: `Tag` is a **String-typed DP** (the
+>       corpus's PRIMARY literal `Tag="..."` use converts to Value::String) + the object property-element form
+>       `<X.Tag><SomeObject/></X.Tag>` is built + RETAINED by the reader (parent-linked, represented in the load
+>       result WITHOUT a Set on the scalar slot). Test TagDp_s11j8_test.cpp.
+> - 11j-9 — `Grid.ColumnDefinitions` markup authoring (G9 · 1 file)  [DONE, dep:S131]. S131 Grid DPs + track
+>       vectors exist in code (set_row_definitions/set_column_definitions); 11j-9 wires the MARKUP
+>       `<Grid.ColumnDefinitions>`/`<Grid.RowDefinitions>` property-element surface onto that code-level API:
+>       the authored Row/ColumnDefinition children's Width/Height attributes parse into GridLengths (Auto /
+>       numeric Pixel / "N*" Star via the new `parse_grid_length`) and are handed to set_*_definitions. An
+>       authoring ROUTE into real member state — NOT a bogus object-typed DP that would shadow the track
+>       container (recorded). Test GridColumnDefs_s11j9_test.cpp.
+> - 11j-10 — SURVIVOR(11j) + checkpoint  [DONE — consolidated in progress.md; ZERO MINIMAL REAL introduced
+>       across the sprint; checkpoint advances: last completed = S11j, next = **S490+ (Sprint 12)**]. Forward
+>       carry (recorded NO-GAP, not silent): the Window HOST application of the 11j-4 DPs (AllowsTransparency/
+>       WindowStyle/Topmost/ResizeMode to the OS window) + StartupUri NAVIGATION (11j-6) + the S649 ContentControl
+>       base — all to the Sprint 12 / S490+ window-host + control-material step. ADR-018: ZERO new locks
+>       (all single-threaded registration/parse). ADR-011: all new symbols live in core (data) — no render/
+>       shader change; render stays in vulkan's classifier.
+
+---
 ## Sprint 11z — Injected-dispatcher interop + injected-dispatch wrap  (goal: the library runs inside a host message pump / dispatcher; the 3rd-party test + injected test dispatch CLOSE OUT the lib roadmap)  [token S540+]
 > VIEWER GROWTH: this sprint's NEW renderable/interop proof = S545 (an injected test dispatch, triggered via the
 > 3rd-party test hook, updates UI content LIVE in the viewer) — the anti-grave-whistle wrap that closes out the lib.

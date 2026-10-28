@@ -64,6 +64,15 @@ add_executable(vaml-core-tests
     Transform_render_test.cpp
     ValueConverter_test.cpp
     ValueConverterRegistry_test.cpp
+    NamedColor_s11j3_test.cpp
+    UserControl_s11j1_test.cpp
+    ApplicationRoot_s11j6_test.cpp
+    RDRoot_s11j2_test.cpp
+    ControlDp_s11j5_test.cpp
+    WindowDp_s11j4_test.cpp
+    TagDp_s11j8_test.cpp
+    ElementTriggers_s11j7_test.cpp
+    GridColumnDefs_s11j9_test.cpp
     VamlReader_test.cpp
     VamlReader_defer_test.cpp
     VamlReader_s093_test.cpp

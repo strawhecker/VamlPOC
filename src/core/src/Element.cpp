@@ -26,6 +26,7 @@
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/PropertyFlags.h"
 #include "vaml/core/PropertyMetadata.h"
+#include "vaml/core/ResourceDictionary.h" // 11j-2 — ResourceDictionaryHolder owns a ResourceDictionary
 #include "vaml/core/RoutedEvent.h"       // S320/S321 — ClickEvent (the Button's routed event)
 #include "vaml/core/Style.h"             // S453/S454 — Style (authored resource type)
 
@@ -1005,24 +1006,83 @@ void Canvas::ArrangeOverride(const Rect& finalSlot)
 
 namespace {
 
-// Registers the Text control's four REAL DPs into the global table exactly once
+// 11j-5 (GAP CLOSE, dep:S400/S480) — the SHARED CONTROL BASE DP-BUNDLE.
+//
+// The VAML property registry is NAME-UNIQUE globally (DependencyProperty::
+// Register throws on a duplicate NAME; the owner type id is a declaration LABEL
+// only — the value is resolved S043-attached-aware by bare name on ANY
+// DependencyObject). WPF resolves `Padding` / `HorizontalContentAlignment` /
+// `VerticalContentAlignment` / `FontSize` / `FontFamily` on a Control/TextElement
+// BASE by type-inheritance; the faithful VAML mapping is ONE canonical bare
+// registration (owner "Control") + the affected controls' typed accessors
+// re-pointed to that single owner. Without this, corpus rows authoring these
+// UNPREFIXED on Button/TextBox/TextBlock/… would fail UnknownProperty, and the
+// prior split (Text owning bare "FontSize" vs Label owning "Label.FontSize")
+// was an inconsistency that left the unprefixed surface broken for the corpus.
+//
+// This step MIGRATES the conflicting prior registrations (NO backfill — done
+// HERE, at this step):
+//   - Text   owned bare "FontSize"          -> REMOVED, re-point to this owner
+//   - Label  owned "Label.FontSize",
+//            "Label.FontFamily",
+//            "Label.HorizontalContentAlignment" -> REMOVED, re-point to this owner
+//   - Border owned "Border.Padding"         -> REMOVED, re-point to this owner
+// Each typed accessor's backing name changes (the public surface path is
+// unchanged); duplicate Register would throw PropertyAlreadyRegistered, so the
+// deliberate re-pointing is the one-time migration + CI catches regressions.
+void register_control_base_properties()
+{
+    // Padding: Thickness, default 0. Owner "Control".
+    (void)DependencyProperty::Register(
+        "Padding", ValueType::Thickness, "Control",
+        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+    // HorizontalContentAlignment: Int32, default Left=0 (the S122 alignment).
+    (void)DependencyProperty::Register(
+        "HorizontalContentAlignment", ValueType::Int32, "Control",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // VerticalContentAlignment: Int32, default Top=0 (the S122 alignment).
+    (void)DependencyProperty::Register(
+        "VerticalContentAlignment", ValueType::Int32, "Control",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // FontSize: Double, default 16, validated >= 0 (a negative em size is
+    // structurally meaningless -> REJECTED). Owner "Control".
+    (void)DependencyProperty::Register(
+        "FontSize", ValueType::Double, "Control",
+        std::move(PropertyMetadata::WithDefault(Value::Double(16.0), PropertyFlags::None))
+            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
+    // FontFamily: String, default "".
+    (void)DependencyProperty::Register(
+        "FontFamily", ValueType::String, "Control",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+
+void ensure_control_base_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_control_base_properties();
+    }
+}
+
+// Registers the Text control's REAL DPs into the global table exactly once
 // per process (Meyers-static guard; a second call is a no-op — mirrors the
 // UIElement/StackPanel self-registration pattern). Authentication: Text is the
 // S400 headline control; its DPs are GLOBALLY registered so they resolve on ANY
 // DependencyObject via S043 attached-aware resolution (a style setter can target
 // "Text"/"FontSize"/"FontWeight"/"Foreground" on a Text).
+//
+// 11j-5: `FontSize` is NO LONGER registered here — it is the shared Control
+// base DP (owner "Control", see register_control_base_properties). Text's
+// FontSize accessors re-point to that single owner (bare "FontSize"). The
+// distinct Text-owned names Text / FontWeight / Foreground remain here.
 void register_text_properties()
 {
     // Text: String, default "".
     (void)DependencyProperty::Register(
         "Text", ValueType::String, "Text",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    // FontSize: Double, default 16, validated >= 0 (a negative em size is
-    // structurally meaningless -> REJECTED).
-    (void)DependencyProperty::Register(
-        "FontSize", ValueType::Double, "Text",
-        std::move(PropertyMetadata::WithDefault(Value::Double(16.0), PropertyFlags::None))
-            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
     // FontWeight: Int32, default Normal=0 (the S206 glyph convention).
     (void)DependencyProperty::Register(
         "FontWeight", ValueType::Int32, "Text",
@@ -1038,6 +1098,9 @@ void register_text_properties()
 // Runs register_text_properties() at most once (first Text ctor).
 void ensure_text_properties_registered()
 {
+    // 11j-5: the shared Control base DP bundle is a dependency of the Text
+    // surface (FontSize re-points to it) — ensure it before Text's own props.
+    ensure_control_base_properties_registered();
     static bool registered = false;
     if (!registered)
     {
@@ -1911,13 +1974,67 @@ Size ScrollViewer::MeasureOverride(const Size& available) const
 
 // --- S440 Window (REAL container window-type; re-based onto UIElement) ------
 
+namespace {
+
+// 11j-4 (GAP CLOSE, dep:S440) — the Window-OWNER DP set. S440 seeded Window with
+// NO Window-owner DPs; the external SplashWindow corpus file authors
+// AllowsTransparency/WindowStartupLocation/WindowStyle/Topmost/ResizeMode, which
+// previously threw UnknownProperty. These are REAL window-config DPs (WPF-
+// faithful defaults), resolved S043-attached-aware on ANY DependencyObject (the
+// loader only needs them to RESOLVE so SplashWindow parses). The HOST maps them
+// to the OS window at a later window-host step (recorded NO-GAP, not silent).
+void register_window_properties()
+{
+    // AllowsTransparency: BOOL (WPF-faithful — WPF AllowsTransparency is bool),
+    // default false. Uses ValueType::Bool so the corpus authoring
+    // `AllowsTransparency="true"` / `="false"` converts via the Bool converter
+    // (the lowercase "true"/"false" form, S090) WITHOUT polluting the shared
+    // Int32 enum-name map (which would flip global inference of "true" to Int32).
+    (void)DependencyProperty::Register(
+        "AllowsTransparency", ValueType::Bool, "Window",
+        PropertyMetadata::WithDefault(Value::Bool(false), PropertyFlags::None));
+    // WindowStartupLocation: Int32 enum {Manual=0, CenterScreen=1, CenterOwner=2},
+    // default Manual.
+    (void)DependencyProperty::Register(
+        "WindowStartupLocation", ValueType::Int32, "Window",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // WindowStyle: Int32 enum {None=0, SingleBorderWindow=1, ThreeDBorderWindow=2,
+    // ToolWindow=3}, default SingleBorderWindow.
+    (void)DependencyProperty::Register(
+        "WindowStyle", ValueType::Int32, "Window",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+    // Topmost: BOOL (WPF-faithful), default false. Same Bool rationale as
+    // AllowsTransparency.
+    (void)DependencyProperty::Register(
+        "Topmost", ValueType::Bool, "Window",
+        PropertyMetadata::WithDefault(Value::Bool(false), PropertyFlags::None));
+    // ResizeMode: Int32 enum {NoResize=0, CanMinimize=1, CanResize=2,
+    // CanResizeWithGrip=3}, default CanResize.
+    (void)DependencyProperty::Register(
+        "ResizeMode", ValueType::Int32, "Window",
+        PropertyMetadata::WithDefault(Value::Int32(2), PropertyFlags::None));
+}
+
+void ensure_window_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_window_properties();
+    }
+}
+
+} // namespace
+
 VAML_CORE_EXPORT
 Window::Window()
 {
-    // No Window-owner DPs to register yet: Window inherits the full UIElement
-    // surface (Visibility/Opacity/Margin/alignment) + the S121 child machinery,
-    // and owns no new global property names of its own at S440. The content
-    // child slot is plain member state, not a DP.
+    // 11j-4: Window now owns its real Window-config DP set (AllowsTransparency /
+    // WindowStartupLocation / WindowStyle / Topmost / ResizeMode) + inherits the
+    // full UIElement surface (Visibility/Opacity/Margin/alignment) + the S121
+    // child machinery. The content child slot is plain member state, not a DP.
+    ensure_window_properties_registered();
 }
 
 VAML_CORE_EXPORT
@@ -2005,6 +2122,220 @@ bool Window::raise_closing()
     args.originalSource = this;
     RaiseEvent(vaml::ClosingEvent(), args);
     return args.handled;
+}
+
+// --- 11j-1 UserControl (REAL content-container element; GAP CLOSE) ----------
+// RESOLVES a corpus blocker: ~90 external WPF corpus files author
+// `<UserControl .../>` as a root / nested content container. A self-contained
+// UIElement with a single-content child slot (Window-faithful) so a UserControl
+// root RENDERS its content; the full ContentControl base is S649 (recorded).
+
+namespace {
+
+void register_usercontrol_properties()
+{
+    // `Content` — String-typed holder? NO: the authored `<UserControl.Content>`
+    // property-element sets an OBJECT (Value::UntypedPtr via S452), and a
+    // literal-attribute Content is uncommon. To accept BOTH a literal String
+    // AND an object without a type-mismatch on Set, the DP is registered with
+    // a bound type that does not reject the S452 UntypedPtr object path. The
+    // S043 Set path resolves by name and stores whatever `Value` tag arrives —
+    // so the metadata's bound type is the governing constraint ONLY for the
+    // literal convert (convertLiteral). We register `Content` as String so a
+    // literal converts to String; the property-element object branch calls
+    // obj->Set(PropertyId(propName), Value::UntypedPtr(raw)) DIRECTLY (bypassing
+    // convertLiteral), which stores an UntypedPtr Value on the String-typed DP.
+    // DependencyObject::Set validates the TAG against the metadata's bound type
+    // and would reject UntypedPtr on a String-typed DP — so we must register
+    // `Content` with a permissive object-typed bound type.
+    //
+    // OBJECT-TYPED DP: a DP whose bound value type is UntypedPtr holds an owned/
+    // borrowed object identity. A property-element object branch sets
+    // Value::UntypedPtr (matches). A LITERAL attribute Content, though rare, is
+    // not a valid UntypedPtr literal (no converter) — WPF Content is object, so
+    // a Content attribute would be authored as an object via property-element or
+    // x:Static; a literal is not a corpus pattern. We register Content as
+    // UntypedPtr (object-typed). convertLiteral for UntypedPtr has no converter
+    // and would throw UnknownType on a bare literal — acceptable (Content is not
+    // literal-authored). The typed accessors read the stored Value by tag.
+    (void)DependencyProperty::Register(
+        "Content", ValueType::UntypedPtr, "UserControl",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
+}
+
+void ensure_usercontrol_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_usercontrol_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+UserControl::UserControl()
+{
+    ensure_usercontrol_properties_registered();
+}
+
+VAML_CORE_EXPORT
+void UserControl::set_content(std::unique_ptr<UIElement> child)
+{
+    // WPF-faithful single-content slot (NOT a panel list): a UserControl hosts
+    // EXACTLY ONE content child. Replace any prior content.
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    // Mirror the Content DP onto the object identity (the header documents the
+    // Content DP + the child slot both describe the same single content).
+    (void)Set(PropertyId::of("Content"), Value::UntypedPtr(raw));
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* UserControl::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size UserControl::MeasureOverride(const Size& available) const
+{
+    if (content_)
+    {
+        content_->Measure(available);
+        return content_->desired_size();
+    }
+    return Size{ 0.0f, 0.0f };
+}
+
+VAML_CORE_EXPORT
+void UserControl::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    if (content_)
+    {
+        content_->Arrange(finalSlot);
+    }
+}
+
+// --- 11j-6 Application (REAL document-root element; GAP CLOSE) --------------
+// RESOLVES `<Application ... StartupUri="...">` (the canonical WPF app entry).
+// Application is NOT a UIElement (WPF-faithful — it is the app-level object);
+// it is a loadable DependencyObject root carrying a String StartupUri DP.
+
+namespace {
+
+void register_application_properties()
+{
+    (void)DependencyProperty::Register(
+        "StartupUri", ValueType::String, "Application",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+
+void ensure_application_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_application_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Application::Application()
+{
+    ensure_application_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Application::set_startup_uri(std::string value)
+{
+    return Set(PropertyId::of("StartupUri"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string Application::startup_uri() const
+{
+    return Get(PropertyId::of("StartupUri")).get<std::string>();
+}
+
+// --- 11j-2 ResourceDictionaryHolder (REAL document-root element; GAP CLOSE) --
+// A DependencyObject hosting an OWNED ResourceDictionary, faithfully mirroring
+// the WPF fact that ResourceDictionary is a plain (non-DependencyObject) class
+// that is still a legal standalone-document root. Registered as the element name
+// "ResourceDictionary" so `<ResourceDictionary>` resolves as a root; the reader
+// routes build into build_resource_dictionary and hands the owned dict to the
+// holder. Nested dictionary authoring (`.Resources`/.MergedDictionaries) is
+// unchanged (no holder needed).
+
+namespace {
+
+void register_resourcedictionary_properties()
+{
+    // No DPs of its own (a ResourceDictionary is a resource store, not a value
+    // carrier). Registration is a no-op guard for future RD DPs.
+}
+
+void ensure_resourcedictionary_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_resourcedictionary_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+ResourceDictionaryHolder::ResourceDictionaryHolder()
+{
+    ensure_resourcedictionary_properties_registered();
+}
+
+// Out-of-line destructor: this TU includes ResourceDictionary.h, so the owned
+// unique_ptr<ResourceDictionary> member is destroyed here (not where the holder
+// is declared, where ResourceDictionary is only forward-declared — the clang
+// requirement).
+VAML_CORE_EXPORT
+ResourceDictionaryHolder::~ResourceDictionaryHolder() = default;
+
+VAML_CORE_EXPORT
+void ResourceDictionaryHolder::set_dictionary(std::unique_ptr<ResourceDictionary> dict)
+{
+    dict_ = std::move(dict);
+}
+
+VAML_CORE_EXPORT
+const ResourceDictionary* ResourceDictionaryHolder::dictionary() const noexcept
+{
+    return dict_.get();
+}
+
+VAML_CORE_EXPORT
+ResourceDictionary* ResourceDictionaryHolder::dictionary() noexcept
+{
+    return dict_.get();
 }
 
 // --- S129 StackPanel: Orientation DP + real panel Measure/Arrange ----------
@@ -2867,28 +3198,27 @@ ListView::ListView()
 
 namespace {
 
+// 11j-5 (GAP CLOSE): Label's SHARED display names (FontSize/FontFamily/
+// HorizontalContentAlignment) are now owned by the single Control base bundle
+// (see register_control_base_properties, owner "Control") — Label RE-POINTS its
+// typed accessors to those bare names, and the prior dotted "Label.FontSize" /
+// "Label.FontFamily" / "Label.HorizontalContentAlignment" registrations are
+// REMOVED here (NO backfill). The Label-OWNED names that remain are only
+// Content + Foreground (both Label-specific). VerticalContentAlignment is
+// resolved by the shared base (Label authors it unprefixed like the corpus).
 void register_label_properties()
 {
     (void)DependencyProperty::Register(
         "Label.Content", ValueType::String, "Label",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Label.FontSize", ValueType::Double, "Label",
-        std::move(PropertyMetadata::WithDefault(Value::Double(16.0), PropertyFlags::None))
-            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
-    (void)DependencyProperty::Register(
-        "Label.FontFamily", ValueType::String, "Label",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
         "Label.Foreground", ValueType::BrushId, "Label",
         PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Label.HorizontalContentAlignment", ValueType::Int32, "Label",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
 void ensure_label_properties_registered()
 {
+    ensure_control_base_properties_registered();
     static bool registered = false;
     if (!registered)
     {
@@ -2920,25 +3250,27 @@ std::string Label::content() const
 VAML_CORE_EXPORT
 SetResult Label::set_font_size(double value)
 {
-    return Set(PropertyId::of("Label.FontSize"), Value::Double(value));
+    // 11j-5: FontSize is the shared Control base DP (bare name, owner "Control").
+    return Set(PropertyId::of("FontSize"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Label::font_size() const
 {
-    return Get(PropertyId::of("Label.FontSize")).get<double>();
+    return Get(PropertyId::of("FontSize")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Label::set_font_family(std::string value)
 {
-    return Set(PropertyId::of("Label.FontFamily"), Value::String(std::move(value)));
+    // 11j-5: FontFamily is the shared Control base DP (bare name, owner "Control").
+    return Set(PropertyId::of("FontFamily"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string Label::font_family() const
 {
-    return Get(PropertyId::of("Label.FontFamily")).get<std::string>();
+    return Get(PropertyId::of("FontFamily")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -2956,13 +3288,14 @@ std::int32_t Label::foreground() const
 VAML_CORE_EXPORT
 SetResult Label::set_horizontal_content_alignment(std::int32_t value)
 {
-    return Set(PropertyId::of("Label.HorizontalContentAlignment"), Value::Int32(value));
+    // 11j-5: HorizontalContentAlignment is the shared Control base DP (bare).
+    return Set(PropertyId::of("HorizontalContentAlignment"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Label::horizontal_content_alignment() const
 {
-    return Get(PropertyId::of("Label.HorizontalContentAlignment")).get<std::int32_t>();
+    return Get(PropertyId::of("HorizontalContentAlignment")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -2997,13 +3330,13 @@ void register_border_properties()
     (void)DependencyProperty::Register(
         "Border.CornerRadius", ValueType::Thickness, "Border",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Border.Padding", ValueType::Thickness, "Border",
-        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+    // (11j-5) Border.Padding is REMOVED — Padding is the shared Control base DP
+    // (bare "Padding", owner "Control"); Border re-points its padding accessor.
 }
 
 void ensure_border_properties_registered()
 {
+    ensure_control_base_properties_registered();
     static bool registered = false;
     if (!registered)
     {
@@ -3059,13 +3392,14 @@ vaml::Thickness Border::corner_radius() const
 VAML_CORE_EXPORT
 SetResult Border::set_padding(vaml::Thickness value)
 {
-    return Set(PropertyId::of("Border.Padding"), Value::Thickness(value));
+    // 11j-5: Padding is the shared Control base DP (bare "Padding").
+    return Set(PropertyId::of("Padding"), Value::Thickness(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Thickness Border::padding() const
 {
-    return Get(PropertyId::of("Border.Padding")).get<vaml::Thickness>();
+    return Get(PropertyId::of("Padding")).get<vaml::Thickness>();
 }
 
 VAML_CORE_EXPORT
@@ -4142,6 +4476,20 @@ void register_builtin_elements()
     registry.register_element("Expander",       [] { return std::make_unique<Expander>(); });    // 31
     registry.register_element("Separator",      [] { return std::make_unique<Separator>(); });   // 32
     registry.register_element("StatusBar",      [] { return std::make_unique<StatusBar>(); });   // 33
+    // --- Sprint 11j (GAP CLOSE) — the WPF corpus load surface. UserControl
+    // (11j-1) 33 -> 34; Application (11j-6) 34 -> 35; ResourceDictionaryHolder
+    // (11j-2) 35 -> 36. All are REAL permanent symbols (no MINIMAL REAL added)
+    // resolved at their own steps (NO-GAP).
+    registry.register_element("UserControl",   [] { return std::make_unique<UserControl>(); });  // 34
+    registry.register_element("Application",   [] { return std::make_unique<Application>(); });  // 35
+    // 11j-2: the ResourceDictionary ROOT — a DependencyObject HOLDER owning the
+    // built dictionary (WPF-faithful: WPF ResourceDictionary is a plain class
+    // that is a legal standalone root; the holder lets our DependencyObject-
+    // rooted Load API produce it). Previously ResourceDictionary could NOT be
+    // produced via the factory (dedicated build path only) — 11j-2 resolves it
+    // as a LOADABLE ROOT. A NESTED `<ResourceDictionary>` (under .Resources /
+    // .MergedDictionaries) still uses build_resource_dictionary directly.
+    registry.register_element("ResourceDictionary", [] { return std::make_unique<ResourceDictionaryHolder>(); }); // 36
 
     // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
     // visual controls; they are the authored RESOURCE types the resource-

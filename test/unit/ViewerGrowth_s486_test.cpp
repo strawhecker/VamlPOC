@@ -51,9 +51,9 @@ namespace {
 const std::string kSample486 =
     "<DockPanel Margin=\"8\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
     "<StackPanel DockPanel.Dock=\"0\" Width=\"220\" Margin=\"4\">"
-    "<Label x:Name=\"TitleLabel\" Label.Content=\"Core Display Controls\" Label.FontSize=\"14\" Margin=\"2\"/>"
+    "<Label x:Name=\"TitleLabel\" Label.Content=\"Core Display Controls\" FontSize=\"14\" Margin=\"2\"/>"
     "<Separator x:Name=\"Hairline\" Separator.Thickness=\"2\" Margin=\"2\"/>"
-    "<Border x:Name=\"CardBorder\" Border.BorderThickness=\"2,1\" Border.CornerRadius=\"4\" Border.Padding=\"4\" Margin=\"2\">"
+    "<Border x:Name=\"CardBorder\" Border.BorderThickness=\"2,1\" Border.CornerRadius=\"4\" Padding=\"4\" Margin=\"2\">"
     "<StackPanel><Rectangle x:Name=\"FillRect\" Width=\"40\" Height=\"20\"/>"
     "<Ellipse x:Name=\"Dot\"/>"
     "<Line x:Name=\"Rule\" Line.StrokeThickness=\"2\" Width=\"60\"/>"

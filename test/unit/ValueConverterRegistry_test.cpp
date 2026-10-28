@@ -276,7 +276,11 @@ TEST_CASE("S090 Color: malformed literals")
     expect_malformed(r, "Color", "#FFF");        // 3-digit shorthand: NOT supported
     expect_malformed(r, "Color", "#FFFFF");      // 5 digits: wrong length
     expect_malformed(r, "Color", "#GG0000");     // 'G' non-hex
-    expect_malformed(r, "Color", "Red");         // named colors out of scope
+    // NOTE (11j-3): `Red` was once asserted malformed here as the S089 "named
+    // colors out of scope" record. 11j-3 RESOLVES that recorded NO-GAP — "Red"
+    // (and the full WPF named-color set) now parses to a Color, so it is no
+    // longer malformed. An UNKNOWN bare identifier still throws MalformedValue.
+    expect_malformed(r, "Color", "NotAColor");   // unknown name: still malformed
 }
 
 // ---------------------------------------------------------------------------

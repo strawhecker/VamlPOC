@@ -278,6 +278,14 @@ Value convert_bool(std::string_view s)
 //   WrapDirection (S134)   : reuses Orientation (Vertical=0, Horizontal=1)
 //   IconStretch (S400_1)   : None=0, Fill=1, Uniform=2, UniformToFill=3
 //
+// 11j-4 (Window DPs, dep:S440) — the Window-OWNER enum names. These ride the
+// Int32 value path as the S440 doc requires, so the SHARED Int32 converter must
+// ALSO map them for corpus authoring (`WindowStartupLocation="CenterScreen"`,
+// `WindowStyle="None"`, `ResizeMode="NoResize"`, …). The enum values are the
+// WPF-faithful WindowStartupLocation {Manual/CenterScreen/CenterOwner},
+// WindowStyle {None/SingleBorderWindow/ThreeDBorderWindow/ToolWindow},
+// ResizeMode {NoResize/CanMinimize/CanResize/CanResizeWithGrip}.
+//
 // NOTE (shared-converter scope, recorded): this is deliberately the CROSS-CUT
 // enum-name surface (the names any Int32-typed VAML property sensibly takes),
 // NOT a per-DP whitelist — a DP-specific enum-name mapping belongs at that DP's
@@ -302,10 +310,23 @@ Value convert_bool(std::string_view s)
     if (iequals(name, "Bottom"))       { return 3; }  // VerticalAlignment
     if (iequals(name, "Normal"))       { return 0; }  // FontWeight / IconStretch None=0
     if (iequals(name, "Bold"))         { return 1; }  // FontWeight
-    if (iequals(name, "None"))         { return 0; }  // IconStretch
+    if (iequals(name, "None"))         { return 0; }  // IconStretch / WindowStyle
     if (iequals(name, "Fill"))         { return 1; }  // IconStretch
     if (iequals(name, "Uniform"))      { return 2; }  // IconStretch
     if (iequals(name, "UniformToFill")){ return 3; }  // IconStretch
+    // --- 11j-4 Window enum names (WindowStartupLocation/WindowStyle/ResizeMode).
+    if (iequals(name, "Manual"))            { return 0; } // WindowStartupLocation
+    if (iequals(name, "CenterScreen"))      { return 1; } // WindowStartupLocation
+    if (iequals(name, "CenterOwner"))       { return 2; } // WindowStartupLocation
+    if (iequals(name, "SingleBorderWindow")){ return 1; } // WindowStyle
+    if (iequals(name, "ThreeDBorderWindow")){ return 2; } // WindowStyle
+    if (iequals(name, "ToolWindow"))        { return 3; } // WindowStyle
+    if (iequals(name, "NoResize"))          { return 0; } // ResizeMode
+    if (iequals(name, "CanMinimize"))       { return 1; } // ResizeMode
+    if (iequals(name, "CanResize"))         { return 2; } // ResizeMode
+    if (iequals(name, "CanResizeWithGrip")) { return 3; } // ResizeMode
+    // 11j-5 — the shared Control base DP did not add new enum NAMES (its Int32
+    // DPs resolve the alignment names already mapped above).
     return -1; // not in the common enum-name surface -> falls through to MalformedValue
 }
 

@@ -299,14 +299,20 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<vaml::Expander>(g.create("Expander"));
     assertConcrete<vaml::Separator>(g.create("Separator"));
     assertConcrete<vaml::StatusBar>(g.create("StatusBar"));
+    // Sprint 11j (GAP CLOSE): UserControl (11j-1) + Application (11j-6).
+    assertConcrete<vaml::UserControl>(g.create("UserControl"));
+    assertConcrete<vaml::Application>(g.create("Application"));
+    // 11j-2: the ResourceDictionary root (a DependencyObject HOLDER).
+    assertConcrete<vaml::ResourceDictionaryHolder>(g.create("ResourceDictionary"));
 
-    // Size matches the full built-in set (33: the roadmap controls + WrapPanel +
+    // Size matches the full built-in set (36: the roadmap controls + WrapPanel +
     // Canvas + Icon + the S453 authored-resource types SolidColorBrush + Style +
     // the S460 brush-authoring types LinearGradientBrush + GradientStop + the
     // Sprint 11c controls DockPanel/RadioButton/ComboBox/ListBox/ListView + the
     // Sprint 11d controls Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/
-    // PasswordBox/GroupBox/Expander/Separator/StatusBar).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(33u));
+    // PasswordBox/GroupBox/Expander/Separator/StatusBar + the Sprint 11j
+    // GAP-CLOSE UserControl + Application + ResourceDictionaryHolder).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(36u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -320,7 +326,8 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // LinearGradientBrush + GradientStop the 15th/16th; Sprint 11c: DockPanel/
     // RadioButton/ComboBox/ListBox/ListView the 17th-21st; Sprint 11d:
     // Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/PasswordBox/
-    // GroupBox/Expander/Separator/StatusBar the 22nd-33rd.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(33u));
+    // GroupBox/Expander/Separator/StatusBar the 22nd-33rd; Sprint 11j:
+    // UserControl + Application + ResourceDictionaryHolder the 34th-36th.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(36u));
     assertConcrete<Button>(g.create("Button"));
 }

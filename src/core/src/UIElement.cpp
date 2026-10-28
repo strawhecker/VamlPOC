@@ -126,6 +126,30 @@ void register_uielement_properties()
     (void)DependencyProperty::Register(
         "Focusable", ValueType::Int32, "UIElement",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+
+    // Tag (11j-8, GAP CLOSE, dep:S036) — the WPF FrameworkElement.Tag analogue.
+    // An OBJECT-SLOT DP on the element base so `Tag="..."` / `<X.Tag>...`
+    // resolve everywhere S043-attached-style. WPF Tag is `object`.
+    //
+    // VAML's DP registration binds ONE value type for literal conversion (the
+    // S043 attached-aware read path resolves by bare name on any element). The
+    // corpus authors `Tag="..."` as an ATTRIBUTE (literal) — the PRIMARY use —
+    // AND `<X.Tag><SomeObject/></X.Tag>` as a property-element (object). A
+    // single object-typed holder that accepts BOTH:
+    //   * Tag is registered with a STRING bound type (default "" = no tag), so
+    //     a literal attribute `Tag="abc"` converts to Value::String ("abc")
+    //     through the String converter — never UnknownType.
+    //   * The property-element OBJECT branch calls obj->Set(...,
+    //     Value::UntypedPtr(raw)) DIRECTLY (no convertLiteral); DependencyObject:
+    //     :Set does NOT enforce the Value tag against the declared bound type
+    //     (coerce/validate passthrough), so the UntypedPtr object identity IS
+    //     stored on the String-typed DP — the "metadata must not reject a type
+    //     mismatch" contract the plan records.
+    // The typed accessors read the stored `Value` BY TAG (String when a literal
+    // tag, UntypedPtr when an object tag), so a caller distinguishes them.
+    (void)DependencyProperty::Register(
+        "Tag", ValueType::String, "UIElement",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 
 // Runs register_uielement_properties() at most once (first UIElement ctor).
