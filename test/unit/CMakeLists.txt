@@ -956,6 +956,14 @@ add_executable(vaml-presentation-tests
     # the corpus dump's #1 blocker (`unknown element type '<TextBlock>'`).
     # Headless.
     TextBlock_s11k1_test.cpp
+    # 11k-2 — the missing WPF controls the corpus consumes that the roadmap
+    # never authored (RepeatButton / ScrollBar / Viewbox / ToolBar / ToolBarTray):
+    # each is a REAL UIElement re-base registered as a built-in + classified
+    # (RepeatButton/ScrollBar/ToolBar/ToolBarTray -> Solid; Viewbox -> None, "its
+    # content"). Corpus-shaped load + DP round-trip + the Scroll/Click routed
+    # events + the ToolBar/ToolBarTray strip layout + the Viewbox content-child
+    # measure. Links vaml-presentation so the classifier arms are proven.
+    11k2_addedControls_test.cpp
     # S400_1 (dep:S400) — the Icon material at the presentation vertical-slice
     # boundary: classify_merge_element maps a real Icon to MaterialKind::
     # Monochrome + the S400_1 fallback glyph at the arranged origin (the honest

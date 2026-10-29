@@ -520,6 +520,64 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         return v;
     }
 
+    // 11k-2 — the missing WPF controls the corpus consumes, at the presentation
+    // vertical-slice boundary:
+    //   * Viewbox -> MaterialKind::None — "Viewbox -> its content" (the scale-
+    //     contain single-child decorator renders its CONTENT CHILD's own
+    //     material, NOT a box of its own; the content child walks + renders).
+    //     WITHOUT this explicit arm, the non-Text fallback below would emit a
+    //     Solid box FOR the Viewbox itself — wrong. So the Viewbox arm returns
+    //     None and contributes no draw.
+    if (dynamic_cast<const vaml::Viewbox*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::None;
+        return v;
+    }
+    //   * RepeatButton -> a solid spin-button slot (the toolkit NumericUpDown /
+    //     NumUpDown up/down arrow box).
+    if (dynamic_cast<const vaml::RepeatButton*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.82f, 0.84f, 0.88f, 1.0f });
+        return v;
+    }
+    //   * ScrollBar -> a scrollbar track box; the vertical default is a narrow
+    //     column; the thumb + page-up/down chrome is the S649 continuation.
+    if (auto* sbar = dynamic_cast<const vaml::ScrollBar*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.55f, 0.58f, 0.62f, 1.0f });
+        (void)sbar;
+        return v;
+    }
+    //   * ToolBar -> a toolbar strip fill (Solid).
+    if (dynamic_cast<const vaml::ToolBar*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.74f, 0.77f, 0.82f, 1.0f });
+        return v;
+    }
+    //   * ToolBarTray -> the toolbar-tray host fill (Solid).
+    if (dynamic_cast<const vaml::ToolBarTray*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.68f, 0.71f, 0.76f, 1.0f });
+        return v;
+    }
+
     // Non-Text: every REAL UIElement (today the real layout panels
     // StackPanel/Grid/WrapPanel/Canvas, plus any non-Text base) contributes a
     // SOLID fill at its ARRANGED final_rect, alpha-tinted by its S208 effective

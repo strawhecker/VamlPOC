@@ -1,96 +1,101 @@
-# Session Context — Sprint 11k-1 (TextBlock: retire the invented `Text`)
+# Session Context — Sprint 11k-2 (the missing WPF controls the corpus consumes)
 
-last_command: implementit (COMPLETE) — 11k-1 implemented + both CI lanes green
-plan_digest: 11k-1 (dep:S400) = the WPF-faithful CORRECTION. `Text` is NOT a WPF
-  control (WPF has TextBlock/TextBox). 11k-1 authors the REAL `TextBlock`
-  (TextBlock : FrameworkElement; in VAML the framework-element branch IS
-  UIElement, so TextBlock : UIElement is the faithful mapping) and RETIRES the
-  S087-invented `Text` factory name (built-in count NET-NEUTRAL +TextBlock −Text
-  = 36). The S400 semantic content (TextLayout wrap engine, TextGlyphPlan,
-  MaterialKind::Text) carries over unchanged under the correct name. DP re-owner:
-  Text/FontWeight/Foreground now owner "TextBlock"; FontSize stays the bare
-  shared Control DP (11j-5), unchanged (TextBlock's own font/padding DP-owner
-  split is 11k-8's named scope, not pre-empted). The loader accepts `<TextBlock>`
-  and classifies it MaterialKind::Text. NEW inline-content routing: the reader
-  now routes `<TextBlock>label</TextBlock>` inline content onto the Text DP
-  (WPF IAddChild behavior — the corpus's dominant usage) — SCOPED to TextBlock;
-  the GENERAL content→DP + mixed/interleaved ordering resolves at the NEW
-  in-11k step 11k-11 (roadmap.md already authored; alpha feature end-of-line,
-  NOT Sprint 12+). S167_1 corrective convention: the S400 `Text` history is
-  preserved (never edited to hide the error), SUPERSEDED BY 11k-1. TextBox (S402)
-  is already WPF-true AND a genuine Control — untouched.
+last_command: implementit (COMPLETE) — 11k-2 implemented + both CI lanes green
+plan_digest: 11k-2 (dep: ScrollViewer S405 + the S401/DockPanel/TextBlock real
+  re-base precedent) authors the five WPF controls the corpus consumes that the
+  roadmap never authored:
+    RepeatButton — the toolkit NumericUpDown/NumUpDown SPIN-button base
+      (ButtonBase-faithful Click + Delay/Interval + IsPressed).
+    ScrollBar    — the scrollbar chrome ScrollViewer S405 drives (RangeBase-
+      faithful Value/Min/Max + Orientation + ViewportSize + the bubbling
+      "Scroll" routed event).
+    Viewbox      — the scale-contain single-child container (ColorPickerSwatch)
+      (Decorator-faithful Stretch/StretchDirection + content child); classifies
+      to NONE — "Viewbox -> its content" (the content child renders its own
+      material).
+    ToolBar      — the app's ToolbarControl basis (ItemsControl-faithful
+      Orientation/Band/BandIndex/IsOverflowOpen/HasOverflowItems surface).
+    ToolBarTray  — the ToolBar host (Orientation/IsLocked).
+  Each is a REAL UIElement re-base registered as a built-in + classified
+  (RepeatButton/ScrollBar/ToolBar/ToolBarTray -> Solid; Viewbox -> None, "its
+  content"). Built-in count 36 -> 41. NO MINIMAL REAL introduced (all five are
+  real re-based UIElements resolved at this step). WPF-faithful branch mapping:
+  RepeatButton:ButtonBase / ScrollBar:RangeBase / ToolBar:ItemsControl /
+  ToolBarTray:Panel / Viewbox:Decorator(FrameworkElement). The full
+  ButtonBase/RangeBase/ItemsControl/Control abstract-base re-bind is 11k-11's
+  S649 step (recorded NO-GAP not silent); the RepeatButton auto-repeat TIMER
+  loop + the full scrollbar thumb/page chrome are the S649/11k-11 continuation
+  (recorded NO-GAP not silent).
 
 files_touched:
   core:
-  - src/core/include/vaml/core/Element.h — `class Text` -> `class TextBlock final
-    : public UIElement` (WPF-faithful doc block + [MINIMAL REAL] TextBlock
-    — RESOLVED BY 11k-1 sentinel); class body surface unchanged.
-  - src/core/src/Element.cpp — register_text_properties ->
-    register_textblock_properties (owner "Text" -> "TextBlock"); accessors +
-    MeasureOverride Text:: -> TextBlock::; ListBox ItemTemplate/render_items
-    Text -> TextBlock; register_builtin_elements "Text" -> "TextBlock"
-    (count stays 36, NET-NEUTRAL).
-  - src/core/src/VamlReader.cpp — NEW TextBlock inline-content routing: after
-    attributes, a resolved TextBlock's trimmed element.content is convertLiteral'd
-    and Set on the "Text" DP (11k-1; general routing = 11k-11).
-  - src/vulkan/src/ui/UiSceneEncoder.cpp — classify_element dynamic_cast:
-    vaml::Text -> vaml::TextBlock (MaterialKind::Text unchanged).
-  - src/presentation/src/VamlRenderer.cpp — classify_merge_element dynamic_cast
-    vaml::Text -> vaml::TextBlock.
-  - src/tools/src/parity/DualPathParity.cpp — dynamic_cast vaml::Text ->
-    vaml::TextBlock (returns "TextBlock").
-  viewer/infra:
-  - vaml_viewer/MainView.vaml, vaml_viewer/sample.vaml,
-    vaml_viewer/vaml_viewer/sample.vaml — <Text .../> -> <TextBlock .../>.
-  - vaml_viewer/app_shell.h — inline kAppShellMainViewVaml <Text> -> <TextBlock>
-    (kept byte-identical to the on-disk MainView.vaml for the S444 parity test).
-  tests (re-pointed consumers + the new proof):
-  - NEW test/unit/TextBlock_s11k1_test.cpp (presentation target) — corpus-shaped
-    `<TextBlock FontSize="24">label</TextBlock>` LOADS (no unknown-type throw),
-    inline content lands on the Text DP, FontSize round-trips, Measure wraps,
-    classify_merge_element -> MaterialKind::Text.
-  - test/unit/CMakeLists.txt — +TextBlock_s11k1_test.cpp (presentation target).
-  - re-pointed Text -> TextBlock: Text_test.cpp, TextGlyphPlan_test.cpp,
-    ViewerTextMaterial_test.cpp, ElementFactoryRegistry_test.cpp (is_registered
-    TextBlock true + Text FALSE, count 36), ElementResolver_test.cpp,
-    ControlDp_s11j5_test.cpp, Milestone407_test.cpp (TextBlock registered/Text
-    not), GoldenDocs_test.cpp, ListBoxListView_test.cpp, MARKupStaticType_s461,
-    VamlReader_defer/s093/s094/test, VBamlReader_s285/s286/s288_parity,
-    ViewerLoadFile_test, ViewerControlsPlan_s409_1, ObjectPool_test,
-    Border_test, PasswordGroupStatus_test, AppShell* (named_as<TextBlock> /
-    dynamic_cast<TextBlock*> + authored <TextBlock>), PropertyElement_s452/
-    PropertyElementS7_s452, TemplateParity_test, Vamlc_s280_1 (binding hop Text.->
-    TextBlock.), Vamlc_s283/s284 (typeToken "Text"}, "TextBlock"),
-    ViewerGrowth_s475/s486.
-  infra: build/verify_s11k1.cmd (consolidated two-lane gate)
-  roadmap (prior turn, roadmap.md ONLY): added the 11k-11 step (GENERIC
-    CONTENT-OWNER ROUTING + S649 ContentControl-base / control-material RE-BIND)
-    + re-pointed the S649 forward refs (11j-10, 11k-10, 11j-1, ground-truth) into
-    11k-11; the S085 mixed-content conscience note is decided/resolved in 11k.
+  - src/core/include/vaml/core/Element.h — NEW classes (before
+    register_builtin_elements): ScrollBar / RepeatButton / Viewbox / ToolBar /
+    ToolBarTray, each `final : public UIElement` with the WPF-faithful surface +
+    MeasureOverride + single-content-slot (Viewbox). No ContentControl base
+    (11k-11's S649).
+  - src/core/src/Element.cpp — per-control Meyers-static ensure_/register_ DP
+    functions + the ctors + the typed accessors + MeasureOverride/ArrangeOverride
+    + the bubbling Scroll (ScrollBar) / Click (RepeatButton) raises +
+    register_builtin_elements 36 -> 41 (+ScrollBar +RepeatButton +Viewbox
+    +ToolBar +ToolBarTray). DP NAMES: the new non-colliding DPs are registered
+    BARE (Value/Minimum/Maximum/ViewportSize/Delay/Interval/IsPressed/
+    Band/BandIndex/IsOverflowOpen/HasOverflowItems/Stretch/StretchDirection/
+    IsLocked) so corpus-shaped `<ToolBar Orientation=...>` etc. resolve (the
+    reader resolves bare attribute keys by name). Orientation reuses the SHARED
+    GLOBAL bare "Orientation" (StackPanel owner, S129 — NAME-UNIQUE registry;
+    ToolBar/ToolBarTray self-set Horizontal in their ctors because the shared
+    default is Vertical; ScrollBar keeps Vertical).
+  - src/vulkan/src/ui/UiSceneEncoder.cpp — classify_element arms:
+    RepeatButton/ScrollBar/ToolBar/ToolBarTray -> MaterialKind::Solid; Viewbox
+    -> MaterialKind::None ("its content"). (Viewbox placed before the fallback.)
+  - src/presentation/src/VamlRenderer.cpp — classify_merge_element arms: Viewbox
+    -> MaterialKind::None (the explicit arm needed so the non-Text fallback does
+    NOT emit a Solid box for the Viewbox); RepeatButton (spin slot) / ScrollBar
+    (track) / ToolBar (strip) / ToolBarTray (host) -> Solid fills at final_rect.
+  tests:
+  - NEW test/unit/11k2_addedControls_test.cpp (presentation target) — each
+    control is a REAL UIElement + registered built-in; DP round-trip; ScrollBar
+    value-clamp + the bubbling "Scroll" routed event; RepeatButton Click + the
+    DP round-trip; Viewbox measures its content child + classifies None; the
+    ToolBar/ToolBarTray strip layout; the corpus-shaped doc authoring all five
+    controls LOADS (no unknown-type/prop) + classifies (after
+    finalize_visual_tree). Uses child_at(0) for the Viewbox content child (the
+    reader finalizes declared children into the S121 visual list; Viewbox's
+    content_ pointer is the programmatic slot).
+  - test/unit/CMakeLists.txt — +11k2_addedControls_test.cpp (presentation
+    target).
+  - test/unit/ElementFactoryRegistry_test.cpp — is_registered + assertConcrete
+    for the five (using RepeatButton/ScrollBar/ToolBar/ToolBarTray) + count
+    36 -> 41 (both the startup gate + the idempotence case).
+  - test/unit/BrushAuthoring_s460_test.cpp, test/unit/Milestone407_test.cpp —
+    the built-in count gate 36 -> 41 (the 11k-2 additions).
+  infra:
+  - build/verify_s11k2.cmd (consolidated two-lane gate; verify_s11k1.cmd shape).
+  - session-context.md (this file).
 
-build_status: 11k-1 DONE — BOTH CI LANES green:
+build_status: 11k-2 DONE — BOTH CI LANES green:
   windows-msvc (msvc-debug) — build warning-as-error CLEAN + ctest 4/4 100%
-  ubuntu-clang (clang-debug, /mnt/hgfs/VamlPOC) — -Werror CLEAN + ctest 4/4 100%
-  Official gate verify_s11k1.cmd ends "S11K1 BOTH CI LANES OK". No warnings.
+    (Start 1 vaml-core concurrency? all 4 suite names pass 100%).
+  ubuntu-clang (clang-debug, /mnt/hgfs/VamlPOC) — -Werror CLEAN + ctest 4/4 100%.
+  Official gate verify_s11k2.cmd ends "S11K2 BOTH CI LANES OK". No warnings.
   (windows-clang-debug is NOT a CI lane — not built/tested/flagged.)
 
-next_step: mark 11k-1 DONE + SUPERSEDED-BY note on the S400 `Text` history in the
-  roadmap sprint block; then implement 11k-11 (GENERIC CONTENT-OWNER ROUTING +
-  the S649 ContentControl-base / control-material RE-BIND — the new in-11k step
-  that owns the general content→DP routing + mixed/interleaved ordering + the
-  S085 conscience note). After 11k, Sprint 12± stabilizes/documents/performances
-  (adds NO features). commitit outstanding (driver's seat is yours).
+next_step: 11k-2 is complete. The roadmap sprint block for 11k-2 is authored;
+  next implement 11k-11 (GENERIC CONTENT-OWNER ROUTING + the S649
+  ContentControl-base / control-material RE-BIND — the new in-11k step that owns
+  the general content→DP routing + mixed/interleaved ordering + the S085
+  conscience note; ALSO the declarative single-content routing for Viewbox/
+  Window/Border). After 11k, Sprint 12± stabilizes/documents/performs (adds NO
+  features). commitit outstanding (driver's seat is yours).
 
-notes: 11k-1 delivered the corpus dump's #1 blocker (`unknown element type
-  '<TextBlock>'`) via the WPF-true TextBlock (NOT a stub — the S400 content is
-  kept-and-extended under the correct name). DP re-owner "TextBlock" is
-  declaration-label only (S043 resolves by bare name globally), so no behavior
-  change: the Text/FontWeight/Foreground DPs still resolve by name on any DO.
-  BrushId has NO literal converter (a `Foreground="..."` attribute is not
-  literal-authorable — that surface is the S364 brush-resource path), so the
-  corpus test proves Foreground via the programmatic brush round-trip and keeps
-  the authored leaf to the authorable FontSize + inline content. ZERO MINIMAL
-  REAL beyond the declared, resolution-bound TextBlock marker (11k-1). The
-  general content-routing deferral is NO-GAP LOCKED to 11k-11 (not Sprint 12+).
-  No commits (standing directive — commitit outstanding).
-
+notes: 11k-2 delivered the FIVE missing corpus controls the roadmap never
+  authored. DP registrations are BARE (reader resolves bare attribute keys), and
+  Orientation rides the single SHARED bare "Orientation" (StackPanel owner) —
+  per the 11j-5 shared-control-base precedent, since the global DP registry is
+  NAME-UNIQUE (a second owner could not re-register it; the S043/S131 WrapPanel
+  precedent). The auto-repeat TIMER loop for RepeatButton + the full
+  scrollbar thumb/page-up-down chrome + the ContentControl/ButtonBase/RangeBase/
+  ItemsControl abstract bases are recorded NO-GAP (resolved at 11k-11's S649
+  re-bind), never silent. ZERO MINIMAL REAL introduced. No commits (standing
+  directive — commitit outstanding).

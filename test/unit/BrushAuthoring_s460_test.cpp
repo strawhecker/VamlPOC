@@ -177,8 +177,9 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     // 21 (the pre-11d set) -> 33 its full built-in register as Sprint 11d
     // added the core display + input controls (Label/Border/Rectangle/Ellipse/
     // Line/Image/ProgressBar/PasswordBox/GroupBox/Expander/Separator/StatusBar),
-    // then 36 as Sprint 11j added UserControl + Application + ResourceDictionaryHolder.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(36u));
+    // then 36 as Sprint 11j added UserControl + Application + ResourceDictionaryHolder,
+    // then 41 as 11k-2 added ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(41u));
 }
 
 // ---------------------------------------------------------------------------

@@ -1628,6 +1628,200 @@ private:
     // StatusBar uses the generic children() list (a bar hosts many items).
 };
 
+// ---------------------------------------------------------------------------
+// 11k-2 — the missing WPF controls the corpus consumes that the roadmap never
+// authored: RepeatButton (toolkit NumericUpDown/NumUpDown spin buttons),
+// ScrollBar (the scrollbar chrome ScrollViewer S405 drives), Viewbox (the
+// scale-contain single-child container, ColorPickerSwatch), ToolBar +
+// ToolBarTray (the app's ToolbarControl basis). Each is a REAL UIElement
+// re-base — participates in the visual tree + Measure/Arrange + hit-testing +
+// routed events — registered as a built-in, classified. No ContentControl /
+// Control / RangeBase / ItemsControl base exists yet (that is 11k-11's S649
+// re-bind, recorded NO-GAP not silent); each control is self-contained exactly
+// like Button/DockPanel/TextBox before it. classify: RepeatButton / ScrollBar /
+// ToolBar / ToolBarTray -> Solid; Viewbox -> its content (None — the content
+// child renders its own material).
+// ---------------------------------------------------------------------------
+
+// ScrollBar — REAL control (11k-2). The scrollbar chrome ScrollViewer (S405)
+// drives: a RangeBase-faithful Value/Min/Max slider-like track + a scrolling
+// routed event. WPF-faithful branch: ScrollBar : RangeBase (the Value/Min/Max
+// axis) + its own Orientation/ViewportSize surface. The full WPF ScrollBar
+// thumb-track chrome (the page-up/down repeat regions) is the S649/11k-11
+// continuation (recorded NO-GAP not silent); the Value/range/scroll model is
+// the real 11k-2 surface.
+class VAML_CORE_EXPORT ScrollBar final : public UIElement
+{
+public:
+    ScrollBar();
+
+    // --- Value / Minimum / Maximum (REAL DPs; Double, RangeBase-faithful) -
+    // Value clamps to [Minimum, Maximum] on Set (never escapes the range).
+    [[nodiscard]] SetResult set_value(double v);
+    [[nodiscard]] double value() const;
+    [[nodiscard]] SetResult set_minimum(double v);
+    [[nodiscard]] double minimum() const;
+    [[nodiscard]] SetResult set_maximum(double v);
+    [[nodiscard]] double maximum() const;
+
+    // --- Orientation (REAL DP; Int32, default Vertical=0) -----------------
+    [[nodiscard]] SetResult set_orientation(Orientation o);
+    [[nodiscard]] Orientation orientation() const;
+
+    // --- ViewportSize (REAL DP; Double, default 0) ------------------------
+    [[nodiscard]] SetResult set_viewport_size(double v);
+    [[nodiscard]] double viewport_size() const;
+
+    // --- Scroll routed event + scroll_changed Signal ----------------------
+    // Every real Value change raises the BUBBLING "Scroll" routed event
+    // (source==this) + fires the Signal.
+    [[nodiscard]] vaml::Signal<void()>& scroll_changed() { return onScrollChanged_; }
+
+    // --- Thumb-drag seam (the scrollbar chrome, S405/S323 input style) -----
+    // Maps a [0,1] drag ratio along the track to Value (clamped +
+    // min/max-stretched) + raises the change. Returns the new Value.
+    [[nodiscard]] double set_value_from_ratio(double ratio);
+
+protected:
+    // 11k-2 real ScrollBar algorithm: a default track box (the scrollbar slot);
+    // the S123 finalizer applies the stretch-vs-wrap rule. The thumb + the
+    // page-up/down chrome is the S649 continuation.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onScrollChanged_;
+    void apply_change(double newValue);
+};
+
+// RepeatButton — REAL control (11k-2). The toolkit NumericUpDown/NumUpDown
+// SPIN-BUTTON base: a ButtonBase-faithful Click + Delay/Interval + IsPressed.
+// WPF-faithful branch: RepeatButton : ButtonBase (Click + Command + IsPressed).
+// The auto-repeat TIMER loop (fires Click repeatedly while pressed) is the
+// S649/11k-11 continuation (recorded NO-GAP not silent); the Click raise +
+// Delay/Interval/IsPressed surface is the real 11k-2 core.
+class VAML_CORE_EXPORT RepeatButton final : public UIElement
+{
+public:
+    RepeatButton();
+
+    // --- Click routed event (ButtonBase-faithful) -------------------------
+    // Raises the BUBBLING ClickEvent (S320/S321) with source==this; a handled
+    // return reflects whether any handler stopped the route.
+    [[nodiscard]] bool raise_click();
+
+    // --- Delay / Interval (REAL DPs; Int32, milliseconds) -----------------
+    [[nodiscard]] SetResult set_delay(std::int32_t v);
+    [[nodiscard]] std::int32_t delay() const;
+    [[nodiscard]] SetResult set_interval(std::int32_t v);
+    [[nodiscard]] std::int32_t interval() const;
+
+    // --- IsPressed (REAL DP; Bool via Int32, default false) ---------------
+    [[nodiscard]] SetResult set_is_pressed(bool value);
+    [[nodiscard]] bool is_pressed() const;
+
+protected:
+    // 11k-2 real RepeatButton algorithm: a bounded default button box; the
+    // S123 finalizer applies the stretch-vs-wrap. The repeat timer loop is the
+    // S649 continuation.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// Viewbox — REAL control (11k-2). The scale-contain single-child container
+// (ColorPickerSwatch): a FrameworkElement-faithful decorator hosting EXACTLY
+// ONE content child, scaled to FIT its box (Stretch/StretchDirection). WPF-
+// faithful branch: Viewbox : Decorator (FrameworkElement). In VAML (the
+// framework-element branch IS UIElement) Viewbox : UIElement with a single-
+// content child slot (the Window/Border precedent). classify -> None (the
+// content child renders its own material — "Viewbox -> its content").
+class VAML_CORE_EXPORT Viewbox final : public UIElement
+{
+public:
+    Viewbox();
+
+    // --- Stretch / StretchDirection (REAL DPs; Int32, reuse IconStretch) --
+    // Stretch: Int32 default None=0 (the S400_1 IconStretch enum reused: None,
+    // Fill, Uniform, UniformToFill — the scale-contain policy). Classified as
+    // the single content child's material (None) so the child renders its own
+    // content.
+    [[nodiscard]] SetResult set_stretch(std::int32_t value);
+    [[nodiscard]] std::int32_t stretch() const;
+    [[nodiscard]] SetResult set_stretch_direction(std::int32_t value);
+    [[nodiscard]] std::int32_t stretch_direction() const;
+
+    // --- Content child (single-content slot, the Window/Border precedent) -
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    // 11k-2 real Viewbox algorithm: measure the single content child at the
+    // offered box and report its desired size; the scale-contain to the box is
+    // the S123 finalizer + the stretch policy (the content child fills the
+    // viewbox box via the decorator layout).
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    UIElement* content_ = nullptr;
+};
+
+// ToolBar — REAL control (11k-2). The app's ToolbarControl basis: an
+// ItemsControl-faithful strip that lays out its children along an orientation.
+// WPF-faithful branch: ToolBar : ItemsControl (its own Orientation/Band/
+// BandIndex/IsOverflowOpen/HasOverflowItems surface). The overflow menu +
+// templated item chrome is the S649/11k-11 continuation (recorded NO-GAP not
+// silent); the strip layout + the ToolBar DPs are the real 11k-2 surface.
+class VAML_CORE_EXPORT ToolBar final : public UIElement
+{
+public:
+    ToolBar();
+
+    // --- Orientation (REAL DP; Int32, default Horizontal=1) ---------------
+    [[nodiscard]] SetResult set_orientation(Orientation o);
+    [[nodiscard]] Orientation orientation() const;
+
+    // --- Band / BandIndex / IsOverflowOpen / HasOverflowItems (REAL DPs) --
+    [[nodiscard]] SetResult set_band(std::int32_t v);
+    [[nodiscard]] std::int32_t band() const;
+    [[nodiscard]] SetResult set_band_index(std::int32_t v);
+    [[nodiscard]] std::int32_t band_index() const;
+    [[nodiscard]] SetResult set_is_overflow_open(bool value);
+    [[nodiscard]] bool is_overflow_open() const;
+    [[nodiscard]] SetResult set_has_overflow_items(bool value);
+    [[nodiscard]] bool has_overflow_items() const;
+
+protected:
+    // 11k-2 real ToolBar algorithm: a dock-like strip layout along the
+    // orientation (children stack along the flow axis — the StackPanel-style
+    // strip). The S123 finalizer applies the stretch-vs-wrap. The overflow
+    // chrome is the S649 continuation.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+};
+
+// ToolBarTray — REAL control (11k-2). The ToolBar host: a Panel-faithful
+// container that lays its ToolBar children out along the tray orientation.
+// WPF-faithful branch: ToolBarTray : Panel (own Orientation/IsLocked surface).
+class VAML_CORE_EXPORT ToolBarTray final : public UIElement
+{
+public:
+    ToolBarTray();
+
+    // --- Orientation (REAL DP; Int32, default Horizontal=1) ---------------
+    [[nodiscard]] SetResult set_orientation(Orientation o);
+    [[nodiscard]] Orientation orientation() const;
+
+    // --- IsLocked (REAL DP; Bool via Int32, default false) ----------------
+    [[nodiscard]] SetResult set_is_locked(bool value);
+    [[nodiscard]] bool is_locked() const;
+
+protected:
+    // 11k-2 real ToolBarTray algorithm: lays its ToolBar children along the
+    // tray orientation (a StackPanel-style host). The S123 finalizer applies
+    // the stretch-vs-wrap.
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+};
+
 // Startup registration: registers every built-in element type name into
 // ElementFactoryRegistry::global(). Called once at process startup (single-
 // threaded) before any VAML document is parsed; S092/S286 reader paths consume

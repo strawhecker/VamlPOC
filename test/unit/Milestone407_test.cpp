@@ -105,8 +105,9 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     // + Sprint 11c (DockPanel/RadioButton/ComboBox/ListBox/ListView) +
     // Sprint 11d (Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/
     // PasswordBox/GroupBox/Expander/Separator/StatusBar) + Sprint 11j
-    // (UserControl + Application + ResourceDictionaryHolder) = 36.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(36u));
+    // (UserControl + Application + ResourceDictionaryHolder) + 11k-2
+    // (ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray) = 41.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(41u));
     SHOULD(ShouldlyIntegral(g.is_registered("UserControl")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Application")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ResourceDictionary")).ShouldBe(true));

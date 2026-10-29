@@ -112,6 +112,25 @@ MaterialKind classify_element(const vaml::UIElement& element) noexcept
     {
         return MaterialKind::Solid;
     }
+    // 11k-2 — the missing WPF controls the corpus consumes. RepeatButton /
+    // ScrollBar / ToolBar / ToolBarTray are REAL re-based UIElements that
+    // classify to the SOLID material (the repeat spin-button slot, the
+    // scrollbar track + thumb, the toolbar strip, the toolbar-tray host).
+    // Viewbox classifies to NONE — "Viewbox -> its content" (the scale-contain
+    // single-child decorator renders its CONTENT CHILD's own material, NOT a
+    // box of its own). The Viewbox arm is placed here so the content child
+    // carries the material; the Viewbox itself contributes no draw.
+    if (dynamic_cast<const vaml::RepeatButton*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ScrollBar*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ToolBar*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ToolBarTray*>(&element) != nullptr)
+    {
+        return MaterialKind::Solid;
+    }
+    if (dynamic_cast<const vaml::Viewbox*>(&element) != nullptr)
+    {
+        return MaterialKind::None;
+    }
     return MaterialKind::None;
 }
 

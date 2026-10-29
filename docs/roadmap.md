@@ -1801,6 +1801,23 @@ Growth tokens by sprint:
 >       drives), `Viewbox` (scale-contain single-child container, ColorPickerSwatch), `ToolBar` + `ToolBarTray`
 >       (the app's ToolbarControl basis). Each a REAL UIElement re-base, registered as a built-in, classified
 >       (RepeatButton/ScrollBar/ToolBar → Solid; Viewbox → its content). Test 11k2_addedControls_test.cpp.
+      **[DONE — IMPLEMENTED 11k-2: both CI lanes green (windows-msvc msvc-debug build WX-clean + ctest 4/4
+      PASS; ubuntu-clang /mnt/hgfs/VamlPOC clang-debug Werror-clean + ctest 4/4 PASS). Implemented:
+      ScrollBar / RepeatButton / Viewbox / ToolBar / ToolBarTray all `final : public UIElement` real re-bases,
+      registered as built-ins (count 36 → 41), classified (RepeatButton/ScrollBar/ToolBar/ToolBarTray →
+      MaterialKind::Solid; Viewbox → MaterialKind::None, "its content" — the explicit Viewbox arm so the
+      non-Text fallback does NOT emit a Solid box for the Viewbox). WPF-faithful branch mapping (RepeatButton:
+      ButtonBase, ScrollBar:RangeBase, ToolBar:ItemsControl, ToolBarTray:Panel, Viewbox:Decorator). DP names
+      are BARE (Value/Minimum/Maximum/ViewportSize/Delay/Interval/IsPressed/Band/BandIndex/IsOverflowOpen/
+      HasOverflowItems/Stretch/StretchDirection/IsLocked) so corpus-shaped bare attributes resolve;
+      Orientation rides the single SHARED bare "Orientation" (StackPanel owner, NAME-UNIQUE registry — the
+      11j-5 shared-base precedent; ToolBar/ToolBarTray self-set Horizontal). ScrollBar raises the bubbling
+      "Scroll" routed event; RepeatButton raises the shared ClickEvent. NO MINIMAL REAL introduced. The full
+      ButtonBase/RangeBase/ItemsControl/Control abstract-base re-bind + the RepeatButton auto-repeat TIMER +
+      the scrollbar thumb/page chrome are 11k-11's S649 (recorded NO-GAP). New test
+      11k2_addedControls_test.cpp (real re-base + registry-resolve + DP round-trip + Scroll/Click events +
+      Viewbox content measure + None classify + ToolBar/ToolBarTray strip layout + a corpus-shaped doc
+      authoring all five loads + classifies).]**
 > - 11k-3 — Authorable VALUE-TYPE resource ELEMENTS: `<Color>`, `<FontFamily>`, `<Double>`, `<Thickness>`,
 >       `<GridLength>`, `<Geometry>` as authored resource elements (the existing value *parsers* S089/11j-3/
 >       `parse_grid_length` are promoted to authorable *element* types for the Themes.Colors/Theme.FontFamily/
@@ -2011,6 +2028,12 @@ Growth tokens by sprint:
 >         substance decided here, history preserved un-edited, never a silent deferral. This closes the alpha
 >         feature roadmap with the content-routing issue settled inside 11k. Both CI lanes green (windows-msvc +
 >         ubuntu-clang); `windows-clang-debug` is not a CI lane.
+>
+> - 11k_12 - FIDELITY CLOSURE IMPLEMENTATION on RichTextBox - RichTextBox is very complicated with collections
+>         of TextBlock and sucn. (**FULL closure — RichTextBox control + every audited
+>         DP/property/event**, per the user decision "full closure now", NOT tiered). RichTextBox relies on
+>         other controls like TextBlock. this task follows all children down and audits and fixes any GAPS
+>         on RichTextBox and any decendants of any control type for 100% completeness against the WPF source.
 >
 > **CONTROL vs FRAMEWORKELEMENT GROUND TRUTH (source: `E:\GitRepos\wpf`, PresentationFramework, audited as the
 > 11k-7 gate basis):** the single base-class marker is `Control : FrameworkElement`. A class is a CONTROL iff

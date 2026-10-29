@@ -49,8 +49,12 @@ using vaml::Icon;
 using vaml::ListBox;
 using vaml::ListView;
 using vaml::RadioButton;
+using vaml::RepeatButton;
+using vaml::ScrollBar;
 using vaml::ScrollViewer;
 using vaml::Slider;
+using vaml::ToolBar;
+using vaml::ToolBarTray;
 using vaml::StackPanel;
 using vaml::TextBlock;
 using vaml::TextBox;
@@ -263,6 +267,12 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     SHOULD(ShouldlyIntegral(g.is_registered("Expander")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Separator")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("StatusBar")).ShouldBe(true));
+    // 11k-2: the missing WPF control set is registered.
+    SHOULD(ShouldlyIntegral(g.is_registered("ScrollBar")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("RepeatButton")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Viewbox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ToolBar")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ToolBarTray")).ShouldBe(true));
 
     // The S087 headline: create("Button") etc. yields the CONCRETE type, not a
     // generic blob — the typeName -> type dispatch is real end-to-end.
@@ -302,6 +312,12 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<vaml::Expander>(g.create("Expander"));
     assertConcrete<vaml::Separator>(g.create("Separator"));
     assertConcrete<vaml::StatusBar>(g.create("StatusBar"));
+    // 11k-2: registry-resolve assertions for the new controls.
+    assertConcrete<vaml::ScrollBar>(g.create("ScrollBar"));
+    assertConcrete<vaml::RepeatButton>(g.create("RepeatButton"));
+    assertConcrete<vaml::Viewbox>(g.create("Viewbox"));
+    assertConcrete<vaml::ToolBar>(g.create("ToolBar"));
+    assertConcrete<vaml::ToolBarTray>(g.create("ToolBarTray"));
     // Sprint 11j (GAP CLOSE): UserControl (11j-1) + Application (11j-6).
     assertConcrete<vaml::UserControl>(g.create("UserControl"));
     assertConcrete<vaml::Application>(g.create("Application"));
@@ -314,8 +330,9 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // Sprint 11c controls DockPanel/RadioButton/ComboBox/ListBox/ListView + the
     // Sprint 11d controls Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/
     // PasswordBox/GroupBox/Expander/Separator/StatusBar + the Sprint 11j
-    // GAP-CLOSE UserControl + Application + ResourceDictionaryHolder).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(36u));
+    // GAP-CLOSE UserControl + Application + ResourceDictionaryHolder + the
+    // 11k-2 control set ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(41u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -330,7 +347,9 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // RadioButton/ComboBox/ListBox/ListView the 17th-21st; Sprint 11d:
     // Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/PasswordBox/
     // GroupBox/Expander/Separator/StatusBar the 22nd-33rd; Sprint 11j:
-    // UserControl + Application + ResourceDictionaryHolder the 34th-36th.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(36u));
+    // UserControl + Application + ResourceDictionaryHolder the 34th-36th;
+    // the 11k-2 set ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray the
+    // 37th-41st.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(41u));
     assertConcrete<Button>(g.create("Button"));
 }

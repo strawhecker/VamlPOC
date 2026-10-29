@@ -4412,6 +4412,719 @@ void StatusBar::ArrangeOverride(const vaml::Rect& finalSlot)
     }
 }
 
+// ---------------------------------------------------------------------------
+// 11k-2 — the missing WPF controls the corpus consumes (added at 11k-2).
+// RepeatButton / ScrollBar / Viewbox / ToolBar / ToolBarTray are REAL re-based
+// UIElements (NOT seeds — no MINIMAL REAL introduced). The full
+// ButtonBase/RangeBase/ItemsControl/Control abstract base re-bind is 11k-11's
+// S649 step (recorded NO-GAP not silent); each control is self-contained here.
+// DPs are GLOBALLY registered via the S043 attached-aware path.
+// ---------------------------------------------------------------------------
+
+// --- ScrollBar: Value/Min/Max (RangeBase-faithful) + Orientation +
+//     ViewportSize + the bubbling "Scroll" routed event ---------------------
+
+namespace {
+
+void register_scrollbar_properties()
+{
+    // The ScratchBar/RangeBase subset (Value/Minimum/Maximum/ViewportSize) is
+    // registered BARE so a corpus-shaped `<ScrollBar Value=... Minimum=... />`
+    // resolves (the reader resolves bare attribute keys by name). The global
+    // registry is name-unique but none of these names is taken (Slider/
+    // ProgressBar use owner-dotted names); Orientation reuses the SHARED bare
+    // "Orientation" (StackPanel owner) — see ensure_scrollbar_properties.
+    (void)DependencyProperty::Register(
+        "Value", ValueType::Double, "ScrollBar",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Minimum", ValueType::Double, "ScrollBar",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Maximum", ValueType::Double, "ScrollBar",
+        PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ViewportSize", ValueType::Double, "ScrollBar",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    // The "Scroll" routed event (Bubbling) the ScrollViewer S405 chrome drives.
+    (void)RoutedEvent::registered("Scroll", RouteEventDirection::Bubble);
+}
+
+void ensure_scrollbar_properties_registered()
+{
+    // The shared GLOBAL bare "Orientation" DP is owned by StackPanel (S129) —
+    // ensure it is registered so a standalone ScrollBar reuses it (the
+    // name-unique shared-control-base precedent, 11j-5).
+    ensure_stackpanel_properties_registered();
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_scrollbar_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+ScrollBar::ScrollBar()
+{
+    ensure_scrollbar_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult ScrollBar::set_value(double v)
+{
+    // Clamp to [Minimum, Maximum], mirrored from the S403 Slider; a real change
+    // raises the "Scroll" change.
+    const double lo = std::min(minimum(), maximum());
+    const double hi = std::max(minimum(), maximum());
+    const double clamped = std::clamp(v, lo, hi);
+    const double old = Get(PropertyId::of("Value")).get<double>();
+    if (old == clamped)
+        return vaml::SetResult::NO_CHANGE;
+    const SetResult r = Set(PropertyId::of("Value"), Value::Double(clamped));
+    if (r == vaml::SetResult::APPLIED)
+        apply_change(clamped);
+    return r;
+}
+
+VAML_CORE_EXPORT
+double ScrollBar::value() const
+{
+    return Get(PropertyId::of("Value")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult ScrollBar::set_minimum(double v)
+{
+    return Set(PropertyId::of("Minimum"), Value::Double(v));
+}
+
+VAML_CORE_EXPORT
+double ScrollBar::minimum() const
+{
+    return Get(PropertyId::of("Minimum")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult ScrollBar::set_maximum(double v)
+{
+    return Set(PropertyId::of("Maximum"), Value::Double(v));
+}
+
+VAML_CORE_EXPORT
+double ScrollBar::maximum() const
+{
+    return Get(PropertyId::of("Maximum")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult ScrollBar::set_orientation(Orientation o)
+{
+    // Reuses the SHARED GLOBAL bare "Orientation" property (StackPanel-owner;
+    // see register_scrollbar_properties — no ScrollBar.Orientation registration).
+    return Set(PropertyId::of("Orientation"),
+               Value::Int32(static_cast<std::int32_t>(o)));
+}
+
+VAML_CORE_EXPORT
+Orientation ScrollBar::orientation() const
+{
+    return static_cast<Orientation>(Get(PropertyId::of("Orientation")).get<std::int32_t>());
+}
+
+VAML_CORE_EXPORT
+SetResult ScrollBar::set_viewport_size(double v)
+{
+    return Set(PropertyId::of("ViewportSize"), Value::Double(v));
+}
+
+VAML_CORE_EXPORT
+double ScrollBar::viewport_size() const
+{
+    return Get(PropertyId::of("ViewportSize")).get<double>();
+}
+
+VAML_CORE_EXPORT
+void ScrollBar::apply_change(double newValue)
+{
+    (void)newValue; // the routed scroll is the notification; the Value is the DP's current
+    // The "Scroll" routed change: fire the Signal + raise the BUBBLING
+    // "Scroll" routed event (source==this) — the ScrollViewer chrome consumes.
+    onScrollChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("Scroll", vaml::RouteEventDirection::Bubble),
+               args);
+}
+
+VAML_CORE_EXPORT
+double ScrollBar::set_value_from_ratio(double ratio)
+{
+    // Ratio in [0,1] along the track -> Value (clamped + min/max-stretched);
+    // raises the "Scroll" change. Returns the new Value.
+    const double r = std::clamp(ratio, 0.0, 1.0);
+    const double lo = std::min(minimum(), maximum());
+    const double hi = std::max(minimum(), maximum());
+    const double v = lo + r * (hi - lo);
+    (void)set_value(v);
+    return value();
+}
+
+VAML_CORE_EXPORT
+Size ScrollBar::MeasureOverride(const Size& available) const
+{
+    // 11k-2 real ScrollBar algorithm: a default track box (the scrollbar slot).
+    // Vertical default (a narrow column); a horizontal scrollbar is a strip.
+    // The S123 finalizer applies the stretch-vs-wrap.
+    if (orientation() == Orientation::Horizontal)
+    {
+        const float w = available.width > 0.0f ? available.width : 100.0f;
+        const float h = available.height > 0.0f ? available.height : 14.0f;
+        return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+    }
+    const float w = available.width > 0.0f ? available.width : 14.0f;
+    const float h = available.height > 0.0f ? available.height : 100.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- RepeatButton: Click + Delay/Interval + IsPressed (ButtonBase-faithful) -
+
+namespace {
+
+void register_repeatbutton_properties()
+{
+    // Delay / Interval / IsPressed are registered BARE so a corpus-shaped
+    // `<RepeatButton Delay=... Interval=.../>` resolves (the reader resolves
+    // bare attribute keys by name). None of these names is taken globally.
+    (void)DependencyProperty::Register(
+        "Delay", ValueType::Int32, "RepeatButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Interval", ValueType::Int32, "RepeatButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // IsPressed: Bool via Int32, default false.
+    (void)DependencyProperty::Register(
+        "IsPressed", ValueType::Int32, "RepeatButton",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    // The Click routed event (shared with the S401 Button via the S320 registry).
+    (void)vaml::ClickEvent();
+}
+
+void ensure_repeatbutton_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_repeatbutton_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+RepeatButton::RepeatButton()
+{
+    ensure_repeatbutton_properties_registered();
+}
+
+VAML_CORE_EXPORT
+bool RepeatButton::raise_click()
+{
+    // ButtonBase-faithful Click raise (the S401 Button precedent; no IsEnabled
+    // gate on a RepeatButton at 11k-2 — the ButtonBase IsEnabled is 11k-11).
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::ClickEvent(), args);
+    return args.handled;
+}
+
+VAML_CORE_EXPORT
+SetResult RepeatButton::set_delay(std::int32_t v)
+{
+    return Set(PropertyId::of("Delay"), Value::Int32(v));
+}
+
+VAML_CORE_EXPORT
+std::int32_t RepeatButton::delay() const
+{
+    return Get(PropertyId::of("Delay")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult RepeatButton::set_interval(std::int32_t v)
+{
+    return Set(PropertyId::of("Interval"), Value::Int32(v));
+}
+
+VAML_CORE_EXPORT
+std::int32_t RepeatButton::interval() const
+{
+    return Get(PropertyId::of("Interval")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult RepeatButton::set_is_pressed(bool value)
+{
+    return Set(PropertyId::of("IsPressed"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool RepeatButton::is_pressed() const
+{
+    return Get(PropertyId::of("IsPressed")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+Size RepeatButton::MeasureOverride(const Size& available) const
+{
+    // 11k-2 real RepeatButton algorithm: a bounded default button box (its
+    // nominal slot); the S123 finalizer applies the stretch-vs-wrap.
+    const float w = (available.width > 0.0f ? available.width : 20.0f);
+    const float h = (available.height > 0.0f ? available.height : 16.0f);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- Viewbox: Stretch/StretchDirection + single-content child (Decorator) ---
+
+namespace {
+
+void register_viewbox_properties()
+{
+    // Stretch: Int32 default None=0 (reuses the S400_1 IconStretch enum:
+    // None/Fill/Uniform/UniformToFill — the scale-contain policy). Registered
+    // BARE so the corpus-shaped `<Viewbox Stretch=.../>` resolves (the reader
+    // resolves bare attribute keys by name; "Stretch" is not taken globally).
+    (void)DependencyProperty::Register(
+        "Stretch", ValueType::Int32, "Viewbox",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // StretchDirection: Int32 default UpOnly=0 (the WPF-faithful enum
+    // {UpOnly=0, DownOnly=1, Both=2}; carried as Int32).
+    (void)DependencyProperty::Register(
+        "StretchDirection", ValueType::Int32, "Viewbox",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_viewbox_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_viewbox_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Viewbox::Viewbox()
+{
+    ensure_viewbox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Viewbox::set_stretch(std::int32_t value)
+{
+    return Set(PropertyId::of("Stretch"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Viewbox::stretch() const
+{
+    return Get(PropertyId::of("Stretch")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult Viewbox::set_stretch_direction(std::int32_t value)
+{
+    return Set(PropertyId::of("StretchDirection"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Viewbox::stretch_direction() const
+{
+    return Get(PropertyId::of("StretchDirection")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+void Viewbox::set_content(std::unique_ptr<UIElement> child)
+{
+    // WPF-faithful single-content slot (mirrors Window/Border): replace any
+    // prior. The parent OWNS its children (add_child wires the S121 parent
+    // link); content_ is a NON-OWNING observer.
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* Viewbox::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size Viewbox::MeasureOverride(const Size& available) const
+{
+    // 11k-2 real Viewbox algorithm: measure the single content child at the
+    // offered box and report its desired size (a scale-contain decorator sizes
+    // to its content within the offered bounds). The base Measure finalizer
+    // applies the S123 stretch-vs-wrap + the Stretch policy.
+    if (content_)
+    {
+        content_->Measure(available);
+        return content_->desired_size();
+    }
+    return Size{ 0.0f, 0.0f };
+}
+
+VAML_CORE_EXPORT
+void Viewbox::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    // Arrange the single content child to FILL the viewbox's final rect (the
+    // Decorator scale-contain: the content child fills the box, scaled by the
+    // S123 stretch policy). The base clip clips the child to the box.
+    if (content_)
+    {
+        content_->Arrange(finalSlot);
+    }
+}
+
+// --- ToolBar: orientation strip + Band/BandIndex/overflow DPs --------------
+
+namespace {
+
+void register_toolbar_properties()
+{
+    // Orientation is NOT registered here: it uses the SHARED GLOBAL bare
+    // "Orientation" property (owned by StackPanel, S129 — NAME-UNIQUE registry).
+    // The ToolBar constructor self-sets Horizontal (the shared default is
+    // Vertical) so the WPF-faithful ToolBar default holds.
+    // Band/BandIndex/IsOverflowOpen/HasOverflowItems are registered BARE (the
+    // reader resolves bare attribute keys by name; none of these collides).
+    (void)DependencyProperty::Register(
+        "Band", ValueType::Int32, "ToolBar",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "BandIndex", ValueType::Int32, "ToolBar",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // IsOverflowOpen / HasOverflowItems: Bool via Int32, default false.
+    (void)DependencyProperty::Register(
+        "IsOverflowOpen", ValueType::Int32, "ToolBar",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    (void)DependencyProperty::Register(
+        "HasOverflowItems", ValueType::Int32, "ToolBar",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+}
+
+void ensure_toolbar_properties_registered()
+{
+    // The shared GLOBAL bare "Orientation" DP is owned by StackPanel (S129) —
+    // ensure it is registered so a standalone ToolBar reuses it.
+    ensure_stackpanel_properties_registered();
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_toolbar_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+ToolBar::ToolBar()
+{
+    ensure_toolbar_properties_registered();
+    // The ToolBar strip's WPF-faithful default is Horizontal, but the SHARED
+    // global "Orientation" DP defaults to Vertical (StackPanel's default). A
+    // ToolBar therefore self-sets Horizontal at construction (a real local set
+    // shadows the shared default — WPF-faithful ToolBar default).
+    (void)set_orientation(Orientation::Horizontal);
+}
+
+VAML_CORE_EXPORT
+SetResult ToolBar::set_orientation(Orientation o)
+{
+    // Reuses the SHARED GLOBAL bare "Orientation" property (StackPanel-owner;
+    // see register_toolbar_properties — no ToolBar.Orientation registration).
+    return Set(PropertyId::of("Orientation"),
+               Value::Int32(static_cast<std::int32_t>(o)));
+}
+
+VAML_CORE_EXPORT
+Orientation ToolBar::orientation() const
+{
+    return static_cast<Orientation>(Get(PropertyId::of("Orientation")).get<std::int32_t>());
+}
+
+VAML_CORE_EXPORT
+SetResult ToolBar::set_band(std::int32_t v)
+{
+    return Set(PropertyId::of("Band"), Value::Int32(v));
+}
+
+VAML_CORE_EXPORT
+std::int32_t ToolBar::band() const
+{
+    return Get(PropertyId::of("Band")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult ToolBar::set_band_index(std::int32_t v)
+{
+    return Set(PropertyId::of("BandIndex"), Value::Int32(v));
+}
+
+VAML_CORE_EXPORT
+std::int32_t ToolBar::band_index() const
+{
+    return Get(PropertyId::of("BandIndex")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+SetResult ToolBar::set_is_overflow_open(bool value)
+{
+    return Set(PropertyId::of("IsOverflowOpen"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool ToolBar::is_overflow_open() const
+{
+    return Get(PropertyId::of("IsOverflowOpen")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult ToolBar::set_has_overflow_items(bool value)
+{
+    return Set(PropertyId::of("HasOverflowItems"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool ToolBar::has_overflow_items() const
+{
+    return Get(PropertyId::of("HasOverflowItems")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+Size ToolBar::MeasureOverride(const Size& available) const
+{
+    // 11k-2 real ToolBar algorithm: a dock-like strip layout along the
+    // orientation (children stack along the flow axis). Mirrors the S129
+    // StackPanel strip measure. Dirty-respect (S128).
+    float width = 0.0f;
+    float height = 0.0f;
+    if (orientation() == Orientation::Horizontal)
+    {
+        const Size rowAvail{ Size::Infinite().width, available.height };
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* child = child_at(i);
+            if (child->is_measure_dirty())
+                child->Measure(rowAvail);
+            width += child->desired_size().width;
+            height = (child->desired_size().height > height) ? child->desired_size().height : height;
+        }
+        return Size{ std::max(0.0f, width), std::max(0.0f, height) };
+    }
+    const Size columnAvail{ available.width, Size::Infinite().height };
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* child = child_at(i);
+        if (child->is_measure_dirty())
+            child->Measure(columnAvail);
+        height += child->desired_size().height;
+        width = (child->desired_size().width > width) ? child->desired_size().width : width;
+    }
+    return Size{ std::max(0.0f, width), std::max(0.0f, height) };
+}
+
+VAML_CORE_EXPORT
+void ToolBar::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    // The strip arrangement: children stack along the flow axis; each fills the
+    // cross extent. Dirty-respect (S128).
+    if (orientation() == Orientation::Horizontal)
+    {
+        float x = finalSlot.x;
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* child = child_at(i);
+            const bool isLast = (i + 1 == child_count());
+            const float remaining = finalSlot.right() - x;
+            const float slotWidth = isLast ? remaining : child->desired_size().width;
+            if (child->is_arrange_dirty())
+                child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
+            x += (isLast ? remaining : child->desired_size().width);
+        }
+        return;
+    }
+    float y = finalSlot.y;
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* child = child_at(i);
+        const bool isLast = (i + 1 == child_count());
+        const float remaining = finalSlot.bottom() - y;
+        const float slotHeight = isLast ? remaining : child->desired_size().height;
+        if (child->is_arrange_dirty())
+            child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
+        y += (isLast ? remaining : child->desired_size().height);
+    }
+}
+
+// --- ToolBarTray: ToolBar host along the tray orientation ------------------
+
+namespace {
+
+void register_toolbartray_properties()
+{
+    // Orientation is NOT registered here: it uses the SHARED GLOBAL bare
+    // "Orientation" property (owned by StackPanel, S129 — NAME-UNIQUE registry).
+    // The ToolBarTray constructor self-sets Horizontal (the shared default is
+    // Vertical) so the WPF-faithful ToolBarTray default holds.
+    // IsLocked registered BARE (the reader resolves bare attribute keys by
+    // name; "IsLocked" is not taken globally).
+    (void)DependencyProperty::Register(
+        "IsLocked", ValueType::Int32, "ToolBarTray",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+}
+
+void ensure_toolbartray_properties_registered()
+{
+    // The shared GLOBAL bare "Orientation" DP is owned by StackPanel (S129) —
+    // ensure it is registered so a standalone ToolBarTray reuses it.
+    ensure_stackpanel_properties_registered();
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_toolbartray_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+ToolBarTray::ToolBarTray()
+{
+    ensure_toolbartray_properties_registered();
+    // The ToolBarTray's WPF-faithful default is Horizontal, but the SHARED
+    // global "Orientation" DP defaults to Vertical (StackPanel's default). A
+    // ToolBarTray therefore self-sets Horizontal at construction.
+    (void)set_orientation(Orientation::Horizontal);
+}
+
+VAML_CORE_EXPORT
+SetResult ToolBarTray::set_orientation(Orientation o)
+{
+    // Reuses the SHARED GLOBAL bare "Orientation" property (StackPanel-owner).
+    return Set(PropertyId::of("Orientation"),
+               Value::Int32(static_cast<std::int32_t>(o)));
+}
+
+VAML_CORE_EXPORT
+Orientation ToolBarTray::orientation() const
+{
+    return static_cast<Orientation>(Get(PropertyId::of("Orientation")).get<std::int32_t>());
+}
+
+VAML_CORE_EXPORT
+SetResult ToolBarTray::set_is_locked(bool value)
+{
+    return Set(PropertyId::of("IsLocked"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool ToolBarTray::is_locked() const
+{
+    return Get(PropertyId::of("IsLocked")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+Size ToolBarTray::MeasureOverride(const Size& available) const
+{
+    // 11k-2 real ToolBarTray algorithm: a StackPanel-style host laying its
+    // ToolBar children along the tray orientation. Dirty-respect (S128).
+    float width = 0.0f;
+    float height = 0.0f;
+    if (orientation() == Orientation::Horizontal)
+    {
+        const Size rowAvail{ Size::Infinite().width, available.height };
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* child = child_at(i);
+            if (child->is_measure_dirty())
+                child->Measure(rowAvail);
+            width += child->desired_size().width;
+            height = (child->desired_size().height > height) ? child->desired_size().height : height;
+        }
+        return Size{ std::max(0.0f, width), std::max(0.0f, height) };
+    }
+    const Size columnAvail{ available.width, Size::Infinite().height };
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* child = child_at(i);
+        if (child->is_measure_dirty())
+            child->Measure(columnAvail);
+        height += child->desired_size().height;
+        width = (child->desired_size().width > width) ? child->desired_size().width : width;
+    }
+    return Size{ std::max(0.0f, width), std::max(0.0f, height) };
+}
+
+VAML_CORE_EXPORT
+void ToolBarTray::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    if (orientation() == Orientation::Horizontal)
+    {
+        float x = finalSlot.x;
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* child = child_at(i);
+            const bool isLast = (i + 1 == child_count());
+            const float remaining = finalSlot.right() - x;
+            const float slotWidth = isLast ? remaining : child->desired_size().width;
+            if (child->is_arrange_dirty())
+                child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
+            x += (isLast ? remaining : child->desired_size().width);
+        }
+        return;
+    }
+    float y = finalSlot.y;
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* child = child_at(i);
+        const bool isLast = (i + 1 == child_count());
+        const float remaining = finalSlot.bottom() - y;
+        const float slotHeight = isLast ? remaining : child->desired_size().height;
+        if (child->is_arrange_dirty())
+            child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
+        y += (isLast ? remaining : child->desired_size().height);
+    }
+}
+
 VAML_CORE_EXPORT
 void register_builtin_elements()
 {
@@ -4494,6 +5207,15 @@ void register_builtin_elements()
     // as a LOADABLE ROOT. A NESTED `<ResourceDictionary>` (under .Resources /
     // .MergedDictionaries) still uses build_resource_dictionary directly.
     registry.register_element("ResourceDictionary", [] { return std::make_unique<ResourceDictionaryHolder>(); }); // 36
+    // --- 11k-2 — the missing WPF controls the corpus consumes. All are REAL
+    // re-based UIElements resolved at THIS step (NO-GAP, no MINIMAL REAL added).
+    // ScrollBar 36 -> 37; RepeatButton 37 -> 38; Viewbox 38 -> 39; ToolBar
+    // 39 -> 40; ToolBarTray 40 -> 41.
+    registry.register_element("ScrollBar",     [] { return std::make_unique<ScrollBar>(); });     // 37
+    registry.register_element("RepeatButton",  [] { return std::make_unique<RepeatButton>(); });  // 38
+    registry.register_element("Viewbox",       [] { return std::make_unique<Viewbox>(); });       // 39
+    registry.register_element("ToolBar",       [] { return std::make_unique<ToolBar>(); });       // 40
+    registry.register_element("ToolBarTray",   [] { return std::make_unique<ToolBarTray>(); });   // 41
 
     // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
     // visual controls; they are the authored RESOURCE types the resource-
