@@ -194,6 +194,40 @@ TEST_CASE("S444: the on-disk MainView.vaml (the vamlcc input) compiles + decodes
     {
         inlineCore.pop_back();
     }
+    // S444 remaster — the parity intent is SEMANTIC app-shell equality, not a
+    // byte-for-byte encoding lock. The on-disk MainView.vaml is read in BINARY
+    // mode above; on a Windows checkout `.gitattributes` `* text=auto` may leave
+    // the .vaml (and/or the compiled inline twin) as CRLF while the other stays
+    // LF, so the two render identically yet differ per line. Normalize CRLF/lone-CR
+    // to LF on BOTH sides so the S444 parity compares content, not the working
+    // tree's line-ending encoding. (This is the same semantic-content posture the
+    // test already uses when it strips the leading `<!-- -->` comment + trims.)
+    auto normalize_newlines = [](std::string& s) {
+        std::string out;
+        out.reserve(s.size());
+        for (std::size_t i = 0; i < s.size(); ++i)
+        {
+            if (s[i] == '\r')
+            {
+                if (i + 1 < s.size() && s[i + 1] == '\n')
+                {
+                    out.push_back('\n');
+                    ++i;
+                }
+                else
+                {
+                    out.push_back('\n');
+                }
+            }
+            else
+            {
+                out.push_back(s[i]);
+            }
+        }
+        s = std::move(out);
+    };
+    normalize_newlines(onDiskCore);
+    normalize_newlines(inlineCore);
     SHOULD(ShouldlyString(onDiskCore).ShouldBe(inlineCore));
 
     // The BEHAVIORAL contract: the on-disk file (the actual vamlcc input, with

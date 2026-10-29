@@ -95,6 +95,11 @@ vaml_add_library(vulkan
     # cached icon provider, with the deliberate fallback glyph + structured
     # diagnostic for an unresolved asset (ADR-015 NO-GAP). Pure + headless.
     src/icon/IconGlyphPlan.cpp
+    # 11k-4 (dep:11k-3/S460) — the VECTOR RENDER seam: rasterizes an authored
+    # core Drawing/Geometry into S202 atlas-tile RGBA8 bytes + emits the S206
+    # textured-quad DrawItem (the "drawn via the S202 atlas mesh"). Pure +
+    # headless-testable (no Vulkan runtime); device upload = the live path.
+    src/vector/VectorRaster.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

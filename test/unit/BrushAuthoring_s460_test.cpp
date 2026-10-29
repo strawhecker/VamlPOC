@@ -178,8 +178,11 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     // added the core display + input controls (Label/Border/Rectangle/Ellipse/
     // Line/Image/ProgressBar/PasswordBox/GroupBox/Expander/Separator/StatusBar),
     // then 36 as Sprint 11j added UserControl + Application + ResourceDictionaryHolder,
-    // then 41 as 11k-2 added ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(41u));
+    // then 41 as 11k-2 added ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray,
+    // then 50 as 11k-4 added PathGeometry/GeometryGroup/RectangleGeometry/
+    // EllipseGeometry/GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/
+    // ImageBrush (the vector-drawing + brush-resource volume).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(50u));
 }
 
 // ---------------------------------------------------------------------------

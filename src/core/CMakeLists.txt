@@ -40,6 +40,7 @@ vaml_add_library(core
     src/Style.cpp                 # S362 — Style + Setter + BasedOn + PropertyTrigger + DataTrigger
     src/StyleApplier.cpp          # S363 — style application to typed elements (setters + triggers)
     src/Brush.cpp                 # S364 — SolidColorBrush (core data brush + Color DP, ADR-011)
+    src/VectorDrawing.cpp         # 11k-4 — geometry/drawing/vector-brush resources (core data)
     src/ControlTemplate.cpp       # S364/S365 — ControlTemplate + visual states + TemplateBinding
     src/PropertyPath.cpp
     src/BindingDiagnostics.cpp

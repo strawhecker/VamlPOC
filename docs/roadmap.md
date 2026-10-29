@@ -1231,8 +1231,8 @@ Growth tokens by sprint:
 - S401 dep:S400  [DONE - Sprint 10 third token. Button control RESOLVED (the S087 Button seed re-based onto UIElement): IsEnabled DP (Bool via Int32, gates the Click routing — WPF-faithful); the Click routed event (raise_click raises the BUBBLING ClickEvent with source==this; the S324/S323 flow raises Click on a hit Button); the template/visual-state surface (the default implicit template's Normal/Hover/Pressed/Disabled states swap the shared "Background" brush via the S364 state engine); MeasureOverride (bounded default box). classify_element -> MaterialKind::Solid + classify_merge_element -> the Solid fill honoring the visual-state Background + the IsEnabled fade. Tests Button_test + ViewerButtonMaterial_test. BOTH CI LANES GREEN (build/verify_s401.cmd msvc-debug + /mnt/hgfs/VamlPOC clang-debug).]
 - S402 dep:S401  [DONE - Sprint 10 fourth token. TextBox control RESOLVED (the S087 TextBox seed re-based onto UIElement): Text + AcceptsReturn DPs + caret/selection; key-driven editing (handle_key: printable insert, backspace, Left/Right/Home/End, single-line Enter accepts vs multi-line inserts newline, insert-over-selection); the S244 TWO-WAY binding (a TextBox.Text edit writes back to the VM); the multi-line S400 wrap Measure. classify_element -> MaterialKind::Solid + classify_merge_element -> the edit-field fill box. Tests TextBox_test + ViewerTextBoxMaterial_test. BOTH CI LANES GREEN (build/verify_s402.cmd msvc-debug + clang-debug).]
 - S403 dep:S402  [DONE - Sprint 10 seventh token. Slider control RESOLVED (the S087 Slider seed re-based onto UIElement): Value/Min/Max DPs (Value clamps to the range); the value-changed Signal + the routed "ValueChanged" event (source==this); the thumb-drag set_value_from_ratio mapping a [0,1] drag ratio to Value. classify_element -> MaterialKind::Solid + classify_merge_element -> the track box. Tests Controls_test + ViewerControlsMaterial_test. BOTH CI LANES GREEN (build/verify_s402.cmd msvc-debug + clang-debug).]
-- S404 dep:S403  CheckBox: toggle + IsChecked two-way binding.
-- S405 dep:S404  ScrollViewer: scroll + clipping + wheel/scrollbar.
+- S404 dep:S403  [DONE - Sprint 10. CheckBox control RESOLVED (the S087 CheckBox seed re-based onto UIElement; DAG row `CheckBox` now DONE-aligned): toggle + IsChecked/IsThreeState surface + the routed Checked/Unchecked events + IsChecked two-way binding (S244). Tests Controls_test + ViewerControlsMaterial_test. BOTH CI LANES GREEN (build/verify_s402.cmd msvc-debug + clang-debug).] CheckBox: toggle + IsChecked two-way binding.
+- S405 dep:S404  [DONE - Sprint 10. ScrollViewer control RESOLVED (the S087 ScrollViewer seed re-based onto UIElement; DAG row `ScrollViewer` now DONE-aligned): scrolling + clipping via clip_to_bounds (S124) + wheel/scrollbar + the routed ScrollChanged surface. Tests Controls_test + ViewerControlsMaterial_test. BOTH CI LANES GREEN (build/verify_s402.cmd msvc-debug + clang-debug).] ScrollViewer: scroll + clipping + wheel/scrollbar.
 - S406 dep:S405  [DONE - Sprint 10. Focus + tab order + Enter-activates-default + routed key events: extends the S325 FocusManager with a default-Button (an unconsumed Enter KEY-DOWN raises the default Button's Click — WPF-faithful; a handled Enter does NOT re-activate) + the routed key completeness. Tests Focus406_test. BOTH CI LANES GREEN (build/verify_s402.cmd msvc-debug + clang-debug).]
 - S407 dep:S406  [DONE - Sprint 10. Milestone: every S10 control is a real UIElement re-base (Text/Icon/Button/TextBox/Slider/CheckBox/ScrollViewer), registered concrete + tested, no DependencyObject-only seeds remain in the S10 set. Tests Milestone407_test. BOTH CI LANES GREEN.]
 - S408 dep:S407  [DONE - Sprint 10. REFACTOR GATE(S10): full build + ctest BOTH lanes green; grep-audit (no stubs/Minimal-Real in the S10 set — every control resolved at its own step); the Sprint-10 SURVIVOR + checkpoint advance are in progress.md + roadmap. No commits.]
@@ -1240,6 +1240,9 @@ Growth tokens by sprint:
       CheckBox/ScrollViewer — the S400–S406 controls) render + interactive via the generic renderer; a
       dedicated sample .vaml exercising every control + a template (the "same for S10+" commitment —
       the viewer matures as the controls land). [VIEWER GROWTH: rich UI in the live viewer]
+      > NOTE: the DAG tail (TreeView/DatePicker/Calendar/UniformGrid/Ink/Media/Document+/Frame/Page/
+      > Polyline/etc. — the DAG PLANNED rows with no implementation home) is closed by **Sprint 11m
+      > (S550+, token S550+)** — see below. No S10–S11k token schedules them.
 
 ---
 ## Sprint 11 — vaml_viewer = the v1 in-repo deliverable  (goal: complete MVVM "app" on VAML+Vulkan — the viewer)  [token S440+]
@@ -1761,9 +1764,22 @@ Growth tokens by sprint:
 > invented control names, ever. A corpus doc that loads a control NOT in WPF is a bug in VAML, not a new
 > element.
 >
-> STATUS: **in-progress (11k-0 spine DONE + 11k-3 DONE; 11k-1..11k-2 DONE; remainder scheduled; 11k-8 audit
+> STATUS: **in-progress (11k-P0 MANDATE + 11k-0 spine DONE + 11k-3 DONE + 11k-4 DONE; 11k-1..11k-2 DONE; remainder scheduled; 11k-8 audit
 > RECORDED complete at ground truth, 11k-9/11k-10 pending-forward-tokens — see below).**
 >
+> **11k-P0 — PRE-11K DRIFT-CLOSURE MANDATE [token S11kP0; DONE — this clause is the standing contract].**
+> Every type authored BEFORE 11k (the S0–S11e-core con-
+> trol/framework-element/panel/shape surface AND the pre-11k value/resource/brush types AND every pre-11k
+> base-class hierarchy) was authored WITHOUT the WPF-source drift baseline — it is **drifted by construction**.
+> The 11k-family steps are the FIDELITY-CLOSURE lane; the WPF source tree (`E:\GitRepos\wpf`) is the ONE
+> authoritative baseline (11k-0). BINDING, NON-DEFERRABLE OBLIGATION: **later steps (11k-8/9/10 AND any 11k-
+> family step, e.g. 11k_12) MUST validate all pre-11k types, their ValueType payloads, their base-class
+> hierarchy (Control vs FrameworkElement vs UIElement — the `Text`-vs-`TextBlock` class of error), and their
+> authored corpus shapes against `E:\GitRepos\wpf`** — and MUST NOT cite the pre-baseline authoring docs,
+> an earlier pre-11k gate, or a scoped audit row as a reason to LEAVE drift open. The 11k-8 audit table is the
+> TRACKING VEHICLE: pre-11k rows close HERE (under 11k-8/9/10/12/13 as scheduled below), never silently.
+> This clause is the unchecked, always-applicable answer to "do not cite X as a reason not to close the gap".
+> Nothing silent; a drift found is a closure token scheduled, not a pardon.
 > - 11k-0 — **GAP-SPINE: the two-doc WPF-fidelity contract that drives the roadmap.** ESTABLISHES the
 >       authoritative VAML↔WPF baseline so every later step diffs against a living contract instead of
 >       trusting prose (the direct result of the Geometry/GridLength fidelity review — the realization that
@@ -1868,6 +1884,32 @@ Growth tokens by sprint:
 >       `DrawingGroup` / `DrawingImage` + `Geometry` resources authored + resolved through the S360/S453
 >       resource path and drawn via the S202 atlas mesh. **[DEP: depends on 11k-3 value-type authoring (Color
 >       for SolidColor/LinearGradient, Geometry for the drawing channels).]** Test 11k4_vectorResources_test.cpp.
+>       [DONE — IMPLEMENTED 11k-4 against the WPF source (matched WPF — the fidelity finding): a NEW
+>       `vaml::core::VectorDrawing` model mirrors WPF's shape exactly — `Geometry`/`Drawing` ABSTRACT bases
+>       (internal ctor, NOT authorable as bare elements, PresentationCore Media\Geometry.cs / Drawing.cs — the
+>       official resolution of the 11k-3 `<Geometry>` OUT-OF-SCOPE(11k-4)) with the concrete authorable DO
+>       leaves BELOW them: `PathGeometry`(Figures + FillRule), `GeometryGroup`, `RectangleGeometry`(Rect),
+>       `EllipseGeometry`(RadiusX/Y), plus the drawing/brush leaf resources `GeometryDrawing`(Geometry+Brush/
+>       Pen), `DrawingGroup`(Children+Transform), `DrawingBrush`(Drawing), `DrawingImage`(Drawing),
+>       `ImageBrush`(ImageSource — the TagConfigurationUserControl channel). A `parse_path_geometry` WPF
+>       MiniLanguage parser (M/L/H/V/C/S/Q/T/A/Z + repeated-number shorthand + H/V axis + multi-figure +
+>       fail-loud on empty/degenerate) authored via the S453/S460 Object-resource path — each captured by
+>       x:Key, the `<X.Prop>` property-elements (`DrawingBrush.Drawing`, `GeometryDrawing.Geometry`, group
+>       children) wired into an owned shared_ptr geometry/drawing graph. NEW `vaml::vulkan::vector` RASTER
+>       SEAM (the "drawn via the S202 atlas mesh"): a headless CPU rasterizer folds an authored drawing/
+>       geometry into a 64×64 S202 RGBA8 tile (ink-box UVs) + emits the S206 textured-quad DrawItem that
+>       samples it — ADR-015 single-quad-engine (raster once), zero new locks (ADR-018); the DEVICE upload is
+>       the [both-apps, not CI] path (mirrors S400_1). NEW test/unit/11k4_vectorResources_test.cpp
+>       (vaml-vulkan-tests): the parse matrix + set_figures fail-loud + x:Key authoring round-trip (incl. the
+>       DrawingGroup→GeometryDrawing→PathGeometry owned graph) + abstract-Geometry non-authorable + duplicate
+>       x:Key dedupe + the raster seam (geometry→tile→textured quad: ink colour + ink-box UV) + degenerate-
+>       drawing ok=false. Element-count gates 41→50 (9 new authorable factory resource types) updated AT THIS
+>       STEP (never silent; value-type elements stay dict-branch per 11k-3). GREEN on BOTH CI LANES
+>       (build/verify_s11k4.cmd — windows-msvc + ubuntu-clang, clang first-fail = an unused-function in the
+>       raster seam MSVC didn't flag, fixed + re-verified; 4/4 ctest both lanes). ZERO MINIMAL REAL + ZERO
+>       silent backfills. The authored Brush `{StaticResource}` brush-id literal-color (`#RRGGBB`) → brush-id
+>       conversion is recorded NO-GAP (a later surface, not silent).]
+
 > - 11k-5 — `EventTrigger` element-level authoring: `<Control.Triggers><EventTrigger RoutedEvent="...">...` —
 >       the event-driven trigger AUTHORING surface (distinct from PropertyTrigger/DataTrigger S454/11j-7),
 >       parsed into the S362 trigger model; full storyboard evaluation links to S510 (recorded NO-GAP, not
@@ -2025,6 +2067,19 @@ Growth tokens by sprint:
 >       value-type elements) — **EVERY DP in the 11k-8 audit table is registered** with its WPF-faithful
 >       ValueType (per-property; the Control-base bundle 11j-5 owns the shared names once), each RoutedEvent
 >       registered with its routing (bubbling/tunneling per the source), each classified (Solid/Border/Text/etc.).
+>       **PRE-11K SCOPE (11k-P0 MANDATE — NOT limited to the 11k-8 control table):** 11k-9 is the closure home
+>       for the pre-11k **VALUE-TYPE + TYPE-HIERARCHY** drift that the control-authored DP rows do not cover.
+>       (a) **Value/payload types** authored pre-baseline that are NOT in 11k-8's value list are here
+>           validated + (where their WPF-faithful ValueType/parse differs) corrected against `E:\GitRepos\wpf`
+>           — e.g. CornerRadius, Point, Size, Vector, Matrix/Matrix2D, KeyTime, Duration, RepeatBehavior,
+>           Stretch, StretchDirection, TextTrimming, TextWrapping, GridUnitType, the Alignment/Visibility/
+>           MessageBox enums, and the Color/brush parse family — each closed (name + ValueType + corpus
+>           authoring) at THIS step, never silent. (b) **Type-hierarchy drift** (the `Text`-vs-`TextBlock`
+>           class of error, systematic): every pre-11k type's base-class branch is re-audited against WPF
+>           (Control vs FrameworkElement vs UIElement vs ContentElement) and any wrong base re-parented at
+>           THIS step. (c) The 11k-8 table's value-type row for `Geometry` (abstract base + sealed DO leaves,
+>           closed at 11k-4) is confirmed here as the WPF-true shape. An explicit pre-11k closure list is
+>           recorded in the audit so NO pre-baseline type is orphaned.
 >       REGISTER/parse/throw on the FULL surface so a corpus doc authoring ANY WPF-valid property on a supported
 >       control resolves. Test DpFidelity_s11k9_test.cpp
 >       (one test per control asserting the full audited surface: every DP in the 11k-8 table registers + a
@@ -2097,6 +2152,75 @@ Growth tokens by sprint:
 >     widened corpus set explicitly to the gate's classified control name list when authored (TextBlock branch,
 >     controls branch, value/brush/trigger surfaces 11k-3/4/5) so the fidelity gate has a complete, WPF-sourced
 >     checklist.
+
+---
+## Sprint 11m — WPF-corpus TAIL closure (the DAG `PLANNED` rows with NO roadmap home)  (goal: close the corpus-corpus gap the 11k audit exposed — every DAG `PLANNED` row schedules a closure token or is reclassified, "nothing hidden")  [token S550+]
+> **DAG-DRIVEN (11k-0c):** this sprint is keyed to `docs/DAG_controls.md`. Every DAG row whose tri-state is
+> `PLANNED` AND that has no implementation home in roadmap S10/S11c/S11d/S11e/11k is scheduled here as a REAL
+> closure token, unless it is a pure data/mechanism type that the closure steps consume (those are listed in
+> S559). "Full fidelity closure, matching DAG's PLANNED state" per user decision. VIEWER-GROWTH (anti-grave-
+> whistle): S558 is this sprint's named LIVE-viewer growth token (the tail set rendered interactively) — no
+> token, no ✅.
+> **DAG-RE-GEN NORM (kills the orphan class):** `docs/DAG_controls.md` is a GENERATED engine contract. From
+> Sprint 11m onward, **every** control/closure sprint's SURVIVOR RE-RUNS `gap_dp_daggen.py` so the DAG's
+> tri-state can never drift behind the roadmap's DONE rows (this is exactly what S559 does here, and what
+> was MISSING for the 11c/11d/11e + S10 closures).
+- S550 dep:S449  **DISCLOSED TAIL — DERIVED-BASE + SCAFFOLDING TYPES (DAG `PLANNED`):** item-container +
+      header/presenter/panel + collection-value scaffolding that the closed controls' selector behavior and
+      the DAG's closure-under-ancestry invariant require to be loadable (`ComboBoxItem`, `ListBoxItem`,
+      `ListViewItem`, `StatusBarItem`, `TabItem`, `GroupItem`, `DataGridRow`/`DataGridCell` container arms,
+      `ContentPresenter`, `ItemsPresenter`, `ItemsPanelTemplate`, `ItemContainerTemplate`, `DataTemplate`,
+      `GridView` + `GridViewRowPresenter`/`GridViewHeaderRowPresenter`/`GridViewRowPresenterBase`,
+      `GridViewColumn`/`GridViewColumnCollection`/`GridViewColumnHeader`, `VirtualizingPanel`/
+      `VirtualizingStackPanel`, `SelectiveScrollingGrid`, `Panel`, `Decorator`). Each authored/loaded +
+      classified to its parent branch; ZERO hidden rows (DAG PLANNED→DONE rows must flip).
+- S551 dep:S550  **SHAPE + CHANNEL TAIL (DAG `PLANNED`, WPF-real names):** `Path` (Data geometry authoring),
+      `Polygon`/`Polyline` (Points/FillRule), + `Shape` base consolidation; `Track` + `TickBar` (the
+      slider/scrollbar chrome surface); `Image` fills its full DAG surface (Source/Stretch/DpiChanged/
+      ImageFailed). Each REAL, classified, tested. DAG PLANNED→DONE rows must flip.
+- S552 dep:S551  **TREE VIEW CONTROLS:** `TreeView` + `TreeViewItem` (ItemsControl/HeaderedItemsControl
+      branch): ItemsSource/child item loading, IsExpanded/IsSelected + SelectedItem/SelectedValue/
+      SelectedValuePath, routed Expanded/Collapsed/Selected/Unselected/SelectedItemChanged. Real + tested;
+      DAG PLANNED→DONE.
+- S553 dep:S552  **DATE & CALENDAR CONTROLS:** `DatePicker` (+ `DatePickerTextBox`) + `Calendar` + the
+      Calendar family (`CalendarDayButton`/`CalendarButton`/`CalendarItem`/`CalendarDateRange`/
+      `CalendarBlackoutDatesCollection`) + the `SelectedDatesChanged`/`SelectedDateChanged` routed surface.
+      Real + tested; DAG PLANNED→DONE (except the pure calendar date-range data types → S559).
+- S554 dep:S553  **DRAWING / MEDIA / EMBEDDED CONTROL TAIL:** `InkCanvas`/`InkPresenter`,
+      `MediaElement`, `WebBrowser`, `ViewPort3D` staging. `InkCanvas` + `InkPresenter` are DONE-classified
+      surfaces (stylus/mouse stroke collection as authored strokes, the `Strokes` DP); `MediaElement`
+      (Source/Volume/Muted + Media* events); `WebBrowser`/`ViewPort3D` are re-affirmed dependencies on the
+      S520 import/inject seam (a host-linked foreign surface, NOT a VAML-owned native type) and reclassified
+      OUT-OF-SCOPE(11m) in the DAG. Real + tested for the DONE-classified party; DAG rows reclassified/flipped.
+- S555 dep:S554  **DOCUMENT/FRAME CONTROLS:** `Page`, `Frame` (ContentControl source/navigation surface,
+      closing the S11j6 StartupUri navigation NO-GAP), `DocumentViewer`/`DocumentViewerBase`, and
+      `FlowDocumentReader`/`FlowDocumentScrollViewer` (+ `SinglePageViewer`). Real + tested; DAG
+      PLANNED→DONE (the document-flow/text rendering depth is bounded per the S649/11k-11 control-material
+      continuation, recorded not silent); `StartupUri` NAVIGATION (11j-6) resolved here.
+- S556 dep:S555  **SERVICE/MECHANISM + U+ support TYPES (the DAG `PLANNED` data mechanism rows):**
+      `TextSearch`, `SpellCheck`, `ToolTipService`, `ContextMenuService`, `PopupControlService`,
+      `ItemContainerGenerator`/`UIElementCollection`/`IItemContainerGenerator`/`IRecyclingItemContainerGenerator`/
+      `ItemCollection`/`SelectedItemCollection`/`SelectedCellsCollection`/`IContainItemStorage`/`IScrollInfo`,
+      `Validation`/`ValidationRule`/`ValidationError`/`ValidationResult`/`ExceptionValidationRule`/
+      `DataErrorValidationRule`/`NotifyDataErrorValidationRule`/`ConversionValidationRule` + value-converter
+      data types (`BooleanToVisibilityConverter`, `AlternationConverter`,
+      `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
+      `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`). These are
+      consumed by the DONE surfaces (the S242/S501 converter seam + binding glue); ZERO new MINIMAL REAL;
+      DAG rows PLANNED→DONE as consumed.
+- S557 dep:S556  **PURE VALUE/ENUM/ARG-ONLY DATA TYPES (`System`-level, DAG `PLANNED`):** the enum +
+      sealed event-arg + metadata rows (AutoToolTipPlacement, ClickMode, CharacterCasing, Orientation, etc.
+      + the *EventArgs classes + `DefinitionBase`, `ColumnDefinition`/`RowDefinition` collection converters,
+      `DataGridColumn`, `DataGridLength`/`DataGridLengthConverter`, `CustomPopupPlacement`,
+      `CustomPopupPlacementCallback`, `HierarchicalVirtualization*`, `VirtualizationCacheLength`+converter,
+      `VirtualizationMode`, `ScrollUnit`, `PanningMode`, `PlacementMode`, `PopupAnimation`, `ScrollChangedEventArgs`
+      etc.). Filed as CONSUMED-BY-THE-CLOSED-SURFACES (no standalone behavior token); DAG rows flip
+      PLANNED→DONE as their consuming surface lands. "Nothing hidden" = each is accounted, none omitted.
+- S558 dep:S557  **VIEWER-GROWTH(11m):** a corpus tail-shaped `sample.tail.xaml` authors TreeView/DatePicker/
+      Calendar/DataGrid/Polyline/Menu/etc.; the LIVE viewer loads and renders the tail set interactively
+      (the generic renderer via classify_element). BOTH CI LANES green. [VIEWER GROWTH: the DAG tail set
+      renders in the live viewer]
+- S559 dep:S558  **DAG RE-STATE + SURVIVOR(11m):** run `gap_dp_daggen.py` — **this is the DEFINED step that closes the DAG-side drift** (the orphan: 11k-0a generated the DAG once, and no prior step re-applied it after the 11c/11d/11e + S10 closures). Concretely it (a) flips every closure-consumed 11m `PLANNED` row DONE; **and (b) re-states the whole DAG to ground truth** — the 11c/11d/11e controls already implemented-but-stale (`ListView`, `TabControl`/`TabItem`, `Menu`/`MenuItem`/`ContextMenu`, `Popup`/`ToolTip`, `GridSplitter`, `DataGrid`, `Path`/`Polygon`/`Polyline`) and the `ViewBox`→`Viewbox` WPF-true spelling all flip PLANNED→DONE / corrected here, so after S559 the DAG's tri-state agrees with the roadmap top-to-bottom (nothing hidden, exactly-one-state per the DAG contract); (c) grep-audit ZERO new MINIMAL REAL/stubs; (d) SURVIVOR consolidated; checkpoint advances: last = S11m, next = **S540+ (Sprint 11z)**. Both CI lanes green. Re-gens the DAG after control sprints from here on (see the roadmap norm: every control-closing SURVIVOR re-runs `gap_dp_daggen.py`).
 
 ---
 ## Sprint 11z — Injected-dispatcher interop + injected-dispatch wrap  (goal: the library runs inside a host message pump / dispatcher; the 3rd-party test + injected test dispatch CLOSE OUT the lib roadmap)  [token S540+]

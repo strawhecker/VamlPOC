@@ -868,6 +868,14 @@ add_executable(vaml-vulkan-tests
     # the S205_1 Monochrome tint path + the DELIBERATE fallback glyph + the
     # structured diagnostic (ADR-015 NO-silent). Pure + headless.
     IconGlyphPlan_test.cpp
+    # 11k-4 (dep:11k-3/S453/S460) — BRUSHES + VECTOR-DRAWING RESOURCES (the
+    # corpus's largest omitted volume — the Icons/*.xaml family): the authored
+    # Geometry/Drawing/brush resource authoring round-trip via x:Key + the
+    # parse_path_geometry WPF MiniLanguage matrix + S360 three-scope resolution +
+    # the vulkan vector raster seam (drawing/geometry -> S202 RGBA8 tile ->
+    # textured-quad material). Pure + headless (no live device atlas; the upload
+    # is the [both-apps, not CI] path, mirrors S400_1).
+    11k4_vectorResources_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

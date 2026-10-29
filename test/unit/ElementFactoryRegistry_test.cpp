@@ -331,8 +331,11 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // Sprint 11d controls Label/Border/Rectangle/Ellipse/Line/Image/ProgressBar/
     // PasswordBox/GroupBox/Expander/Separator/StatusBar + the Sprint 11j
     // GAP-CLOSE UserControl + Application + ResourceDictionaryHolder + the
-    // 11k-2 control set ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(41u));
+    // 11k-2 control set ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray +
+    // the 11k-4 brush/vector resource set PathGeometry/GeometryGroup/
+    // RectangleGeometry/EllipseGeometry/GeometryDrawing/DrawingGroup/
+    // DrawingBrush/DrawingImage/ImageBrush).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(50u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -349,7 +352,9 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // GroupBox/Expander/Separator/StatusBar the 22nd-33rd; Sprint 11j:
     // UserControl + Application + ResourceDictionaryHolder the 34th-36th;
     // the 11k-2 set ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray the
-    // 37th-41st.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(41u));
+    // 37th-41st + the 11k-4 set PathGeometry/GeometryGroup/RectangleGeometry/
+    // EllipseGeometry/GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/
+    // ImageBrush the 42nd-50th.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(50u));
     assertConcrete<Button>(g.create("Button"));
 }

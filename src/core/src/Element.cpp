@@ -18,6 +18,7 @@
 
 #include "vaml/core/ControlTemplate.h"   // S364/S365 — the Button's default template + visual states
 #include "vaml/core/Brush.h"             // S453 — SolidColorBrush (authored resource type)
+#include "vaml/core/VectorDrawing.h"     // 11k-4 — the vector/drawing/geometry resource types
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/FocusManager.h"      // S325/S402 — KeyCode (the TextBox edits on)
@@ -5236,6 +5237,26 @@ void register_builtin_elements()
     registry.register_element("GradientStop",       [] { return std::make_unique<GradientStopHost>(); });
     registry.register_element("LinearGradientBrush", [] { return std::make_unique<LinearGradientBrush>(); });
     registry.register_element("Style",           [] { return std::make_unique<Style>(); });
+    // --- 11k-4 (dep:11k-3) — VECTOR-DRAWING + BRUSH RESOURCES (the corpus's
+    // largest omitted volume — the entire Icons/*.xaml + Icons.xaml/NewIcons.xaml
+    // family). All are AUTHORABLE Object resources captured by x:Key into the
+    // ResourceDictionary, exactly like SolidColorBrush/LinearGradientBrush
+    // (ADR-011: CORE DATA; render stays vulkan). The abstract Geometry/Drawing
+    // bases are NOT registered (WPF-faithful — abstract + internal ctor, not
+    // authorable as bare elements; the 11k-3 `<Geometry>` deferral RESOLVED here
+    // via the concrete leaves). Built-in count 41 -> 49 (8 new authorable
+    // resource types: PathGeometry/GeometryGroup/RectangleGeometry/
+    // EllipseGeometry + GeometryDrawing/DrawingGroup + DrawingBrush/DrawingImage/
+    // ImageBrush).
+    registry.register_element("PathGeometry",      [] { return std::make_unique<PathGeometry>(); });
+    registry.register_element("GeometryGroup",     [] { return std::make_unique<GeometryGroup>(); });
+    registry.register_element("RectangleGeometry", [] { return std::make_unique<RectangleGeometry>(); });
+    registry.register_element("EllipseGeometry",   [] { return std::make_unique<EllipseGeometry>(); });
+    registry.register_element("GeometryDrawing",   [] { return std::make_unique<GeometryDrawing>(); });
+    registry.register_element("DrawingGroup",      [] { return std::make_unique<DrawingGroup>(); });
+    registry.register_element("DrawingBrush",      [] { return std::make_unique<DrawingBrush>(); });
+    registry.register_element("DrawingImage",      [] { return std::make_unique<DrawingImage>(); });
+    registry.register_element("ImageBrush",        [] { return std::make_unique<ImageBrush>(); });
 }
 
 } // namespace vaml

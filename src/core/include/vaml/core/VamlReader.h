@@ -53,6 +53,7 @@
 
 #include "vaml/core/BindingExpression.h" // BindingExpression (the S252 live binding)
 #include "vaml/core/Brush.h"          // S460 — GradientStopHost + LinearGradientBrush (BRUSH AUTHORING)
+#include "vaml/core/VectorDrawing.h"  // 11k-4 — geometry/drawing/vector-brush resource types
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
 #include "vaml/core/Style.h"          // S454 — authored <Style>/<Setter>/<Trigger> authoring
 #include "vaml/core/StyleApplier.h"   // S454 — apply (explicit/implicit) + find_implicit
@@ -599,6 +600,38 @@ private:
     // property-element whose `<GradientStop>` children are folded into the
     // brush's ordered stop vector. Never a visual child.
     void build_linear_gradient(LinearGradientBrush& brush, const ParsedElement& element);
+
+    // 11k-4 (dep:11k-3/S453/S460) — VECTOR-DRAWING AUTHORING. These consume an
+    // authored vector/drawing/brush RESOURCE element into its owned data model
+    // (the S460 build_linear_gradient precedent). Each is a RESOURCE (captured
+    // by x:Key), never a visual. They wire the authored child property-elements
+    // (<DrawingBrush.Drawing> / <GeometryDrawing.Geometry> / <DrawingGroup's
+    // children>) into the owned shared_ptr child graph.
+    //
+    // `Geometry` (abstract, WPF-faithful) is NOT authored directly; the concrete
+    // DO leaves (PathGeometry/GeometryGroup/RectangleGeometry/EllipseGeometry) are.
+    void build_path_geometry(PathGeometry& geom, const ParsedElement& element);
+    void build_geometry_group(GeometryGroup& group, const ParsedElement& element, std::size_t depth);
+    void build_rectangle_geometry(RectangleGeometry& geom, const ParsedElement& element);
+    void build_ellipse_geometry(EllipseGeometry& geom, const ParsedElement& element);
+    void build_geometry_drawing(GeometryDrawing& drawing, const ParsedElement& element, std::size_t depth);
+    void build_drawing_group(DrawingGroup& group, const ParsedElement& element, std::size_t depth);
+    void build_drawing_brush(DrawingBrush& brush, const ParsedElement& element, std::size_t depth);
+    void build_drawing_image(DrawingImage& image, const ParsedElement& element, std::size_t depth);
+    void build_image_brush(ImageBrush& brush, const ParsedElement& element);
+
+    // 11k-4 — builds an authored child element (recursively via build()),
+    // RETAINS it READER-OWNED, parent-links it, and returns the raw pointer.
+    // Used by the drawing/geometry builders to wire owned child graphs.
+    DependencyObject* build_retained_child(const ParsedElement& el,
+                                           DependencyObject* parent,
+                                           std::size_t depth);
+    // 11k-4 — builds + retains every child of a property-element (an authored
+    // `<Owner.Geometry>`/`<Owner.Drawing>` object slot) and returns the raw
+    // pointers in order.
+    std::vector<DependencyObject*> build_property_children(const ParsedElement& el,
+                                                           DependencyObject* parent,
+                                                           std::size_t depth);
 
     // The non-root built objects, in construction (document) order. OWNED by
     // the reader (D1/S091) until `finalize_visual_tree()` hands each child into

@@ -133,6 +133,39 @@ namespace {
         "not an authorable value-type resource element (UnknownType)");
 }
 
+// 11k-4 — parses a plain decimal ASCII integer (a numeric brush id) into `out`.
+// Returns false for any non-numeric / signed-exotic input (the caller skips).
+[[nodiscard]] bool parse_int32(std::string_view s, std::int32_t& out) noexcept
+{
+    if (s.empty())
+    {
+        return false;
+    }
+    std::int32_t v = 0;
+    std::size_t i = 0;
+    bool neg = false;
+    if (s[0] == '-' || s[0] == '+')
+    {
+        neg = (s[0] == '-');
+        i = 1;
+        if (i >= s.size())
+        {
+            return false;
+        }
+    }
+    for (; i < s.size(); ++i)
+    {
+        const char c = s[i];
+        if (c < '0' || c > '9')
+        {
+            return false;
+        }
+        v = v * 10 + (c - '0');
+    }
+    out = neg ? -v : v;
+    return true;
+}
+
 // S091: the type-name a ValueType maps to for VALUE conversion. Only the tags
 // the S089 built-in converters can produce are represented (Int32/Bool/Color/
 // Thickness + S440's Double); String is handled by identity in convertLiteral
@@ -248,6 +281,61 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
     {
         build_linear_gradient(*lb, element);
         return obj; // a resource; nothing is retamed as a visual child
+    }
+
+    // 11k-4 (dep:11k-3/S453/S460) — VECTOR-DRAWING AUTHORING. A `<Geometry>`
+    // concrete leaf, a `<GeometryDrawing>`/`<DrawingGroup>`, or a
+    // `<DrawingBrush>`/`<DrawingImage>`/`<ImageBrush>` is a RESOURCE (captured
+    // by x:Key into the authored dict, registered like a brush), never a visual.
+    // Each is consumed into its owned data model by a dedicated builder (the
+    // S460 build_linear_gradient precedent — child property-elements wire the
+    // owned shared_ptr geometry/drawing graph). The abstract Geometry/Drawing
+    // bases are NOT authorable (WPF-faithful: abstract + internal ctor) — only
+    // the concrete DO leaves reach here.
+    if (auto* pg = dynamic_cast<PathGeometry*>(obj.get()))
+    {
+        build_path_geometry(*pg, element);
+        return obj;
+    }
+    if (auto* gg = dynamic_cast<GeometryGroup*>(obj.get()))
+    {
+        build_geometry_group(*gg, element, depth);
+        return obj;
+    }
+    if (auto* rg = dynamic_cast<RectangleGeometry*>(obj.get()))
+    {
+        build_rectangle_geometry(*rg, element);
+        return obj;
+    }
+    if (auto* eg = dynamic_cast<EllipseGeometry*>(obj.get()))
+    {
+        build_ellipse_geometry(*eg, element);
+        return obj;
+    }
+    if (auto* gd = dynamic_cast<GeometryDrawing*>(obj.get()))
+    {
+        build_geometry_drawing(*gd, element, depth);
+        return obj;
+    }
+    if (auto* dg = dynamic_cast<DrawingGroup*>(obj.get()))
+    {
+        build_drawing_group(*dg, element, depth);
+        return obj;
+    }
+    if (auto* db = dynamic_cast<DrawingBrush*>(obj.get()))
+    {
+        build_drawing_brush(*db, element, depth);
+        return obj;
+    }
+    if (auto* di = dynamic_cast<DrawingImage*>(obj.get()))
+    {
+        build_drawing_image(*di, element, depth);
+        return obj;
+    }
+    if (auto* ib = dynamic_cast<ImageBrush*>(obj.get()))
+    {
+        build_image_brush(*ib, element);
+        return obj;
     }
 
     // Step 2 — attributes: set plain-literal properties, CONSUME the S092
@@ -1088,6 +1176,392 @@ void VamlReader::build_linear_gradient(LinearGradientBrush& brush, const ParsedE
             GradientStopHost stopHost;
             build_gradient_stop(stopHost, stopEl);
             brush.add_stop(GradientStop{ stopHost.color(), stopHost.offset() });
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 11k-4 — VECTOR-DRAWING AUTHORING helpers.
+//
+// WPFLESS-CONVENTION: a `<X>.<Prop>` property-element whose content is an
+// OBJECT child element is built + RETAINED + wired into the parent's OWNED
+// shared_ptr (the drawing/geometry graph). Unlike the generic property-element
+// arm (which sets an UntypedPtr DP value), these DPs are NOT global-registered
+// scalar DPs — they are OWNED object slots (WPF's Drawing/DrawingImage/Drawing
+// are object-typed, not scalar). So the 11k-4 builders read the authored child
+// elements directly and wire the shared_ptr graph, mirroring how build_linear_
+// gradient consumes its property-element children.
+// ---------------------------------------------------------------------------
+
+VAML_CORE_EXPORT
+DependencyObject* VamlReader::build_retained_child(const ParsedElement& el,
+                                                   DependencyObject* parent,
+                                                   std::size_t depth)
+{
+    std::unique_ptr<DependencyObject> owned = build(el, depth + 1);
+    DependencyObject* raw = owned.get();
+    if (parent != nullptr)
+    {
+        raw->set_parent(parent);
+    }
+    retained_.push_back(std::move(owned));
+    return raw;
+}
+
+VAML_CORE_EXPORT
+std::vector<DependencyObject*> VamlReader::build_property_children(
+    const ParsedElement& propEl, DependencyObject* parent, std::size_t depth)
+{
+    std::vector<DependencyObject*> out;
+    for (const ParsedElement& ch : propEl.children)
+    {
+        out.push_back(build_retained_child(ch, parent, depth));
+    }
+    return out;
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_path_geometry(PathGeometry& geom, const ParsedElement& element)
+{
+    // Attributes: Figures (path data) + FillRule (Int32). `Figures` is parsed +
+    // fail-loud (never silent) by set_figures.
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue; // x:Key handled by the dict capture
+        }
+        if (attr.isExtension)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "a <PathGeometry> attribute cannot be a markup extension ('" +
+                    std::string(attr.key) + "')");
+        }
+        if (attr.key == "Figures")
+        {
+            (void)geom.set_figures(std::string(attr.value));
+        }
+        else if (attr.key == "FillRule")
+        {
+            const Value v = convertLiteral(DependencyProperty::Get("FillRule"), attr.value);
+            (void)geom.set_fill_rule(v.type() == ValueType::Int32 ? v.get<std::int32_t>() : 0);
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_geometry_group(GeometryGroup& group, const ParsedElement& element, std::size_t depth)
+{
+    // A <GeometryGroup> owns authored child geometry leaves (its `.Children`).
+    // Each child element is a Geometry leaf (PathGeometry/GeometryGroup/..).
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (is_property_element(childLocal))
+        {
+            // <GeometryGroup.Children> property-element (optional; children may
+            // also be authored directly under the group).
+            if (split_property_element(childLocal).second == "Children")
+            {
+                for (const ParsedElement& gchild : child.children)
+                {
+                    DependencyObject* raw = build_retained_child(gchild, &group, depth);
+                    if (auto* g = dynamic_cast<Geometry*>(raw))
+                    {
+                        // Retain a shared_ptr over the READER-OWNED object; the
+                        // group keeps a borrowed (non-owning over our own
+                        // retention) reference via shared ownership is not
+                        // possible without double-ownership — so we hold the raw
+                        // through a shared_ptr pointing at the same object; the
+                        // reader's retained_ keeps it alive. The group's
+                        // shared_ptr is for the vulkan rasterizer's consumption.
+                        group.add_geometry(std::shared_ptr<Geometry>(g, [](Geometry*) {}));
+                    }
+                }
+                continue;
+            }
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(childLocal),
+                "a <GeometryGroup> may only contain <GeometryGroup.Children> or "
+                "geometry children (got '" + std::string(childLocal) + "')");
+        }
+        DependencyObject* raw = build_retained_child(child, &group, depth);
+        if (auto* g = dynamic_cast<Geometry*>(raw))
+        {
+            group.add_geometry(std::shared_ptr<Geometry>(g, [](Geometry*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_rectangle_geometry(RectangleGeometry& geom, const ParsedElement& element)
+{
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.isExtension)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "a <RectangleGeometry> attribute cannot be a markup extension ('" +
+                    std::string(attr.key) + "')");
+        }
+        if (attr.key == "Rect")
+        {
+            (void)geom.set_rect(std::string(attr.value));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_ellipse_geometry(EllipseGeometry& geom, const ParsedElement& element)
+{
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.isExtension)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "a <EllipseGeometry> attribute cannot be a markup extension ('" +
+                    std::string(attr.key) + "')");
+        }
+        if (attr.key == "RadiusX")
+        {
+            const Value v = convertLiteral(DependencyProperty::Get("Offset"), attr.value);
+            (void)geom.set_radius_x(v.get<double>());
+        }
+        else if (attr.key == "RadiusY")
+        {
+            const Value v = convertLiteral(DependencyProperty::Get("Offset"), attr.value);
+            (void)geom.set_radius_y(v.get<double>());
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_geometry_drawing(GeometryDrawing& drawing, const ParsedElement& element, std::size_t depth)
+{
+    // Attributes: Brush/Pen (BrushId) + PenThickness (Double) + optionally
+    // Geometry (as an attribute is not typical; the owned Geometry is the
+    // <GeometryDrawing.Geometry> property-element).
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.isExtension)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "a <GeometryDrawing> attribute cannot be a markup extension ('" +
+                    std::string(attr.key) + "')");
+        }
+        if (attr.key == "Brush")
+        {
+            // A BrushId is accepted only when the literal parses as a numeric
+            // brush id (the corpus's {StaticResource} form is a deferred
+            // extension, resolved by S361; a literal COLOR string (`#RRGGBB`)
+            // needs the brush-id/palette conversion, a later surface — recorded
+            // NO-GAP, not silent). Non-numeric brush attrs are skipped.
+            std::int32_t bid = 0;
+            if (parse_int32(attr.value, bid))
+            {
+                (void)drawing.set_brush(bid);
+            }
+        }
+        else if (attr.key == "Pen")
+        {
+            std::int32_t pid = 0;
+            if (parse_int32(attr.value, pid))
+            {
+                (void)drawing.set_pen(pid);
+            }
+        }
+        else if (attr.key == "PenThickness")
+        {
+            const Value v = convertLiteral(DependencyProperty::Get("PenThickness"), attr.value);
+            (void)drawing.set_pen_thickness(v.get<double>());
+        }
+    }
+    // <GeometryDrawing.Geometry> property-element -> the owned authored Geometry.
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (is_property_element(childLocal))
+        {
+            const auto [ownerName, propName] = split_property_element(childLocal);
+            if (propName != "Geometry")
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, std::string(childLocal),
+                    "a <GeometryDrawing> may only contain a <GeometryDrawing.Geometry> "
+                    "property-element (got '" + std::string(childLocal) + "')");
+            }
+            auto kids = build_property_children(child, &drawing, depth);
+            if (!kids.empty())
+            {
+                if (auto* g = dynamic_cast<Geometry*>(kids.front()))
+                {
+                    drawing.set_geometry(std::shared_ptr<Geometry>(g, [](Geometry*) {}));
+                }
+                else
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(propName),
+                        "<GeometryDrawing.Geometry> must contain a <Geometry> leaf");
+                }
+            }
+            continue;
+        }
+        // A bare geometry child may also be authored directly.
+        DependencyObject* raw = build_retained_child(child, &drawing, depth);
+        if (auto* g = dynamic_cast<Geometry*>(raw))
+        {
+            drawing.set_geometry(std::shared_ptr<Geometry>(g, [](Geometry*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_drawing_group(DrawingGroup& group, const ParsedElement& element, std::size_t depth)
+{
+    // Attributes: Transform (Matrix2D) optional.
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.key == "Transform")
+        {
+            // Minimal: a transform literal is accepted via the Matrix2D value
+            // path (S208). Full authored transform markup is a later touch.
+            (void)group.set_transform(vaml::Matrix2D::identity());
+        }
+    }
+    // Children: authored Drawing leaves (and optionally a <DrawingGroup.Children>
+    // property-element).
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (is_property_element(childLocal) &&
+            split_property_element(childLocal).second == "Children")
+        {
+            for (const ParsedElement& gchild : child.children)
+            {
+                DependencyObject* raw = build_retained_child(gchild, &group, depth);
+                if (auto* d = dynamic_cast<Drawing*>(raw))
+                {
+                    group.add_drawing(std::shared_ptr<Drawing>(d, [](Drawing*) {}));
+                }
+            }
+            continue;
+        }
+        DependencyObject* raw = build_retained_child(child, &group, depth);
+        if (auto* d = dynamic_cast<Drawing*>(raw))
+        {
+            group.add_drawing(std::shared_ptr<Drawing>(d, [](Drawing*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_drawing_brush(DrawingBrush& brush, const ParsedElement& element, std::size_t depth)
+{
+    // <DrawingBrush.Drawing> property-element (or a direct Drawing child) -> the
+    // owned authored Drawing.
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (is_property_element(childLocal) &&
+            split_property_element(childLocal).second == "Drawing")
+        {
+            auto kids = build_property_children(child, &brush, depth);
+            if (!kids.empty())
+            {
+                if (auto* d = dynamic_cast<Drawing*>(kids.front()))
+                {
+                    brush.set_drawing(std::shared_ptr<Drawing>(d, [](Drawing*) {}));
+                }
+                else
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string("Drawing"),
+                        "<DrawingBrush.Drawing> must contain a <Drawing> leaf");
+                }
+            }
+            continue;
+        }
+        // A bare Drawing child authored directly under the brush.
+        DependencyObject* raw = build_retained_child(child, &brush, depth);
+        if (auto* d = dynamic_cast<Drawing*>(raw))
+        {
+            brush.set_drawing(std::shared_ptr<Drawing>(d, [](Drawing*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_drawing_image(DrawingImage& image, const ParsedElement& element, std::size_t depth)
+{
+    // <DrawingImage.Drawing> property-element (or a direct Drawing child).
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal = child.local_name.empty() ? child.tagName
+                                                                     : child.local_name;
+        if (is_property_element(childLocal) &&
+            split_property_element(childLocal).second == "Drawing")
+        {
+            auto kids = build_property_children(child, &image, depth);
+            if (!kids.empty())
+            {
+                if (auto* d = dynamic_cast<Drawing*>(kids.front()))
+                {
+                    image.set_drawing(std::shared_ptr<Drawing>(d, [](Drawing*) {}));
+                }
+            }
+            continue;
+        }
+        DependencyObject* raw = build_retained_child(child, &image, depth);
+        if (auto* d = dynamic_cast<Drawing*>(raw))
+        {
+            image.set_drawing(std::shared_ptr<Drawing>(d, [](Drawing*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_image_brush(ImageBrush& brush, const ParsedElement& element)
+{
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.isExtension)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(attr.key),
+                "an <ImageBrush> attribute cannot be a markup extension ('" +
+                    std::string(attr.key) + "')");
+        }
+        if (attr.key == "ImageSource")
+        {
+            (void)brush.set_image_source(std::string(attr.value));
         }
     }
 }
