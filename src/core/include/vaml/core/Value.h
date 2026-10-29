@@ -14,6 +14,7 @@
 // tag. Hot-path tag check is inline; the throw path is out-of-line in Value.cpp.
 
 #include "vaml/core/Color.h"
+#include "vaml/core/GridLength.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/Transform.h"
 #include "vaml/core/export.h"
@@ -42,6 +43,7 @@ enum class ValueType : std::uint8_t
     BrushId,
     UntypedPtr,
     Matrix2D,   // S208: the REAL per-element affine transform (RenderTransform)
+    GridLength, // 11k-3: the REAL GridLength value (WPF GridLengthConverter-faithful)
 };
 
 // Thrown by Value::get<T>() when T is not a valid payload type for the tag.
@@ -84,6 +86,8 @@ template <> struct ValueTypeOf<vaml::Color>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Color; } };
 template <> struct ValueTypeOf<vaml::Thickness>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Thickness; } };
+template <> struct ValueTypeOf<vaml::GridLength>
+{ static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::GridLength; } };
 template <> struct ValueTypeOf<vaml::Matrix2D>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Matrix2D; } };
 template <> struct ValueTypeOf<void*>
@@ -102,6 +106,7 @@ public:
     [[nodiscard]] static Value String(std::string v) { return Value(ValueType::String, std::move(v)); }
     [[nodiscard]] static Value Color(vaml::Color v) noexcept { return Value(ValueType::Color, v); }
     [[nodiscard]] static Value Thickness(vaml::Thickness v) noexcept { return Value(ValueType::Thickness, v); }
+    [[nodiscard]] static Value GridLength(vaml::GridLength v) noexcept { return Value(ValueType::GridLength, v); }
     [[nodiscard]] static Value Matrix2D(vaml::Matrix2D v) noexcept { return Value(ValueType::Matrix2D, v); }
     // BrushId stores a scalar id (int32 payload) under a dedicated tag. No
     // named registry exists yet (S9 resources / S200+ renderer give ids
@@ -159,6 +164,7 @@ private:
         std::string     asString;
         vaml::Color     asColor;
         vaml::Thickness asThickness;
+        vaml::GridLength asGridLength; // 11k-3 GridLength payload
         vaml::Matrix2D  asMatrix2D; // S208 RenderTransform
         void*           asPtr; // UntypedPtr
     } storage_;
@@ -219,6 +225,9 @@ template <>
 
 template <>
 [[nodiscard]] inline vaml::Thickness Value::read<vaml::Thickness>() const { return storage_.asThickness; }
+
+template <>
+[[nodiscard]] inline vaml::GridLength Value::read<vaml::GridLength>() const { return storage_.asGridLength; }
 
 template <>
 [[nodiscard]] inline vaml::Matrix2D Value::read<vaml::Matrix2D>() const { return storage_.asMatrix2D; }

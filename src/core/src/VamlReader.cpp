@@ -10,10 +10,11 @@
 #include "vaml/core/BindingDiagnostics.h"      // S322: emitting shared binding-diagnostics notes
 #include "vaml/core/BindingMarkup.h"           // S252: parse_markup_binding
 #include "vaml/core/Brush.h"                   // S460: GradientStopHost + LinearGradientBrush
+#include "vaml/core/Color.h"                   // 11k-3: parse_color (value-type element)
 #include "vaml/core/DependencyProperty.h"      // DependencyProperty
 #include "vaml/core/Element.h"                 // register_builtin_elements
 #include "vaml/core/ElementResolver.h"         // resolve_element + exception
-#include "vaml/core/GridLength.h"              // 11j-9: GridLength (grid definition authoring)
+#include "vaml/core/GridLength.h"              // 11j-9: GridLength (grid definition authoring) + 11k-3 parse_grid_length
 #include "vaml/core/Intern.h"                  // S140/S144: interned string_view keys for the x:Name registry
 #include "vaml/core/ParsedElement.h"           // ParsedElement/ParsedAttribute + parse_vaml
 #include "vaml/core/PropertyId.h"              // PropertyId
@@ -22,6 +23,7 @@
 #include "vaml/core/ResourceMarkup.h"          // S361: parse_resource_markup (Static/Dynamic)
 #include "vaml/core/ResourceResolver.h"        // S361: apply_markup / dynamic reapply
 #include "vaml/core/Style.h"                   // S454: authored <Style>/<Setter>/<Trigger>
+#include "vaml/core/Thickness.h"               // 11k-3: parse_thickness (value-type element)
 #include "vaml/core/UIElement.h"               // S322: add_routed_handler target
 #include "vaml/core/ValueConverter.h"          // ValueConverterRegistry + register_builtin_converters
 #include "vaml/core/XmlScanner.h"              // XmlDirectiveType
@@ -61,71 +63,6 @@ namespace {
     return (dot == std::string_view::npos) ? key : key.substr(dot + 1);
 }
 
-// 11j-9 (dep:S131) — parses a Grid track length literal ("Auto" / "auto" /
-// numeric / "N*" / "*") into a GridLength. A small pure parser reusing
-// GridLength.h's model: Auto / numeric Pixel / Star. Anything else -> a
-// structured VamlReaderException (MalformedValue-style, never silent).
-[[nodiscard]] GridLength parse_grid_length(std::string_view s)
-{
-    auto asciiLower = [](char c) noexcept {
-        return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
-    };
-    auto ieq = [&](std::string_view a, const char* b) noexcept {
-        std::size_t i = 0;
-        for (; i < a.size(); ++i)
-        {
-            if (b[i] == '\0' || asciiLower(a[i]) != asciiLower(b[i]))
-            {
-                return false;
-            }
-        }
-        return b[i] == '\0';
-    };
-
-    if (s.empty())
-    {
-        throw ValueConversionException(
-            ValueConversionError::MalformedValue, std::string("GridLength"),
-            std::string(s), "malformed grid track length (empty)");
-    }
-
-    // Auto / auto / AUTO.
-    if (ieq(s, "Auto"))
-    {
-        return GridLength::Auto();
-    }
-
-    // Star: "*" (weight 1) or "N*" (weight N).
-    if (s.back() == '*')
-    {
-        if (s.size() == 1)
-        {
-            return GridLength::Star(1.0f);
-        }
-        const std::string_view num = s.substr(0, s.size() - 1);
-        double w = 0.0;
-        auto [ptr, ec] = std::from_chars(num.data(), num.data() + num.size(), w);
-        if (ec != std::errc() || ptr != (num.data() + num.size()) || !std::isfinite(w) || w < 0.0)
-        {
-            throw ValueConversionException(
-                ValueConversionError::MalformedValue, std::string("GridLength"),
-                std::string(s), "malformed star grid track length '" + std::string(s) + "'");
-        }
-        return GridLength::Star(static_cast<float>(w));
-    }
-
-    // Numeric -> Pixel (an absolute length).
-    double v = 0.0;
-    auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), v);
-    if (ec != std::errc() || ptr != (s.data() + s.size()) || !std::isfinite(v) || v < 0.0)
-    {
-        throw ValueConversionException(
-            ValueConversionError::MalformedValue, std::string("GridLength"),
-            std::string(s), "malformed grid track length '" + std::string(s) + "'");
-    }
-    return GridLength::Pixel(static_cast<float>(v));
-}
-
 } // namespace
 
 VAML_CORE_EXPORT
@@ -144,6 +81,57 @@ VAML_CORE_EXPORT
 VamlReader::~VamlReader() = default;
 
 namespace {
+
+// 11k-3 — the set of AUTHORABLE VALUE-TYPE resource elements (the promotion of
+// the S089/11j-3/S440 value *parsers* to *element* types consumed by
+// build_resource_dictionary's value-type branch). Each entry maps the authored
+// local element name to the converter type-name used to parse its inline
+// content. <Geometry> is deliberately absent (WPF abstract — OUT-OF-SCOPE
+// 11k-4, recorded in the spine docs). Returns "" for a non-value-type child.
+[[nodiscard]] const char* value_type_element(std::string_view localName)
+{
+    if (localName == "Color")      { return "Color"; }
+    if (localName == "Thickness")  { return "Thickness"; }
+    if (localName == "Double")     { return "Double"; }
+    if (localName == "FontFamily") { return "FontFamily"; }
+    if (localName == "GridLength") { return "GridLength"; }
+    return "";
+}
+
+// 11k-3 — converts an authored value-type element's INLINE CONTENT into a typed
+// Value, WPF TypeConverter-faithful (parse at authoring time). FontFamily is a
+// String (Vaml's FontFamily DP is string-backed); the others parse via their
+// real parser/converter. Malformed content -> ValueConversionException
+// {MalformedValue} (fail loud, never silent).
+[[nodiscard]] Value convert_value_type_element(std::string_view localName,
+                                               std::string_view literal)
+{
+    if (localName == "Color")
+    {
+        return Value::Color(parse_color(literal));
+    }
+    if (localName == "Thickness")
+    {
+        return Value::Thickness(parse_thickness(literal));
+    }
+    if (localName == "GridLength")
+    {
+        return Value::GridLength(parse_grid_length(literal));
+    }
+    if (localName == "Double")
+    {
+        return ValueConverterRegistry::global().convert("Double", literal);
+    }
+    if (localName == "FontFamily")
+    {
+        // String-backed (the FontFamily DP stores its family name as a string).
+        return Value::String(std::string(literal));
+    }
+    // Unreachable (guarded by value_type_element), but fail loud anyway.
+    throw ValueConversionException(
+        ValueConversionError::UnknownType, std::string(localName), std::string(literal),
+        "not an authorable value-type resource element (UnknownType)");
+}
 
 // S091: the type-name a ValueType maps to for VALUE conversion. Only the tags
 // the S089 built-in converters can produce are represented (Int32/Bool/Color/
@@ -872,6 +860,55 @@ std::unique_ptr<ResourceDictionary> VamlReader::build_resource_dictionary(
                 break;
             }
         }
+
+        // 11k-3 — AUTHORABLE VALUE-TYPE RESOURCE ELEMENT. A child whose local
+        // name is a value type (<Color>/<FontFamily>/<Double>/<Thickness>/
+        // <GridLength>) is authored FROM ITS INLINE CONTENT into a typed Value
+        // (WPF-faithful — the element's TypeConverter runs at parse time) and
+        // stored as a PLAIN resource. Plain (not Object) is REQUIRED: S361
+        // apply_markup applies a Plain entry directly to a DP via Set, whereas
+        // an Object value resource is rejected on a value DP (TargetNotApplied).
+        // This is the promotion of the existing value *parsers* (S089
+        // parse_color/parse_thickness, S440 Double converter, 11j-3
+        // parse_grid_length) to authorable *element* types for the
+        // Themes.Colors/Theme.FontFamily/Themes.Layouts/AddPhysicianWindow
+        // patterns. <Geometry> is deliberately ABSENT (WPF Geometry is abstract,
+        // not authorable as a bare element — OUT-OF-SCOPE(11k-4), recorded in the
+        // spine docs, NOT a silent omission).
+        const std::string_view valueTypeName = value_type_element(childLocal);
+        if (!valueTypeName.empty())
+        {
+            if (!haveKey)
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, std::string(childLocal),
+                    "an authored value-type resource ('" + std::string(childLocal) +
+                        "') must carry an x:Key");
+            }
+            // Trim leading/trailing whitespace of the inline content.
+            std::string lit = child.content;
+            const std::size_t b = lit.find_first_not_of(" \t\r\n");
+            if (b != std::string::npos)
+            {
+                const std::size_t e = lit.find_last_not_of(" \t\r\n");
+                lit = lit.substr(b, e - b + 1);
+            }
+            else
+            {
+                lit.clear();
+            }
+            Value value = convert_value_type_element(childLocal, lit);
+            try
+            {
+                dict->set(vaml::intern(key), ResourceValue(std::move(value)));
+            }
+            catch (const ResourceAlreadyRegistered&)
+            {
+                throw ResourceAlreadyRegistered("resource key already registered");
+            }
+            continue;
+        }
+
         std::unique_ptr<DependencyObject> resource = build(child, depth + 1);
         DependencyObject* raw = resource.get();
         if (parent != nullptr)

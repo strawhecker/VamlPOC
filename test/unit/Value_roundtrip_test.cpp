@@ -16,12 +16,14 @@
 #include <vaml/assert/Shouldly.h>         // ShouldlyString / ShouldThrow (SHOULD seam, S036_1)
 
 #include "vaml/core/Value.h"
+#include "vaml/core/GridLength.h" // GridLength (11k-3 value-type resource payload)
 #include "vaml/core/Transform.h"  // Matrix2D (S208 additive Value tag)
 
 #include <cstdint>
 #include <string>
 
 using vaml::Color;
+using vaml::GridLength;
 using vaml::Matrix2D;
 using vaml::Thickness;
 using vaml::Value;
@@ -104,6 +106,17 @@ TEST_CASE("S031 Value: Color/Thickness/BrushId/UntypedPtr round-trip through get
         SHOULD(ShouldlyString(Value::Matrix2D(v.get<Matrix2D>())).ShouldBe(v));
         SHOULD(ShouldlyString(v.type()).ShouldBe(ValueType::Matrix2D));
     }
+    // GridLength — the 11k-3 value-type resource payload (WPF GridLengthConverter-faithful).
+    {
+        const GridLength star = GridLength::Star(2.0f);
+        const Value v = Value::GridLength(star);
+        SHOULD(ShouldlyString(v.get<GridLength>()).ShouldBe(star));
+        SHOULD(ShouldlyString(Value::GridLength(v.get<GridLength>())).ShouldBe(v));
+        SHOULD(ShouldlyString(v.type()).ShouldBe(ValueType::GridLength));
+        const GridLength px = GridLength::Pixel(24.0f);
+        SHOULD(ShouldlyString(Value::GridLength(px).get<GridLength>()).ShouldBe(px));
+        SHOULD(ShouldlyString(Value::GridLength(GridLength::Auto()).get<GridLength>()).ShouldBe(GridLength::Auto()));
+    }
     // BrushId — int32 payload under a dedicated tag.
     {
         const Value v = Value::BrushId(99);
@@ -135,6 +148,7 @@ TEST_CASE("S031 Value: Null has no payload — every get<T> throws")
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] { (void)null.get<std::string>(); }));
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] { (void)null.get<Color>(); }));
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] { (void)null.get<Thickness>(); }));
+    SHOULD(ShouldThrow<ValueTypeMismatch>([&] { (void)null.get<GridLength>(); }));
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] { (void)null.get<void*>(); }));
     // Gesture of miss must not corrupt — Null stays Null.
     SHOULD(ShouldlyString(null.isNull()).ShouldBe(true));

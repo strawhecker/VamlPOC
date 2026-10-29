@@ -1761,9 +1761,27 @@ Growth tokens by sprint:
 > invented control names, ever. A corpus doc that loads a control NOT in WPF is a bug in VAML, not a new
 > element.
 >
-> STATUS: **in-progress (newly scoped; 11k-1..11k-7 not yet DONE; 11k-8 audit RECORDED complete at ground truth,
-> 11k-9/11k-10 pending-forward-tokens — see below).**
+> STATUS: **in-progress (11k-0 spine DONE + 11k-3 DONE; 11k-1..11k-2 DONE; remainder scheduled; 11k-8 audit
+> RECORDED complete at ground truth, 11k-9/11k-10 pending-forward-tokens — see below).**
 >
+> - 11k-0 — **GAP-SPINE: the two-doc WPF-fidelity contract that drives the roadmap.** ESTABLISHES the
+>       authoritative VAML↔WPF baseline so every later step diffs against a living contract instead of
+>       trusting prose (the direct result of the Geometry/GridLength fidelity review — the realization that
+>       we must match WPF or find anomalies, and that per-DP gap must be enumerated, not assumed).
+>       **[DEP: WPF source tree at E:\GitRepos\wpf. RESOLVES the fidelity-review blocker (bare `<Geometry>`,
+>       invented `Icon`/`Image.IconKey`, `TextBlock`-not-Control — all declared, none silent).]**
+>       - **11k-0a** — Generate `docs/DAG_controls.md` (the ENGINE CONTRACT): a canonical per-type inventory
+>         + inheritance **DAG** from the real WPF C# source (DependencyProperty registrations + `: base()`
+>         chains), with **closure-under-ancestry as an explicit invariant** (if a listed control inherits a
+>         listed control, both nodes exist and carry their properties) and a **tri-state** per row
+>         (`DONE`/`PLANNED`/`OUT-OF-SCOPE(resolution-sprint)`). "Nothing hidden" = every WPF type in exactly
+>         one tri-state. Generator + committed doc.
+>       - **11k-0b** — Author `docs/guide/appendix_c_exhaustive_VAML_controls.md` (the AUTHORING ENCYCLOPEDIA):
+>         styles/templates/triggers/resource keys/value elements/attached properties for every DAG row, in
+>         XAML-usage form. Both docs become the **spine of the roadmap**.
+>       - **11k-0c** — Wire roadmap steps to row-IDs (a step is done iff its referenced rows flip `DONE`;
+>         progress = computed diff against the DAG baseline, not prose). Update roadmap to reference the spine.
+>       **[DONE — the two docs authored + generator; roadmap wired to row-IDs (see §A3).]**
 > - 11k-1 — `TextBlock` element; retire the invented `Text` (THE correction).  [dep:S400]
 >       Author the REAL WPF-faithful `TextBlock`. **WPF GROUND TRUTH (source: `E:\GitRepos\wpf`
 >       src\...\Controls\TextBlock.cs): `public class TextBlock : FrameworkElement, IContentHost,
@@ -1825,6 +1843,26 @@ Growth tokens by sprint:
 >       FOUNDATION — placed BEFORE the brushes/vector resources (11k-4) because Color/Geometry/Thickness are
 >       the value inputs the brush and drawing resources author; authoring them first makes every following
 >       resource-authoring step self-consistent.]** Test 11k3_valueElems_test.cpp.
+>       [DONE — IMPLEMENTED 11k-3 against the WPF source (matched WPF or declared — the fidelity finding):
+>       (a) typed storage matching WPF: NEW `Value::GridLength` payload (true `GridLength(value,GridUnitType)`
+>       struct per WPF `GridLengthConverter`) — NOT the String shortcut; `parse_grid_length` HOISTED PUBLIC
+>       (declared in `GridLength.h`, defined in NEW `src/core/src/GridLength.cpp`, file-local copy deleted,
+>       VamlReader 11j-9 arm re-pointed); (b) typed `<Color>`/`<Thickness>`/`<Double>` (ColorConverter/
+>       ThicknessConverter/double-parser faithful) + `<FontFamily>` as String (Vaml FontFamily DP is string-
+>       backed); (c) **`<Geometry>` DEFERRED to 11k-4** — WPF `Geometry` is `abstract` (not authorable as a
+>       bare element; PresentationCore Media\Geometry.cs), recorded OUT-OF-SCOPE(11k-4) in both spine docs
+>       with resolution ID (concrete `<PathGeometry>`/`<GeometryGroup>`-style elements) — NOT-silent, NO-GAP;
+>       (d) a value-type authoring branch in `build_resource_dictionary`: inline content -> typed `Value`
+>       stored as **Plain** (required for S361 `{StaticResource}` on a value DP; Object statics are rejected),
+>       reusing x:Key capture + dedupe (`ResourceAlreadyRegistered`) + structured no-key error + fail-loud
+>       malformed content (ValueConversionException propagates); (e) built-in element count STAYS 41 (value
+>       elements are dict-branch, NOT factory DependencyObjects — no ElementFactoryRegistry churn). BOTH CI
+>       LANES green from first principles (verify_s11k3.cmd windows-msvc + ubuntu-clang — ran to
+>       "S11K3 BOTH CI LANES OK"). (The clang -Wswitch lane caught 3 ValueType stringmaker switches in the
+>       test helpers that MSVC didn't enforce; fixed + re-verified green.) New test
+>       11k3_valueElems_test.cpp (vaml-presentation-tests): per-type Plain resolution + x:Key capture + dedupe +
+>       no-key error + malformed fail-loud + find_for_element three-scope + public parse_grid_length round-trip
+>       + 11j-9 Grid-track regression; Value roundtrip extended with GridLength.]
 > - 11k-4 — Brushes + vector-drawing resources (the corpus's LARGEST omitted volume — the entire `Icons/*.xaml`
 >       + `Icons.xaml`/`NewIcons.xaml` family): `ImageBrush` (TagConfigurationUserControl) + `DrawingBrush` /
 >       `DrawingGroup` / `DrawingImage` + `Geometry` resources authored + resolved through the S360/S453

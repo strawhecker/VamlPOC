@@ -964,6 +964,19 @@ add_executable(vaml-presentation-tests
     # events + the ToolBar/ToolBarTray strip layout + the Viewbox content-child
     # measure. Links vaml-presentation so the classifier arms are proven.
     11k2_addedControls_test.cpp
+    # 11k-3 — AUTHORABLE VALUE-TYPE RESOURCE ELEMENTS. The existing value parsers
+    # (S089 parse_color/parse_thickness, S440 Double converter, 11j-3
+    # parse_grid_length) promoted to authorable ELEMENT types inside a
+    # ResourceDictionary — authored by x:Key from inline content into a TYPED
+    # Value stored as a PLAIN resource (Required for S361 {StaticResource} on a
+    # value DP). Typed storage matching WPF (validated against the real WPF
+    # source); <Geometry> deliberately deferred to 11k-4 (WPF abstract, recorded
+    # OUT-OF-SCOPE in the spine docs — NOT silent). Coverage: per-type Plain
+    # resolution + {StaticResource} application + dedupe + no-key error +
+    # malformed fail-loud + find_for_element three-scope + public
+    # parse_grid_length round-trip + 11j-9 Grid-track regression. + Value
+    # roundtrip extended with GridLength. Headless.
+    11k3_valueElems_test.cpp
     # S400_1 (dep:S400) — the Icon material at the presentation vertical-slice
     # boundary: classify_merge_element maps a real Icon to MaterialKind::
     # Monochrome + the S400_1 fallback glyph at the arranged origin (the honest

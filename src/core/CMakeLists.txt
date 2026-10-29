@@ -29,6 +29,7 @@ vaml_add_library(core
     src/ValueConverter.cpp
     src/Color.cpp
     src/Thickness.cpp
+    src/GridLength.cpp    # 11k-3 — parse_grid_length (hoisted public; value-type element)
     src/Transform.cpp
     src/LayoutSlot.cpp
     src/LayoutManager.cpp

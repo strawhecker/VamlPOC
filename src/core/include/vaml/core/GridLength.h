@@ -15,11 +15,26 @@
 // public resolution primitive that turns a set of definitions + auto-measured
 // extents plus an available extent into concrete resolved track lengths.
 
+#include "vaml/core/ValueConversionError.h" // ValueConversionException (parse_grid_length)
+#include "vaml/core/export.h"                // VAML_CORE_EXPORT
 #include <algorithm>
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 namespace vaml {
+
+// Forward declaration so parse_grid_length (declared below, before the full
+// struct body) can return GridLength by value.
+struct GridLength;
+
+// 11k-3 — parses a Grid track length literal ("Auto" / "auto" / numeric /
+// "N*" / "*") into a GridLength, WPF GridLengthConverter-faithful. HOISTED
+// PUBLIC here from the 11j-9 file-local copy in VamlReader.cpp (promoted to an
+// authorable value-type element resource, and reusable by the Grid-track
+// consumer + the value-type resource branch). Malformed input throws
+// ValueConversionException{MalformedValue} naming type "GridLength".
+VAML_CORE_EXPORT GridLength parse_grid_length(std::string_view literal);
 
 // The track unit kind, stored on a GridLength. Auto=0 / Pixel=1 / Star=2 (a
 // stable ordinal so the unit can ride an Int32 value path if ever needed).
