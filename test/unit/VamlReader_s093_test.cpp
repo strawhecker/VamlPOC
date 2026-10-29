@@ -42,7 +42,7 @@ using vaml::PropertyFlags;
 using vaml::PropertyId;
 using vaml::PropertyMetadata;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::Value;
 using vaml::ValueType;
 using vaml::VamlReader;
@@ -106,7 +106,7 @@ TEST_CASE("S093: StackPanel+Button tree has the correct structure")
         "x:Name=\"root\">"
         "  <Button x:Name=\"btn\" S093Content=\"Click me\" S093Width=\"100\" "
         "S093Height=\"40\" S093IsEnabled=\"true\"/>"
-        "  <Text x:Name=\"lbl\" S093Content=\"Hello\"/>"
+        "  <TextBlock x:Name=\"lbl\" S093Content=\"Hello\"/>"
         "</StackPanel>");
 
     // Root type + exactly two retained children, in document order.
@@ -116,7 +116,7 @@ TEST_CASE("S093: StackPanel+Button tree has the correct structure")
     if (retained.size() == 2)
     {
         assertConcrete<Button>(retained[0]);
-        assertConcrete<Text>(retained[1]);
+        assertConcrete<TextBlock>(retained[1]);
 
         // Each child's parent points back to the root.
         SHOULD(ShouldlyIntegral(retained[0]->parent() == root.get()).ShouldBe(true));
@@ -168,7 +168,7 @@ TEST_CASE("S093: the x:Name registry resolves the full document")
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
         "x:Name=\"root\">"
         "  <Button x:Name=\"btn\" S093Content=\"Click me\" S093Width=\"100\" />"
-        "  <Text x:Name=\"lbl\" S093Content=\"Hello\"/>"
+        "  <TextBlock x:Name=\"lbl\" S093Content=\"Hello\"/>"
         "</StackPanel>");
 
     // named() resolves root and both children to the live objects.
@@ -208,7 +208,7 @@ TEST_CASE("S093: no event hooks and no extensions are recorded from pure text")
         "x:Name=\"root\">"
         "  <Button x:Name=\"btn\" S093Content=\"Click me\" S093Width=\"100\" "
         "S093Height=\"40\" S093IsEnabled=\"true\"/>"
-        "  <Text x:Name=\"lbl\" S093Content=\"Hello\"/>"
+        "  <TextBlock x:Name=\"lbl\" S093Content=\"Hello\"/>"
         "</StackPanel>");
 
     // Both deferred surfaces are empty — nothing was wired behind the scenes.

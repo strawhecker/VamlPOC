@@ -50,7 +50,7 @@ TEST_CASE("S280: compile() produces non-empty records for a golden StackPanel/Gr
     const std::string doc =
         "<StackPanel>"
         "  <Grid Grid.Row=\"1\" Orientation=\"{Binding StackPanel.Orientation}\">"
-        "    <Text/>"
+        "    <TextBlock/>"
         "  </Grid>"
         "</StackPanel>";
 
@@ -132,7 +132,7 @@ TEST_CASE("S280: compile is deterministic — same input, same text form")
 
 TEST_CASE("S280: write_program_text renders the compiled program deterministically")
 {
-    const std::string doc = "<StackPanel><Text Text=\"hi\"/></StackPanel>";
+    const std::string doc = "<StackPanel><TextBlock Text=\"hi\"/></StackPanel>";
     const CompileResult r = vaml::tools::compile_text(doc);
     SHOULD(ShouldlyIntegral(static_cast<int>(r.ok)).ShouldBe(1));
 

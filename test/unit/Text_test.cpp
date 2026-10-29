@@ -1,13 +1,16 @@
-// S400 (dep:S368) — Text control tests (vaml::core). Headless proof of the
-// S400 Text control + the pure TextLayout seam (the CORE half; the RENDER half
-// — the vulkan TextGlyphPlan + the material classifiers — lives in its own test
-// target, vaml-vulkan-tests / vaml-presentation-tests).
+// S400 (dep:S368) — TextBlock control tests (vaml::core). 11k-1 re-binds the
+// S087-invented `Text` onto the WPF-true `TextBlock` (TextBlock : FrameworkElement,
+// in VAML the UIElement branch). Headless proof of the S400 TextBlock control +
+// the pure TextLayout seam (the CORE half; the RENDER half — the vulkan
+// TextGlyphPlan + the material classifiers — lives in its own test target,
+// vaml-vulkan-tests / vaml-presentation-tests).
 //
 //   (A) TEXTLAYOUT PURE SEAM — the CPU text layout + word-wrap engine:
 //       default_text_metric (the fontSize-based estimate), text_layout_plan wrap
 //       correctness (word wrap, single-long-word overflow, advance math,
 //       empty/whitespace, line y/height, measured extent).
-//   (B) TEXT CONTROL — the REAL re-based Text (S087 seed RESOLVED at S400):
+//   (B) TEXTBLOCK CONTROL — the REAL re-based TextBlock (S087 seed RESOLVED at
+//       S400, re-named at 11k-1):
 //       DP defaults/roundtrip (Text/FontSize/FontWeight/Foreground across the
 //       S043 attached-aware global path), FontSize >= 0 validation, the real
 //       MeasureOverride (measures to the wrapped extent), and the foreground
@@ -21,7 +24,7 @@
 
 #include "doctest/doctest.h"
 
-#include <vaml/core/Element.h>        // Text (S400), register_builtin_elements
+#include <vaml/core/Element.h>        // TextBlock (S400, re-named at 11k-1), register_builtin_elements
 #include <vaml/core/TextLayout.h>     // text_layout_plan / default_text_metric / resolve_foreground_color
 #include <vaml/core/UIElement.h>      // UIElement, Size, Rect
 #include <vaml/core/Geometry.h>
@@ -39,7 +42,7 @@ using vaml::Color;
 using vaml::Rect;
 using vaml::Size;
 using vaml::SolidColorBrush;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::TextLayoutPlan;
 using vaml::TextGlyphMetric;
 using vaml::text_layout_plan;
@@ -173,13 +176,13 @@ TEST_CASE("S400: text_layout_plan — spaces render no glyph but advance (buffer
 }
 
 // ---------------------------------------------------------------------------
-// (B) Text control
+// (B) TextBlock control
 // ---------------------------------------------------------------------------
 
-TEST_CASE("S400: Text is a real UIElement (S087 seed re-based) + DPs round-trip")
+TEST_CASE("S400: TextBlock is a real UIElement (S087 seed re-based) + DPs round-trip")
 {
     vaml::register_builtin_elements();
-    Text t;
+    TextBlock t;
     // Re-based onto UIElement (participates in the visual tree + layout).
     (void)dynamic_cast<vaml::UIElement*>(&t);
 
@@ -210,17 +213,17 @@ TEST_CASE("S400: Text is a real UIElement (S087 seed re-based) + DPs round-trip"
     SHOULD(ShouldlyString(v.get<std::string>()).ShouldBe(std::string("")));
 }
 
-TEST_CASE("S400: Text FontSize validated >= 0 (negative REJECTED)")
+TEST_CASE("S400: TextBlock FontSize validated >= 0 (negative REJECTED)")
 {
-    Text t;
+    TextBlock t;
     SHOULD(ShouldlyString(t.set_font_size(-5.0)).ShouldBe(vaml::SetResult::REJECTED));
     // Unchanged (still the 16 default).
     SHOULD(ShouldlyString(t.font_size()).ShouldBe(16.0));
 }
 
-TEST_CASE("S400: Text MeasureOverride measures the wrapped extent (via Measure)")
+TEST_CASE("S400: TextBlock MeasureOverride measures the wrapped extent (via Measure)")
 {
-    Text t;
+    TextBlock t;
     (void)t.set_text("AAAAA AAAA A"); // 5 + space + 4 + space + 1 glyphs
     (void)t.set_font_size(16.0);
 
@@ -244,7 +247,7 @@ TEST_CASE("S400: Text MeasureOverride measures the wrapped extent (via Measure)"
 
 TEST_CASE("S400: resolve_foreground_color — default -> opaque black, no diagnostic")
 {
-    Text t;
+    TextBlock t;
     // Default brushId 0 -> opaque black, NO diagnostic.
     const Color c0 = vaml::resolve_foreground_color(t, 0);
     SHOULD(ShouldlyString(c0.r).ShouldBe(0));
@@ -260,7 +263,7 @@ TEST_CASE("S400: resolve_foreground_color — registered SolidColorBrush resolve
     auto brush = std::make_unique<SolidColorBrush>();
     (void)brush->set_color(vaml::Color{ 200, 30, 10, 255 });
 
-    Text t;
+    TextBlock t;
     auto dict = std::make_unique<vaml::ResourceDictionary>();
     dict->set("Brush:7", std::move(brush));
     t.set_resources(std::move(dict));

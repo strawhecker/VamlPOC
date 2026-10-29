@@ -114,7 +114,7 @@ void registerS284Properties()
 // (a directive the compiler carries as an attribute), self-closing leaves + a
 // text-content leaf, and multi-level nesting.
 const char* kS284GoldenDoc =
-    R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root" S284Width="1024" S284Margin="10,10,10,10"><StackPanel S284Enabled="true"><Button x:Name="search" S284Content="Search" S284Width="200" S284Grid.Row="1" S284Command="{Binding SearchCommand}"/><Text x:Name="label" x:Key="searchLabelKey" S284Text="{Binding SearchText}">Search:</Text><Button S284Dock.Dock="Top" S284Fill="#FF0000" S284Command="{Binding SaveCommand}"/></StackPanel></Window>)";
+    R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root" S284Width="1024" S284Margin="10,10,10,10"><StackPanel S284Enabled="true"><Button x:Name="search" S284Content="Search" S284Width="200" S284Grid.Row="1" S284Command="{Binding SearchCommand}"/><TextBlock x:Name="label" x:Key="searchLabelKey" S284Text="{Binding SearchText}">Search:</TextBlock><Button S284Dock.Dock="Top" S284Fill="#FF0000" S284Command="{Binding SaveCommand}"/></StackPanel></Window>)";
 
 } // namespace
 
@@ -171,7 +171,7 @@ TEST_CASE("S284: golden — element count + document-order type tokens + child e
     SHOULD(ShouldlyString(prog.elements[0].typeToken).ShouldBe(std::string("Window")));
     SHOULD(ShouldlyString(prog.elements[1].typeToken).ShouldBe(std::string("StackPanel")));
     SHOULD(ShouldlyString(prog.elements[2].typeToken).ShouldBe(std::string("Button")));
-    SHOULD(ShouldlyString(prog.elements[3].typeToken).ShouldBe(std::string("Text")));
+    SHOULD(ShouldlyString(prog.elements[3].typeToken).ShouldBe(std::string("TextBlock")));
     SHOULD(ShouldlyString(prog.elements[4].typeToken).ShouldBe(std::string("Button")));
 
     // Window → StackPanel (id 1).

@@ -1,5 +1,6 @@
 // S400 (dep:S368) — TextGlyphPlan + the Text material (vaml::vulkan::ui).
-// Headless proof of the RENDER side of the S400 Text control:
+// Headless proof of the RENDER side of the S400 TextBlock control (11k-1
+// re-binds the S087 `Text` name):
 //
 //   (A) TEXT_GLYPH_UV — the S202 exact-grid UV derivation (a glyph tile -> its
 //       atlas sub-rect), the pure seam that maps a TextLayoutPlan glyph to the
@@ -8,13 +9,13 @@
 //       PLACED + RENDERABLE glyph, positioned at the layout's (x,y) + sized the
 //       atlas cell, sampling the derived UVs, tinted by the resolved foreground.
 //       Spaces / unmapped / degenerate-atlas glyphs emit nothing.
-//   (C) MATERIAL — a REAL Text classifies to MaterialKind::Text through
+//   (C) MATERIAL — a REAL TextBlock classifies to MaterialKind::Text through
 //       classify_element (the S207 default classifier), so the encoder emits
 //       TextGlyph material.
 //
-// This target links vaml-vulkan, which PUBLIC-links vaml-core, so the core Text
-// + TextLayout is reachable. The presentation classifier (which emits the
-// vertical-slice TextGlyph) lives in vaml-presentation-tests.
+// This target links vaml-vulkan, which PUBLIC-links vaml-core, so the core
+// TextBlock + TextLayout is reachable. The presentation classifier (which emits
+// the vertical-slice TextGlyph) lives in vaml-presentation-tests.
 
 #include "doctest/doctest.h"
 
@@ -141,11 +142,12 @@ TEST_CASE("S400: build_text_glyph_items — spaces emit nothing; unmapped/degen 
     SHOULD(ShouldlyIntegral(out2.size()).ShouldBe(0u));
 }
 
-TEST_CASE("S400: classify_element -> MaterialKind::Text for a real Text")
+TEST_CASE("S400: classify_element -> MaterialKind::Text for a real TextBlock")
 {
-    // The S207 default classifier recognizes the REAL S400 Text control -> Text
-    // material (the encoder's "draw list by material" authority for the SDF text).
-    vml::Text t;
+    // The S207 default classifier recognizes the REAL S400 TextBlock control
+    // (11k-1 re-binds the S087 Text name) -> Text material (the encoder's "draw
+    // list by material" authority for the SDF text).
+    vml::TextBlock t;
     const auto kind = classify_element(t);
     SHOULD(ShouldlyIntegral(kind == MaterialKind::Text).ShouldBe(true));
 }

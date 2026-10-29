@@ -45,7 +45,7 @@ using vaml::PropertyFlags;
 using vaml::PropertyId;
 using vaml::PropertyMetadata;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::Value;
 using vaml::ValueType;
 using vaml::VamlReader;

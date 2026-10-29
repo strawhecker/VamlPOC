@@ -124,7 +124,7 @@ TEST_CASE("S446: the app-shell arrange+encode+publish steady state is heap-FLAT 
     SHOULD(ShouldlyIntegral(named_as<vaml::TextBox>(h.plan, "InputBox") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::Slider>(h.plan, "DimSlider") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::CheckBox>(h.plan, "EnabledCheck") != nullptr).ShouldBe(1));
-    SHOULD(ShouldlyIntegral(named_as<vaml::Text>(h.plan, "StatusText") != nullptr).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(named_as<vaml::TextBlock>(h.plan, "StatusText") != nullptr).ShouldBe(1));
 }
 
 // ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ TEST_CASE("S446: 10k producer passes stay heap-flat and the retained wiring stay
     SHOULD(ShouldlyIntegral(named_as<vaml::TextBox>(h.plan, "InputBox") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::Slider>(h.plan, "DimSlider") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::CheckBox>(h.plan, "EnabledCheck") != nullptr).ShouldBe(1));
-    SHOULD(ShouldlyIntegral(named_as<vaml::Text>(h.plan, "StatusText") != nullptr).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(named_as<vaml::TextBlock>(h.plan, "StatusText") != nullptr).ShouldBe(1));
 }
 
 // ---------------------------------------------------------------------------

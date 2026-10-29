@@ -58,7 +58,7 @@ using vaml::PropertyFlags;
 using vaml::PropertyId;
 using vaml::PropertyMetadata;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::Thickness;
 using vaml::Value;
 using vaml::ValueType;
@@ -107,7 +107,7 @@ void registerS221Properties()
 
 // The S221 golden document — one realistic golden fixture mirroring the S095
 // shape (Window root + nested real built-ins + converted literal properties).
-inline const char* kGolden221 = R"(<Window S221Title="Viewer" S221Width="800" S221Margin="2,3,4,5" S221Fill="#FF0000"><StackPanel><Button S221Content="Go" S221Width="100"/><Text S221Content="Hello">Hi</Text></StackPanel></Window>)";
+inline const char* kGolden221 = R"(<Window S221Title="Viewer" S221Width="800" S221Margin="2,3,4,5" S221Fill="#FF0000"><StackPanel><Button S221Content="Go" S221Width="100"/><TextBlock S221Content="Hello">Hi</TextBlock></StackPanel></Window>)";
 
 } // namespace
 

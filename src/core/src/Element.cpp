@@ -1066,115 +1066,117 @@ void ensure_control_base_properties_registered()
     }
 }
 
-// Registers the Text control's REAL DPs into the global table exactly once
+// Registers the TextBlock control's REAL DPs into the global table exactly once
 // per process (Meyers-static guard; a second call is a no-op — mirrors the
-// UIElement/StackPanel self-registration pattern). Authentication: Text is the
-// S400 headline control; its DPs are GLOBALLY registered so they resolve on ANY
-// DependencyObject via S043 attached-aware resolution (a style setter can target
-// "Text"/"FontSize"/"FontWeight"/"Foreground" on a Text).
+// UIElement/StackPanel self-registration pattern). Authentication: TextBlock is
+// the S400 headline control (11k-1 re-binds the S087-invented `Text` name onto
+// the WPF-true TextBlock); its DPs are GLOBALLY registered so they resolve on
+// ANY DependencyObject via S043 attached-aware resolution (a style setter can
+// target "Text"/"FontSize"/"FontWeight"/"Foreground" on a TextBlock).
 //
 // 11j-5: `FontSize` is NO LONGER registered here — it is the shared Control
-// base DP (owner "Control", see register_control_base_properties). Text's
+// base DP (owner "Control", see register_control_base_properties). TextBlock's
 // FontSize accessors re-point to that single owner (bare "FontSize"). The
-// distinct Text-owned names Text / FontWeight / Foreground remain here.
-void register_text_properties()
+// distinct TextBlock-owned names Text / FontWeight / Foreground remain here,
+// re-owned under "TextBlock" (11k-1).
+void register_textblock_properties()
 {
     // Text: String, default "".
     (void)DependencyProperty::Register(
-        "Text", ValueType::String, "Text",
+        "Text", ValueType::String, "TextBlock",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     // FontWeight: Int32, default Normal=0 (the S206 glyph convention).
     (void)DependencyProperty::Register(
-        "FontWeight", ValueType::Int32, "Text",
+        "FontWeight", ValueType::Int32, "TextBlock",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // Foreground: BrushId, default 0. The WPF-faithful "foreground is a BRUSH"
     // read (a BrushId maps to a registered SolidColorBrush; see
     // resolve_foreground_brush below). BrushId rides the Int32 payload.
     (void)DependencyProperty::Register(
-        "Foreground", ValueType::BrushId, "Text",
+        "Foreground", ValueType::BrushId, "TextBlock",
         PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
 }
 
-// Runs register_text_properties() at most once (first Text ctor).
-void ensure_text_properties_registered()
+// Runs register_textblock_properties() at most once (first TextBlock ctor).
+void ensure_textblock_properties_registered()
 {
-    // 11j-5: the shared Control base DP bundle is a dependency of the Text
-    // surface (FontSize re-points to it) — ensure it before Text's own props.
+    // 11j-5: the shared Control base DP bundle is a dependency of the TextBlock
+    // surface (FontSize re-points to it) — ensure it before TextBlock's own.
     ensure_control_base_properties_registered();
     static bool registered = false;
     if (!registered)
     {
         registered = true;
-        register_text_properties();
+        register_textblock_properties();
     }
 }
 
 } // namespace
 
 VAML_CORE_EXPORT
-Text::Text()
+TextBlock::TextBlock()
 {
-    ensure_text_properties_registered();
+    ensure_textblock_properties_registered();
 }
 
 VAML_CORE_EXPORT
-SetResult Text::set_text(std::string value)
+SetResult TextBlock::set_text(std::string value)
 {
     return Set(PropertyId::of("Text"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
-std::string Text::text() const
+std::string TextBlock::text() const
 {
     return Get(PropertyId::of("Text")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
-SetResult Text::set_font_size(double value)
+SetResult TextBlock::set_font_size(double value)
 {
     return Set(PropertyId::of("FontSize"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
-double Text::font_size() const
+double TextBlock::font_size() const
 {
     return Get(PropertyId::of("FontSize")).get<double>();
 }
 
 VAML_CORE_EXPORT
-SetResult Text::set_font_weight(std::int32_t value)
+SetResult TextBlock::set_font_weight(std::int32_t value)
 {
     return Set(PropertyId::of("FontWeight"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
-std::int32_t Text::font_weight() const
+std::int32_t TextBlock::font_weight() const
 {
     return Get(PropertyId::of("FontWeight")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
-SetResult Text::set_foreground(std::int32_t brushId)
+SetResult TextBlock::set_foreground(std::int32_t brushId)
 {
     return Set(PropertyId::of("Foreground"), Value::BrushId(brushId));
 }
 
 VAML_CORE_EXPORT
-std::int32_t Text::foreground() const
+std::int32_t TextBlock::foreground() const
 {
     return Get(PropertyId::of("Foreground")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
-Size Text::MeasureOverride(const Size& available) const
+Size TextBlock::MeasureOverride(const Size& available) const
 {
-    // The S400 real Text algorithm: run the CPU text-LAYOUT + WRAP engine
+    // The S400 real TextBlock algorithm: run the CPU text-LAYOUT + WRAP engine
     // (text_layout_plan) with the default metrics (a fontSize-based estimate —
     // device-free, so this needs no Vulkan atlas). Wrap within the offered
     // `available` width (the S123 infinity-aware basis: an unbounded offer -> no
     // wrap -> one line; a bounded offer -> word-wrap). The returned extent
-    // {measuredWidth, measuredHeight} is the Text's natural content extent; the
-    // base Measure finalizer (compute_measured_desired) then applies the
+    // {measuredWidth, measuredHeight} is the TextBlock's natural content extent;
+    // the base Measure finalizer (compute_measured_desired) then applies the
     // S123 stretch-vs-wrap rule against `available`.
     //
     // KEY DESIGN (recorded, NO-GAP not silent): the MEASURE basis uses
@@ -3112,7 +3114,7 @@ SetResult ListBox::set_item_template(std::string value)
     // stores it, and get_item_template reads it back identical. (The VAML
     // property-element form `<ListBox.ItemTemplate>` stores the authored OBJECT
     // child directly via the S452 grammar -> Value::UntypedPtr.)
-    auto tmpl = std::make_unique<Text>();
+    auto tmpl = std::make_unique<TextBlock>();
     (void)tmpl->set_text(value);
     UIElement* raw = tmpl.get();
     raw->set_parent(this);
@@ -3131,7 +3133,7 @@ std::string ListBox::item_template() const
     {
         if (auto* tmpl = static_cast<UIElement*>(v.get<void*>()))
         {
-            if (auto* t = dynamic_cast<Text*>(tmpl))
+            if (auto* t = dynamic_cast<TextBlock*>(tmpl))
             {
                 return t->text();
             }
@@ -3160,7 +3162,7 @@ std::size_t ListBox::render_items()
     std::size_t built = 0;
     for (const std::string& item : items)
     {
-        auto text = std::make_unique<Text>();
+        auto text = std::make_unique<TextBlock>();
         (void)text->set_text(item);
         add_child(std::move(text));
         ++built;
@@ -4432,7 +4434,9 @@ void register_builtin_elements()
     registry.register_element("Button",       [] { return std::make_unique<Button>(); });
     registry.register_element("StackPanel",   [] { return std::make_unique<StackPanel>(); });
     registry.register_element("Grid",         [] { return std::make_unique<Grid>(); });
-    registry.register_element("Text",         [] { return std::make_unique<Text>(); });
+    // 11k-1: the S087-invented `Text` name is RETIRED; the authored text leaf is
+    // the WPF-true `TextBlock`. Built-in count NET-NEUTRAL (+TextBlock −Text).
+    registry.register_element("TextBlock",    [] { return std::make_unique<TextBlock>(); });
     // S400_1: Icon is a REAL control (not a seed) — re-based onto UIElement at
     // its own sprint HERE (S400_1), registered directly. Built-in count 11 -> 12.
     registry.register_element("Icon",         [] { return std::make_unique<Icon>(); });

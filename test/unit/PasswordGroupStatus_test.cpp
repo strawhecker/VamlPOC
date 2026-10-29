@@ -68,7 +68,7 @@ TEST_CASE("S485: GroupBox header + single content slot")
     SHOULD(ShouldlyString(gb.header()).ShouldBe(std::string("")));
     (void)gb.set_header("Options");
     SHOULD(ShouldlyString(gb.header()).ShouldBe(std::string("Options")));
-    auto inner = std::make_unique<vaml::Text>();
+    auto inner = std::make_unique<vaml::TextBlock>();
     (void)inner->set_text("inside");
     auto* raw = inner.get();
     gb.set_content(std::move(inner));
@@ -85,7 +85,7 @@ TEST_CASE("S485: Expander IsExpanded gates the content")
     (void)ex.set_header("Details");
     SHOULD(ShouldlyString(ex.header()).ShouldBe(std::string("Details")));
     SHOULD(ShouldlyIntegral(static_cast<int>(ex.is_expanded())).ShouldBe(0));
-    auto inner = std::make_unique<vaml::Text>();
+    auto inner = std::make_unique<vaml::TextBlock>();
     (void)inner->set_text("expandable");
     ex.set_content(std::move(inner));
     // Collapsed by default: measure does NOT size the content (header only).
@@ -117,13 +117,13 @@ TEST_CASE("S485: StatusBar attached Dock + dock item layout")
 {
     StatusBar sb;
     // A left + a right item dock to opposite edges.
-    auto left = std::make_unique<vaml::Text>();
+    auto left = std::make_unique<vaml::TextBlock>();
     (void)left->set_text("Ready");
     (void)StatusBar::set_dock(*left, 0); // Left
     auto* leftRaw = left.get();
     sb.add_child(std::move(left));
 
-    auto right = std::make_unique<vaml::Text>();
+    auto right = std::make_unique<vaml::TextBlock>();
     (void)right->set_text("v1.0");
     (void)StatusBar::set_dock(*right, 1); // Right
     auto* rightRaw = right.get();

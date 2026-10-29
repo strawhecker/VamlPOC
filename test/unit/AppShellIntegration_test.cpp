@@ -154,7 +154,7 @@ TEST_CASE("S447: integration — text parse yields the live tree + the VM/bindin
     SHOULD(ShouldlyIntegral(named_as<vaml::TextBox>(plan, "InputBox") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::Slider>(plan, "DimSlider") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::CheckBox>(plan, "EnabledCheck") != nullptr).ShouldBe(1));
-    SHOULD(ShouldlyIntegral(named_as<vaml::Text>(plan, "StatusText") != nullptr).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(named_as<vaml::TextBlock>(plan, "StatusText") != nullptr).ShouldBe(1));
 
     // (B) {Command RunCommand} resolves to the VM's RelayCommand (S253).
     vaml::ICommand* cmd = plan.reader->ResolveCommand("RunCommand");
@@ -172,7 +172,7 @@ TEST_CASE("S447: integration — click + type + slide + check drive the SAME VM 
     auto plan = run_app_shell_binding_plan();
     SHOULD(ShouldlyIntegral(plan.ok).ShouldBe(1));
     auto* runButton    = named_as<vaml::Button>(plan, "RunButton");
-    auto* statusText   = named_as<vaml::Text>(plan, "StatusText");
+    auto* statusText   = named_as<vaml::TextBlock>(plan, "StatusText");
     auto* inputBox     = named_as<vaml::TextBox>(plan, "InputBox");
     auto* dimSlider    = named_as<vaml::Slider>(plan, "DimSlider");
     auto* enabledCheck = named_as<vaml::CheckBox>(plan, "EnabledCheck");
@@ -252,12 +252,12 @@ TEST_CASE("S447: integration — the release-compiled shell and the dev-text she
     auto* textInput    = dynamic_cast<vaml::TextBox*>(plan.reader->named("InputBox"));
     auto* textSlider   = dynamic_cast<vaml::Slider*>(plan.reader->named("DimSlider"));
     auto* textCheck    = dynamic_cast<vaml::CheckBox*>(plan.reader->named("EnabledCheck"));
-    auto* textStatus   = dynamic_cast<vaml::Text*>(plan.reader->named("StatusText"));
+    auto* textStatus   = dynamic_cast<vaml::TextBlock*>(plan.reader->named("StatusText"));
     auto* compRun      = dynamic_cast<vaml::Button*>(compiled.reader->named("RunButton"));
     auto* compInput    = dynamic_cast<vaml::TextBox*>(compiled.reader->named("InputBox"));
     auto* compSlider   = dynamic_cast<vaml::Slider*>(compiled.reader->named("DimSlider"));
     auto* compCheck    = dynamic_cast<vaml::CheckBox*>(compiled.reader->named("EnabledCheck"));
-    auto* compStatus   = dynamic_cast<vaml::Text*>(compiled.reader->named("StatusText"));
+    auto* compStatus   = dynamic_cast<vaml::TextBlock*>(compiled.reader->named("StatusText"));
 
     SHOULD(ShouldlyIntegral(textRun   != nullptr).ShouldBe(1, "text RunButton kind"));
     SHOULD(ShouldlyIntegral(textInput != nullptr).ShouldBe(1, "text InputBox kind"));
@@ -321,7 +321,7 @@ TEST_CASE("S447: integration — reload re-wires the app-shell bindings (edit �
         "<Window>"
         "<StackPanel>"
         "<TextBox TextBox.Text=\"{Binding Text, Mode=TwoWay}\"/>"
-        "<Text Text=\"{Binding Status}\"/>"
+        "<TextBlock Text=\"{Binding Status}\"/>"
         "</StackPanel>"
         "</Window>";
 
@@ -387,7 +387,7 @@ TEST_CASE("S447: integration — reload re-wires the app-shell bindings (edit �
     }
     SHOULD(ShouldlyIntegral(reloadedPanel != nullptr).ShouldBe(1));
     vaml::TextBox* postInput = nullptr;
-    vaml::Text* postStatus  = nullptr;
+    vaml::TextBlock* postStatus  = nullptr;
     if (reloadedPanel != nullptr)
     {
         for (std::size_t i = 0; i < reloadedPanel->child_count(); ++i)
@@ -395,7 +395,7 @@ TEST_CASE("S447: integration — reload re-wires the app-shell bindings (edit �
             if (postInput == nullptr)
                 postInput = dynamic_cast<vaml::TextBox*>(reloadedPanel->child_at(i));
             if (postStatus == nullptr)
-                postStatus = dynamic_cast<vaml::Text*>(reloadedPanel->child_at(i));
+                postStatus = dynamic_cast<vaml::TextBlock*>(reloadedPanel->child_at(i));
         }
     }
     SHOULD(ShouldlyIntegral(postInput != nullptr).ShouldBe(1));

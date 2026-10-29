@@ -1,90 +1,96 @@
-# Session Context — Sprint 11j (GAP CLOSE — WPF corpus load surface)
+# Session Context — Sprint 11k-1 (TextBlock: retire the invented `Text`)
 
-last_command: implementit (COMPLETE) — all 9 Sprint 11j steps implemented + both CI lanes green
-plan_digest: Sprint 11j = the WPF-corpus LOAD-SURFACE GAP CLOSE (unknown-element /
-  DP / value / doc-level). Nine steps close the recorded corpus blockers so the
-  external WPF corpus's .xaml docs (UserControl roots, ResourceDictionary theme
-  roots, named colors, SplashWindow Window DPs, shared Control DPs, Application
-  roots, element Triggers, Tag, Grid definition markup) load through the reader.
-  Every step is a REAL permanent symbol (no MINIMAL REAL introduced). THE CRUX
-  was 11j-5: VAML's DP registry is NAME-UNIQUE (owner is a declaration label;
-  Set() ENFORCES the bound value type), so Padding/HorizontalContentAlignment/
-  VerticalContentAlignment/FontSize/FontFamily were registered ONCE under the
-  canonical owner "Control" and the conflicting prior registrations (Text's bare
-  "FontSize", Label's "Label.FontSize"/"Label.FontFamily"/"Label.HorizontalContent
-  Alignment", Border's "Border.Padding") were MIGRATED (NO backfill) + re-pointed.
-  Two WPF-source-verified decisions: (a) 11j-2 ResourceDictionary is a NON-DO
-  class in WPF yet a legal standalone root -> a DependencyObject HOLDER
-  (ResourceDictionaryHolder) owning the built dictionary registered as the
-  "ResourceDictionary" element (mirrors the S460 GradientStopHost precedent);
-  (b) 11j-8 WPF Tag is object-typed (accepts a scalar literal OR object; WPF
-  SetValue never rejects) but VAML's typed Value can't hold both -> Tag is a
-  String-typed DP (the corpus's PRIMARY literal use) + the object property-element
-  form is built+RETAINED by the reader (option A). 11j-4 window bool DPs
-  (AllowsTransparency/Topmost) are ValueType::Bool (NOT Int32) so "true"/"false"
-  convert via the Bool converter WITHOUT polluting the shared Int32 enum map
-  (a shared-map "true"/"false" would flip global inference of "true" to Int32 and
-  regress the S090 infer tests).
+last_command: implementit (COMPLETE) — 11k-1 implemented + both CI lanes green
+plan_digest: 11k-1 (dep:S400) = the WPF-faithful CORRECTION. `Text` is NOT a WPF
+  control (WPF has TextBlock/TextBox). 11k-1 authors the REAL `TextBlock`
+  (TextBlock : FrameworkElement; in VAML the framework-element branch IS
+  UIElement, so TextBlock : UIElement is the faithful mapping) and RETIRES the
+  S087-invented `Text` factory name (built-in count NET-NEUTRAL +TextBlock −Text
+  = 36). The S400 semantic content (TextLayout wrap engine, TextGlyphPlan,
+  MaterialKind::Text) carries over unchanged under the correct name. DP re-owner:
+  Text/FontWeight/Foreground now owner "TextBlock"; FontSize stays the bare
+  shared Control DP (11j-5), unchanged (TextBlock's own font/padding DP-owner
+  split is 11k-8's named scope, not pre-empted). The loader accepts `<TextBlock>`
+  and classifies it MaterialKind::Text. NEW inline-content routing: the reader
+  now routes `<TextBlock>label</TextBlock>` inline content onto the Text DP
+  (WPF IAddChild behavior — the corpus's dominant usage) — SCOPED to TextBlock;
+  the GENERAL content→DP + mixed/interleaved ordering resolves at the NEW
+  in-11k step 11k-11 (roadmap.md already authored; alpha feature end-of-line,
+  NOT Sprint 12+). S167_1 corrective convention: the S400 `Text` history is
+  preserved (never edited to hide the error), SUPERSEDED BY 11k-1. TextBox (S402)
+  is already WPF-true AND a genuine Control — untouched.
 
 files_touched:
   core:
-  - src/core/src/Element.cpp — UserControl/Application/ResourceDictionaryHolder
-    classes + their DP registration; the shared Control-base DP bundle
-    (register_control_base_properties) + migration of Text/Label/Border accessors;
-    Window DP registration (Bool for AllowsTransparency/Topmost, Int32 enums for
-    the rest); register_builtin_elements 33->36 (UserControl, Application,
-    ResourceDictionary). ResourceDictionary.h include added.
-  - src/core/include/vaml/core/Element.h — UserControl / Application /
-    ResourceDictionaryHolder declarations (holder's dt out-of-line so the owned
-    unique_ptr<ResourceDictionary> is destroyed only where complete).
-  - src/core/src/ValueConverter.cpp — 11j-4 Window Enum NAMES (CenterScreen/
-    SingleBorderWindow/NoResize/etc.) into the shared enum-name map; reverted
-    the "true"/"false" enum entries (kept Bool for the window bools).
-  - src/core/include/vaml/core/Style.h(?) — not modified; trigger types reused.
-  - src/core/include/vaml/core/VamlReader.h — elementTriggers_ store + element_triggers()
-  - src/core/src/VamlReader.cpp — RD holder root build (11j-2); element-level
-    Triggers arm (11j-7); Grid Row/ColumnDefinitions arm + parse_grid_length
-    (11j-9); Tag object property-element retained-not-Set (11j-8); UserControl
-    content routing via set_content in finalize (11j-1); <charconv>/<cmath> inc.
-  - src/core/src/UIElement.cpp — Tag DP (String-typed, WPF object-slot analogue)
-  - src/core/src/Color.cpp + include/vaml/core/Color.h — full WPF named-color
-    table + Transparent (0,0,0,0) + case-insensitive lookup (11j-3)
-  tests (12 new files, all in test/unit/CMakeLists.txt):
-  - NamedColor_s11j3_test.cpp, UserControl_s11j1_test.cpp,
-    ApplicationRoot_s11j6_test.cpp, RDRoot_s11j2_test.cpp, ControlDp_s11j5_test.cpp,
-    WindowDp_s11j4_test.cpp, TagDp_s11j8_test.cpp, ElementTriggers_s11j7_test.cpp,
-    GridColumnDefs_s11j9_test.cpp
-  - updated existing: ElementFactoryRegistry_test.cpp / Milestone407_test.cpp /
-    BrushAuthoring_s460_test.cpp (33->36 count + RD holder), ViewerLoadFile_test.cpp
-    (bogus attrs now genuinely-unknown vs the now-registered Window DPs),
-    ViewerGrowth_s486_test.cpp (migrated Label.FontSize->FontSize, Border.Padding
-    ->Padding), ValueConverterRegistry_test.cpp (S090 "Red" now a valid named color;
-    Bool inference preserved via Bool-typed window DPs)
-  infra: build/verify_s11j.cmd (consolidated two-lane gate)
+  - src/core/include/vaml/core/Element.h — `class Text` -> `class TextBlock final
+    : public UIElement` (WPF-faithful doc block + [MINIMAL REAL] TextBlock
+    — RESOLVED BY 11k-1 sentinel); class body surface unchanged.
+  - src/core/src/Element.cpp — register_text_properties ->
+    register_textblock_properties (owner "Text" -> "TextBlock"); accessors +
+    MeasureOverride Text:: -> TextBlock::; ListBox ItemTemplate/render_items
+    Text -> TextBlock; register_builtin_elements "Text" -> "TextBlock"
+    (count stays 36, NET-NEUTRAL).
+  - src/core/src/VamlReader.cpp — NEW TextBlock inline-content routing: after
+    attributes, a resolved TextBlock's trimmed element.content is convertLiteral'd
+    and Set on the "Text" DP (11k-1; general routing = 11k-11).
+  - src/vulkan/src/ui/UiSceneEncoder.cpp — classify_element dynamic_cast:
+    vaml::Text -> vaml::TextBlock (MaterialKind::Text unchanged).
+  - src/presentation/src/VamlRenderer.cpp — classify_merge_element dynamic_cast
+    vaml::Text -> vaml::TextBlock.
+  - src/tools/src/parity/DualPathParity.cpp — dynamic_cast vaml::Text ->
+    vaml::TextBlock (returns "TextBlock").
+  viewer/infra:
+  - vaml_viewer/MainView.vaml, vaml_viewer/sample.vaml,
+    vaml_viewer/vaml_viewer/sample.vaml — <Text .../> -> <TextBlock .../>.
+  - vaml_viewer/app_shell.h — inline kAppShellMainViewVaml <Text> -> <TextBlock>
+    (kept byte-identical to the on-disk MainView.vaml for the S444 parity test).
+  tests (re-pointed consumers + the new proof):
+  - NEW test/unit/TextBlock_s11k1_test.cpp (presentation target) — corpus-shaped
+    `<TextBlock FontSize="24">label</TextBlock>` LOADS (no unknown-type throw),
+    inline content lands on the Text DP, FontSize round-trips, Measure wraps,
+    classify_merge_element -> MaterialKind::Text.
+  - test/unit/CMakeLists.txt — +TextBlock_s11k1_test.cpp (presentation target).
+  - re-pointed Text -> TextBlock: Text_test.cpp, TextGlyphPlan_test.cpp,
+    ViewerTextMaterial_test.cpp, ElementFactoryRegistry_test.cpp (is_registered
+    TextBlock true + Text FALSE, count 36), ElementResolver_test.cpp,
+    ControlDp_s11j5_test.cpp, Milestone407_test.cpp (TextBlock registered/Text
+    not), GoldenDocs_test.cpp, ListBoxListView_test.cpp, MARKupStaticType_s461,
+    VamlReader_defer/s093/s094/test, VBamlReader_s285/s286/s288_parity,
+    ViewerLoadFile_test, ViewerControlsPlan_s409_1, ObjectPool_test,
+    Border_test, PasswordGroupStatus_test, AppShell* (named_as<TextBlock> /
+    dynamic_cast<TextBlock*> + authored <TextBlock>), PropertyElement_s452/
+    PropertyElementS7_s452, TemplateParity_test, Vamlc_s280_1 (binding hop Text.->
+    TextBlock.), Vamlc_s283/s284 (typeToken "Text"}, "TextBlock"),
+    ViewerGrowth_s475/s486.
+  infra: build/verify_s11k1.cmd (consolidated two-lane gate)
+  roadmap (prior turn, roadmap.md ONLY): added the 11k-11 step (GENERIC
+    CONTENT-OWNER ROUTING + S649 ContentControl-base / control-material RE-BIND)
+    + re-pointed the S649 forward refs (11j-10, 11k-10, 11j-1, ground-truth) into
+    11k-11; the S085 mixed-content conscience note is decided/resolved in 11k.
 
-build_status: Sprint 11j DONE — BOTH CI LANES green:
+build_status: 11k-1 DONE — BOTH CI LANES green:
   windows-msvc (msvc-debug) — build warning-as-error CLEAN + ctest 4/4 100%
   ubuntu-clang (clang-debug, /mnt/hgfs/VamlPOC) — -Werror CLEAN + ctest 4/4 100%
-  Official gate verify_s11j.cmd ends "S11J BOTH CI LANES OK". No warnings.
+  Official gate verify_s11k1.cmd ends "S11K1 BOTH CI LANES OK". No warnings.
+  (windows-clang-debug is NOT a CI lane — not built/tested/flagged.)
 
-next_step: SURVIVOR (11j) record — after implementing (or noting) the remaining
-  NON-gap corpus errors (if any surface), consolidate an S11j survivor block /
-  checkpoint in progress.md + advance the roadmap checkpoint (recorded NO-GAPs,
-  all forward-tagged, NOT silent backfills; ZERO MINIMAL REAL introduced). Then
-  Sprint 12 — the host-window step that APPLIES these recorded Window DPs
-  (AllowsTransparency/WindowStyle/Topmost/ResizeMode) + the S649 ContentControl
-  base + MenuItem S491. The window NAVIGATION (StartupUri opening the referenced
-  window, 11j-6's recorded NO-GAP) is that later app-host step.
+next_step: mark 11k-1 DONE + SUPERSEDED-BY note on the S400 `Text` history in the
+  roadmap sprint block; then implement 11k-11 (GENERIC CONTENT-OWNER ROUTING +
+  the S649 ContentControl-base / control-material RE-BIND — the new in-11k step
+  that owns the general content→DP routing + mixed/interleaved ordering + the
+  S085 conscience note). After 11k, Sprint 12± stabilizes/documents/performances
+  (adds NO features). commitit outstanding (driver's seat is yours).
 
-notes: 11j GAP CLOSE delivered all 9 load-surface gaps, both lanes green. Two
-  genuine IMPLEMENT BLOCKERS were raised + resolved via WPF-source verification:
-  (a) 11j-2 the finalized plan's "root RD returns the dictionary as the Load root"
-  is NON-BUILDABLE (Load returns unique_ptr<DependencyObject>; RD is a plain
-  class) -> ResourceDictionaryHolder (the S460 GradientStopHost precedent);
-  (b) 11j-8 the plan's "Set() does not enforce the bound type" is FALSE (Set DOES
-  enforce) -> option A (String DP for literals + object form retained). Both
-  recorded as sanctioned blocker resolutions, READ + verified against the WPF
-  source (FrameworkElement.TagProperty = typeof(object); ResourceDictionary is
-  a non-DO class that is a legal root). ZERO MINIMAL REAL introduced. No commits
-  (standing directive — commitit outstanding, driver's seat is yours).
+notes: 11k-1 delivered the corpus dump's #1 blocker (`unknown element type
+  '<TextBlock>'`) via the WPF-true TextBlock (NOT a stub — the S400 content is
+  kept-and-extended under the correct name). DP re-owner "TextBlock" is
+  declaration-label only (S043 resolves by bare name globally), so no behavior
+  change: the Text/FontWeight/Foreground DPs still resolve by name on any DO.
+  BrushId has NO literal converter (a `Foreground="..."` attribute is not
+  literal-authorable — that surface is the S364 brush-resource path), so the
+  corpus test proves Foreground via the programmatic brush round-trip and keeps
+  the authored leaf to the authorable FontSize + inline content. ZERO MINIMAL
+  REAL beyond the declared, resolution-bound TextBlock marker (11k-1). The
+  general content-routing deferral is NO-GAP LOCKED to 11k-11 (not Sprint 12+).
+  No commits (standing directive — commitit outstanding).
 

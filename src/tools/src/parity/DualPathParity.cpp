@@ -65,9 +65,9 @@ const char* probe_type(const vaml::DependencyObject* o)
     {
         return "Canvas";
     }
-    if (dynamic_cast<const vaml::Text*>(o))
+    if (dynamic_cast<const vaml::TextBlock*>(o))
     {
-        return "Text";
+        return "TextBlock";
     }
     if (dynamic_cast<const vaml::TextBox*>(o))
     {

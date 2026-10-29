@@ -86,7 +86,7 @@ TEST_CASE("S445: the app-shell plan renders the declared UI (Window root + final
     SHOULD(ShouldlyIntegral(named_as<vaml::TextBox>(plan, "InputBox") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::Slider>(plan, "DimSlider") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::CheckBox>(plan, "EnabledCheck") != nullptr).ShouldBe(1));
-    SHOULD(ShouldlyIntegral(named_as<vaml::Text>(plan, "StatusText") != nullptr).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(named_as<vaml::TextBlock>(plan, "StatusText") != nullptr).ShouldBe(1));
     // The S445 app-owned CheckBox↔VM wire is armed (never silently missing).
     SHOULD(ShouldlyIntegral(plan.checkBoxWired).ShouldBe(1));
 }
@@ -100,7 +100,7 @@ TEST_CASE("S445: a click on the RunButton updates the VM + re-paints the bound S
     auto plan = run_app_shell_binding_plan();
     SHOULD(ShouldlyIntegral(plan.ok).ShouldBe(1));
     auto* runButton = named_as<vaml::Button>(plan, "RunButton");
-    auto* statusText = named_as<vaml::Text>(plan, "StatusText");
+    auto* statusText = named_as<vaml::TextBlock>(plan, "StatusText");
     SHOULD(ShouldlyIntegral(runButton != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(statusText != nullptr).ShouldBe(1));
 
@@ -213,7 +213,7 @@ TEST_CASE("S445: click + type + slide + check drive the SAME VM + bound targets 
     auto plan = run_app_shell_binding_plan();
     SHOULD(ShouldlyIntegral(plan.ok).ShouldBe(1));
     auto* runButton   = named_as<vaml::Button>(plan, "RunButton");
-    auto* statusText  = named_as<vaml::Text>(plan, "StatusText");
+    auto* statusText  = named_as<vaml::TextBlock>(plan, "StatusText");
     auto* inputBox    = named_as<vaml::TextBox>(plan, "InputBox");
     auto* dimSlider   = named_as<vaml::Slider>(plan, "DimSlider");
     auto* enabledCheck= named_as<vaml::CheckBox>(plan, "EnabledCheck");

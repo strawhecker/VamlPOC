@@ -22,7 +22,7 @@
 #include <vaml/assert/Shouldly.h>
 
 #include "vaml/core/DependencyObject.h"
-#include "vaml/core/Element.h"     // DockPanel, Dock, register_builtin_elements, Text, Button
+#include "vaml/core/Element.h"     // DockPanel, Dock, register_builtin_elements, TextBlock, Button
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/UIElement.h"
 #include "vaml/core/Geometry.h"
@@ -31,7 +31,7 @@
 using vaml::Dock;
 using vaml::DockPanel;
 using vaml::HorizontalAlignment;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::UIElement;
 using vaml::VerticalAlignment;
 using vaml::register_builtin_elements;

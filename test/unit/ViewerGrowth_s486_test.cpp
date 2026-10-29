@@ -65,12 +65,12 @@ const std::string kSample486 =
     "<ProgressBar x:Name=\"Progress\" ProgressBar.Value=\"60\" ProgressBar.Maximum=\"100\" Height=\"14\" Margin=\"2\"/>"
     "<Image x:Name=\"Logo\" Image.Source=\"assets/logo.png\" Width=\"24\" Height=\"24\" Margin=\"2\"/>"
     "</StackPanel>"
-    "<Text DockPanel.Dock=\"1\" Text=\"VAML 11d header\" FontSize=\"16\"/>"
+    "<TextBlock DockPanel.Dock=\"1\" Text=\"VAML 11d header\" FontSize=\"16\"/>"
     "<Expander x:Name=\"More\" Expander.Header=\"More controls\" Expander.IsExpanded=\"1\">"
     "<StackPanel><Label Label.Content=\"Expandable content\"/></StackPanel></Expander>"
     "<StatusBar DockPanel.Dock=\"3\" Height=\"22\">"
-    "<Text StatusBar.Dock=\"0\" Text=\"Ready\"/>"
-    "<Text StatusBar.Dock=\"1\" Text=\"v11d\"/>"
+    "<TextBlock StatusBar.Dock=\"0\" Text=\"Ready\"/>"
+    "<TextBlock StatusBar.Dock=\"1\" Text=\"v11d\"/>"
     "</StatusBar>"
     "</DockPanel>";
 

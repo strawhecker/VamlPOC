@@ -114,14 +114,14 @@ TEST_CASE("S452 (S7): an object property-element Sets the parent DP, NOT a visua
 {
     registerS7S452();
     const std::string golden =
-        "<Window><StackPanel><StackPanel.S452Content><Text/></StackPanel.S452Content></StackPanel></Window>";
+        "<Window><StackPanel><StackPanel.S452Content><TextBlock/></StackPanel.S452Content></StackPanel></Window>";
 
     const std::vector<std::uint8_t> bytes = vaml::tools::compile_to_bytes(golden);
     VBamlReader reader;
     std::unique_ptr<DependencyObject> root = reader.Load(bytes);
 
-    // Post-order retained: [Text (the object value), StackPanel (the Window's
-    // visual child)].
+    // Post-order retained: [TextBlock (the object value), StackPanel (the
+    // Window's visual child)].
     const auto& retained = reader.retained_objects();
     SHOULD(ShouldlyString(retained.size()).ShouldBe(2u));
     if (retained.size() == 2)
@@ -130,10 +130,12 @@ TEST_CASE("S452 (S7): an object property-element Sets the parent DP, NOT a visua
         SHOULD(ShouldlyIntegral(panel != nullptr).ShouldBe(true));
         if (panel)
         {
-            // The Text landed on the panel's S452Content DP as an UntypedPtr...
+            // The TextBlock landed on the panel's S452Content DP as an
+            // UntypedPtr...
             void* contentPtr = panel->Get(PropertyId::of("S452Content")).get<void*>();
             SHOULD(ShouldlyIntegral(contentPtr != nullptr).ShouldBe(true));
-            // ...and IS the retained Text object (the same reader-owned instance).
+            // ...and IS the retained TextBlock object (the same reader-owned
+            // instance).
             SHOULD(ShouldlyIntegral(contentPtr == retained[0].get()).ShouldBe(true));
         }
     }

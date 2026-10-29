@@ -1,28 +1,30 @@
 // S400 (dep:S368) — Text material at the presentation vertical-slice boundary
-// (vaml::presentation). Headless proof that the REAL S400 Text control gets a
-// TEXT glyph material (not a solid fill) through the default vertical-slice
-// classifier the viewer + S409_1 consume: classify_merge_element maps a Text to
-// MaterialKind::Text + a TextGlyph DrawItem at the element's arranged origin.
+// (11k-1: the REAL TextBlock control re-binds the S087 `Text` name)
+// (vaml::presentation). Headless proof that the REAL S400 TextBlock control
+// gets a TEXT glyph material (not a solid fill) through the default
+// vertical-slice classifier the viewer + S409_1 consume: classify_merge_element
+// maps a TextBlock to MaterialKind::Text + a TextGlyph DrawItem at the
+// element's arranged origin.
 //
 // This target links vaml-presentation (which PUBLIC-links vaml-vulkan, which
-// PUBLIC-links vaml-core), so the core Text + TextLayout + the vulkan DrawItem
-// types are all reachable.
+// PUBLIC-links vaml-core), so the core TextBlock + TextLayout + the vulkan
+// DrawItem types are all reachable.
 
 #include "doctest/doctest.h"
 
 #include "vaml_test_stringmakers.h"
 #include <vaml/assert/Shouldly.h>
 
-#include <vaml/core/Element.h>        // Text (S400)
+#include <vaml/core/Element.h>        // TextBlock (S400, 11k-1)
 #include <vaml/core/UIElement.h>
 #include <vaml/core/Geometry.h>       // Size, Rect
 #include <vaml/presentation/VamlRenderer.h> // classify_merge_element / default_visual_of
 #include <vaml/vulkan/ui/UiScene.h>   // DrawItemKind
 
-TEST_CASE("S400: classify_merge_element -> TextGlyph material for a Text element")
+TEST_CASE("S400: classify_merge_element -> TextGlyph material for a TextBlock element")
 {
-    // Arrange a real Text so it has a final_rect (the render slot).
-    vaml::Text t;
+    // Arrange a real TextBlock so it has a final_rect (the render slot).
+    vaml::TextBlock t;
     (void)t.set_text("Hi");
     (void)t.set_font_size(16.0);
     t.Measure(vaml::Size{ 200.0f, 100.0f });
@@ -45,9 +47,9 @@ TEST_CASE("S400: classify_merge_element -> TextGlyph material for a Text element
 
 TEST_CASE("S400: default_visual_of wires classify_merge_element (the encoder seam)")
 {
-    // The viewer's default VisualOf seam IS classify_merge_element (a Text maps
-    // to the Text material through the encoder path the renderer feeds).
-    vaml::Text t;
+    // The viewer's default VisualOf seam IS classify_merge_element (a TextBlock
+    // maps to the Text material through the encoder path the renderer feeds).
+    vaml::TextBlock t;
     (void)t.set_text("X");
     (void)t.set_font_size(16.0);
     t.Measure(vaml::Size{ 200.0f, 100.0f });

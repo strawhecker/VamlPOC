@@ -1666,7 +1666,7 @@ Growth tokens by sprint:
 >       UIElement layout DPs; FontSize resolves against the shared Control base DP hoisted at 11j-5. SCOPE
 >       BOUNDARY (recorded NO-GAP, not silent): the full `ContentControl` ABSTRACT BASE is the **S649**
 >       continuation — deliberately NOT introduced here (a self-contained UserControl satisfies the corpus
->       surface without pre-empting S649). Test UserControl_s11j1_test.cpp.
+>       surface), RE-BOUND to and resolved by **11k-11**. Test UserControl_s11j1_test.cpp.
 > - 11j-2 — `ResourceDictionary` as a loadable ROOT element (G2 · ~100 corpus files)  [DONE, dep:S453].
 >       RESOLVES the corpus blocker where a standalone resource doc (themes/icons/DataTemplates) has
 >       `<ResourceDictionary>` as its root. WPF-FAITHFUL (verified from ResourceDictionary.cs): RD is a plain
@@ -1732,8 +1732,11 @@ Growth tokens by sprint:
 > - 11j-10 — SURVIVOR(11j) + checkpoint  [DONE — consolidated in progress.md; ZERO MINIMAL REAL introduced
 >       across the sprint; checkpoint advances: last completed = S11j, next = **S490+ (Sprint 12)**]. Forward
 >       carry (recorded NO-GAP, not silent): the Window HOST application of the 11j-4 DPs (AllowsTransparency/
->       WindowStyle/Topmost/ResizeMode to the OS window) + StartupUri NAVIGATION (11j-6) + the S649 ContentControl
->       base — all to the Sprint 12 / S490+ window-host + control-material step. ADR-018: ZERO new locks
+>       WindowStyle/Topmost/ResizeMode to the OS window) + StartupUri NAVIGATION (11j-6) forward to the Sprint 12 /
+>       S490+ window-host + navigation step. **The S649 ContentControl base / control-material continuation is
+>       RE-BOUND to 11k-11** (the alpha feature end-of-line — 11k is the final feature sprint; Sprint 12± is
+>       stabilize/document/performance only and adds NO features, so this surface resolves HERE in 11k-11, never
+>       in Sprint 12).
 >       (all single-threaded registration/parse). ADR-011: all new symbols live in core (data) — no render/
 >       shader change; render stays in vulkan's classifier.
 
@@ -1767,7 +1770,8 @@ Growth tokens by sprint:
 >       IAddChildInternal, IServiceProvider` — `TextBlock` derives from `FrameworkElement`, NOT `Control`
 >       (hierarchy DependencyObject→Visual→UIElement→FrameworkElement→TextBlock, with NO Control in the
 >       chain). Therefore VAML re-bases `TextBlock` onto the FRAMEWORKELEMENT base (the S649/S470/S480-485
->       framework-element branch), NOT the Control-base DP bundle from 11j-5 — re-pointing DPs
+>       framework-element branch — the S649 surface RE-BOUND to and resolved at 11k-11), NOT the Control-base
+>       DP bundle from 11j-5 — re-pointing DPs
 >       (Text/FontSize/FontWeight/Foreground) against the FrameworkElement property set. Measure/Arrange via
 >       the S400 TextLayout wrap engine; text CONTENT (`<TextBlock>label</TextBlock>`) lands on the Text DP
 >       (WPF's IAddChild behavior) — the corpus's dominant usage. REGISTER `TextBlock` in
@@ -1780,6 +1784,18 @@ Growth tokens by sprint:
 >       Foreground=... FontSize=...>label</TextBlock>` loads + measures + classifies). 11k-1 RESOLVES the
 >       corpus dump's #1 blocker (`unknown element type '<TextBlock>'`). `TextBox` (S402) is already WPF-true
 >       AND a genuine `Control` (TextBox : Control) — unchanged.
+>       [DONE — BOTH CI LANES green from first principles: windows-msvc (build/verify_s11k1.cmd, msvc-debug
+>       warning-as-error CLEAN + ctest 4/4 PASS, incl. the new TextBlock_s11k1_test) + ubuntu-clang
+>       (/mnt/hgfs/VamlPOC clang-debug configure+build+ctest 4/4 PASS). S400 `Text` history SUPERSEDED BY
+>       11k-1 (TextBlock) per S167_1 — preserved, never edited to hide the error. semantic intent (the
+>       authored text leaf) preserved under the WPF-true name. Implemented: TextBlock final : UIElement
+>       (the VAML framework-element branch), DP re-owner "TextBlock" (Text/FontWeight/Foreground; FontSize
+>       stays the shared Control DP), register_builtin_elements NET-NEUTRAL +TextBlock −Text (count 36),
+>       classifier TextBlock -> MaterialKind::Text, NEW reader inline-content routing
+>       `<TextBlock>label</TextBlock>` -> Text DP (SCOPED to TextBlock; the GENERAL content→DP + mixed/
+>       interleaved ordering is 11k-11's in-11k step — NO-GAP locked, NOT Sprint 12+), all consumers +
+>       .vaml corpus (MainView/sample/app_shell) re-pointed Text -> TextBlock. New test
+>       TextBlock_s11k1_test.cpp (corpus-shaped `<TextBlock>` loads + measures + classifies).]
 > - 11k-2 — Add the missing WPF controls the corpus consumes that the roadmap never authored: `RepeatButton`
 >       (toolkit NumericUpDown/NumUpDown spin buttons), `ScrollBar` (the scrollbar chrome ScrollViewer S405
 >       drives), `Viewbox` (scale-contain single-child container, ColorPickerSwatch), `ToolBar` + `ToolBarTray`
@@ -1973,8 +1989,28 @@ Growth tokens by sprint:
 >       unauthorized DPs (11k-8/9) across the sprint. Both CI lanes green. Explicit NO-GAP accounting of any
 >       property NOT yet closable at this step (e.g., full animation/transform evaluation for RenderTransform,
 >       full storyboard — those ride S510; full DataGrid cell/column interaction — the S649 control-material
->       continuation), so nothing is silently deferred. Checkpoint advances: last completed = S11k (all
->       S11k1..S11k10 where DONE), next = **S540+ (Sprint 11z)**.
+>       continuation — see 11k-11, which RE-BINDS and resolves the S649 surface here in 11k, the alpha feature
+>       end-of-line), so nothing is silently deferred. Checkpoint advances: last completed = S11k (all
+>       S11k1..S11k11 where DONE), next = **S540+ (Sprint 11z)**.
+>
+> - 11k-11 — GENERIC CONTENT-OWNER ROUTING + the S649 ContentControl-base / control-material RE-BIND  [NEWLY
+>       SCOPED — token S11k11; NOT yet DONE]. **This is the real successor step the orphaned `S649` token pointed
+>       at — resolved HERE, in 11k, per the standing rule that 11k is the alpha FEATURE end-of-line (Sprint 12±
+>       is stabilize/document/performance only and adds NO features).** Closes the S085 mixed-content conscience
+>       note ("a later explicit decision") — decided HERE, never deferred out of 11k. Scope:
+>       - Author the **general, declarative content→DP routing rule** on the framework-element branch,
+>         generalized from 11k-1's TextBlock-scoped proof (`<TextBlock>label</TextBlock>` → Text DP): an
+>         element registers a single **content-owning DP**; the reader routes that element's inline authored
+>         content — including the **interleaved / mixed text+child** ordering S085 flagged — through it **in
+>         document order**. `TextBlock` keeps the `Text` DP (11k-1); ContentControl-family elements hit the
+>         `Content` DP; value/resource elements consume inline content as their parsed value (11k-3).
+>       - Add a dedicated **mixed-content ordering test** proving document-order routing with no regression
+>         against 11k-1's TextBlock case.
+>       - In roadmap + progress: record that the phantom `S649` "control-material continuation" (the 11j-10
+>         forward-carry and the 11k-10 NO-GAP line, both RE-BOUND above) is fully resolved by 11k-11 — its
+>         substance decided here, history preserved un-edited, never a silent deferral. This closes the alpha
+>         feature roadmap with the content-routing issue settled inside 11k. Both CI lanes green (windows-msvc +
+>         ubuntu-clang); `windows-clang-debug` is not a CI lane.
 >
 > **CONTROL vs FRAMEWORKELEMENT GROUND TRUTH (source: `E:\GitRepos\wpf`, PresentationFramework, audited as the
 > 11k-7 gate basis):** the single base-class marker is `Control : FrameworkElement`. A class is a CONTROL iff
@@ -1992,7 +2028,8 @@ Growth tokens by sprint:
 >     Thumb, ResizeGrip, FlowDocumentReader, FlowDocumentScrollViewer, GridSplitter.
 >   - **NOT CONTROLS (FrameworkElement, NOT under `Control`):** **TextBlock**, Border, Canvas, Grid, StackPanel,
 >     DockPanel, WrapPanel, VirtualizingStackPanel, Viewbox, Image, Path, Shape/Rectangle/Ellipse, Run —
->     text content hosts and layout primitives, classified on the FrameworkElement branch (S649/S470/S480-485),
+>     text content hosts and layout primitives, classified on the FrameworkElement branch (the S649/S470/S480-485
+>     framework-element branch — the S649 control-material surface RE-BOUND to and resolved at 11k-11),
 >     NOT given the Control base. `TextBlock` here is the anchor example (TextBlock : FrameworkElement).
 >   - **IMPLICATION FOR 11k-2 (corrected):** RepeatButton and ScrollBar ARE controls (`RepeatButton : ButtonBase`,
 >     `ScrollBar : RangeBase`) — Control-branch. `Viewbox : FrameworkElement` — FrameworkElement-branch. Add the

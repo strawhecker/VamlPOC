@@ -92,7 +92,7 @@ const char* kS286GoldenDoc =
     R"(<Window x:Name="root" S286Click="OnLoad" S286Changed="OnTextChanged">)"
     R"(<StackPanel x:Name="panel" S286Enabled="true">)"
     R"(<Button x:Name="search" S286Content="Search" S286Click="OnSearch" S286Text="{Binding SearchText}"/>)"
-    R"(<Text x:Name="label" x:Key="labelKey" S286Text="{Binding LabelText}">Hi</Text>)"
+    R"(<TextBlock x:Name="label" x:Key="labelKey" S286Text="{Binding LabelText}">Hi</TextBlock>)"
     R"(</StackPanel></Window>)";
 
 std::vector<std::uint8_t> compileS286Doc(const char* doc)
@@ -167,7 +167,7 @@ TEST_CASE("S286: duplicate x:Name fires VBamlException(DuplicateName)")
 {
     registerS286Properties();
     const char* doc =
-        R"(<StackPanel><Button x:Name="dup"/><Text x:Name="dup"/></StackPanel>)";
+        R"(<StackPanel><Button x:Name="dup"/><TextBlock x:Name="dup"/></StackPanel>)";
     const std::vector<std::uint8_t> bytes = compileS286Doc(doc);
     VBamlReader reader;
     bool threw = false;

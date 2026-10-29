@@ -134,16 +134,16 @@ TEST_CASE("S452: <X.Content><StackPanel/></X.Content> sets parent DP (object, no
     registerS452Properties();
     VamlReader reader;
     std::unique_ptr<DependencyObject> root =
-        reader.Load("<Window><StackPanel><StackPanel.S452Content><Text/></StackPanel.S452Content></StackPanel></Window>");
+        reader.Load("<Window><StackPanel><StackPanel.S452Content><TextBlock/></StackPanel.S452Content></StackPanel></Window>");
 
     // Root Window; its one visual child is the StackPanel.
     SHOULD(ShouldlyIntegral(root != nullptr).ShouldBe(true));
     const auto& retained = reader.retained_objects();
 
-    // The Text that filled the property-element's object value is retained;
-    // the StackPanel is retained as the visual child. Post-order: Text first,
-    // then StackPanel.
-    // retained = [Text (object value), StackPanel (visual child)]
+    // The TextBlock that filled the property-element's object value is
+    // retained; the StackPanel is retained as the visual child. Post-order:
+    // TextBlock first, then StackPanel.
+    // retained = [TextBlock (object value), StackPanel (visual child)]
     SHOULD(ShouldlyString(retained.size()).ShouldBe(2u));
     if (retained.size() == 2)
     {
@@ -152,12 +152,13 @@ TEST_CASE("S452: <X.Content><StackPanel/></X.Content> sets parent DP (object, no
         SHOULD(ShouldlyIntegral(panel != nullptr).ShouldBe(true));
         if (panel)
         {
-            // The Text is NOT a visual child of the panel — it was set as the
-            // panel's S452Content DP (an UntypedPtr), not added to children_.
-            // A property-element is not auto-attached as a render child (S452 scope).
+            // The TextBlock is NOT a visual child of the panel — it was set as
+            // the panel's S452Content DP (an UntypedPtr), not added to
+            // children_. A property-element is not auto-attached as a render
+            // child (S452 scope).
             void* contentPtr = panel->Get(PropertyId::of("S452Content")).get<void*>();
             SHOULD(ShouldlyIntegral(contentPtr != nullptr).ShouldBe(true));
-            // The retained Text is that object.
+            // The retained TextBlock is that object.
             SHOULD(ShouldlyIntegral(contentPtr == retained[0].get()).ShouldBe(true));
         }
     }
@@ -168,10 +169,10 @@ TEST_CASE("S452: object property-element parent-chain: the retained object's par
     registerS452Properties();
     VamlReader reader;
     std::unique_ptr<DependencyObject> root =
-        reader.Load("<StackPanel><StackPanel.S452Content><Text/></StackPanel.S452Content></StackPanel>");
+        reader.Load("<StackPanel><StackPanel.S452Content><TextBlock/></StackPanel.S452Content></StackPanel>");
 
     const auto& retained = reader.retained_objects();
-    SHOULD(ShouldlyString(retained.size()).ShouldBe(1u)); // only the Text (the panel is the root)
+    SHOULD(ShouldlyString(retained.size()).ShouldBe(1u)); // only the TextBlock (the panel is the root)
     if (retained.size() == 1)
     {
         // The object that filled the DP has the PARENT as its S039 parent link.

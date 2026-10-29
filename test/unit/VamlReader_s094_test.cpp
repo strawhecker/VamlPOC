@@ -339,7 +339,7 @@ TEST_CASE("S094: a doc exercising all four happy paths loads without error")
     const std::string doc =
         std::string("<StackPanel ") + kXamlNs + " x:Class=\"AppRoot\" x:Name=\"root\">"
         "  <Button S094Width=\"100\" S094Text=\"Go\"/>"
-        "  <Text S094Text=\"Label\"/>"
+        "  <TextBlock S094Text=\"Label\"/>"
         "</StackPanel>";
 
     std::unique_ptr<DependencyObject> root = reader.Load(doc);

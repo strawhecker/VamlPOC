@@ -107,7 +107,7 @@ void registerS366Properties()
 // The READERS parse the structural tree; the Style RESOLUTION surface (the
 // shared S360–S365 engine) is applied programmatically-by-type on the built tree.
 const char* kS366StylingDoc =
-    R"(<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="panel"><Button x:Name="go" S366Height="40"/><Text x:Name="label">Hi</Text></StackPanel>)";
+    R"(<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="panel"><Button x:Name="go" S366Height="40"/><TextBlock x:Name="label">Hi</TextBlock></StackPanel>)";
 
 } // namespace
 

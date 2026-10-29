@@ -91,7 +91,7 @@ using vaml::PropertyFlags;
 using vaml::PropertyId;
 using vaml::PropertyMetadata;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::Thickness;
 using vaml::Value;
 using vaml::ValueConversionError;
@@ -160,13 +160,13 @@ inline const char* kXamlNs = "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/
 
 // Elements flush (no inter-element whitespace) so the golden canonical string
 // is exact and non-ambiguous (the S086 round-trip discipline).
-const char* kGoldenDocA = R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="urn:vm:app" x:Class="App.MainView" x:Name="root" S095Width="1024" S095Title="Contact Manager" S095Margin="10,10,10,10"><StackPanel S095IsEnabled="true"><vm:Button x:Name="search" S095Content="Search" S095Width="200" S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095Fill="#FF0000"/><Text x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</Text><Grid><Button S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
+const char* kGoldenDocA = R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="urn:vm:app" x:Class="App.MainView" x:Name="root" S095Width="1024" S095Title="Contact Manager" S095Margin="10,10,10,10"><StackPanel S095IsEnabled="true"><vm:Button x:Name="search" S095Content="Search" S095Width="200" S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095Fill="#FF0000"/><TextBlock x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</TextBlock><Grid><Button S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
 
 // The expected canonicalize(parse(kGoldenDocA)) — the parser GOLDEN. Reproduces
 // the authored structure exactly, modulo the xmlns declarations (they are
 // namespace DECLARATIONS, never ordinary attributes — S082 — so the faithful
 // re-serializer omits them).
-const char* kExpectedCanonicalA = R"(<Window x:Class="App.MainView" x:Name="root" S095Width="1024" S095Title="Contact Manager" S095Margin="10,10,10,10"><StackPanel S095IsEnabled="true"><vm:Button x:Name="search" S095Content="Search" S095Width="200" S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095Fill="#FF0000"/><Text x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</Text><Grid><Button S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
+const char* kExpectedCanonicalA = R"(<Window x:Class="App.MainView" x:Name="root" S095Width="1024" S095Title="Contact Manager" S095Margin="10,10,10,10"><StackPanel S095IsEnabled="true"><vm:Button x:Name="search" S095Content="Search" S095Width="200" S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095Fill="#FF0000"/><TextBlock x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</TextBlock><Grid><Button S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
 
 // Test-local re-serializer (S086 contract): attrs in document order, self-closing
 // preserved, children then content, no xml namespaces. NOT product code.
@@ -281,7 +281,7 @@ TEST_CASE("S095: golden A reader axis — root type, retained order, parent chai
     if (retained.size() == 5)
     {
         assertConcrete<Button>(retained[0]);
-        assertConcrete<Text>(retained[1]);
+        assertConcrete<TextBlock>(retained[1]);
         assertConcrete<Button>(retained[2]);
         assertConcrete<Grid>(retained[3]);
         assertConcrete<StackPanel>(retained[4]);
@@ -533,7 +533,7 @@ TEST_CASE("S095: golden B — duplicate x:Name fires VamlReaderException(Duplica
     {
         (void)reader.Load(
             std::string("<StackPanel ") + kXamlNs + ">"
-            "  <Button x:Name=\"dup\"/><Text x:Name=\"dup\"/>"
+            "  <Button x:Name=\"dup\"/><TextBlock x:Name=\"dup\"/>"
             "</StackPanel>");
     }
     catch (const VamlReaderException& e)

@@ -54,7 +54,7 @@ using vaml::PropertyFlags;
 using vaml::PropertyId;
 using vaml::PropertyMetadata;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::Thickness;
 using vaml::Value;
 using vaml::ValueConversionError;
@@ -137,7 +137,7 @@ TEST_CASE("S091: children are built, retained, and parent-linked")
     registerS091Properties();
     VamlReader reader;
     std::unique_ptr<DependencyObject> root = reader.Load(
-        "<StackPanel><Button/><Text/></StackPanel>");
+        "<StackPanel><Button/><TextBlock/></StackPanel>");
 
     // Root is returned; the two children are retained (owned exactly once).
     const auto& retained = reader.retained_objects();
@@ -405,7 +405,7 @@ TEST_CASE("S091: Load(ParsedElement) and Load(text) produce identical trees")
 {
     registerS091Properties();
     const std::string doc =
-        "<StackPanel><Button S091Width=\"7\"/><Text S091Text=\"hi\"/></StackPanel>";
+        "<StackPanel><Button S091Width=\"7\"/><TextBlock S091Text=\"hi\"/></StackPanel>";
 
     // ParsedElement path.
     ParsedElement parsed = parse_vaml(doc);
@@ -442,7 +442,7 @@ TEST_CASE("S091: two-level nesting builds the correct parent chain")
     registerS091Properties();
     VamlReader reader;
     std::unique_ptr<DependencyObject> root = reader.Load(
-        "<StackPanel><Button><Text/></Button></StackPanel>");
+        "<StackPanel><Button><TextBlock/></Button></StackPanel>");
 
     assertConcrete<StackPanel>(root);
     const auto& retained = reader.retained_objects();
@@ -452,8 +452,8 @@ TEST_CASE("S091: two-level nesting builds the correct parent chain")
     SHOULD(ShouldlyString(retained.size()).ShouldBe(2u));
     if (retained.size() == 2)
     {
-        // retained[0] = the nested Text; its parent is the Button (retained[1]).
-        assertConcrete<Text>(retained[0]);
+        // retained[0] = the nested TextBlock; its parent is the Button (retained[1]).
+        assertConcrete<TextBlock>(retained[0]);
         assertConcrete<Button>(retained[1]);
         SHOULD(ShouldlyIntegral(retained[0]->parent() == retained[1].get()).ShouldBe(true));
         // retained[1] = the Button; its parent is the root StackPanel.

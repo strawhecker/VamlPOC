@@ -6,10 +6,10 @@
 
 <StackPanel Width="360" Height="460" Background="#E8E8EA">
 
-    <Text FontSize="18" FontWeight="0" Text="Sprint 10 — Core controls" />
+    <TextBlock FontSize="18" FontWeight="0" Text="Sprint 10 — Core controls" />
 
     <!-- The S400 Text control (content + font size) -->
-    <Text Text="Text control: wrapping via measure"
+    <TextBlock Text="Text control: wrapping via measure"
           FontSize="12" />
 
     <!-- The S401 Button (template/hover/pressed + Click + IsEnabled) -->
@@ -30,11 +30,11 @@
     <!-- The S405 ScrollViewer (scroll + clipping + wheel) inside the live pane -->
     <ScrollViewer Width="320" Height="120" >
         <StackPanel Orientation="Vertical">
-            <Text Text="ScrollViewer content line 1" />
-            <Text Text="ScrollViewer content line 2" />
-            <Text Text="ScrollViewer content line 3" />
-            <Text Text="ScrollViewer content line 4" />
-            <Text Text="ScrollViewer content line 5" />
+            <TextBlock Text="ScrollViewer content line 1" />
+            <TextBlock Text="ScrollViewer content line 2" />
+            <TextBlock Text="ScrollViewer content line 3" />
+            <TextBlock Text="ScrollViewer content line 4" />
+            <TextBlock Text="ScrollViewer content line 5" />
         </StackPanel>
     </ScrollViewer>
 

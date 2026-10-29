@@ -52,7 +52,7 @@ using vaml::RadioButton;
 using vaml::ScrollViewer;
 using vaml::Slider;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::TextBox;
 using vaml::Window;
 using vaml::WrapPanel;
@@ -111,16 +111,16 @@ TEST_CASE("S087: register+create returns a live object of the concrete type (Can
 TEST_CASE("S087: create produces a fresh instance per call")
 {
     ElementFactoryRegistry r;
-    r.register_element("TextS087", [] { return std::make_unique<Text>(); });
+    r.register_element("TextS087", [] { return std::make_unique<TextBlock>(); });
 
     std::unique_ptr<DependencyObject> a = r.create("TextS087");
     std::unique_ptr<DependencyObject> b = r.create("TextS087");
     SHOULD(ShouldlyIntegral(a != nullptr).ShouldBe(true));
     SHOULD(ShouldlyIntegral(b != nullptr).ShouldBe(true));
-    // Two distinct objects, both concrete Text.
+    // Two distinct objects, both concrete TextBlock.
     SHOULD(ShouldlyIntegral(a.get() != b.get()).ShouldBe(true));
-    assertConcrete<Text>(a);
-    assertConcrete<Text>(b);
+    assertConcrete<TextBlock>(a);
+    assertConcrete<TextBlock>(b);
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ TEST_CASE("S087: registered_names preserves insertion order deterministically")
 {
     ElementFactoryRegistry r;
     r.register_element("FirstS087", [] { return std::make_unique<Button>(); });
-    r.register_element("SecondS087", [] { return std::make_unique<Text>(); });
+    r.register_element("SecondS087", [] { return std::make_unique<TextBlock>(); });
     r.register_element("ThirdS087", [] { return std::make_unique<Grid>(); });
 
     // Insertion order, not hash order — deterministic across runs. S144:
@@ -230,7 +230,9 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     SHOULD(ShouldlyIntegral(g.is_registered("Button")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("StackPanel")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Grid")).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(g.is_registered("Text")).ShouldBe(true));
+    // 11k-1: TextBlock is registered, the S087-invented Text name is RETIRED.
+    SHOULD(ShouldlyIntegral(g.is_registered("TextBlock")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Text")).ShouldBe(false));
     SHOULD(ShouldlyIntegral(g.is_registered("TextBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("CheckBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Slider")).ShouldBe(true));
@@ -267,7 +269,8 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<Button>(g.create("Button"));
     assertConcrete<StackPanel>(g.create("StackPanel"));
     assertConcrete<Grid>(g.create("Grid"));
-    assertConcrete<Text>(g.create("Text"));
+    // 11k-1: TextBlock resolves (the S087-invented Text name is retired).
+    assertConcrete<TextBlock>(g.create("TextBlock"));
     assertConcrete<TextBox>(g.create("TextBox"));
     assertConcrete<CheckBox>(g.create("CheckBox"));
     assertConcrete<Slider>(g.create("Slider"));

@@ -25,7 +25,7 @@
 // material (Not None) at its arranged box — the generic renderer hosts them all.
 TEST_CASE("S409_1: the viewer's generic classifier renders EVERY S10 control to a real material")
 {
-    vaml::Text     text;
+    vaml::TextBlock text;
     vaml::Button   button;
     vaml::TextBox  textbox;
     vaml::Slider   slider;
@@ -65,7 +65,7 @@ TEST_CASE("S409_1: the viewer's generic classifier renders EVERY S10 control to 
 // every S10 control.
 TEST_CASE("S409_1: the S207 classifier recognizes every S10 control's material")
 {
-    vaml::Text t; vaml::Button b; vaml::TextBox tb; vaml::Slider s;
+    vaml::TextBlock t; vaml::Button b; vaml::TextBox tb; vaml::Slider s;
     vaml::CheckBox c; vaml::ScrollViewer sv; vaml::Icon ic;
     SHOULD(ShouldlyIntegral(vaml::vulkan::ui::classify_element(t) != vaml::vulkan::ui::MaterialKind::None).ShouldBe(true));
     SHOULD(ShouldlyIntegral(vaml::vulkan::ui::classify_element(b) != vaml::vulkan::ui::MaterialKind::None).ShouldBe(true));

@@ -8,7 +8,8 @@
 // the affected controls' typed accessors re-pointed to that single owner. This
 // closes the corpus-wide unprefixed-authoring gap across Button/TextBox/
 // TextBlock/…, and MIGRATES the prior conflicting registrations (NO backfill):
-//   - Text  owned bare "FontSize"       -> removed, re-pointed to Control
+//   - TextBlock (11k-1; formerly the S087 `Text`) owned bare "FontSize"
+//                                        -> removed, re-pointed to Control
 //   - Label owned "Label.FontSize" / "Label.FontFamily" /
 //            "Label.HorizontalContentAlignment" -> removed, re-pointed
 //   - Border owned "Border.Padding"     -> removed, re-pointed
@@ -60,7 +61,7 @@ TEST_CASE("11j-5: the shared Control base names resolve UNPREFIXED on a plain De
     // The whole point: these names (no "Label."/"Border." prefix) resolve on ANY
     // element via the S043 attached-aware read, because they are registered ONCE
     // under the single canonical "Control" owner.
-    Text text0; // ensure the bundle is registered (Text ctor depends on it)
+    TextBlock text0; // ensure the bundle is registered (Text ctor depends on it)
     DependencyObject o;
 
     const DependencyProperty* pPadding = DependencyProperty::TryGet("Padding");
@@ -85,7 +86,7 @@ TEST_CASE("11j-5: each shared name is registered EXACTLY ONCE (no duplicate/thro
     CHECK_NOTHROW(Label());
 }
 
-TEST_CASE("11j-5: migrated accessors still round-trip (Label/Text/Border re-proof)")
+TEST_CASE("11j-5: migrated accessors still round-trip (Label/TextBlock/Border re-proof)")
 {
     Label label;
     (void)label.set_font_size(18.0);
@@ -95,7 +96,7 @@ TEST_CASE("11j-5: migrated accessors still round-trip (Label/Text/Border re-proo
     (void)label.set_horizontal_content_alignment(2);
     CHECK(label.horizontal_content_alignment() == 2);
 
-    Text text;
+    TextBlock text;
     (void)text.set_font_size(24.0);
     CHECK(text.font_size() == 24.0);
 
@@ -108,7 +109,7 @@ TEST_CASE("11j-5: the control DEFAULT for FontSize/Padding/HAlignment is the Con
 {
     // WPF-faithful defaults: FontSize 16 em; Padding 0; HorizontalContentAlignment
     // Left (0); VerticalContentAlignment Top (0).
-    Text text; // also forces the bundle to exist
+    TextBlock text; // also forces the bundle to exist
     DependencyObject o;
     CHECK(o.Get(PropertyId::of("FontSize")).get<double>() == 16.0);
     CHECK(o.Get(PropertyId::of("Padding")).get<vaml::Thickness>() == vaml::Thickness{});

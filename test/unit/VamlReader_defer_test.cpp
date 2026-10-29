@@ -53,7 +53,7 @@ using vaml::PropertyFlags;
 using vaml::PropertyId;
 using vaml::PropertyMetadata;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::Value;
 using vaml::ValueType;
 using vaml::VamlReader;
@@ -128,7 +128,7 @@ TEST_CASE("S092: child x:Names are registered in document order")
     std::unique_ptr<DependencyObject> root = reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "  <Button x:Name=\"btn\"/>"
-        "  <Text x:Name=\"lbl\"/>"
+        "  <TextBlock x:Name=\"lbl\"/>"
         "</StackPanel>");
 
     assertConcrete<StackPanel>(root);
@@ -168,7 +168,7 @@ TEST_CASE("S092: a nested child x:Name resolves to the deepest/named object")
     VamlReader reader;
     std::unique_ptr<DependencyObject> root = reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
-        "  <Button x:Name=\"btn\"><Text x:Name=\"inner\"/></Button>"
+        "  <Button x:Name=\"btn\"><TextBlock x:Name=\"inner\"/></Button>"
         "</StackPanel>");
 
     assertConcrete<StackPanel>(root);
@@ -192,7 +192,7 @@ TEST_CASE("S092: a duplicate x:Name within one Load throws DuplicateName")
         (void)reader.Load(
             "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
             "  <Button x:Name=\"dup\"/>"
-            "  <Text x:Name=\"dup\"/>"
+            "  <TextBlock x:Name=\"dup\"/>"
             "</StackPanel>");
     }
     catch (const VamlReaderException& e)

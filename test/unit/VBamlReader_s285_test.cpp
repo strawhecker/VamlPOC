@@ -52,7 +52,7 @@ using vaml::PropertyFlags;
 using vaml::PropertyId;
 using vaml::PropertyMetadata;
 using vaml::StackPanel;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::Thickness;
 using vaml::Value;
 using vaml::ValueType;
@@ -103,7 +103,7 @@ const char* kS285GoldenDoc =
     R"(<Window x:Name="root" S285Width="1024" S285Margin="10,10,10,10">)"
     R"(<StackPanel S285Enabled="true">)"
     R"(<Button x:Name="search" S285Content="Search" S285Width="200" S285Grid.Row="1" S285Fill="#FF0000"/>)"
-    R"(<Text S285Dock.Dock="Top">Search:</Text>)"
+    R"(<TextBlock S285Dock.Dock="Top">Search:</TextBlock>)"
     R"(</StackPanel></Window>)";
 
 } // namespace
@@ -130,7 +130,7 @@ TEST_CASE("S285: compiled golden loads — root type + retained order + parent c
     if (retained.size() == 3)
     {
         SHOULD(ShouldlyIntegral(dynamic_cast<vaml::Button*>(retained[0].get()) != nullptr).ShouldBe(true));
-        SHOULD(ShouldlyIntegral(dynamic_cast<vaml::Text*>(retained[1].get()) != nullptr).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(dynamic_cast<vaml::TextBlock*>(retained[1].get()) != nullptr).ShouldBe(true));
         SHOULD(ShouldlyIntegral(dynamic_cast<vaml::StackPanel*>(retained[2].get()) != nullptr).ShouldBe(true));
 
         // Parent chain: Button/Text -> StackPanel; StackPanel -> root Window.

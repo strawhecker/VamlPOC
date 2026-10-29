@@ -86,7 +86,7 @@ void registerS288Properties()
 // plain prop on the Button and a {Binding} on the Text (so the deferred-bindings
 // axis is genuinely exercised on both paths).
 const char* kS288Golden =
-    R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root" S288Width="1024" S288Margin="10,10,10,10"><StackPanel x:Name="panel" S288Enabled="true"><Button x:Name="search" S288Content="Search" S288Width="200" S288Grid.Row="1" S288Click="OnSearch"/><Text x:Name="label" S288Content="{Binding SearchText}">Hi</Text></StackPanel></Window>)";
+    R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root" S288Width="1024" S288Margin="10,10,10,10"><StackPanel x:Name="panel" S288Enabled="true"><Button x:Name="search" S288Content="Search" S288Width="200" S288Grid.Row="1" S288Click="OnSearch"/><TextBlock x:Name="label" S288Content="{Binding SearchText}">Hi</TextBlock></StackPanel></Window>)";
 
 // Focused control: two elements, plain props only (no events/bindings) — proves
 // the structural + literal-prop axes tightly.

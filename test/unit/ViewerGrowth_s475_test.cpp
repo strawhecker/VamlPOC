@@ -52,19 +52,19 @@ namespace {
 const std::string kSample475 =
     "<DockPanel Margin=\"8\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
     "<StackPanel DockPanel.Dock=\"0\" Width=\"180\" Margin=\"4\">"
-    "<Text Text=\"Selection Controls\" FontSize=\"14\" Margin=\"2\"/>"
+    "<TextBlock Text=\"Selection Controls\" FontSize=\"14\" Margin=\"2\"/>"
     "<RadioButton x:Name=\"RadioRed\" RadioButton.IsChecked=\"1\" Margin=\"6,2\"/>"
     "<RadioButton x:Name=\"RadioGreen\" RadioButton.IsChecked=\"0\" Margin=\"6,2\"/>"
     "<RadioButton x:Name=\"RadioBlue\" RadioButton.IsChecked=\"0\" Margin=\"6,2\"/>"
     "<ComboBox x:Name=\"SizeCombo\" ComboBox.Items=\"Small, Medium, Large\" Margin=\"6,2\" ComboBox.SelectedIndex=\"1\"/>"
     "<ListBox x:Name=\"FruitList\" ListBox.Items=\"Apple, Banana, Cherry\" Margin=\"6,2\">"
     "<ListBox.ItemTemplate>"
-    "<Text FontSize=\"12\"/>"
+    "<TextBlock FontSize=\"12\"/>"
     "</ListBox.ItemTemplate>"
     "</ListBox>"
     "</StackPanel>"
-    "<Text DockPanel.Dock=\"1\" Text=\"VAML 11c header\" FontSize=\"16\"/>"
-    "<StackPanel><Text Text=\"Fill content area\"/></StackPanel>"
+    "<TextBlock DockPanel.Dock=\"1\" Text=\"VAML 11c header\" FontSize=\"16\"/>"
+    "<StackPanel><TextBlock Text=\"Fill content area\"/></StackPanel>"
     "</DockPanel>";
 
 } // namespace

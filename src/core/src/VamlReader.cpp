@@ -415,6 +415,36 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         (void)obj->Set(PropertyId(attr.key), value); // S043 attached-aware by name
     }
 
+    // 11k-1 — TEXTBLOCK INLINE CONTENT ROUTING (the corpus's dominant usage).
+    // WPF IAddChild: `<TextBlock>label</TextBlock>` inline authored content lands
+    // on the Text DP (TextBlock's content-owning DP). This is SCOPED to
+    // TextBlock (11k-1's deliverable); the GENERAL content→DP routing rule
+    // (mixed/interleaved ordering) is 11k-11's in-11k step (NOT deferred here).
+    // Whitespace trim mirrors the S452 property-element literal path (line 749).
+    if (auto* tb = dynamic_cast<TextBlock*>(obj.get()))
+    {
+        std::string lit = element.content;
+        const std::size_t b = lit.find_first_not_of(" \t\r\n");
+        if (b != std::string::npos)
+        {
+            const std::size_t e = lit.find_last_not_of(" \t\r\n");
+            lit = lit.substr(b, e - b + 1);
+        }
+        else
+        {
+            lit.clear();
+        }
+        if (!lit.empty())
+        {
+            const DependencyProperty* dp = DependencyProperty::TryGet("Text");
+            if (dp != nullptr)
+            {
+                const Value value = convertLiteral(*dp, lit);
+                (void)tb->Set(PropertyId::of("Text"), value);
+            }
+        }
+    }
+
     // Step 3 — property-elements (S452, the S366 NO-GAP hand-off RESOLVED) then
     // ordinary children (visual tree transfer, S440).
     //

@@ -40,7 +40,7 @@ using vaml::ElementFactoryRegistry;
 using vaml::ElementResolutionError;
 using vaml::ElementResolutionException;
 using vaml::ParsedElement;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::parse_vaml;
 using vaml::register_builtin_elements;
 using vaml::resolve_element;
@@ -96,11 +96,11 @@ TEST_CASE("S088: resolve a Button element to a live Button via a custom registry
 TEST_CASE("S088: a registered custom type resolves to that type")
 {
     ElementFactoryRegistry r;
-    r.register_element("FancyWidget", [] { return std::make_unique<Text>(); });
+    r.register_element("FancyWidget", [] { return std::make_unique<TextBlock>(); });
 
     ParsedElement el = makeElement("FancyWidget", "FancyWidget", 1, 1);
     std::unique_ptr<DependencyObject> o = resolve_element(el, r);
-    assertConcrete<vaml::Text>(o);
+    assertConcrete<vaml::TextBlock>(o);
 }
 
 TEST_CASE("S088: fresh instance per resolve")

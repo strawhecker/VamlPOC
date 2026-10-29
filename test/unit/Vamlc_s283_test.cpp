@@ -73,7 +73,7 @@ TEST_CASE("S283: compile_to_bytes parses a real doc → bytes, decode → equal 
     // A clean doc: Orientation (registered DP) + a binding on S280_1Text.
     const std::string cleanDoc =
         "<StackPanel Orientation=\"Horizontal\">"
-        "<Text S280_1Text=\"{Binding Title}\"/>"
+        "<TextBlock S280_1Text=\"{Binding Title}\"/>"
         "</StackPanel>";
 
     const std::vector<std::uint8_t> bytes = vaml::tools::compile_to_bytes(cleanDoc);
@@ -86,7 +86,7 @@ TEST_CASE("S283: compile_to_bytes parses a real doc → bytes, decode → equal 
     // The parsed + emitted tree is structurally equal (2 elements, 2 types).
     SHOULD(ShouldlyIntegral(decoded.elements.size()).ShouldBe(2u));
     SHOULD(ShouldlyString(decoded.elements[0].typeToken).ShouldBe("StackPanel"));
-    SHOULD(ShouldlyString(decoded.elements[1].typeToken).ShouldBe("Text"));
+    SHOULD(ShouldlyString(decoded.elements[1].typeToken).ShouldBe("TextBlock"));
     // The binding attribute survived the full compile→bytes→decode round-trip.
     SHOULD(ShouldlyIntegral(decoded.elements[1].attributes.size()).ShouldBe(1u));
     SHOULD(ShouldlyIntegral(decoded.elements[1].attributes[0].isBinding ? 1 : 0).ShouldBe(1));
@@ -106,7 +106,7 @@ TEST_CASE("S283: compile_to_bytes is deterministic — same source, same bytes")
 
     const std::string doc =
         "<StackPanel Orientation=\"Horizontal\">"
-        "<Text S280_1Text=\"{Binding Title}\"/>"
+        "<TextBlock S280_1Text=\"{Binding Title}\"/>"
         "</StackPanel>";
 
     const std::vector<std::uint8_t> b1 = vaml::tools::compile_to_bytes(doc);

@@ -86,11 +86,11 @@ int vk_i(VamlcError k) { return static_cast<int>(k); }
 TEST_CASE("S280_1: an element-rooted binding with a registered hop validates")
 {
     registerS280_1Properties();
-    // "Text" is a registered element type; S280_1IsChecked is a registered DP.
-    // Binding targets S280_1Text (a registered DP). Static → validated, NOT
-    // counted dynamic.
+    // "TextBlock" (11k-1) is a registered element type; S280_1IsChecked is a
+    // registered DP. Binding targets S280_1Text (a registered DP). Static →
+    // validated, NOT counted dynamic.
     const CompileResult r = vaml::tools::compile_text(
-        "<StackPanel S280_1Text=\"{Binding Text.S280_1IsChecked}\"/>");
+        "<StackPanel S280_1Text=\"{Binding TextBlock.S280_1IsChecked}\"/>");
     SHOULD(ShouldlyIntegral(static_cast<int>(r.ok)).ShouldBe(1));
     SHOULD(ShouldlyIntegral(r.counts.dynamicBindings).ShouldBe(0u));
 }
@@ -129,12 +129,13 @@ TEST_CASE("S280_1: a target attribute-key typo is UnknownTargetProperty at compi
 TEST_CASE("S280_1: an element-rooted binding hop typo is WrongHopType at compile time")
 {
     registerS280_1Properties();
-    // Root "Text" resolves; hop "S280_1Misspel" is not a registered DP.
+    // Root "TextBlock" (11k-1) resolves; hop "S280_1Misspel" is not a
+    // registered DP.
     bool threw = false;
     try
     {
         (void)vaml::tools::compile(
-            "<StackPanel S280_1Text=\"{Binding Text.S280_1Misspel}\"/>");
+            "<StackPanel S280_1Text=\"{Binding TextBlock.S280_1Misspel}\"/>");
     }
     catch (const vaml::tools::VamlcException& e)
     {
@@ -193,13 +194,13 @@ TEST_CASE("S280_1: validate_bindings fills dynamicBindings + returns outcomes")
     // (element-rooted) binding.
     const std::string doc =
         "<StackPanel S280_1Text=\"{Binding Title}\" "
-        "S280_1IsChecked=\"{Binding Text.S280_1IsChecked}\"/>";
+        "S280_1IsChecked=\"{Binding TextBlock.S280_1IsChecked}\"/>";
     const vaml::tools::CompiledProgram prog = vaml::tools::compile(doc);
 
     vaml::tools::VamlcCounts counts;
     const vaml::tools::BindingValidationResult res =
         vaml::tools::validate_bindings(prog, counts);
-    // One dynamic (Title) + one static (Text.S280_1IsChecked).
+    // One dynamic (Title) + one static (TextBlock.S280_1IsChecked).
     SHOULD(ShouldlyIntegral(res.dynamicCount).ShouldBe(1u));
     SHOULD(ShouldlyIntegral(res.staticValid).ShouldBe(1u));
     SHOULD(ShouldlyIntegral(res.bindings.size()).ShouldBe(2u));

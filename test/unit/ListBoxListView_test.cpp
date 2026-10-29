@@ -30,7 +30,7 @@
 
 using vaml::ListBox;
 using vaml::ListView;
-using vaml::Text;
+using vaml::TextBlock;
 using vaml::UIElement;
 using vaml::register_builtin_elements;
 
@@ -81,8 +81,8 @@ TEST_CASE("S473: ListBox.ItemTemplate round-trip + render_items produces item el
     ListBox lb;
     // The authored ItemTemplate text (the S452 property-element grammar routes
     // the authored template here).
-    (void)lb.set_item_template("<Text/>");
-    SHOULD(ShouldlyString(lb.item_template()).ShouldBe(std::string("<Text/>")));
+    (void)lb.set_item_template("<TextBlock/>");
+    SHOULD(ShouldlyString(lb.item_template()).ShouldBe(std::string("<TextBlock/>")));
 
     (void)lb.set_items("Red, Green, Blue");
     // render_items instantiates one UIElement per item (the S364 instantiate
@@ -95,7 +95,7 @@ TEST_CASE("S473: ListBox.ItemTemplate round-trip + render_items produces item el
 TEST_CASE("S473: ListView.ItemTemplate + render_items produce item elements")
 {
     ListView lv;
-    (void)lv.set_item_template("<Text/>");
+    (void)lv.set_item_template("<TextBlock/>");
     (void)lv.set_items("A, B");
     const std::size_t built = lv.render_items();
     SHOULD(ShouldlyIntegral(built).ShouldBe(2u));

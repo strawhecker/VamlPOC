@@ -16,15 +16,16 @@ namespace vaml::vulkan::ui {
 MaterialKind classify_element(const vaml::UIElement& element) noexcept
 {
     // The material authority for the S207 "draw list by material" grouping. The
-    // S400 real per-control material is authored HERE: a vaml::Text classifies
-    // to MaterialKind::Text (the SDF glyph-quad material), so the encoder emits
-    // its glyph quads. Every non-Text base UIElement / plain container
-    // contributes NO material (None) — real controls replace this seam in place
-    // (Button->S401, templates->S364, etc.), kept-and-extended, never silently
-    // backfilled. A host element that WANTS a draw supplies its own ElementVisual
-    // via the encoder's `visualOf` callback; classify_element is the default for
+    // S400 real per-control material is authored HERE: a vaml::TextBlock (11k-1
+    // re-binds the S087 `Text` name) classifies to MaterialKind::Text (the SDF
+    // glyph-quad material), so the encoder emits its glyph quads. Every
+    // non-text-leaf base UIElement / plain container contributes NO material
+    // (None) — real controls replace this seam in place (Button->S401,
+    // templates->S364, etc.), kept-and-extended, never silently backfilled. A
+    // host element that WANTS a draw supplies its own ElementVisual via the
+    // encoder's `visualOf` callback; classify_element is the default for
     // unhandled elements.
-    if (dynamic_cast<const vaml::Text*>(&element) != nullptr)
+    if (dynamic_cast<const vaml::TextBlock*>(&element) != nullptr)
     {
         return MaterialKind::Text;
     }

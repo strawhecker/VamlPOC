@@ -82,7 +82,7 @@ TEST_CASE("S443: the plan wires + loads + binds + wires + finalizes the authored
     // The named elements the markup declares are reachable through the retained
     // reader's x:Name registry (the S443 convenience accessors).
     SHOULD(ShouldlyIntegral(named_as<vaml::TextBox>(plan, "InputBox") != nullptr).ShouldBe(1));
-    SHOULD(ShouldlyIntegral(named_as<vaml::Text>(plan, "StatusText") != nullptr).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(named_as<vaml::TextBlock>(plan, "StatusText") != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(named_as<vaml::Button>(plan, "RunButton") != nullptr).ShouldBe(1));
 }
 
@@ -90,7 +90,7 @@ TEST_CASE("S443: {Binding Status} — one-way first-transfer lands the VM status
 {
     auto plan = run_app_shell_binding_plan();
     SHOULD(ShouldlyIntegral(plan.ok).ShouldBe(1));
-    auto* statusText = named_as<vaml::Text>(plan, "StatusText");
+    auto* statusText = named_as<vaml::TextBlock>(plan, "StatusText");
     SHOULD(ShouldlyIntegral(statusText != nullptr).ShouldBe(1));
 
     // The VM's initial Status is empty; the S242 first-transfer landed it onto
@@ -108,7 +108,7 @@ TEST_CASE("S443: a later VM set_Status re-pushes the bound StatusText (live one-
 {
     auto plan = run_app_shell_binding_plan();
     SHOULD(ShouldlyIntegral(plan.ok).ShouldBe(1));
-    auto* statusText = named_as<vaml::Text>(plan, "StatusText");
+    auto* statusText = named_as<vaml::TextBlock>(plan, "StatusText");
     SHOULD(ShouldlyIntegral(statusText != nullptr).ShouldBe(1));
 
     // The retained reader keeps the {Binding Status} live binding armed; a real
@@ -177,7 +177,7 @@ TEST_CASE("S443: a Click on the RunButton runs handler → VM RunCommand → Sta
     auto plan = run_app_shell_binding_plan();
     SHOULD(ShouldlyIntegral(plan.ok).ShouldBe(1));
     auto* runButton = named_as<vaml::Button>(plan, "RunButton");
-    auto* statusText = named_as<vaml::Text>(plan, "StatusText");
+    auto* statusText = named_as<vaml::TextBlock>(plan, "StatusText");
     SHOULD(ShouldlyIntegral(runButton != nullptr).ShouldBe(1));
     SHOULD(ShouldlyIntegral(statusText != nullptr).ShouldBe(1));
 
@@ -211,7 +211,7 @@ TEST_CASE("S443: a malformed {Binding} reports a structured, non-silent detail")
     const char* bad =
         R"VAML(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root">
   <Grid x:Name="RootGrid">
-    <Text x:Name="StatusText" Text="{Binding}" FontSize="12"/>
+    <TextBlock x:Name="StatusText" Text="{Binding}" FontSize="12"/>
   </Grid>
 </Window>
 )VAML";

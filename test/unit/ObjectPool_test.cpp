@@ -41,8 +41,8 @@ static_assert(sizeof(vaml::Canvas) <= ObjectPool::kSlotSize,
               "S145: Canvas must fit an object-pool slot");
 static_assert(sizeof(vaml::Button) <= ObjectPool::kSlotSize,
               "S145: Button must fit an object-pool slot");
-static_assert(sizeof(vaml::Text) <= ObjectPool::kSlotSize,
-              "S145: Text must fit an object-pool slot");
+static_assert(sizeof(vaml::TextBlock) <= ObjectPool::kSlotSize,
+              "S145: TextBlock must fit an object-pool slot");
 // The slot rounds to a cache line AND satisfies both max_align_t widths across
 // the CI lanes (8 on MSVC, 16 on Linux clang). 896 % 64 == 0 and 896 % 16 == 0.
 static_assert(ObjectPool::kSlotSize % 64 == 0,

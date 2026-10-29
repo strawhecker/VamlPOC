@@ -410,14 +410,21 @@ enum class Dock : std::uint8_t
     Fill   = 4,
 };
 
-// Text — REAL control (S400). RESOLVES the S087 MINIMAL REAL seed at its own
-// sprint (NO-GAP, not a backfill): re-based onto UIElement so it participates
-// in the visual tree + Measure/Arrange layout, and supplies a REAL per-control
-// material (MaterialKind::Text via the S400 classifier) so the S207 encoder +
-// the vulkan build_text_glyph_items emit SDF glyph quads.
+// TextBlock — REAL control (S400). 11k-1 (dep:S400) RETIRES the invented `Text`
+// name (S087) and re-bases the authored text leaf onto the WPF-true `TextBlock`
+// (TextBlock : FrameworkElement — NOT a Control; in VAML the framework-element
+// branch IS UIElement, so TextBlock : UIElement is the faithful mapping). The
+// semantic content carries over unchanged under the correct name: re-based onto
+// UIElement so it participates in the visual tree + Measure/Arrange layout, and
+// supplies a REAL per-control material (MaterialKind::Text via the S400
+// classifier) so the S207 encoder + the vulkan build_text_glyph_items emit SDF
+// glyph quads. S167_1 corrective convention: the S400 Text history is
+// SUPERSEDED BY 11k-1 (TextBlock), preserved, never edited to hide the error.
 //
 // WPF-FAITHFUL surface (title alignment, review-confirmed):
-//   - Text   (String, default "") — the content.
+//   - Text   (String, default "") — the content. `<TextBlock>label</TextBlock>`
+//     inline content lands here via the reader's TextBlock content routing
+//     (WPF IAddChild behavior, 11k-1).
 //   - FontSize (Double, default 16) — glyph em size.
 //   - FontWeight (Int32, default Normal=0 — reuses the S206 convention).
 //   - Foreground (BrushId, default 0 = a resolved default opaque black) — the
@@ -429,19 +436,21 @@ enum class Dock : std::uint8_t
 //     vulkan; the Brush itself is core data).
 //
 // MEASURE/ARRANGE (the S123/S127 seams): MeasureOverride runs text_layout_plan
-// with default_text_metric (a fontSize-based estimate, device-free) so the Text
-// measures to its WRAPPED line extent; the real per-glyph advance + UV data
-// come from the vulkan SDF atlas at RENDER time (build_text_glyph_items), where
-// the wrap is RE-COMPUTED with the REAL advances — the Measure basis and the
-// render basis use the same wrap RULE, so the box they occupy matches. NO-GAP:
-// real atlas-driven metrics + glyph UVs + the Text material are authored at the
-// renderer (S400 build_text_glyph_items), NOT silently backfilled here.
-class VAML_CORE_EXPORT Text final : public UIElement
+// with default_text_metric (a fontSize-based estimate, device-free) so the
+// TextBlock measures to its WRAPPED line extent; the real per-glyph advance +
+// UV data come from the vulkan SDF atlas at RENDER time (build_text_glyph_items),
+// where the wrap is RE-COMPUTED with the REAL advances — the Measure basis and
+// the render basis use the same wrap RULE, so the box they occupy matches.
+// NO-GAP: real atlas-driven metrics + glyph UVs + the Text material are
+// authored at the renderer (S400 build_text_glyph_items), NOT silently
+// backfilled here. The TextBlock font/padding DP-owner split (its own DPs, not
+// Control's) is 11k-8's scope — not pre-empted here.
+// [MINIMAL REAL] TextBlock — RESOLVED BY 11k-1 (S087 seed → TextBlock; S400 real
+// content re-based). Do NOT extend silently; do NOT backfill.
+class VAML_CORE_EXPORT TextBlock final : public UIElement
 {
 public:
-    Text();
-
-    // --- Text (REAL DP; String, default "") ------------------------------
+    TextBlock();
     [[nodiscard]] SetResult set_text(std::string value);
     [[nodiscard]] std::string text() const;
 
@@ -464,9 +473,9 @@ public:
     [[nodiscard]] std::int32_t foreground() const;
 
 protected:
-    // S400 real Text algorithm (see Element.cpp): MeasureOverride runs the S400
-    // text_layout_plan (default_text_metric basis, device-free) and returns the
-    // wrapped extent {measuredWidth, measuredHeight}. ArrangeOverride is the
+    // S400 real TextBlock algorithm (see Element.cpp): MeasureOverride runs the
+    // S400 text_layout_plan (default_text_metric basis, device-free) and returns
+    // the wrapped extent {measuredWidth, measuredHeight}. ArrangeOverride is the
     // base no-op (a leaf places nothing). The render-time glyph emitter
     // (build_text_glyph_items, vulkan) re-runs the same wrap rule with the REAL
     // atlas advances.

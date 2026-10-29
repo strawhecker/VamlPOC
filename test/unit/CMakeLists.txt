@@ -948,6 +948,14 @@ add_executable(vaml-presentation-tests
     # a TextGlyph DrawItem at the arranged origin (the S409_1 consumer seam's
     # default). Headless.
     ViewerTextMaterial_test.cpp
+    # 11k-1 (dep:S400) — the CORPUS-SHAPED TextBlock load proof: a
+    # `<TextBlock Foreground=... FontSize=...>label</TextBlock>` authored leaf
+    # resolves to a TextBlock, its inline content lands on the Text DP (the
+    # WPF IAddChild routing), FontSize round-trips, Measure gives the wrapped
+    # extent, and classify_merge_element -> MaterialKind::Text. This resolves
+    # the corpus dump's #1 blocker (`unknown element type '<TextBlock>'`).
+    # Headless.
+    TextBlock_s11k1_test.cpp
     # S400_1 (dep:S400) — the Icon material at the presentation vertical-slice
     # boundary: classify_merge_element maps a real Icon to MaterialKind::
     # Monochrome + the S400_1 fallback glyph at the arranged origin (the honest

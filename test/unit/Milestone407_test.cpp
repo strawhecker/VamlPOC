@@ -25,7 +25,9 @@ TEST_CASE("S407: every S10 control is a real UIElement re-base (no DependencyObj
 
     // The S10 control set (all introduced/resolved this sprint) must each be a
     // concrete vaml::UIElement — NOT a DependencyObject-only seed.
-    const char* controls[] = { "Text", "Button", "TextBox", "Slider",
+    // 11k-1: the invented `Text` is retired; the WPF-true `TextBlock` is the
+    // authored text leaf.
+    const char* controls[] = { "TextBlock", "Button", "TextBox", "Slider",
                                "CheckBox", "ScrollViewer" };
     for (const char* name : controls)
     {
@@ -69,8 +71,10 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     vaml::ElementFactoryRegistry& g = vaml::ElementFactoryRegistry::global();
 
     // The concrete controls resolve to their real types (the S087 headline
-    // dispatch, now REAL controls end-to-end).
-    SHOULD(ShouldlyIntegral(g.is_registered("Text")).ShouldBe(true));
+    // dispatch, now REAL controls end-to-end). 11k-1: TextBlock is registered,
+    // the S087-invented `Text` name is RETIRED (so it is NOT registered).
+    SHOULD(ShouldlyIntegral(g.is_registered("TextBlock")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Text")).ShouldBe(false));
     SHOULD(ShouldlyIntegral(g.is_registered("Button")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("TextBox")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Slider")).ShouldBe(true));

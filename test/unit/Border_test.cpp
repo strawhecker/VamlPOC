@@ -42,7 +42,7 @@ TEST_CASE("S481: Border DP surface round-trips (Thickness value path)")
 TEST_CASE("S481: Border hosts a single content child and lays out the inner slot")
 {
     Border border;
-    auto inner = std::make_unique<vaml::Text>();
+    auto inner = std::make_unique<vaml::TextBlock>();
     (void)inner->set_text("content");
     auto* raw = inner.get();
     border.set_content(std::move(inner));

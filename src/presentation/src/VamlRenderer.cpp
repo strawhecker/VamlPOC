@@ -100,7 +100,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     // S409_1 VIEWER-GROWTH token (it replaces this default with the real per-
     // control materials via encode_visual_slice). This S400 classifier proves the
     // text glyph material + the resolved foreground end-to-end (headlessly).
-    if (auto* text = dynamic_cast<const vaml::Text*>(&element))
+    if (auto* text = dynamic_cast<const vaml::TextBlock*>(&element))
     {
         const vaml::Rect r = element.final_rect();
         const float fs = static_cast<float>(text->font_size());
