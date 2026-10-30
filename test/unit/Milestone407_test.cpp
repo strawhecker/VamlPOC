@@ -108,8 +108,11 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     // (UserControl + Application + ResourceDictionaryHolder) + 11k-2
     // (ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray) + 11k-4
     // (PathGeometry/GeometryGroup/RectangleGeometry/EllipseGeometry/
-    // GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/ImageBrush) = 50.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(50u));
+    // GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/ImageBrush) +
+    // Sprint 11e (11e: TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/
+    // Popup/GridSplitter/DataGrid) = 59 (count bumps authored at the step,
+    // never silent).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(59u));
     SHOULD(ShouldlyIntegral(g.is_registered("UserControl")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Application")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ResourceDictionary")).ShouldBe(true));

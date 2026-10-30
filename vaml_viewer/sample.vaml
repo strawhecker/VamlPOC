@@ -95,12 +95,51 @@ repaint." Margin="4"/>
     <TextBlock StatusBar.Dock="1" Text="v11d"/>
   </StatusBar>
 
-  <!-- S470: the LAST child takes the ENTIRE remaining interior (Fill=4 default;
-       WPF-faithful). -->
-  <StackPanel>
-    <TextBlock Text="The live viewer renders this DockPanel layout + the Left
-selection controls interactively (RadioButton exclusive check, ComboBox
-selection, ListBox selection) — see the Shell chrome for the repaint." Margin="8"/>
+  <!-- Sprint 11e (S495): the container + menu controls — a Menu bar docked to
+       the top, a TabControl + GridSplitter + ToolTip + Popup column on the
+       left, a ContextMenu + DataGrid in the Fill area. The LIVE viewer renders
+       + interacts: MenuItem Click, TabControl SelectionChanged, ContextMenu
+       open, ToolTip/Popup open/close, GridSplitter drag, DataGrid select. -->
+  <Menu DockPanel.Dock="1" Menu.IsMainMenu="1" Height="24" Margin="4" Background="#FF445566">
+    <MenuItem MenuItem.Header="File">
+      <MenuItem x:Name="MenuSave" MenuItem.Header="Save" MenuItem.Command="SaveCommand"
+                MenuItem.CommandParameter="doc1"/>
+      <MenuItem MenuItem.Header="Exit" MenuItem.IsCheckable="1"/>
+    </MenuItem>
+    <MenuItem MenuItem.Header="Edit"/>
+  </Menu>
+
+  <!-- S495: the Left-docked tab/splitter/tooltip/popup surface. -->
+  <StackPanel DockPanel.Dock="0" Width="220" Margin="4">
+    <TabControl x:Name="TabHost">
+      <TabItem x:Name="TabA" TabItem.Header="Overview"/>
+      <TabItem x:Name="TabB" TabItem.Header="Detail"/>
+    </TabControl>
+    <GridSplitter x:Name="Splitter" GridSplitter.DragIncrement="2"
+                  GridSplitter.KeyboardIncrement="4" GridSplitter.ResizeDirection="0"
+                  Height="6" Margin="2,4,2,2"/>
+    <ToolTip x:Name="HelpTip" ToolTip.Placement="1" ToolTip.HorizontalOffset="6"/>
+    <Popup x:Name="PopForm" Popup.StaysOpen="1" Popup.Placement="2"/>
   </StackPanel>
 
+  <!-- S495: a ContextMenu + the DataGrid in the Fill area. -->
+  <StackPanel DockPanel.Dock="0" Width="220" Margin="4">
+    <ContextMenu x:Name="Ctx" ContextMenu.Placement="0" ContextMenu.HorizontalOffset="4">
+      <MenuItem MenuItem.Header="Rename" MenuItem.IsCheckable="1"/>
+      <MenuItem MenuItem.Header="Delete"/>
+    </ContextMenu>
+  </StackPanel>
+
+  <!-- S470: dock the Top header (full remaining width, 24 tall). -->
+  <TextBlock DockPanel.Dock="1" Text="VAML 11e — container + menu controls"
+        FontSize="16" Margin="4" Background="#FF223344"/>
+
+  <!-- S495: the DataGrid hosts the interactive grid surface in the Fill area. -->
+  <StackPanel>
+    <TextBlock Text="The live viewer renders the Sprint 11e breadth: a Menu bar,
+TabControl tabs, a GridSplitter, a ToolTip + Popup, a ContextMenu and a
+DataGrid — see the Shell chrome for the repaint." Margin="4"/>
+    <DataGrid x:Name="People" DataGrid.Items="Alice, Bob, Carol"
+              DataGrid.SelectedIndex="0" Height="120" Margin="4"/>
+  </StackPanel>
 </DockPanel>

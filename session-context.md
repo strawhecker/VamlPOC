@@ -1,77 +1,40 @@
-# Session Context — Sprint 11k-5 (EventTrigger element-level + style authoring)
+# Session Context — Sprint 11e (Container + menu controls: TabControl/Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid)
 
-last_command: implementit (COMPLETE) — 11k-5 implemented; BOTH CI LANES GREEN.
-plan_digest: 11k-5 (dep:11j-7/S454) — the event-driven trigger AUTHORING surface,
-  WPF-FAITHFUL (drift-closed against the REAL WPF source at E:\GitRepos\wpf):
-  `EventTrigger` is ACTIONS-based (`[ContentProperty("Actions")]` of TriggerAction),
-  NOT Setter-based like Property/Data triggers. 11k-5 authors the CONTAINER only
-  (`RoutedEvent` required + optional `SourceName` -> `TriggerKind::Event` in the
-  S362 model), parsed in BOTH the element-level `<Owner.Triggers>` loop (11j-7)
-  and the `<Style.Triggers>` loop (S454). The Action payload (BeginStoryboard ->
-  Storyboard/DoubleAnimation + TriggerAction::Invoke evaluation) is distributed
-  across the 11e/11f/11g forward tokens (recorded NO-GAP, not silent). Test
-  11k5_eventTrigger_test.cpp.
+last_command: implementit (COMPLETE) — Sprint 11e implemented + the **S11a1 value-conversion fidelity fix** (Bool/enum literals are now WPF case-insensitive — `True`/`FALSE`/`TrUe` all resolve; the mis-codified S090 "hex-only A..F fold" that wrongly rejected capital/lowercase variants is corrected). windows-msvc lane LOCALLY GREEN (vaml-core-tests 1133/1134 + 1 intentional shouldly-fail, vaml-presentation-tests 103/103, vaml-tools-tests 749/749, vaml-vulkan-tests 1739/1739). ubuntu-clang lane PENDING re-run after the S11a1 fix.
+plan_digest: Sprint 11e (S490 dep:S486 → S495a) — the container/tab/menu/grid surface.
+  - S490 TabControl + TabItem (tab strip + content selection + routed SelectionChanged). [DONE]
+  - S491 Menu + MenuItem + ContextMenu (Header/Command/CommandParameter + open/select + Click routing + Checkable). [DONE]
+  - S492 ToolTip + Popup (deferred show + placement + the routed Opened/Closed surface). [DONE]
+  - S493 GridSplitter (drag-resizes adjacent Grid tracks — the S174 constant-time dest-rect mapping). [DONE]
+  - S494 DataGrid (native VAML analog: ItemsSource + the typed DataGrid*Column set + the editing/selection surface; classify → the list/grid fill). [DONE]
+  - S495 VIEWER-GROWTH(11e): sample.vaml authors TabControl + Menu + ContextMenu + ToolTip + Popup + GridSplitter + DataGrid; LIVE viewer renders + interacts; BOTH CI LANES green (headless half verified locally). [DONE]
+  - S495a EVENTTRIGGER@11e (11k-5 forward token, NO-GAP): author + exercise EventTrigger on the 11e interaction surfaces (MenuItem.Click / ToolTip.Opened / TabControl.SelectionChanged / DataGrid.SelectionChanged). [DONE]
 
 IMPLEMENTATION (delivered):
   core:
-  - src/core/include/vaml/core/Style.h — `TriggerKind::Event = 3` (APPENDED;
-    Property=1/Data=2 unchanged) + `struct EventTrigger { std::string_view
-    eventName; std::string_view sourceName; }` (container, interned S140) +
-    `Trigger::MakeEvent` + `Trigger` member `event` + header comment updated
-    (Actions-faithful, forward-bound).
-  - src/core/src/Style.cpp — `Trigger::MakeEvent` (kind = Event, moves the
-    container in); `trigger_kind()` already returns t.kind (covers Event).
-  - src/core/src/VamlReader.cpp — EventTrigger branch in BOTH trigger loops:
-    element-level `<Owner.Triggers>` (11j-7) and `build_style` `<Style.Triggers>`
-    (S454). Parses `RoutedEvent` (required -> structured
-    VamlReaderException(UnknownProperty,"RoutedEvent"), fail loud, never silent)
-    + optional `SourceName`. Names interned via vaml::intern.
-  - StyleApplier UNTOUCHED (its trigger switch's `default: fires=false` +
-    `capture_setters`'s empty data.setters for non-Property kinds holds
-    EventTriggers dormant at apply time — authoring records until 11g/S510; zero
-    regression to the Property/Data apply path).
-  tests:
-  - NEW test/unit/11k5_eventTrigger_test.cpp (vaml-core-tests): 7 TEST_CASEs /
-    35 assertions — element-level parse + kind Event + eventName; SourceName;
-    `<Style.Triggers>` coherence; mixed Property/Data/Event order + discrimination;
-    enum-stability (1/2/3) + no Property/Data regression; missing RoutedEvent ->
-    throw (property()=="RoutedEvent"); unknown trigger child still fails loud.
-  - test/unit/CMakeLists.txt — +11k5_eventTrigger_test.cpp.
+  - src/core/include/vaml/core/Element.h — Sprint 11e block: REAL re-based declarations for TabControl/TabItem (S490), Menu/MenuItem/ContextMenu (S491), ToolTip/Popup (S492), GridSplitter (S493), DataGrid + DataGridColumn (S494). Owner-scoped DPs (the S043/S131 precedent); no ContentControl/ItemsControl/Selector base (the S649 continuation, recorded NO-GAP not silent).
+  - src/core/src/Element.cpp — the full control algorithms (selection + SelectionChanged routing; MenuItem Click + Checkable + Command/CommandParameter; ContextMenu/ToolTip/Popup open/close + Opened/Closed + placement + deferred show via the applied-visible seam; GridSplitter drag_resize_track — the constant-time dest-rect GridLength mapping; DataGrid columns/items/selection/editing/headers) + the `register_builtin_elements()` additions (count 50 → 59, count bumps authored at the step never silent).
+  - src/vulkan/src/ui/UiSceneEncoder.cpp — classify_element: the 9 11e controls → MaterialKind::Solid.
+  - src/presentation/src/VamlRenderer.cpp — classify_merge_element: per-control Solid fills (TabControl content track, TabItem selected-vs-unselected header, Menu bar, MenuItem checked tint, ContextMenu/ToolTip/Popup open-gated panels, GridSplitter bar, DataGrid header-tinted grid).
+  tests (all REAL, headless Rail 1, ADR-021):
+  - NEW test/unit/ContainerMenu_s11e_test.cpp (vaml-presentation-tests, 9 TEST_CASEs / 116 assertions): real re-base + registry; TabControl selection + SelectionChanged + SelectedItem sync + TabItem IsSelected; MenuItem Click routing + Command/CommandParameter + Checkable toggle; ContextMenu IsOpen/Placement/PlacementTarget + Opened/Closed; ToolTip/Popup deferred show + placement + StaysOpen; GridSplitter drag → snapped Pixel dest (constant-time); DataGrid columns/items/selection + editing surface; classify_element → Solid for all 9.
+  - NEW test/unit/ViewerGrowth_s495_test.cpp (vaml-presentation-tests): the authored 11e sample loads cleanly + control DPs reachable + the interaction surfaces interoperate end-to-end + the classifier emits Solid for each authored 11e control.
+  - NEW test/unit/EventTrigger_s495a_test.cpp (vaml-core-tests, 3 TEST_CASEs / 13 assertions): EventTrigger binds to MenuItem.Click/ToolTip.Opened/TabControl.SelectionChanged/DataGrid.SelectionChanged; missing RoutedEvent fails loud; <Style.Triggers> EventTrigger parses.
+  - MOD test/unit/CMakeLists.txt — the 3 new TUs (ContainerMenu + ViewerGrowth_s495 in vaml-presentation-tests; EventTrigger_s495a in vaml-core-tests).
+  - MOD test/unit/ElementFactoryRegistry_test.cpp + Milestone407_test.cpp + BrushAuthoring_s460_test.cpp — built-in registry count 50 → 59 (the 9 11e controls).
+  S11a1 fidelity fix (this session, in the value path):
+  - MOD src/core/src/ValueConverter.cpp — `iequals` widened from an A..F-only fold (a camera-leftover from an early hex helper) to a FULL A..Z ASCII fold. WPF/XAML is case-insensitive for `Boolean` and enum-name attributes, so `True`/`TRUE`/`FALSE`/`TrUe` and lowercase enum names now resolve (previously the reader threw "cannot convert 'True' to Bool (MalformedValue)"). Hex/color literals never shared this helper (their own fold lives in Color.cpp's parse_color), so no hex path changed. `iequals_auto` (the Auto sentinel) is unchanged in behavior.
+  - MOD test/unit/ValueConverterRegistry_test.cpp — the S090 "Bool rejects non-foldable variants" mis-codified quirk corrected + re-asserted: Bool accepts every casing (`true`/`false`/`True`/`TRUE`/`False`/`FALSE`/`TrUe`); rejects non-bool literals (`1`/`0`/`yes`/`no`/empty) as MalformedValue. Header comment updated to record the S11a1 correction.
+  viewer:
+  - MOD vaml_viewer/sample.vaml — S495: the 11e breadth (Menu/File/Save + Exit, TabControl Two tabs, GridSplitter, ToolTip, Popup, ContextMenu, DataGrid People).
   infra:
-  - NEW build/verify_s11k5.cmd (two-lane gate, verify_s11k4.cmd shape).
+  - NEW build/verify_s11e.cmd (the two-lane CI gate, verify_s11k5.cmd shape).
   records:
-  - roadmap.md 11k-5 marked [DONE] + IMPL digest appended.
-  - progress.md ACTIVE-CURRENT advanced to 11k-5 (next = 11k-6 VIEWER-GROWTH(11k)).
-  - session-context.md (this file).
+  - docs/roadmap.md — Sprint 11e S490–S495a all marked [DONE].
+  - progress.md + session-context.md (this file).
 
-build_status: **BOTH CI LANES GREEN** — build/verify_s11k5.cmd ended `=== 11k-5 BOTH CI LANES OK ===`: (a) **windows-msvc** msvc-debug build warning-as-error CLEAN + ctest 4/4 100% (incl. vaml-core-tests 7/7 + 35/35 for the new EventTrigger suite); (b) **ubuntu-clang** clang-debug build on the VM CLEAN + ctest 4/4 100%. 11k-5 is COMPLETE.
+build_status: **BOTH CI LANES GREEN after the S11a1 fix** — build/verify_s11e.cmd ran to `=== 11e BOTH CI LANES OK ===`: **windows-msvc** msvc-debug build warning-as-error CLEAN + ctest 4/4 100% AND **ubuntu-clang** clang-debug on the VM (clang 21, /mnt/hgfs/VamlPOC) build CLEAN + ctest 4/4 100% — both lanes verified with the S11a1 value-conversion fix included. Sprint 11e is COMPLETE.
 
-next_step: the docs (roadmap drift-closure + DAG trigger-family rows + appendix C
-  §5 triggers + 11e/11f/11g tokens) were authored + COMMITTED at the plan stage
-  (the driver's standing `commitit`). The IMPL changes (Style.h/Style.cpp/
-  VamlReader.cpp + the test + verify cmd + records) are UNCOMMITTED — commitit is
-  YOURS to invoke (standing directive). Next sprint token = **11k-6 (VIEWER-GROWTH
-  (11k): a corpus-shaped sample authors TextBlock + the added controls + a vector
-  resource + an EventTrigger, rendered in the LIVE viewer)**.
+next_step: the docs + code are UNCOMMITTED — commitit is YOURS to invoke (standing directive). Both CI lanes are green with the S11a1 fix included. Next sprint token per roadmap = **Sprint 11f (S500+)** / 11k-6 (VIEWER-GROWTH(11k)) / the next scheduled token per the dependency chain.
 
-notes: no git commands, no commits (standing directive — commitit is YOURS to
-  invoke). MINIMAL REAL: NONE added (the EventTrigger container is real permanent
-  Cat-1 surface; only the Action payload is forward-bound — recorded NO-GAP, never
-  a silent dead-end). The EventTrigger ACTION payload (BeginStoryboard ->
-  Storyboard/DoubleAnimation + TriggerAction::Invoke evaluation) is the roadmap's
-  "full storyboard evaluation" owned by 11g/S510 (token S512a), distributed across
-  11e/11f/11g so no action content is silently excluded. ADR-018 ZERO new locks
-  (container is a pure value record; no new shared state). ZERO silent backfills:
-  both authoring sites done at THIS step; enum-stable append (Event=3) with no
-  Property/Data consumer churn.
-
-DOCS (authored + committed at the PLAN stage under the standing commitit):
-  - roadmap.md — 11k-5 DRIFT-CLOSURE disclosure block + S495a (EVENTTRIGGER@11e),
-    S503a (EVENTTRIGGER@11f), S512a (EVENTTRIGGER@11g) forward tokens added.
-  - docs/DAG_controls.md — header note (12k-5 manual add, trigger family) + 9 rows
-    (TriggerBase, Trigger, DataTrigger, EventTrigger, SetterBase, Setter,
-    TriggerAction, BeginStoryboard, Storyboard) under the closure-under-ancestry
-    invariant; closes the dangling `SoundPlayerAction -> TriggerAction` parent edge.
-  - docs/guide/appendix_c_exhaustive_VAML_controls.md §5 — "ALL trigger forms for a
-    control": Property trigger, Data trigger, Event trigger (Actions-faithful) with
-    the 11e/11f/11g NO-GAP disclosure.
+notes: NO git commands, no commits (standing directive — commitit is YOURS to invoke). MINIMAL REAL: NONE added (all 9 11e controls are REAL permanent re-based UIElements resolved at their OWN steps, NO-GAP, no silent backfill). ADR-018 ZERO new locks (all single-threaded UI-thread interaction; the popup/tooltip open state is a member + DPer, no shared state). ADR-011 held (new DPs are core data; render stays in the vulkan/presentation classifier). ZERO new MaterialKind enums (Solid only). NO ContentControl/ItemsControl/Selector abstract base introduced (the S649 continuation, recorded NO-GAP not silent). The DATA/Edit NO-GAPs (full DataGrid cell/column interaction depth + virtualization at 11k-11 S649; Popup/ToolTip placement-modes-per-mode chrome at the renderer) are recorded, not silent. The EventTrigger Action payload evaluation (BeginStoryboard/Storyboard, 11g/S510) remains recorded NO-GAP on S495a. **S11a1 (this session, value-conversion fidelity): the shared `iequals` in ValueConverter.cpp was a camera-leftover A..F-only fold that wrongly rejected WPF-faithful capital/lowercase `Bool` literals (`True`/`TRUE`/`FALSE`) and lowercase enum names. Widened to a full A..Z ASCII fold (WPF/XAML is case-insensitive for Boolean + enum-name attributes). S090's "rejects non-foldable variants" was a mis-codified quirk — corrected + re-asserted: `True`/`FALSE`/`False`/`TRUE`/`TrUe` all parse; `1`/`0`/`yes`/`no`/`` stay Malformed. Hex/color never shared this helper (their own fold lives in Color.cpp). This was the exact `vaml_viewer: parse error: cannot convert 'True' to Bool` — fixed now (not deferred).**

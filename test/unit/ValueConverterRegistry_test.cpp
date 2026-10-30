@@ -21,12 +21,15 @@
 //     none accepts (=> UnknownLiteral). Recognizer, not a best-match matcher.
 //     S091's documented upstream use.
 //
-// TEST-VOCABULARY NOTES (observed S089 behavior, asserted honestly, not fixed —
-// S090's scope is taxonomy + recognizer + tests, not changing the converters):
-//   - ValueConverter.cpp's iequals() folds ONLY 'A'..'F' (it was written for
-//     hex) but the Bool converter reuses it for "true"/"false". So the only
-//     non-lowercase variant that accepts is "False" (capital F folds; T/R/U/L/S
-//     are outside A..F). "True"/"TRUE"/"FALSE" are REJECTED.
+// TEST-VOCABULARY NOTES (observed S089/S090 behavior, asserted honestly — with
+// the S090 "hex-only fold" quirk RECORDED + CORRECTED at S11a1):
+//   - ValueConverter.cpp's iequals() NOW folds the FULL ASCII alphabet (A..Z),
+//     matching WPF/XAML's case-insensitive Boolean + enum-name literals. The
+//     earlier A..F-only fold (a camera-leftover from an early hex helper) was a
+//     MIS-CODIFIED quirk that wrongly rejected "True"/"TRUE"/"FALSE" and
+//     lowercase enum names; hex/color literals never shared it (they use their
+//     own fold in Color.cpp's parse_color). Corrected at S11a1 — Bool and the
+//     enum-name map now accept every casing, like real XAML.
 //   - std::from_chars skips NO leading/trailing whitespace, so " 42"/"42 " are
 //     Malformed; "4.2" is not an Int32; out-of-range ints are Malformed.
 //   - EDGE / INFERENCE / TAXONOMY suites run against the REAL global registry
@@ -37,7 +40,7 @@
 //
 // Test plan (Shouldly vocabulary):
 //   1. Int32 edge suite (accepts + Malformed incl. whitespace/junk/decimal/overflow).
-//   2. Bool edge suite (accepts true/false/"False"; rejects True/TRUE/FALSE/1/0/yes/"").
+//   2. Bool edge suite (accepts true/false/True/False/TRUE/FALSE; rejects 1/0/yes/"").
 //   3. Thickness edge suite (1/2/4 counts incl. negatives/decimals/exponent).
 //   4. Color edge suite (6/8-digit, alpha-front, lowercase, optional '#').
 //   5. Registry mechanics (re-proof dedupe-throws-unchanged; move semantics).
@@ -190,31 +193,35 @@ TEST_CASE("S090 Int32: malformed literals (whitespace/junk/decimal/overflow)")
 }
 
 // ---------------------------------------------------------------------------
-// 2. Bool edge suite — REAL global converter (iequals fold-quirk asserted)
+// 2. Bool edge suite — REAL global converter (WPF case-insensitive, S11a1)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("S090 Bool: accepts true / false / foldable 'False' variant")
+TEST_CASE("S090 Bool: accepts true / false in EVERY casing (WPF-faithful, S11a1)")
 {
     register_builtin_converters();
     ValueConverterRegistry& r = ValueConverterRegistry::global();
 
     expect_ok(r, "Bool", "true", Value::Bool(true));
     expect_ok(r, "Bool", "false", Value::Bool(false));
-    expect_ok(r, "Bool", "False", Value::Bool(false)); // capital F folds (A..F)
+    // WPF/XAML is case-insensitive for Boolean literals; the S11a1 fix widened
+    // the ASCII fold to A..Z so every casing resolves.
+    expect_ok(r, "Bool", "True", Value::Bool(true));
+    expect_ok(r, "Bool", "FALSE", Value::Bool(false));
+    expect_ok(r, "Bool", "False", Value::Bool(false));
+    expect_ok(r, "Bool", "TRUE", Value::Bool(true));
+    expect_ok(r, "Bool", "TrUe", Value::Bool(true));
 }
 
-TEST_CASE("S090 Bool: rejects non-foldable variants and non-bool literals")
+TEST_CASE("S090 Bool: rejects non-bool literals (MalformedValue)")
 {
     register_builtin_converters();
     ValueConverterRegistry& r = ValueConverterRegistry::global();
 
-    // T/R/U/L/S are outside iequals' A..F fold-range -> not equal to true/false.
-    expect_malformed(r, "Bool", "True");
-    expect_malformed(r, "Bool", "TRUE");
-    expect_malformed(r, "Bool", "FALSE");
+    // 1/0/yes are not XAML Boolean literals -> Malformed.
     expect_malformed(r, "Bool", "1");
     expect_malformed(r, "Bool", "0");
     expect_malformed(r, "Bool", "yes");
+    expect_malformed(r, "Bool", "no");
     expect_malformed(r, "Bool", "");
 }
 

@@ -181,8 +181,11 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     // then 41 as 11k-2 added ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray,
     // then 50 as 11k-4 added PathGeometry/GeometryGroup/RectangleGeometry/
     // EllipseGeometry/GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/
-    // ImageBrush (the vector-drawing + brush-resource volume).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(50u));
+    // ImageBrush (the vector-drawing + brush-resource volume), then 59 as
+    // Sprint 11e added TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/
+    // Popup/GridSplitter/DataGrid (count bumps authored at the step, never
+    // silent).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(59u));
 }
 
 // ---------------------------------------------------------------------------

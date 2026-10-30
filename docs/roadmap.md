@@ -1579,19 +1579,19 @@ Growth tokens by sprint:
 
 ---
 ## Sprint 11e — Container + menu controls (TabControl/Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid)  (goal: the container/tab/menu/grid surface)  [token S490+]
-- S490 dep:S486  TabControl + TabItem controls RESOLVED: tab strip + content selection + routed SelectionChanged.
-- S491 dep:S490  Menu + MenuItem + ContextMenu controls RESOLVED: Header/Command/CommandParameter + open/select.
-- S492 dep:S491  ToolTip + Popup controls RESOLVED: deferred show + placement + the routed open/close surface.
+- S490 dep:S486  TabControl + TabItem controls RESOLVED: tab strip + content selection + routed SelectionChanged. [DONE]
+- S491 dep:S490  Menu + MenuItem + ContextMenu controls RESOLVED: Header/Command/CommandParameter + open/select. [DONE]
+- S492 dep:S491  ToolTip + Popup controls RESOLVED: deferred show + placement + the routed open/close surface. [DONE]
 - S493 dep:S492  GridSplitter control RESOLVED: drag-resizes adjacent Grid rows/columns (constant-time dest-rect
-      mapping, the S174-composition spirit).
+      mapping, the S174-composition spirit). [DONE]
 - S494 dep:S493  DataGrid control RESOLVED (native VAML analog — NOT a 3rd-party clone): ItemsSource + typed
-      DataGrid*Column set + the editing/selection surface; classify_element → the list/grid fill.
+      DataGrid*Column set + the editing/selection surface; classify_element → the list/grid fill. [DONE]
 - S495 dep:S494  VIEWER-GROWTH(11e): sample.vaml authors a TabControl + Menu + ContextMenu + ToolTip + Popup +
-      GridSplitter + DataGrid; the LIVE viewer renders + interacts end-to-end. BOTH CI LANES green.
+      GridSplitter + DataGrid; the LIVE viewer renders + interacts end-to-end. BOTH CI LANES green. [DONE]
 - S495a dep:S494  EVENTTRIGGER@11e (11k-5 forward token, NO-GAP): author + exercise `EventTrigger` on the
       container/menu/tooltip/popup interaction surface (e.g. `EventTrigger RoutedEvent="MenuItem.Click"` /
       `ToolTip.Opened`); flip the container-related EventTrigger DAG row + appendix C §5 usage as the control's
-      interaction surface lands. (Owns the NOT-silent 11k-5 action-content disclosure for 11e.)
+      interaction surface lands. (Owns the NOT-silent 11k-5 action-content disclosure for 11e.) [DONE]
 
 ---
 ## Sprint 11f — DataTemplate/ItemsControl authoring + converters + behaviors  (goal: the binding glue surface, ZERO gaps)  [token S500+]

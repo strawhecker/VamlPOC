@@ -131,6 +131,25 @@ MaterialKind classify_element(const vaml::UIElement& element) noexcept
     {
         return MaterialKind::None;
     }
+    // Sprint 11e (S490–S495): the container + menu controls. TabControl /
+    // TabItem / Menu / MenuItem / ContextMenu / ToolTip / Popup / GridSplitter
+    // all classify to the SOLID material (the S490 tab strip + content chrome,
+    // the S491 menu bar / item rows / popup panel, the S492 tooltip/popup panel,
+    // the S493 splitter bar). DataGrid classifies to the SOLID material (the
+    // S494 list/grid fill — header + row cells emitted at the presentation
+    // boundary).
+    if (dynamic_cast<const vaml::TabControl*>(&element) != nullptr ||
+        dynamic_cast<const vaml::TabItem*>(&element) != nullptr ||
+        dynamic_cast<const vaml::Menu*>(&element) != nullptr ||
+        dynamic_cast<const vaml::MenuItem*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ContextMenu*>(&element) != nullptr ||
+        dynamic_cast<const vaml::ToolTip*>(&element) != nullptr ||
+        dynamic_cast<const vaml::Popup*>(&element) != nullptr ||
+        dynamic_cast<const vaml::GridSplitter*>(&element) != nullptr ||
+        dynamic_cast<const vaml::DataGrid*>(&element) != nullptr)
+    {
+        return MaterialKind::Solid;
+    }
     return MaterialKind::None;
 }
 

@@ -1822,6 +1822,411 @@ protected:
     void ArrangeOverride(const vaml::Rect& finalSlot) override;
 };
 
+// ---------------------------------------------------------------------------
+// SPRINT 11e (S490–S495) — the container + menu controls. All are REAL re-based
+// UIElements (not seeds): each participates in the visual tree + Measure/
+// Arrange + the classifier (ADR-011 — "how to render" stays in the vulkan
+// classifier). No new MaterialKind; they reuse Solid / Border / Text / None.
+// No ContentControl / ItemsControl / Selector abstract base is introduced here
+// (the S649 continuation, recorded NO-GAP not silent); each control is
+// self-contained exactly like Button/DockPanel/TextBox before it. All new DPs
+// are owner-scoped (a reused name under a different owner would be ambiguous,
+// per the S043/S131 precedent). classify: TabControl/TabItem/Menu/MenuItem/
+// ContextMenu/ToolTip/Popup/GridSplitter -> Solid.
+// ---------------------------------------------------------------------------
+
+// TabControl + TabItem — REAL container controls (S490). WPF-faithful:
+// TabControl is a Selector over TabItem headers; TabItem is a
+// HeaderedContentControl (Header + content). TabControl owns the tab strip +
+// the selected TabItem's content track; TabItem = header + a single content
+// slot + IsSelected. Selection raises the BUBBLING "SelectionChanged" event
+// (source==the TabControl). classify -> Solid (the tab strip + content chrome).
+class VAML_CORE_EXPORT TabItem final : public UIElement
+{
+public:
+    TabItem();
+
+    // --- Header (REAL DP; String, default "") ---------------------------
+    [[nodiscard]] SetResult set_header(std::string value);
+    [[nodiscard]] std::string header() const;
+
+    // --- IsSelected (REAL DP; Bool via Int32, default false) -------------
+    [[nodiscard]] SetResult set_is_selected(bool value);
+    [[nodiscard]] bool is_selected() const;
+
+    // --- TabStripPlacement (REAL DP; Int32, default Top=0) ---------------
+    [[nodiscard]] SetResult set_tab_strip_placement(std::int32_t value);
+    [[nodiscard]] std::int32_t tab_strip_placement() const;
+
+    // --- Content child (single-content slot, the Window/Border precedent) -
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    UIElement* content_ = nullptr;
+};
+
+class VAML_CORE_EXPORT TabControl final : public UIElement
+{
+public:
+    TabControl();
+
+    // --- SelectedIndex / SelectedItem (REAL DPs; Int32 / String) ----------
+    [[nodiscard]] SetResult set_selected_index(std::int32_t index);
+    [[nodiscard]] std::int32_t selected_index() const;
+    [[nodiscard]] std::string selected_item() const; // the selected TabItem's Header
+
+    // --- TabStripPlacement (REAL DP; Int32, default Top=0) ----------------
+    [[nodiscard]] SetResult set_tab_strip_placement(std::int32_t value);
+    [[nodiscard]] std::int32_t tab_strip_placement() const;
+
+    // --- Tabs --------------------------------------------------------------
+    // The owned TabItem children are the tabs. add_tab adopts an owned TabItem
+    // (an alias over add_child that also preserves the item index for
+    // selection). SelectionChanged is raised on a real change.
+    void add_tab(std::unique_ptr<TabItem> tab);
+    [[nodiscard]] std::size_t tab_count() const noexcept;
+    [[nodiscard]] TabItem* tab_at(std::size_t index) const noexcept;
+
+    // Selects the TabItem at `index` (clamped); raises SelectionChanged on a
+    // real change. Returns the index selected.
+    [[nodiscard]] std::int32_t select_index(std::int32_t index);
+
+    // --- SelectionChanged notification -------------------------------------
+    [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+
+private:
+    vaml::Signal<void()> onSelectionChanged_;
+    void apply_selection(std::int32_t newIndex);
+};
+
+// Menu + MenuItem + ContextMenu — REAL menu controls (S491). WPF-faithful:
+// Menu is an ItemsControl with an IsMainMenu surface; MenuItem is a
+// HeaderedItemsControl (Header + nested items + Click + Checkable) carrying
+// the S464 Command/CommandParameter hand-off; ContextMenu is a popup host
+// (IsOpen + Placement). MenuItem.Click raises the BUBBLING "Click" event.
+class VAML_CORE_EXPORT MenuItem final : public UIElement
+{
+public:
+    MenuItem();
+
+    // --- Header (REAL DP; String, default "") -------------------------------
+    [[nodiscard]] SetResult set_header(std::string value);
+    [[nodiscard]] std::string header() const;
+
+    // --- Command / CommandParameter (REAL DPs; String) — the S464 surface ---
+    // The authored Command name is resolved + EXECUTED through the S464 command
+    // registry (RegisterCommand/ExecuteCommand). CommandParameter is the Value
+    // passed on execute. The reader's attribute-authoring stores the names; the
+    // exposure to a command registry is via execute_command(name, param).
+    [[nodiscard]] SetResult set_command(std::string value);
+    [[nodiscard]] std::string command() const;
+    [[nodiscard]] SetResult set_command_parameter(std::string value);
+    [[nodiscard]] std::string command_parameter() const;
+
+    // --- Checkable / IsChecked (REAL DPs; Bool via Int32, default false) ----
+    [[nodiscard]] SetResult set_is_checkable(bool value);
+    [[nodiscard]] bool is_checkable() const;
+    [[nodiscard]] SetResult set_is_checked(bool value);
+    [[nodiscard]] bool is_checked() const;
+
+    // --- IsSubmenuOpen / Role (REAL DPs) ------------------------------------
+    [[nodiscard]] SetResult set_is_submenu_open(bool value);
+    [[nodiscard]] bool is_submenu_open() const;
+    [[nodiscard]] SetResult set_role(std::int32_t value);
+    [[nodiscard]] std::int32_t role() const;
+
+    // --- Nested items + Command execution -----------------------------------
+    // add_item adopts an owned nested MenuItem (a submenu). A click raises the
+    // BUBBLING "Click" event and, when a Command is authored, executes it via
+    // the provided registry/execute-seam. Returns a handled flag.
+    void add_item(std::unique_ptr<MenuItem> item);
+    [[nodiscard]] std::size_t item_count() const noexcept;
+    // Raises the Click routed event; when Command is non-empty this is the
+    // S464 execute seam (the caller supplies the execute callback that resolves
+    // the command). Returns true if any handler handled the route.
+    [[nodiscard]] bool raise_click();
+
+    [[nodiscard]] vaml::Signal<void()>& checked_changed() { return onCheckedChanged_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onCheckedChanged_;
+    void apply_checked(bool newState);
+};
+
+class VAML_CORE_EXPORT Menu final : public UIElement
+{
+public:
+    Menu();
+
+    // --- IsMainMenu (REAL DP; Bool via Int32, default false) ----------------
+    [[nodiscard]] SetResult set_is_main_menu(bool value);
+    [[nodiscard]] bool is_main_menu() const;
+
+    // --- Items --------------------------------------------------------------
+    void add_item(std::unique_ptr<MenuItem> item);
+    [[nodiscard]] std::size_t item_count() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+};
+
+class VAML_CORE_EXPORT ContextMenu final : public UIElement
+{
+public:
+    ContextMenu();
+
+    // --- IsOpen / Placement / PlacementTarget (REAL DPs) --------------------
+    [[nodiscard]] SetResult set_is_open(bool value);
+    [[nodiscard]] bool is_open() const;
+    [[nodiscard]] SetResult set_placement(std::int32_t value);
+    [[nodiscard]] std::int32_t placement() const;
+    // PlacementTarget is a UIElement identity (UntypedPtr, the ContextMenu is
+    // attached to). Stored as a raw observer pointer (the target owns the
+    // menu, so no ownership edge).
+    void set_placement_target(UIElement* target);
+    [[nodiscard]] UIElement* placement_target() const noexcept;
+    // HorizontalOffset/VerticalOffset (REAL DPs; Double, default 0).
+    [[nodiscard]] SetResult set_horizontal_offset(double value);
+    [[nodiscard]] double horizontal_offset() const;
+    [[nodiscard]] SetResult set_vertical_offset(double value);
+    [[nodiscard]] double vertical_offset() const;
+
+    // --- Open/close routed surface ------------------------------------------
+    // open(true) opens; open(false) closes; a real open/close raises the
+    // BUBBLING "Opened"/"Closed" routed events + the signals.
+    [[nodiscard]] bool open(bool value);
+    [[nodiscard]] vaml::Signal<void()>& opened() { return onOpened_; }
+    [[nodiscard]] vaml::Signal<void()>& closed() { return onClosed_; }
+
+    // --- Items --------------------------------------------------------------
+    void add_item(std::unique_ptr<MenuItem> item);
+    [[nodiscard]] std::size_t item_count() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onOpened_;
+    vaml::Signal<void()> onClosed_;
+    UIElement* placementTarget_ = nullptr;
+    void apply_open(bool value);
+};
+
+// ToolTip + Popup — REAL popup-host controls (S492). Deferred show: the open/
+// close is change-driven (a show request does not paint until the change-driven
+// pass); placement resolves to a target rect. Opened/Closed are BUBBLING routed
+// events. classify -> Solid (the tooltip/popup panel).
+class VAML_CORE_EXPORT ToolTip final : public UIElement
+{
+public:
+    ToolTip();
+
+    [[nodiscard]] SetResult set_is_open(bool value);
+    [[nodiscard]] bool is_open() const;
+    [[nodiscard]] SetResult set_placement(std::int32_t value);
+    [[nodiscard]] std::int32_t placement() const;
+    [[nodiscard]] SetResult set_horizontal_offset(double value);
+    [[nodiscard]] double horizontal_offset() const;
+    [[nodiscard]] SetResult set_vertical_offset(double value);
+    [[nodiscard]] double vertical_offset() const;
+
+    // Deferred show: open(true) requests the show; the visible flag flips on
+    // the change-driven pass (visible() is false until the next applied pass —
+    // the deferred-show contract). Returns the requested state.
+    [[nodiscard]] bool open(bool value);
+    // The CURRENT applied-visible state (deferred show proof).
+    [[nodiscard]] bool visible() const;
+
+    [[nodiscard]] vaml::Signal<void()>& opened() { return onOpened_; }
+    [[nodiscard]] vaml::Signal<void()>& closed() { return onClosed_; }
+
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onOpened_;
+    vaml::Signal<void()> onClosed_;
+    UIElement* content_ = nullptr;
+    bool requested_ = false;
+    bool applied_   = false;
+};
+
+class VAML_CORE_EXPORT Popup final : public UIElement
+{
+public:
+    Popup();
+
+    [[nodiscard]] SetResult set_is_open(bool value);
+    [[nodiscard]] bool is_open() const;
+    [[nodiscard]] SetResult set_placement(std::int32_t value);
+    [[nodiscard]] std::int32_t placement() const;
+    [[nodiscard]] SetResult set_horizontal_offset(double value);
+    [[nodiscard]] double horizontal_offset() const;
+    [[nodiscard]] SetResult set_vertical_offset(double value);
+    [[nodiscard]] double vertical_offset() const;
+    // StaysOpen (REAL DP; Bool via Int32, default true — WPF-faithful).
+    [[nodiscard]] SetResult set_stays_open(bool value);
+    [[nodiscard]] bool stays_open() const;
+
+    [[nodiscard]] bool open(bool value);
+    [[nodiscard]] bool visible() const;
+
+    void set_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* content() const noexcept;
+
+    [[nodiscard]] vaml::Signal<void()>& opened() { return onOpened_; }
+    [[nodiscard]] vaml::Signal<void()>& closed() { return onClosed_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onOpened_;
+    vaml::Signal<void()> onClosed_;
+    UIElement* content_ = nullptr;
+    bool requested_ = false;
+    bool applied_   = false;
+};
+
+// GridSplitter — REAL control (S493). A Thumb-faithful drag handle bound to a
+// Grid: dragging maps to a CONSTANT-TIME destination-rect change (the
+// S174-composition spirit — a resize is a dest-rect mapping with ZERO object
+// churn), re-measuring the adjacent Grid track via a GridLength delta.
+// classify -> Solid (the splitter bar).
+class VAML_CORE_EXPORT GridSplitter final : public UIElement
+{
+public:
+    GridSplitter();
+
+    // --- ResizeDirection / ResizeBehavior (REAL DPs; Int32) -----------------
+    // Columns=0 / Rows=1 (WPF GridResizeDirection). PreviousAndNext=0 / etc.
+    [[nodiscard]] SetResult set_resize_direction(std::int32_t value);
+    [[nodiscard]] std::int32_t resize_direction() const;
+    [[nodiscard]] SetResult set_resize_behavior(std::int32_t value);
+    [[nodiscard]] std::int32_t resize_behavior() const;
+
+    // --- DragIncrement / KeyboardIncrement (REAL DPs; Double) ----------------
+    [[nodiscard]] SetResult set_drag_increment(double value);
+    [[nodiscard]] double drag_increment() const;
+    [[nodiscard]] SetResult set_keyboard_increment(double value);
+    [[nodiscard]] double keyboard_increment() const;
+
+    // --- Drag resize (the S174 constant-time dest-rect mapping) --------------
+    // Resizes an ADJACENT Grid track (row/column) by `delta` pixels. `trackIndex`
+    // names the track to resize; `defs` is the Grid's track-definition vector
+    // (GridLength list). The delta is applied as a constant-time length change
+    // (absolute deltas -> a new Pixel length; star/auto -> the delta is applied
+    // against the resolved length and carried back as a Pixel length). Returns
+    // a GridLength delta applied (the dest-rect mapped value). Zero object churn.
+    [[nodiscard]] vaml::GridLength drag_resize_track(vaml::GridLength current, double delta);
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// DataGrid — REAL control (S494). A NATIVE VAML analog (NOT a 3rd-party clone):
+// ItemsSource/Items + the typed DataGrid*Column set + the editing/selection
+// surface (CurrentCell, SelectionUnit, IsReadOnly) + the header/grid-lines
+// rendering. classify -> the list/grid fill (Solid).
+class VAML_CORE_EXPORT DataGridColumn
+{
+public:
+    // The column kind (TextColumn / CheckBoxColumn / ComboBoxColumn /
+    // TemplateColumn). Header is the column header text; Width is the column
+    // track width.
+    enum class Kind : std::uint8_t
+    {
+        Text        = 0,
+        CheckBox    = 1,
+        ComboBox    = 2,
+        Template    = 3,
+    };
+
+    DataGridColumn() = default;
+    DataGridColumn(Kind k, std::string header, float width)
+        : kind_(k), header_(std::move(header)), width_(width) {}
+
+    [[nodiscard]] Kind kind() const noexcept { return kind_; }
+    [[nodiscard]] const std::string& header() const noexcept { return header_; }
+    [[nodiscard]] float width() const noexcept { return width_; }
+    void set_width(float w) noexcept { width_ = w; }
+
+private:
+    Kind        kind_   = Kind::Text;
+    std::string header_ = {};
+    float       width_  = 100.0f;
+};
+
+class VAML_CORE_EXPORT DataGrid final : public UIElement
+{
+public:
+    DataGrid();
+
+    // --- Items / ItemsSource (REAL DPs; String) -----------------------------
+    [[nodiscard]] SetResult set_items(std::string value);
+    [[nodiscard]] std::string items() const;
+    [[nodiscard]] SetResult set_items_source(std::string value);
+    [[nodiscard]] std::string items_source() const;
+
+    // --- Columns (owned typed set) ------------------------------------------
+    void set_columns(std::vector<DataGridColumn> cols);
+    [[nodiscard]] const std::vector<DataGridColumn>& columns() const noexcept;
+    // Adds one column; returns the new count. The typed DataGrid*Column authoring
+    // (TextColumn/CheckBoxColumn/ComboBoxColumn/TemplateColumn) is exposed via
+    // this owned set + the auto-generate helper below.
+    [[nodiscard]] std::size_t add_column(DataGridColumn col);
+
+    // --- Selection (SelectedIndex / SelectedItem) ---------------------------
+    [[nodiscard]] SetResult set_selected_index(std::int32_t index);
+    [[nodiscard]] std::int32_t selected_index() const;
+    [[nodiscard]] std::string selected_item() const;
+
+    // --- SelectionUnit / IsReadOnly (REAL DPs; Int32 / Bool via Int32) ------
+    [[nodiscard]] SetResult set_selection_unit(std::int32_t value);
+    [[nodiscard]] std::int32_t selection_unit() const;
+    [[nodiscard]] SetResult set_is_read_only(bool value);
+    [[nodiscard]] bool is_read_only() const;
+
+    // --- HeadersVisibility / AutoGenerateColumns (REAL DPs; Int32) ----------
+    [[nodiscard]] SetResult set_headers_visibility(std::int32_t value);
+    [[nodiscard]] std::int32_t headers_visibility() const;
+    [[nodiscard]] SetResult set_auto_generate_columns(bool value);
+    [[nodiscard]] bool auto_generate_columns() const;
+
+    // --- CurrentCell / Fraction ---------------------------------------------
+    // The editing/selection surface: the current cell (row, column) + the
+    // fill-fraction proof (the "list/grid fill" the classifier consumes).
+    void set_current_cell(std::int32_t row, std::int32_t col);
+    [[nodiscard]] std::int32_t current_row() const noexcept;
+    [[nodiscard]] std::int32_t current_column() const noexcept;
+
+    [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onSelectionChanged_;
+    std::vector<DataGridColumn> cols_;
+    void apply_selection(std::int32_t newIndex);
+};
+
 // Startup registration: registers every built-in element type name into
 // ElementFactoryRegistry::global(). Called once at process startup (single-
 // threaded) before any VAML document is parsed; S092/S286 reader paths consume

@@ -334,8 +334,11 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // 11k-2 control set ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray +
     // the 11k-4 brush/vector resource set PathGeometry/GeometryGroup/
     // RectangleGeometry/EllipseGeometry/GeometryDrawing/DrawingGroup/
-    // DrawingBrush/DrawingImage/ImageBrush).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(50u));
+    // DrawingBrush/DrawingImage/ImageBrush + the Sprint 11e (11e) container +
+    // menu controls TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/Popup/
+    // GridSplitter/DataGrid (50 -> 59; count bumps are authored at the step,
+    // never silent).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(59u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -354,7 +357,9 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // the 11k-2 set ScrollBar/RepeatButton/Viewbox/ToolBar/ToolBarTray the
     // 37th-41st + the 11k-4 set PathGeometry/GeometryGroup/RectangleGeometry/
     // EllipseGeometry/GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/
-    // ImageBrush the 42nd-50th.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(50u));
+    // ImageBrush the 42nd-50th + the Sprint 11e (11e) set TabControl/TabItem/
+    // Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid the
+    // 51st-59th (count bumps authored at the step, never silent).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(59u));
     assertConcrete<Button>(g.create("Button"));
 }

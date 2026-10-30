@@ -147,13 +147,16 @@ ValueConversionException::ValueConversionException(ValueConversionError kind,
 
 namespace {
 
-// Case-insensitive string equality ("true"/"false" / hex handled case-insensitively).
-// NOTE (recorded, NOT touched): this folds ONLY A..F, because it is shared by
-// the Bool "true"/"false" converter whose S090 contract DOCUMENTS + TESTS the
-// hex-only fold quirk (Bool rejects "True"/"TRUE"/"FALSE" — see S090: "rejects
-// non-foldable variants"). It is NOT used for the Auto sentinel (which needs
-// full ASCII case-insensitivity — see convert_double's dedicated check below),
-// so widening it here would silently break that tested contract.
+// Case-insensitive string equality (full ASCII A..Z fold). WPF/XAML is
+// CASE-INSENSITIVE for Boolean literals ("true"/"True"/"TRUE") and for enum-
+// name attributes ("Visible"/"visible"), so the built-in literal comparison
+// must fold the FULL alphabet — an A..F-only fold (a camera-leftover from an
+// early hex helper) wrongly rejected "True"/"TRUE"/"FALSE" and lowercase enum
+// names, breaking corpus-faithful authoring (recorded + corrected at S11a1:
+// the S090 "hex-only fold" note was a mis-codified quirk, not a real contract —
+// hex/color literals use their OWN fold in Color.cpp's parse_color, so no hex
+// path ever shared this helper). The Auto sentinel uses `iequals_auto` below,
+// which is the same full fold; both accept "Auto"/"auto"/"AUTO".
 bool iequals(std::string_view a, std::string_view b)
 {
     if (a.size() != b.size())
@@ -162,8 +165,8 @@ bool iequals(std::string_view a, std::string_view b)
     }
     for (std::size_t i = 0; i < a.size(); ++i)
     {
-        const char x = a[i] >= 'A' && a[i] <= 'F' ? static_cast<char>(a[i] - 'A' + 'a') : a[i];
-        const char y = b[i] >= 'A' && b[i] <= 'F' ? static_cast<char>(b[i] - 'A' + 'a') : b[i];
+        const char x = a[i] >= 'A' && a[i] <= 'Z' ? static_cast<char>(a[i] - 'A' + 'a') : a[i];
+        const char y = b[i] >= 'A' && b[i] <= 'Z' ? static_cast<char>(b[i] - 'A' + 'a') : b[i];
         if (x != y)
         {
             return false;
@@ -172,10 +175,10 @@ bool iequals(std::string_view a, std::string_view b)
     return true;
 }
 
-// Full ASCII case-insensitive string equality, used ONLY for the WPF `Auto`
-// sentinel (Width="Auto"/"auto"/"AUTO" are all valid XAML authoring). This is
-// deliberately separate from `iequals` (whose A..F fold is the documented S090
-// Bool/hex contract and is left untouched).
+// Full ASCII case-insensitive equality, used for the WPF `Auto` sentinel
+// (Width="Auto"/"auto"/"AUTO" are all valid XAML authoring). This matches
+// `iequals`' full A..Z fold; it is kept as a separate 4-char helper only for
+// the empty/auto-specific shape (no semantic distinction from iequals).
 bool iequals_auto(std::string_view s) noexcept
 {
     if (s.size() != 4)

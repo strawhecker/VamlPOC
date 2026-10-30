@@ -73,6 +73,7 @@ add_executable(vaml-core-tests
     TagDp_s11j8_test.cpp
     ElementTriggers_s11j7_test.cpp
     11k5_eventTrigger_test.cpp
+    EventTrigger_s495a_test.cpp
     GridColumnDefs_s11j9_test.cpp
     VamlReader_test.cpp
     VamlReader_defer_test.cpp
@@ -1024,6 +1025,19 @@ add_executable(vaml-presentation-tests
     # classifier emits the right materials (Border -> Border — the first live
     # BorderRect; Image -> Monochrome; the rest -> Solid).
     ViewerGrowth_s486_test.cpp
+    # S490–S494 (Sprint 11e) — the container + menu controls at the vertical-
+    # slice boundary: each of TabControl/TabItem/Menu/MenuItem/ContextMenu/
+    # ToolTip/Popup/GridSplitter/DataGrid is a REAL re-based UIElement + a
+    # registered built-in, classified to MaterialKind::Solid, with its DP/
+    # routed-surface round-trip + interaction (selection/click/open/drag).
+    # Headless.
+    ContainerMenu_s11e_test.cpp
+    # S495 (dep:S494) — VIEWER-GROWTH(11e): the sample .vaml authors TabControl
+    # + Menu + ContextMenu + ToolTip + Popup + GridSplitter + DataGrid; the LIVE
+    # viewer renders + interacts end-to-end. Headless proof of the [both-apps]
+    # sample: the 11e sample loads cleanly + the classifier emits Solid for
+    # every authored 11e control + the interaction surfaces interoperate.
+    ViewerGrowth_s495_test.cpp
     # S11c (S470–S473) — the DockPanel + selection controls (RadioButton/
     # ComboBox/ListBox/ListView) materials at the vertical-slice boundary:
     # classify_merge_element -> MaterialKind::Solid for each (DockPanel fill /

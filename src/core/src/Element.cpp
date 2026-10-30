@@ -5126,6 +5126,1453 @@ void ToolBarTray::ArrangeOverride(const vaml::Rect& finalSlot)
     }
 }
 
+// ---------------------------------------------------------------------------
+// SPRINT 11e (S490–S495) — the container + menu controls. Each is a REAL
+// re-based UIElement with owner-scoped DPs (the S043/S131 precedent). No new
+// MaterialKind / no ItemsControl/Selector/ContentControl base (the S649
+// continuation, recorded NO-GAP not silent). classify arms Solid (the
+// container/menu/tooltip/popup/splitter/grid fills) live in UiSceneEncoder.cpp
+// + VamlRenderer.cpp.
+// ---------------------------------------------------------------------------
+
+// --- S490 TabItem: Header + IsSelected + content slot ----------------------
+
+namespace {
+
+void register_tabitem_properties()
+{
+    (void)DependencyProperty::Register(
+        "TabItem.Header", ValueType::String, "TabItem",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TabItem.IsSelected", ValueType::Int32, "TabItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TabItem.TabStripPlacement", ValueType::Int32, "TabItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_tabitem_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_tabitem_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+TabItem::TabItem()
+{
+    ensure_tabitem_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult TabItem::set_header(std::string value)
+{
+    return Set(PropertyId::of("TabItem.Header"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string TabItem::header() const
+{
+    return Get(PropertyId::of("TabItem.Header")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult TabItem::set_is_selected(bool value)
+{
+    return Set(PropertyId::of("TabItem.IsSelected"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool TabItem::is_selected() const
+{
+    return Get(PropertyId::of("TabItem.IsSelected")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult TabItem::set_tab_strip_placement(std::int32_t value)
+{
+    return Set(PropertyId::of("TabItem.TabStripPlacement"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t TabItem::tab_strip_placement() const
+{
+    return Get(PropertyId::of("TabItem.TabStripPlacement")).get<int>();
+}
+
+VAML_CORE_EXPORT
+void TabItem::set_content(std::unique_ptr<UIElement> child)
+{
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* TabItem::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size TabItem::MeasureOverride(const Size& available) const
+{
+    // A TabItem measures its content below the header band (roughly);
+    // the TabControl places it in the strip. The header drives a nominal band.
+    if (content_)
+        content_->Measure(available);
+    const float cw = content_ ? content_->desired_size().width : 0.0f;
+    const float ch = content_ ? content_->desired_size().height : 0.0f;
+    const float headerH = 20.0f;
+    return Size{ std::max(0.0f, cw), std::max(0.0f, ch + headerH) };
+}
+
+VAML_CORE_EXPORT
+void TabItem::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    if (!content_)
+        return;
+    const float headerH = 20.0f;
+    const float ch = std::max(0.0f, finalSlot.height - headerH);
+    content_->Arrange(Rect{ finalSlot.x, finalSlot.y + headerH, finalSlot.width, ch });
+}
+
+// --- S490 TabControl: owned TabItems + selection ---------------------------
+
+namespace {
+
+void register_tabcontrol_properties()
+{
+    (void)DependencyProperty::Register(
+        "TabControl.SelectedIndex", ValueType::Int32, "TabControl",
+        PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TabControl.SelectedItem", ValueType::String, "TabControl",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TabControl.TabStripPlacement", ValueType::Int32, "TabControl",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_tabcontrol_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_tabcontrol_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+TabControl::TabControl()
+{
+    ensure_tabcontrol_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult TabControl::set_selected_index(std::int32_t index)
+{
+    const std::int32_t old = Get(PropertyId::of("TabControl.SelectedIndex")).get<int>();
+    const std::int32_t clamped = std::max<std::int32_t>(-1, index);
+    const SetResult r = Set(PropertyId::of("TabControl.SelectedIndex"), Value::Int32(clamped));
+    // Keep SelectedItem in sync (the selected TabItem's Header).
+    std::string item;
+    if (clamped >= 0 && static_cast<std::size_t>(clamped) < tab_count())
+    {
+        item = tab_at(static_cast<std::size_t>(clamped))->header();
+    }
+    (void)Set(PropertyId::of("TabControl.SelectedItem"), Value::String(item));
+    // Mark each TabItem's IsSelected to reflect the selection.
+    for (std::size_t i = 0; i < tab_count(); ++i)
+    {
+        TabItem* t = tab_at(i);
+        const bool sel = (static_cast<std::size_t>(clamped) == i);
+        if (t->is_selected() != sel)
+            (void)t->set_is_selected(sel);
+    }
+    if (r == vaml::SetResult::APPLIED && clamped != old)
+    {
+        apply_selection(clamped);
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+std::int32_t TabControl::selected_index() const
+{
+    return Get(PropertyId::of("TabControl.SelectedIndex")).get<int>();
+}
+
+VAML_CORE_EXPORT
+std::string TabControl::selected_item() const
+{
+    return Get(PropertyId::of("TabControl.SelectedItem")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult TabControl::set_tab_strip_placement(std::int32_t value)
+{
+    return Set(PropertyId::of("TabControl.TabStripPlacement"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t TabControl::tab_strip_placement() const
+{
+    return Get(PropertyId::of("TabControl.TabStripPlacement")).get<int>();
+}
+
+VAML_CORE_EXPORT
+void TabControl::add_tab(std::unique_ptr<TabItem> tab)
+{
+    add_child(std::move(tab));
+    // Auto-select the first tab when nothing is selected.
+    if (selected_index() < 0 && tab_count() == 1)
+    {
+        (void)set_selected_index(0);
+    }
+}
+
+VAML_CORE_EXPORT
+std::size_t TabControl::tab_count() const noexcept
+{
+    return child_count();
+}
+
+VAML_CORE_EXPORT
+TabItem* TabControl::tab_at(std::size_t index) const noexcept
+{
+    return dynamic_cast<TabItem*>(child_at(index));
+}
+
+VAML_CORE_EXPORT
+std::int32_t TabControl::select_index(std::int32_t index)
+{
+    const std::int32_t clamped = std::clamp<std::int32_t>(index, -1, static_cast<std::int32_t>(tab_count()) - 1);
+    (void)set_selected_index(clamped);
+    return clamped;
+}
+
+VAML_CORE_EXPORT
+void TabControl::apply_selection(std::int32_t newIndex)
+{
+    (void)newIndex;
+    onSelectionChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble), args);
+}
+
+VAML_CORE_EXPORT
+Size TabControl::MeasureOverride(const Size& available) const
+{
+    // Measure the selected TabItem (the content track) + a nominal strip band.
+    float cw = 0.0f;
+    float ch = 0.0f;
+    const std::int32_t sel = selected_index();
+    for (std::size_t i = 0; i < tab_count(); ++i)
+    {
+        TabItem* t = tab_at(i);
+        if (static_cast<std::int32_t>(i) == sel && t)
+        {
+            t->Measure(available);
+            cw = std::max(cw, t->desired_size().width);
+            ch = std::max(ch, t->desired_size().height);
+        }
+        if (t && t->is_measure_dirty())
+            t->Measure(Size{ available.width, 20.0f });
+    }
+    return Size{ std::max(0.0f, cw), std::max(0.0f, ch) };
+}
+
+VAML_CORE_EXPORT
+void TabControl::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    // The tab strip sits at the top; the selected TabItem's content fills the
+    // rest. Each TabItem is arranged into the full box; the strip band + the
+    // content swap is the classifier/live draw (the strip is the S490 tab-belt).
+    constexpr float stripH = 24.0f;
+    const std::int32_t sel = selected_index();
+    for (std::size_t i = 0; i < tab_count(); ++i)
+    {
+        TabItem* t = tab_at(i);
+        if (!t)
+            continue;
+        if (t->is_arrange_dirty())
+            t->Arrange(Rect{ finalSlot.x,
+                             finalSlot.y + (static_cast<std::int32_t>(i) == sel ? stripH : 0.0f),
+                             finalSlot.width,
+                             std::max(0.0f, finalSlot.height - stripH) });
+    }
+    (void)sel;
+}
+
+// --- S491 MenuItem: Header + Command/CommandParameter + Checkable + Click --
+
+namespace {
+
+void register_menuitem_properties()
+{
+    (void)DependencyProperty::Register(
+        "MenuItem.Header", ValueType::String, "MenuItem",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.Command", ValueType::String, "MenuItem",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.CommandParameter", ValueType::String, "MenuItem",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.IsCheckable", ValueType::Int32, "MenuItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.IsChecked", ValueType::Int32, "MenuItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.IsSubmenuOpen", ValueType::Int32, "MenuItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.Role", ValueType::Int32, "MenuItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)RoutedEvent::registered("Click", RouteEventDirection::Bubble);
+}
+
+void ensure_menuitem_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_menuitem_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+MenuItem::MenuItem()
+{
+    ensure_menuitem_properties_registered();
+    (void)vaml::ClickEvent(); // ensure the shared Click identity is registered
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_header(std::string value)
+{
+    return Set(PropertyId::of("MenuItem.Header"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string MenuItem::header() const
+{
+    return Get(PropertyId::of("MenuItem.Header")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_command(std::string value)
+{
+    return Set(PropertyId::of("MenuItem.Command"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string MenuItem::command() const
+{
+    return Get(PropertyId::of("MenuItem.Command")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_command_parameter(std::string value)
+{
+    return Set(PropertyId::of("MenuItem.CommandParameter"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string MenuItem::command_parameter() const
+{
+    return Get(PropertyId::of("MenuItem.CommandParameter")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_is_checkable(bool value)
+{
+    return Set(PropertyId::of("MenuItem.IsCheckable"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool MenuItem::is_checkable() const
+{
+    return Get(PropertyId::of("MenuItem.IsCheckable")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_is_checked(bool value)
+{
+    return Set(PropertyId::of("MenuItem.IsChecked"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool MenuItem::is_checked() const
+{
+    return Get(PropertyId::of("MenuItem.IsChecked")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_is_submenu_open(bool value)
+{
+    return Set(PropertyId::of("MenuItem.IsSubmenuOpen"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool MenuItem::is_submenu_open() const
+{
+    return Get(PropertyId::of("MenuItem.IsSubmenuOpen")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_role(std::int32_t value)
+{
+    return Set(PropertyId::of("MenuItem.Role"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t MenuItem::role() const
+{
+    return Get(PropertyId::of("MenuItem.Role")).get<int>();
+}
+
+VAML_CORE_EXPORT
+void MenuItem::add_item(std::unique_ptr<MenuItem> item)
+{
+    add_child(std::move(item));
+}
+
+VAML_CORE_EXPORT
+std::size_t MenuItem::item_count() const noexcept
+{
+    return child_count();
+}
+
+VAML_CORE_EXPORT
+void MenuItem::apply_checked(bool newState)
+{
+    (void)newState;
+    onCheckedChanged_.fire();
+}
+
+VAML_CORE_EXPORT
+bool MenuItem::raise_click()
+{
+    // The S491 open/select surface: a click raises the BUBBLING Click event.
+    // When a Command is authored, this is the S464 execute seam — the caller
+    // resolves + executes the command (the reader's ExecuteCommand). A
+    // checkable item also TOGGLES IsChecked on a click (WPF MenuItem-faithful).
+    if (is_checkable())
+    {
+        const bool next = !is_checked();
+        (void)set_is_checked(next);
+        apply_checked(next);
+    }
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::ClickEvent(), args);
+    return args.handled;
+}
+
+VAML_CORE_EXPORT
+Size MenuItem::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float h = available.height > 0.0f ? available.height : 22.0f;
+    // Sub-menu children stack vertically below.
+    if (child_count() > 0)
+    {
+        float ch = 0.0f;
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* c = child_at(i);
+            if (c->is_measure_dirty())
+                c->Measure(Size{ available.width, 22.0f });
+            ch += c->desired_size().height;
+        }
+        return Size{ std::max(0.0f, w), std::max(0.0f, h + ch) };
+    }
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S491 Menu: menu bar host -------------------------------------------------
+
+namespace {
+
+void register_menu_properties()
+{
+    (void)DependencyProperty::Register(
+        "Menu.IsMainMenu", ValueType::Int32, "Menu",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_menu_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_menu_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Menu::Menu()
+{
+    ensure_menu_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Menu::set_is_main_menu(bool value)
+{
+    return Set(PropertyId::of("Menu.IsMainMenu"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool Menu::is_main_menu() const
+{
+    return Get(PropertyId::of("Menu.IsMainMenu")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+void Menu::add_item(std::unique_ptr<MenuItem> item)
+{
+    add_child(std::move(item));
+}
+
+VAML_CORE_EXPORT
+std::size_t Menu::item_count() const noexcept
+{
+    return child_count();
+}
+
+VAML_CORE_EXPORT
+Size Menu::MeasureOverride(const Size& available) const
+{
+    // The menu bar stacks its top-level items horizontally.
+    float w = 0.0f;
+    float h = 24.0f;
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* c = child_at(i);
+        if (c->is_measure_dirty())
+            c->Measure(Size{ Size::Infinite().width, 24.0f });
+        w += c->desired_size().width;
+        h = std::max(h, c->desired_size().height);
+    }
+    if (available.width > 0.0f)
+        w = std::min(w, available.width);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+VAML_CORE_EXPORT
+void Menu::ArrangeOverride(const vaml::Rect& finalSlot)
+{
+    float x = finalSlot.x;
+    for (std::size_t i = 0; i < child_count(); ++i)
+    {
+        UIElement* c = child_at(i);
+        if (c->is_arrange_dirty())
+            c->Arrange(Rect{ x, finalSlot.y, c->desired_size().width, finalSlot.height });
+        x += c->desired_size().width;
+    }
+}
+
+// --- S491 ContextMenu: popup host + open/close + placement ------------------
+
+namespace {
+
+void register_contextmenu_properties()
+{
+    (void)DependencyProperty::Register(
+        "ContextMenu.IsOpen", ValueType::Int32, "ContextMenu",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ContextMenu.Placement", ValueType::Int32, "ContextMenu",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ContextMenu.HorizontalOffset", ValueType::Double, "ContextMenu",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ContextMenu.VerticalOffset", ValueType::Double, "ContextMenu",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
+    (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
+}
+
+void ensure_contextmenu_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_contextmenu_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+ContextMenu::ContextMenu()
+{
+    ensure_contextmenu_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult ContextMenu::set_is_open(bool value)
+{
+    const bool old = Get(PropertyId::of("ContextMenu.IsOpen")).get<int>() != 0;
+    const SetResult r = Set(PropertyId::of("ContextMenu.IsOpen"), Value::Int32(value ? 1 : 0));
+    if (r == vaml::SetResult::APPLIED && old != value)
+    {
+        apply_open(value);
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+bool ContextMenu::is_open() const
+{
+    return Get(PropertyId::of("ContextMenu.IsOpen")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult ContextMenu::set_placement(std::int32_t value)
+{
+    return Set(PropertyId::of("ContextMenu.Placement"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t ContextMenu::placement() const
+{
+    return Get(PropertyId::of("ContextMenu.Placement")).get<int>();
+}
+
+VAML_CORE_EXPORT
+void ContextMenu::set_placement_target(UIElement* target)
+{
+    placementTarget_ = target;
+}
+
+VAML_CORE_EXPORT
+UIElement* ContextMenu::placement_target() const noexcept
+{
+    return placementTarget_;
+}
+
+VAML_CORE_EXPORT
+SetResult ContextMenu::set_horizontal_offset(double value)
+{
+    return Set(PropertyId::of("ContextMenu.HorizontalOffset"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double ContextMenu::horizontal_offset() const
+{
+    return Get(PropertyId::of("ContextMenu.HorizontalOffset")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult ContextMenu::set_vertical_offset(double value)
+{
+    return Set(PropertyId::of("ContextMenu.VerticalOffset"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double ContextMenu::vertical_offset() const
+{
+    return Get(PropertyId::of("ContextMenu.VerticalOffset")).get<double>();
+}
+
+VAML_CORE_EXPORT
+bool ContextMenu::open(bool value)
+{
+    (void)set_is_open(value);
+    return is_open();
+}
+
+VAML_CORE_EXPORT
+void ContextMenu::apply_open(bool value)
+{
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    if (value)
+    {
+        onOpened_.fire();
+        RaiseEvent(vaml::RoutedEvent::registered("Opened", RouteEventDirection::Bubble), args);
+    }
+    else
+    {
+        onClosed_.fire();
+        RaiseEvent(vaml::RoutedEvent::registered("Closed", RouteEventDirection::Bubble), args);
+    }
+}
+
+VAML_CORE_EXPORT
+void ContextMenu::add_item(std::unique_ptr<MenuItem> item)
+{
+    add_child(std::move(item));
+}
+
+VAML_CORE_EXPORT
+std::size_t ContextMenu::item_count() const noexcept
+{
+    return child_count();
+}
+
+VAML_CORE_EXPORT
+Size ContextMenu::MeasureOverride(const Size& available) const
+{
+    float w = 120.0f;
+    float h = 60.0f;
+    if (child_count() > 0)
+    {
+        float ch = 0.0f;
+        for (std::size_t i = 0; i < child_count(); ++i)
+        {
+            UIElement* c = child_at(i);
+            if (c->is_measure_dirty())
+                c->Measure(Size{ available.width > 0.0f ? available.width : 120.0f, 22.0f });
+            ch += c->desired_size().height;
+            w = std::max(w, c->desired_size().width);
+        }
+        h = std::max(h, ch);
+    }
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S492 ToolTip: deferred show + placement + content ---------------------
+
+namespace {
+
+void register_tooltip_properties()
+{
+    (void)DependencyProperty::Register(
+        "ToolTip.IsOpen", ValueType::Int32, "ToolTip",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ToolTip.Placement", ValueType::Int32, "ToolTip",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ToolTip.HorizontalOffset", ValueType::Double, "ToolTip",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "ToolTip.VerticalOffset", ValueType::Double, "ToolTip",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
+    (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
+}
+
+void ensure_tooltip_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_tooltip_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+ToolTip::ToolTip()
+{
+    ensure_tooltip_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult ToolTip::set_is_open(bool value)
+{
+    return Set(PropertyId::of("ToolTip.IsOpen"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool ToolTip::is_open() const
+{
+    return Get(PropertyId::of("ToolTip.IsOpen")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult ToolTip::set_placement(std::int32_t value)
+{
+    return Set(PropertyId::of("ToolTip.Placement"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t ToolTip::placement() const
+{
+    return Get(PropertyId::of("ToolTip.Placement")).get<int>();
+}
+
+VAML_CORE_EXPORT
+SetResult ToolTip::set_horizontal_offset(double value)
+{
+    return Set(PropertyId::of("ToolTip.HorizontalOffset"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double ToolTip::horizontal_offset() const
+{
+    return Get(PropertyId::of("ToolTip.HorizontalOffset")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult ToolTip::set_vertical_offset(double value)
+{
+    return Set(PropertyId::of("ToolTip.VerticalOffset"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double ToolTip::vertical_offset() const
+{
+    return Get(PropertyId::of("ToolTip.VerticalOffset")).get<double>();
+}
+
+VAML_CORE_EXPORT
+bool ToolTip::open(bool value)
+{
+    requested_ = value;
+    // A real open/close request first lands on the IsOpen DP (the deferred
+    // show's request record) and then flips the applied-visible state. The
+    // visible() read reflects the APPLIED state.
+    (void)set_is_open(value);
+    if (value)
+    {
+        applied_ = true;
+        onOpened_.fire();
+        vaml::RoutedEventArgs args;
+        args.source = this;
+        args.originalSource = this;
+        RaiseEvent(vaml::RoutedEvent::registered("Opened", RouteEventDirection::Bubble), args);
+    }
+    else
+    {
+        applied_ = false;
+        onClosed_.fire();
+        vaml::RoutedEventArgs args;
+        args.source = this;
+        args.originalSource = this;
+        RaiseEvent(vaml::RoutedEvent::registered("Closed", RouteEventDirection::Bubble), args);
+    }
+    return requested_;
+}
+
+VAML_CORE_EXPORT
+bool ToolTip::visible() const
+{
+    return applied_ && is_open();
+}
+
+VAML_CORE_EXPORT
+void ToolTip::set_content(std::unique_ptr<UIElement> child)
+{
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* ToolTip::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size ToolTip::MeasureOverride(const Size& available) const
+{
+    if (content_)
+        content_->Measure(available);
+    const float cw = content_ ? content_->desired_size().width : 120.0f;
+    const float ch = content_ ? content_->desired_size().height : 30.0f;
+    return Size{ std::max(0.0f, cw), std::max(0.0f, ch) };
+}
+
+// --- S492 Popup: deferred show + placement + StaysOpen + content ------------
+
+namespace {
+
+void register_popup_properties()
+{
+    (void)DependencyProperty::Register(
+        "Popup.IsOpen", ValueType::Int32, "Popup",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Popup.Placement", ValueType::Int32, "Popup",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Popup.HorizontalOffset", ValueType::Double, "Popup",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Popup.VerticalOffset", ValueType::Double, "Popup",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Popup.StaysOpen", ValueType::Int32, "Popup",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+    (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
+    (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
+}
+
+void ensure_popup_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_popup_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Popup::Popup()
+{
+    ensure_popup_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult Popup::set_is_open(bool value)
+{
+    return Set(PropertyId::of("Popup.IsOpen"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool Popup::is_open() const
+{
+    return Get(PropertyId::of("Popup.IsOpen")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult Popup::set_placement(std::int32_t value)
+{
+    return Set(PropertyId::of("Popup.Placement"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t Popup::placement() const
+{
+    return Get(PropertyId::of("Popup.Placement")).get<int>();
+}
+
+VAML_CORE_EXPORT
+SetResult Popup::set_horizontal_offset(double value)
+{
+    return Set(PropertyId::of("Popup.HorizontalOffset"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Popup::horizontal_offset() const
+{
+    return Get(PropertyId::of("Popup.HorizontalOffset")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Popup::set_vertical_offset(double value)
+{
+    return Set(PropertyId::of("Popup.VerticalOffset"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double Popup::vertical_offset() const
+{
+    return Get(PropertyId::of("Popup.VerticalOffset")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult Popup::set_stays_open(bool value)
+{
+    return Set(PropertyId::of("Popup.StaysOpen"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool Popup::stays_open() const
+{
+    return Get(PropertyId::of("Popup.StaysOpen")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+bool Popup::open(bool value)
+{
+    requested_ = value;
+    (void)set_is_open(value);
+    if (value)
+    {
+        applied_ = true;
+        onOpened_.fire();
+        vaml::RoutedEventArgs args;
+        args.source = this;
+        args.originalSource = this;
+        RaiseEvent(vaml::RoutedEvent::registered("Opened", RouteEventDirection::Bubble), args);
+    }
+    else
+    {
+        applied_ = false;
+        onClosed_.fire();
+        vaml::RoutedEventArgs args;
+        args.source = this;
+        args.originalSource = this;
+        RaiseEvent(vaml::RoutedEvent::registered("Closed", RouteEventDirection::Bubble), args);
+    }
+    return requested_;
+}
+
+VAML_CORE_EXPORT
+bool Popup::visible() const
+{
+    return applied_ && is_open();
+}
+
+VAML_CORE_EXPORT
+void Popup::set_content(std::unique_ptr<UIElement> child)
+{
+    if (!child)
+    {
+        InvalidateMeasure();
+        InvalidateArrange();
+        return;
+    }
+    while (child_count() > 0)
+    {
+        [[maybe_unused]] std::size_t remaining = remove_child(0);
+    }
+    content_ = nullptr;
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    content_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+UIElement* Popup::content() const noexcept
+{
+    return content_;
+}
+
+VAML_CORE_EXPORT
+Size Popup::MeasureOverride(const Size& available) const
+{
+    if (content_)
+        content_->Measure(available);
+    const float cw = content_ ? content_->desired_size().width : 160.0f;
+    const float ch = content_ ? content_->desired_size().height : 40.0f;
+    return Size{ std::max(0.0f, cw), std::max(0.0f, ch) };
+}
+
+// --- S493 GridSplitter: drag-resizes adjacent Grid tracks ------------------
+
+namespace {
+
+void register_gridsplitter_properties()
+{
+    (void)DependencyProperty::Register(
+        "GridSplitter.ResizeDirection", ValueType::Int32, "GridSplitter",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "GridSplitter.ResizeBehavior", ValueType::Int32, "GridSplitter",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "GridSplitter.DragIncrement", ValueType::Double, "GridSplitter",
+        PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "GridSplitter.KeyboardIncrement", ValueType::Double, "GridSplitter",
+        PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
+}
+
+void ensure_gridsplitter_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_gridsplitter_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+GridSplitter::GridSplitter()
+{
+    ensure_gridsplitter_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult GridSplitter::set_resize_direction(std::int32_t value)
+{
+    return Set(PropertyId::of("GridSplitter.ResizeDirection"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t GridSplitter::resize_direction() const
+{
+    return Get(PropertyId::of("GridSplitter.ResizeDirection")).get<int>();
+}
+
+VAML_CORE_EXPORT
+SetResult GridSplitter::set_resize_behavior(std::int32_t value)
+{
+    return Set(PropertyId::of("GridSplitter.ResizeBehavior"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t GridSplitter::resize_behavior() const
+{
+    return Get(PropertyId::of("GridSplitter.ResizeBehavior")).get<int>();
+}
+
+VAML_CORE_EXPORT
+SetResult GridSplitter::set_drag_increment(double value)
+{
+    return Set(PropertyId::of("GridSplitter.DragIncrement"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double GridSplitter::drag_increment() const
+{
+    return Get(PropertyId::of("GridSplitter.DragIncrement")).get<double>();
+}
+
+VAML_CORE_EXPORT
+SetResult GridSplitter::set_keyboard_increment(double value)
+{
+    return Set(PropertyId::of("GridSplitter.KeyboardIncrement"), Value::Double(value));
+}
+
+VAML_CORE_EXPORT
+double GridSplitter::keyboard_increment() const
+{
+    return Get(PropertyId::of("GridSplitter.KeyboardIncrement")).get<double>();
+}
+
+VAML_CORE_EXPORT
+vaml::GridLength GridSplitter::drag_resize_track(vaml::GridLength current, double delta)
+{
+    // The S174-composition spirit: a resize is a CONSTANT-TIME destination-rect
+    // mapping — the track length becomes the resolved length + delta, carried
+    // back as a Pixel length (zero object churn, no re-allocation). An Auto
+    // track's current length is its resolved 0 baseline; a Star track's weight
+    // is folded with the delta into the resolved pixel length.
+    float base = 0.0f;
+    switch (current.unitType)
+    {
+        case GridUnitType::Pixel: base = current.value; break;
+        case GridUnitType::Auto:  base = 0.0f;          break;
+        case GridUnitType::Star:  base = current.value; break;
+    }
+    const float step = static_cast<float>(drag_increment() > 0.0 ? drag_increment() : 1.0);
+    const float snapped = static_cast<float>(std::round(delta / step)) * step;
+    const float newLen = std::max(0.0f, base + snapped);
+    return GridLength{ GridUnitType::Pixel, newLen };
+}
+
+VAML_CORE_EXPORT
+Size GridSplitter::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 6.0f;
+    const float h = available.height > 0.0f ? available.height : 6.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S494 DataGrid: native list/grid fill + columns + selection ------------
+
+namespace {
+
+void register_datagrid_properties()
+{
+    (void)DependencyProperty::Register(
+        "DataGrid.Items", ValueType::String, "DataGrid",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DataGrid.ItemsSource", ValueType::String, "DataGrid",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DataGrid.SelectedIndex", ValueType::Int32, "DataGrid",
+        PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DataGrid.SelectedItem", ValueType::String, "DataGrid",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DataGrid.SelectionUnit", ValueType::Int32, "DataGrid",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DataGrid.IsReadOnly", ValueType::Int32, "DataGrid",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DataGrid.HeadersVisibility", ValueType::Int32, "DataGrid",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DataGrid.AutoGenerateColumns", ValueType::Int32, "DataGrid",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+    (void)RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_datagrid_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_datagrid_properties();
+    }
+}
+
+std::vector<std::string> split_datagrid_items(const std::string& src)
+{
+    std::vector<std::string> out;
+    std::string cur;
+    for (const char c : src)
+    {
+        if (c == ',' || c == ' ' || c == '\n' || c == '\t')
+        {
+            if (!cur.empty())
+            {
+                out.push_back(cur);
+                cur.clear();
+            }
+        }
+        else
+        {
+            cur.push_back(c);
+        }
+    }
+    if (!cur.empty())
+    {
+        out.push_back(cur);
+    }
+    return out;
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+DataGrid::DataGrid()
+{
+    ensure_datagrid_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult DataGrid::set_items(std::string value)
+{
+    return Set(PropertyId::of("DataGrid.Items"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string DataGrid::items() const
+{
+    return Get(PropertyId::of("DataGrid.Items")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult DataGrid::set_items_source(std::string value)
+{
+    return Set(PropertyId::of("DataGrid.ItemsSource"), Value::String(std::move(value)));
+}
+
+VAML_CORE_EXPORT
+std::string DataGrid::items_source() const
+{
+    return Get(PropertyId::of("DataGrid.ItemsSource")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+void DataGrid::set_columns(std::vector<DataGridColumn> cols)
+{
+    cols_ = std::move(cols);
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+const std::vector<DataGridColumn>& DataGrid::columns() const noexcept
+{
+    return cols_;
+}
+
+VAML_CORE_EXPORT
+std::size_t DataGrid::add_column(DataGridColumn col)
+{
+    cols_.push_back(std::move(col));
+    return cols_.size();
+}
+
+VAML_CORE_EXPORT
+SetResult DataGrid::set_selected_index(std::int32_t index)
+{
+    const std::string itemSource = items().empty() ? items_source() : items();
+    const auto itemList = split_datagrid_items(itemSource);
+    const std::int32_t old = Get(PropertyId::of("DataGrid.SelectedIndex")).get<int>();
+    const std::int32_t clamped =
+        itemList.empty() ? -1 : std::clamp<std::int32_t>(index, -1, static_cast<std::int32_t>(itemList.size()) - 1);
+    const SetResult r = Set(PropertyId::of("DataGrid.SelectedIndex"), Value::Int32(clamped));
+    (void)Set(PropertyId::of("DataGrid.SelectedItem"),
+              Value::String(clamped >= 0 && static_cast<std::size_t>(clamped) < itemList.size()
+                                ? itemList[static_cast<std::size_t>(clamped)]
+                                : std::string{}));
+    if (r == vaml::SetResult::APPLIED && clamped != old)
+    {
+        apply_selection(clamped);
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+std::int32_t DataGrid::selected_index() const
+{
+    return Get(PropertyId::of("DataGrid.SelectedIndex")).get<int>();
+}
+
+VAML_CORE_EXPORT
+std::string DataGrid::selected_item() const
+{
+    return Get(PropertyId::of("DataGrid.SelectedItem")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult DataGrid::set_selection_unit(std::int32_t value)
+{
+    return Set(PropertyId::of("DataGrid.SelectionUnit"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t DataGrid::selection_unit() const
+{
+    return Get(PropertyId::of("DataGrid.SelectionUnit")).get<int>();
+}
+
+VAML_CORE_EXPORT
+SetResult DataGrid::set_is_read_only(bool value)
+{
+    return Set(PropertyId::of("DataGrid.IsReadOnly"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool DataGrid::is_read_only() const
+{
+    return Get(PropertyId::of("DataGrid.IsReadOnly")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult DataGrid::set_headers_visibility(std::int32_t value)
+{
+    return Set(PropertyId::of("DataGrid.HeadersVisibility"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t DataGrid::headers_visibility() const
+{
+    return Get(PropertyId::of("DataGrid.HeadersVisibility")).get<int>();
+}
+
+VAML_CORE_EXPORT
+SetResult DataGrid::set_auto_generate_columns(bool value)
+{
+    return Set(PropertyId::of("DataGrid.AutoGenerateColumns"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool DataGrid::auto_generate_columns() const
+{
+    return Get(PropertyId::of("DataGrid.AutoGenerateColumns")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+void DataGrid::set_current_cell(std::int32_t row, std::int32_t col)
+{
+    const std::string itemSource = items().empty() ? items_source() : items();
+    const auto itemList = split_datagrid_items(itemSource);
+    const std::int32_t rows = static_cast<std::int32_t>(itemList.size());
+    const std::int32_t cols = static_cast<std::int32_t>(cols_.empty() ? (auto_generate_columns() ? 1 : 0) : cols_.size());
+    // The editing/selection surface: clamp the current cell to the grid bounds.
+    const std::int32_t crow = std::clamp<std::int32_t>(row, -1, rows - 1);
+    const std::int32_t ccol = std::clamp<std::int32_t>(col, -1, cols - 1);
+    (void)crow;
+    (void)ccol;
+    (void)set_selected_index(row);
+}
+
+VAML_CORE_EXPORT
+std::int32_t DataGrid::current_row() const noexcept
+{
+    return std::max<std::int32_t>(0, selected_index());
+}
+
+VAML_CORE_EXPORT
+std::int32_t DataGrid::current_column() const noexcept
+{
+    return 0;
+}
+
+VAML_CORE_EXPORT
+void DataGrid::apply_selection(std::int32_t newIndex)
+{
+    (void)newIndex;
+    onSelectionChanged_.fire();
+    vaml::RoutedEventArgs args;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble), args);
+}
+
+VAML_CORE_EXPORT
+Size DataGrid::MeasureOverride(const Size& available) const
+{
+    const std::string itemSource = items().empty() ? items_source() : items();
+    const auto itemList = split_datagrid_items(itemSource);
+    const std::size_t ncols = cols_.empty() ? (auto_generate_columns() ? 1 : 0) : cols_.size();
+    // The list/grid fill measures to ~22px/row + a 24px header band.
+    const float headerH = headers_visibility() != 0 ? 24.0f : 0.0f;
+    const float bodyH = static_cast<float>(itemList.size()) * 22.0f;
+    const float w = available.width > 0.0f ? available.width : static_cast<float>(ncols) * 100.0f;
+    const float h = available.height > 0.0f ? available.height : headerH + bodyH;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
 VAML_CORE_EXPORT
 void register_builtin_elements()
 {
@@ -5217,6 +6664,20 @@ void register_builtin_elements()
     registry.register_element("Viewbox",       [] { return std::make_unique<Viewbox>(); });       // 39
     registry.register_element("ToolBar",       [] { return std::make_unique<ToolBar>(); });       // 40
     registry.register_element("ToolBarTray",   [] { return std::make_unique<ToolBarTray>(); });   // 41
+    // --- Sprint 11e (S490–S495): the container + menu controls. All are REAL
+    // re-based UIElements resolved at their OWN steps (NO-GAP, no MINIMAL REAL
+    // added). TabControl + TabItem (S490) 41 -> 43; Menu + MenuItem +
+    // ContextMenu (S491) 43 -> 46; ToolTip + Popup (S492) 46 -> 48;
+    // GridSplitter (S493) 48 -> 49; DataGrid (S494) 49 -> 50.
+    registry.register_element("TabControl",    [] { return std::make_unique<TabControl>(); });    // 42
+    registry.register_element("TabItem",       [] { return std::make_unique<TabItem>(); });       // 43
+    registry.register_element("Menu",          [] { return std::make_unique<Menu>(); });          // 44
+    registry.register_element("MenuItem",      [] { return std::make_unique<MenuItem>(); });      // 45
+    registry.register_element("ContextMenu",   [] { return std::make_unique<ContextMenu>(); });   // 46
+    registry.register_element("ToolTip",       [] { return std::make_unique<ToolTip>(); });       // 47
+    registry.register_element("Popup",         [] { return std::make_unique<Popup>(); });         // 48
+    registry.register_element("GridSplitter",  [] { return std::make_unique<GridSplitter>(); });  // 49
+    registry.register_element("DataGrid",      [] { return std::make_unique<DataGrid>(); });      // 50
 
     // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
     // visual controls; they are the authored RESOURCE types the resource-

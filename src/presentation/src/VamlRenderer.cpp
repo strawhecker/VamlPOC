@@ -578,6 +578,128 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         return v;
     }
 
+    // Sprint 11e (S490–S495): the container + menu controls, at the presentation
+    // vertical-slice boundary:
+    //   * TabControl -> the tab content track fill (Solid); the tab strip is
+    //     emitted by the tab-strip fill per-tab (the classifier emits the
+    //     content track; the tab strip + content swap is the live viewer path).
+    //   * TabItem -> the individual tab-header fill (Solid).
+    //   * Menu -> the menu bar strip fill (Solid).
+    //   * MenuItem -> the item-row fill (Solid); a checked item could tint.
+    //   * ContextMenu -> the popup menu panel fill (Solid).
+    //   * ToolTip / Popup -> the popup panel fill (Solid), only when open.
+    //   * GridSplitter -> the splitter bar fill (Solid).
+    //   * DataGrid -> the list/grid fill (Solid) — the native VAML analog's
+    //     header + cell chrome (recorded NO-GAP: per-cell glyphs + focus chrome
+    //     are the S649 continuation).
+    if (dynamic_cast<const vaml::TabControl*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.85f, 0.87f, 0.91f, 1.0f });
+        return v;
+    }
+    if (auto* tab = dynamic_cast<const vaml::TabItem*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        // A selected tab renders a more-prominent header fill.
+        const bool sel = tab->is_selected();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            sel ? vaml::vulkan::ui::Color4{ 0.60f, 0.65f, 0.72f, 1.0f }
+                : vaml::vulkan::ui::Color4{ 0.78f, 0.80f, 0.85f, 1.0f });
+        return v;
+    }
+    if (dynamic_cast<const vaml::Menu*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.55f, 0.58f, 0.64f, 1.0f });
+        return v;
+    }
+    if (auto* mi = dynamic_cast<const vaml::MenuItem*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const bool chk = mi->is_checked();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            chk ? vaml::vulkan::ui::Color4{ 0.45f, 0.55f, 0.72f, 1.0f }
+                : vaml::vulkan::ui::Color4{ 0.62f, 0.64f, 0.68f, 1.0f });
+        return v;
+    }
+    if (auto* cm = dynamic_cast<const vaml::ContextMenu*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        // A popup menu panel is drawn only when open; when closed it emits a
+        // degenerate (skipped) rect at zero area.
+        const bool open = cm->is_open();
+        const float w = open ? r.width : 0.0f;
+        const float h = open ? r.height : 0.0f;
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, w, h,
+                                              vaml::vulkan::ui::Color4{ 0.58f, 0.60f, 0.66f, 1.0f });
+        return v;
+    }
+    if (auto* tip = dynamic_cast<const vaml::ToolTip*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const bool vis = tip->visible();
+        const float w = vis ? r.width : 0.0f;
+        const float h = vis ? r.height : 0.0f;
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, w, h,
+                                              vaml::vulkan::ui::Color4{ 0.22f, 0.24f, 0.28f, 0.95f });
+        return v;
+    }
+    if (auto* pop = dynamic_cast<const vaml::Popup*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const bool vis = pop->visible();
+        const float w = vis ? r.width : 0.0f;
+        const float h = vis ? r.height : 0.0f;
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, w, h,
+                                              vaml::vulkan::ui::Color4{ 0.30f, 0.34f, 0.42f, 0.90f });
+        return v;
+    }
+    if (auto* gs = dynamic_cast<const vaml::GridSplitter*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
+                                              vaml::vulkan::ui::Color4{ 0.40f, 0.42f, 0.46f, 1.0f });
+        (void)gs;
+        return v;
+    }
+    if (auto* dg = dynamic_cast<const vaml::DataGrid*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        // The list/grid fill: the header band tinted differently from the rows.
+        // The single-item contract emits the whole grid box (the real header +
+        // per-row cells are the S649 continuation; the fill fraction carries the
+        // DataGrid's row/col geometry, recorded NO-GAP not silent).
+        const bool hasHeader = dg->headers_visibility() != 0;
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            hasHeader ? vaml::vulkan::ui::Color4{ 0.62f, 0.66f, 0.74f, 1.0f }
+                      : vaml::vulkan::ui::Color4{ 0.70f, 0.73f, 0.78f, 1.0f });
+        return v;
+    }
+
     // Non-Text: every REAL UIElement (today the real layout panels
     // StackPanel/Grid/WrapPanel/Canvas, plus any non-Text base) contributes a
     // SOLID fill at its ARRANGED final_rect, alpha-tinted by its S208 effective
