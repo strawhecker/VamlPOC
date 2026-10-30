@@ -66,6 +66,22 @@
   steps coherent **by design**, justified and recorded in this documentation, never a shortcut
   taken for convenience.
 
+### RENDER SURFACE CONFORMANCE — `docs/RENDER_SURFACE.md` (operative project contract, baked from S11f)
+- `docs/RENDER_SURFACE.md` is the **XAML render-model → VAML Vulkan surface** catalog: every XAML/WPF visual
+  concept maps to a Vulkan material + primitive with a tri-state (**REAL / VERTICAL-SLICE / PLACEHOLDER / GAP**)
+  + its **NO-GAP resolution token**. It is transcribed from the CURRENT `classify_merge_element` reality
+  (`src/presentation/src/VamlRenderer.cpp`) — NOT a rewrite plan and NOT a runtime-behavior change.
+- The conformance validator `src/presentation/tools/render_surface_check.py` enforces: **every classifier arm
+  MUST have a row in the matrix**, and **every non-REAL row MUST name its NO-GAP token**. A new control can no
+  longer land a render path that is invisible/un-catalogued (the anti-blank-splash / anti-single-box guard).
+- **CONFORMANCE OBLIGATION (baked, not optional):** ANY sprint that introduces or changes a renderable surface
+  MUST update the matrix row + re-run the validator **at that same step** (per NO-GAP / NO-LAZY-LLM), never as a
+  silent backfill. The catalog is authored **global-impact-first** (S11f = the first render-inert sprint that
+  conforms to it): roadmap tokens below reference it from birth.
+- This is **not** a type DAG: the type-inheritance catalog stays `docs/DAG_controls.md` (11k-0); RENDER_SURFACE
+  is the orthogonal *render-surface* map. Naming is XAML→Vulkan (there is **no DirectX** in the repo — the
+  renderer is native Vulkan, per ADR-011/ADR-019).
+
 ### LOCK GOVERNANCE — ADR-018 (operative project contract)
 - **ONLY the human architect may approve ANY use of a lock/mutex/semaphore/etc.** in this codebase.
 - An agent/LLM introducing a lock must (a) surface it as an explicit review item with rationale (why
@@ -1044,10 +1060,11 @@ Growth tokens by sprint:
         new renderable feature — viewer unchanged; S222_1 RELOAD still demonstrated", so no sprint is
         marker-free). The 11a…11y WPF-completeness series growth = S455 (11a resource/style re-skin) · S465
         (11b brushes/extensions/attrs) · S475 (11c DockPanel + selection controls) · S486 (11d display/input
-        controls) · S495 (11e containers/menus/DataGrid) · S503 (11f template/converter/behavior) ·
-        S512 (11g animation/effects) · S522 (11h injected 3rd-party control) · S531 (11-series closure) ·
-        S545 (11z injected-dispatch wrap). NO closed list — every renderable-feature sprint from S11 to S989
-        carries its own token.
+        controls) · S495 (11e containers/menus/DataGrid) · S503 (11f template/converter/behavior; 11f header
+        also carries `RENDER-SURFACE-CONFORMANT` — S500–S502 render-inert, S503 adds any new draws to
+        `docs/RENDER_SURFACE.md`) · S512 (11g animation/effects) · S522 (11h injected 3rd-party control) ·
+        S531 (11-series closure) · S545 (11z injected-dispatch wrap). NO closed list — every renderable-feature
+        sprint from S11 to S989 carries its own token.
 
 ---
 ## Sprint 7 — VBAML compiler (BAML analogue; FIRST full pipeline)  (goal: text→vbaml→tree)  [token S280+]
@@ -1595,20 +1612,70 @@ Growth tokens by sprint:
 
 ---
 ## Sprint 11f — DataTemplate/ItemsControl authoring + converters + behaviors  (goal: the binding glue surface, ZERO gaps)  [token S500+]
+> **VIEWER GROWTH:** this sprint's token is **S503** (templated items + converter output + a behavior rendered/interacting in the LIVE viewer) — no token, no ✅ per the S11+ OPEN-ENDED clause.
+> **RENDER-SURFACE-CONFORMANT (baked):** S500–S502 are **render-inert** (ADR-011 model/logic — they touch ZERO `classify_merge_element` arms), so they conform to `docs/RENDER_SURFACE.md` from birth; S503's new live draws must be added to the matrix at the same step.
+> **WPF-SOURCE-VERIFIED (baked, from plan review):** (D1) the framework's REAL converter set is `BooleanToVisibilityConverter` + the S556 list — there is **no framework `NullTo*`** (those are app-authored `ValueConverter` subclasses); (D2) the faithful per-item mechanism is **DataContext-inheritance** (`DataTemplate.LoadContent()`-style, item-as-container-DataContext, template content inherits; `{Binding}` inside resolves via S252), with the WPF container architecture (`ContentPresenter`/`ItemContainerGenerator`/`VirtualizingPanel`) recorded NO-GAP to S550 (11m); (D3) the DAG must gain the **Microsoft.Xaml.Behaviors** type-family + the missing **`DataTemplate`** row and **disambiguate the two EventTriggers** — a plain "flip + re-gen" would catalog the wrong family (S503a = **DAG-EXT-11f**, below).
+> **S7 compiled-path parity** for DataTemplate/ItemTemplate resource/template authoring is recorded NO-GAP (the 11b/11x benchmark norm) — not silently omitted.
 - S500 dep:S495  ItemsControl + DataTemplate AUTHORING: `ListBox.ItemTemplate`/`ListView.ItemTemplate`/
       `DataGrid` item templates authored from `.vaml` (the S364 template engine serves item content), so
-      items render authored per-item content.
-- S501 dep:S500  CONVERTER SURFACE completed: the app's `*Converter` patterns (BooleanToVisibility,
-      NullTo*, value converters) through the S242 converter seam + a `{ConverterResource}`-style authoring
-      path — the "converters are logic, not rendering" glue made real, not silently deferred.
+      items render authored per-item content. **NEW core `DataTemplate`** (`DependencyObject`, `data_type()`, owned
+      authored content children via the S364 `LoadContent()`-style instantiate machinery, optional x:Key) +
+      **`ItemTemplate` DP** on the ItemsControl branch (ListBox/ListView + DataGrid row/item slot) authored via the
+      S473 property-element OR `{StaticResource templateKey}`. **PER-ITEM APPLICATION VIA DATACONTEXT INHERITANCE
+      (D2):** the ItemsControl instantiates the DataTemplate once per item (S364 `LoadContent()` semantics); the
+      container/item carries the item as **DataContext**; the template content **inherits** it, so a `{Binding Path}`
+      inside the template resolves against the item (S252). **NO-GAP (not silent):** WPF-faithful container
+      architecture = **S550 (11m)**; DataGrid cell/column editing = **S649/11k-11** (S500 renders item/row templated
+      content only); S7 compiled-path parity recorded forward. Test `ItemsControlTemplate_test.cpp`. BOTH CI LANES green.
+- S501 dep:S500  CONVERTER SURFACE completed — **WPF-TRUTHFUL (D1):** the app's `*Converter` patterns through the
+      S242 converter seam + a `{ConverterResource}`-style authoring path — "converters are logic, not rendering"
+      (ADR-011). **NEW core `ValueConverter` base** (Convert/ConvertBack; ConvertBack default not-supported) — the
+      seam the app authors its OWN `*Converter` (incl. `NullTo*`) with, exactly as it writes its own VMs/commands;
+      **NEW `BooleanToVisibilityConverter : ValueConverter`** — the SOLE framework-owned concrete converter (bool →
+      the S120 Visibility Int32 DP). **`{ConverterResource}`/`Converter={` authoring:** extend S252 `BindingMarkup` to
+      parse `Converter={StaticResource key}` (+ bare converter-name form); `BindExtensions` resolves via S360 into
+      the S242 `BindingExpressionSpec.converter` (Fallback/Strict/diagnostics = S242/S242_1 unchanged).
+      **NO-GAP (not silent):** the remaining framework S556 converters (`AlternationConverter`,
+      `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
+      `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`) are **S556-consumed**;
+      `NullTo*` is an APP-AUTHORED pattern (WPF has no framework `NullTo*`), documented in `docs/RENDER_SURFACE.md`
+      + the guide — NOT a framework type. Test `ConverterSurface_test.cpp`. BOTH CI LANES green.
 - S502 dep:S501  BEHAVIORS: `i:` Interaction.Behaviors + TriggerAction + InvokeCommandAction-analogue —
       parse-and-behave (the external app's `i:`/`behaviors:`/`dd:` surface maps here as owned translations).
+      **NEW core behaviors model (all permanent):** `BehaviorCollection` (owned behaviors on an element) + `Behavior`
+      (abstract attach/detach) + `Behavior<T>`; `TriggerAction` (abstract) + `InvokeCommandAction : TriggerAction`
+      (holds `ICommand` via S246/S253 + optional `CommandParameter`). An event-trigger binding surfaces the S11k-5
+      `TriggerKind::Event` to a REAL action list — **the EventTrigger's `TriggerAction` payload becomes LIVE here**
+      (S502 is the S11k-5/S503a home). **parse-and-behave:** the reader maps the `i:`/`behaviors:`/`dd:` prefixed
+      surface (`<i:Interaction.Behaviors><i:EventTrigger EventName="Click"><i:InvokeCommandAction Command="{Command
+      DoIt}"/></i:EventTrigger></i:Interaction.Behaviors>`) to real attached `BehaviorCollection`s; when the element's
+      RoutedEvent fires (S320/S401), the trigger fires → `InvokeCommandAction` → `ICommand::Execute(Parameter)`.
+      **NO-GAP (not silent):** `TriggerAction`/`TriggerBase` DAG rows flip in **S503a (DAG-EXT-11f)**. Test
+      `Behaviors_test.cpp`. BOTH CI LANES green.
 - S503 dep:S502  VIEWER-GROWTH(11f): sample.vaml authors a DataTemplate + a converter + a behavior; the LIVE
-      viewer renders templated items + the converter output. BOTH CI LANES green.
-- S503a dep:S502  EVENTTRIGGER@11f (11k-5 forward token, NO-GAP): EventTrigger wrapping the custom-action/
-      behaviors surface — the `TriggerAction`/`InvokeCommandAction`-analogue actions live here (S502). Flip the
-      `TriggerAction`/`TriggerBase` DAG rows PLANNED→DONE + finish the appendix C §5 behaviors-action subsection.
-      (Owns the NOT-silent 11k-5 action-content disclosure for 11f.)
+      viewer renders templated items + the converter output. BOTH CI LANES green. **New viewer seam
+      `viewer_growth_11f.h` (ADR-021 consumer path) + an authored `sample.11f.vaml`; headless Rail 1
+      `ViewerGrowth11f_test.cpp` proves `load + render-plan` (S212 `encode_visual_slice` counts) + the behavior fires
+      the command on the routed event; the LIVE window render + interaction = [both apps, not CI].** Any new draw the
+      viewer produces is added to `docs/RENDER_SURFACE.md` + the validator re-run at this step (RENDER-SURFACE
+      conformance).
+- S503a dep:S502  EVENTTRIGGER@11f (11k-5 forward token, NO-GAP) + **DAG-EXT-11f (D3):** EventTrigger wrapping the
+      custom-action/behaviors surface — the `TriggerAction`/`InvokeCommandAction`-analogue actions live here (S502).
+      **DAG EXTENSION (not just a re-gen — `gap_dp_daggen.py` cannot see the behaviors family or DataTemplate, which
+      are outside its `Controls`/`Controls.Primitives`/`Shapes` scan scope):** via the documented manual-add escape
+      hatch (closure-under-ancestry / 12k-5 precedent), (1) add the **Microsoft.Xaml.Behaviors family** rows
+      (`Behavior → DependencyObject`, `Behavior<T> → Behavior`, `BehaviorCollection`, `TriggerAction → DependencyObject`,
+      `InvokeCommandAction → TriggerAction`, interactivity `EventTrigger → TriggerBase` with EventName/SourceObject/
+      Actions) — **all PLANNED initially**; (2) add the missing **`DataTemplate → FrameworkElement`** row (fixes the
+      dangling parent of `ItemContainerTemplate → DataTemplate`); (3) **disambiguate the two EventTriggers** — annotate
+      the existing `System.Windows EventTrigger` (RoutedEvent/SourceName, Style.Triggers ⇒ stays PLANNED/S559) as
+      DISTINCT from the interactivity `Microsoft.Xaml.Behaviors EventTrigger` (EventName ⇒ flipped DONE at S503a);
+      (4) **flip ONLY the behaviors rows** (Behavior, Behavior<T>, BehaviorCollection, TriggerAction,
+      InvokeCommandAction, interactivity EventTrigger) PLANNED→DONE — **do NOT flip the System.Windows EventTrigger
+      row** (that is the Style.Triggers family, delivered later); (5) re-run `gap_dp_daggen.py` (BOTH manual-add AND
+      re-gen, per the S559/11m norm honored early). **Finish appendix C §5 behaviors-action subsection** (author ALL
+      forms — `i:Interaction.Behaviors` + EventTrigger + InvokeCommandAction). Action-content disclosure closed for
+      11f (the S11k-5 EventTrigger Action payload, S502, LIVE end-to-end). BOTH CI LANES green.
 
 ---
 ## Sprint 11g — Animation + effects (Storyboard/DoubleAnimation/transforms/effects)  (goal: the visual-motion surface)  [token S510+]
@@ -2255,7 +2322,12 @@ Growth tokens by sprint:
       `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
       `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`). These are
       consumed by the DONE surfaces (the S242/S501 converter seam + binding glue); ZERO new MINIMAL REAL;
-      DAG rows PLANNED→DONE as consumed.
+      DAG rows PLANNED→DONE as consumed. **CONSUMES the S501 `ValueConverter` base + `{ConverterResource}` seam
+      (S501)**: `BooleanToVisibilityConverter` was delivered REAL at S501; the remaining four S556 converters
+      (`AlternationConverter`, `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
+      `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`) + the app-authored
+      `NullTo*` pattern land here via the S501 base — their seam is laid at S501 (per D1), recorded NO-GAP not
+      silent.
 - S557 dep:S556  **PURE VALUE/ENUM/ARG-ONLY DATA TYPES (`System`-level, DAG `PLANNED`):** the enum +
       sealed event-arg + metadata rows (AutoToolTipPlacement, ClickMode, CharacterCasing, Orientation, etc.
       + the *EventArgs classes + `DefinitionBase`, `ColumnDefinition`/`RowDefinition` collection converters,
