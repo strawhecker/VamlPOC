@@ -18,6 +18,24 @@
 > — whose dangling parent edge this closes). Follow the DAG contract: row states are flipped PLANNED→DONE at
 > their owning sprints (EventTrigger@11e/11f/11g + S559's full re-apply), never silently.
 >
+> **11f DAG-EXT (manual add, behaviors + DataTemplate family, under the closure-under-ancestry invariant).**
+> `gap_dp_daggen.py` scans only `PresentationFramework\System\Windows\Controls`, `Controls\Primitives`, and
+> `Shapes` — it **cannot** emit the Microsoft.Xaml.Behaviors type-family (a separate assembly) or the
+> `DataTemplate` parent node (a `System.Windows` FrameworkTemplate type outside the scan). Per D1/D3
+> (roadmap Sprint 11f), the following rows were added manually under the same escape hatch:
+> - **`DataTemplate → FrameworkTemplate`** — closes the dangling parent edge of the already-listed
+>   `ItemContainerTemplate → DataTemplate` and `DataTemplateSelector` (S500 owns it).
+> - **Microsoft.Xaml.Behaviors family** (`Behavior → DependencyObject`, `Behavior<T> → Behavior`,
+>   `BehaviorCollection`, interactivity `TriggerAction → DependencyObject`, `InvokeCommandAction →
+>   TriggerAction`, interactivity `EventTrigger → TriggerBase`) — the `i:`/`behaviors:`/`dd:` interaction
+>   surface S502/S503a owns (S502 authors the types + behavior path; S503a flips the rows DONE).
+> **EventTrigger DISAMBIGUATION (D3):** two DISTINCT EventTrigger classes exist.
+> - `System.Windows EventTrigger` (RoutedEvent/SourceName — the `Style.Triggers` family) → stays `PLANNED`
+>   (delivered at S559's full re-apply). NOT flipped by 11f.
+> - `Microsoft.Xaml.Behaviors EventTrigger` (EventName/SourceObject/Actions) → flipped `DONE` at S503a.
+> The S11k-5 EventTrigger container surface was authored at 11e (S495a); its `TriggerAction` payload
+> distributes 11e/11f/11g — 11f owns the behaviors action family.
+>
 > **Tri-state:** every WPF type is in EXACTLY ONE state — `DONE` (Vaml models it + its surface),
 > `PLANNED` (declared, scheduled), or `OUT-OF-SCOPE(<resolution-sprint>)` (declared, NOT silent).
 > *Nothing is hidden*: unmodeled controls are declared `OUT-OF-SCOPE`, never omitted.
@@ -36,6 +54,9 @@
 | `BorderGapMaskConverter` | BorderGapMaskConverter → IMultiValueConverter | PLANNED | — | — |
 | `BulletDecorator` | BulletDecorator → Decorator → FrameworkElement, | PLANNED | — | — |
 | `BeginStoryboard` | BeginStoryboard → TriggerAction | PLANNED | Storyboard | — |
+| `Behavior` | Behavior → DependencyObject | PLANNED | AssociatedObject (attached), AssociatedType, IsEnabled | — |
+| `Behavior<T>` | Behavior<T> → Behavior → DependencyObject | PLANNED | — | — |
+| `BehaviorCollection` | BehaviorCollection → IList<Behavior> | PLANNED | — | — |
 | `Button` | Button → ButtonBase → ContentControl, | DONE | IsCancel, IsDefault | — |
 | `ButtonBase` | ButtonBase → ContentControl, | PLANNED | ClickMode, Command, CommandParameter, CommandTarget | Click |
 | `Calendar` | Calendar → Control → FrameworkElement | PLANNED | CalendarButtonStyle, CalendarDayButtonStyle, CalendarItemStyle, DisplayDate, DisplayDateEnd, DisplayDateStart, DisplayMode, FirstDayOfWeek, IsTodayHighlighted, SelectedDate, SelectionMode | SelectedDatesChanged |
@@ -124,6 +145,7 @@
 | `DataGridTemplateColumn` | DataGridTemplateColumn → DataGridColumn → DependencyObject | PLANNED | CellEditingTemplate, CellEditingTemplateSelector, CellTemplate, CellTemplateSelector | — |
 | `DataGridTextColumn` | DataGridTextColumn → DataGridBoundColumn → DataGridColumn → DependencyObject | PLANNED | — | — |
 | `DataGridrowEditEndingEventArgs` | DataGridrowEditEndingEventArgs → EventArgs | PLANNED | — | — |
+| `DataTemplate` | DataTemplate → FrameworkTemplate | PLANNED | DataType | — |
 | `DataTemplateSelector` | DataTemplateSelector | PLANNED | — | — |
 | `DataTrigger` | DataTrigger → TriggerBase | PLANNED | Binding, Value | — |
 | `DatePicker` | DatePicker → Control → FrameworkElement | PLANNED | CalendarStyle, DisplayDate, DisplayDateEnd, DisplayDateStart, FirstDayOfWeek, IsDropDownOpen, IsTodayHighlighted, SelectedDate, SelectedDateFormat, Text | SelectedDateChanged |
@@ -144,7 +166,8 @@
 | `DragDeltaEventArgs` | DragDeltaEventArgs → RoutedEventArgs | PLANNED | — | — |
 | `DragStartedEventArgs` | DragStartedEventArgs → RoutedEventArgs | PLANNED | — | — |
 | `Ellipse` | Ellipse → Shape → FrameworkElement | DONE | — | — |
-| `EventTrigger` | EventTrigger → TriggerBase | PLANNED | RoutedEvent, SourceName | — |
+| `EventTrigger` | **System.Windows** EventTrigger → TriggerBase (the `Style.Triggers` family; NOT the Microsoft.Xaml.Behaviors one) | PLANNED | RoutedEvent, SourceName | — |
+| `EventTrigger` (MS.Xaml.Behaviors) | Microsoft.Xaml.Behaviors `EventTrigger` → TriggerBase (interactivity family; the `i:` surface) | PLANNED | EventName, SourceObject, Actions | — |
 | `ExceptionRoutedEventArgs` | ExceptionRoutedEventArgs → RoutedEventArgs | PLANNED | — | — |
 | `ExceptionValidationRule` | ExceptionValidationRule → ValidationRule | PLANNED | — | — |
 | `Expander` | Expander → HeaderedContentControl → ContentControl → Control, | DONE | ExpandDirection, IsExpanded | Collapsed, Expanded |
@@ -290,8 +313,10 @@
 | `ToolTipService` | ToolTipService → RoutedEventArgs | PLANNED | BetweenShowDelay, HasDropShadow, HorizontalOffset, InitialShowDelay, IsEnabled, Placement, PlacementRectangle, PlacementTarget, ShowDuration, ShowOnDisabled, ShowsToolTipOnKeyboardFocus, ToolTip, VerticalOffset | ToolTipClosing, ToolTipOpening |
 | `Track` | Track → FrameworkElement | PLANNED | IsDirectionReversed, Orientation, ViewportSize | — |
 | `Trigger` | Trigger → TriggerBase | PLANNED | Property, Value | — |
-| `TriggerAction` | TriggerAction → DependencyObject | PLANNED | — | — |
-| `TriggerBase` | TriggerBase → DependencyObject | PLANNED | — | — |
+| `TriggerAction` (System.Windows) | System.Windows.TriggerAction → DependencyObject (Style.Triggers action family) | PLANNED | — | — |
+| `TriggerAction` (MS.Xaml.Behaviors) | Microsoft.Xaml.Behaviors `TriggerAction` → DependencyObject (interactivity action family) | PLANNED | — | — |
+| `InvokeCommandAction` | InvokeCommandAction → TriggerAction (MS.Xaml.Behaviors) | PLANNED | Command, CommandParameter, CommandTarget | — |
+| `TriggerBase` (System.Windows) | System.Windows.TriggerBase → DependencyObject (Style.Triggers family) | PLANNED | — | — |
 | `TreeView` | TreeView → ItemsControl → Control, | PLANNED | SelectedValuePath | SelectedItemChanged |
 | `TreeViewItem` | TreeViewItem → HeaderedItemsControl, | PLANNED | IsExpanded, IsSelected | Collapsed, Expanded, Selected, Unselected |
 | `UIElementCollection` | UIElementCollection → IList | PLANNED | — | — |
