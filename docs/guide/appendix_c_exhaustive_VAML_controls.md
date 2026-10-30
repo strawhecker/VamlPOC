@@ -330,6 +330,37 @@ Consumption: `Background="{StaticResource Brush.Accent}"`, `Foreground="{StaticR
 - Implicit style (no `x:Key`) must declare `TargetType` (keyed `Style:{TargetType}`).
 - `Style BasedOn`, `Setter`, `PropertyTrigger`, `DataTrigger` (S454), `EventTrigger` (11k-5).
 
+### ALL trigger forms for a control (element-level `<Owner.Triggers>` — the DAG trigger family)
+
+DAG rows: `TriggerBase`, `Trigger` (Property), `DataTrigger`, `EventTrigger`, `SetterBase`/`Setter`,
+`TriggerAction`, `BeginStoryboard`, `Storyboard` (see `docs/DAG_controls.md`).
+
+```xml
+<Button.Triggers>
+  <!-- 1) Property trigger (WPF `Trigger`) — fires on a DP == Value -->
+  <Trigger Property="IsMouseOver" Value="True">
+    <Setter TargetName="Host" Property="Opacity" Value="0.5"/>
+  </Trigger>
+
+  <!-- 2) Data trigger — fires on a binding == Value -->
+  <DataTrigger Binding="{Binding Ready}" Value="True">
+    <Setter TargetName="Host" Property="Opacity" Value="1.0"/>
+  </DataTrigger>
+
+  <!-- 3) Event trigger — ACTIONS-based, NOT setter-based (WPF-faithful). Fires on a RoutedEvent.
+       The Actions payload (a TriggerAction — e.g. BeginStoryboard → Storyboard) is authored by the
+       11e/11f/11g forward tokens (NO-GAP), not silently deferred. -->
+  <EventTrigger RoutedEvent="Button.Click">
+    <!-- Actions collection: concrete TriggerAction/Storyboard authored by 11f (TriggerAction) + 11g
+         (BeginStoryboard → Storyboard/DoubleAnimation) tokens; 11e covers container/menu/tooltip/popup
+         RoutedEvents. -->
+  </EventTrigger>
+</Button.Triggers>
+```
+- `EventTrigger` requires `RoutedEvent` (`SourceName` optional). At 11k-5 the container + `RoutedEvent`/
+  `SourceName` parse into the S362 trigger model (`TriggerKind::Event`); the `Actions` content is the
+  `TriggerAction` family owned by the 11e/11f/11g tokens + S510's `TriggerAction::Invoke` evaluation.
+
 ---
 
 ## 6. Vaml-specific surface (declared, NOT hidden)

@@ -1588,6 +1588,10 @@ Growth tokens by sprint:
       DataGrid*Column set + the editing/selection surface; classify_element → the list/grid fill.
 - S495 dep:S494  VIEWER-GROWTH(11e): sample.vaml authors a TabControl + Menu + ContextMenu + ToolTip + Popup +
       GridSplitter + DataGrid; the LIVE viewer renders + interacts end-to-end. BOTH CI LANES green.
+- S495a dep:S494  EVENTTRIGGER@11e (11k-5 forward token, NO-GAP): author + exercise `EventTrigger` on the
+      container/menu/tooltip/popup interaction surface (e.g. `EventTrigger RoutedEvent="MenuItem.Click"` /
+      `ToolTip.Opened`); flip the container-related EventTrigger DAG row + appendix C §5 usage as the control's
+      interaction surface lands. (Owns the NOT-silent 11k-5 action-content disclosure for 11e.)
 
 ---
 ## Sprint 11f — DataTemplate/ItemsControl authoring + converters + behaviors  (goal: the binding glue surface, ZERO gaps)  [token S500+]
@@ -1601,6 +1605,10 @@ Growth tokens by sprint:
       parse-and-behave (the external app's `i:`/`behaviors:`/`dd:` surface maps here as owned translations).
 - S503 dep:S502  VIEWER-GROWTH(11f): sample.vaml authors a DataTemplate + a converter + a behavior; the LIVE
       viewer renders templated items + the converter output. BOTH CI LANES green.
+- S503a dep:S502  EVENTTRIGGER@11f (11k-5 forward token, NO-GAP): EventTrigger wrapping the custom-action/
+      behaviors surface — the `TriggerAction`/`InvokeCommandAction`-analogue actions live here (S502). Flip the
+      `TriggerAction`/`TriggerBase` DAG rows PLANNED→DONE + finish the appendix C §5 behaviors-action subsection.
+      (Owns the NOT-silent 11k-5 action-content disclosure for 11f.)
 
 ---
 ## Sprint 11g — Animation + effects (Storyboard/DoubleAnimation/transforms/effects)  (goal: the visual-motion surface)  [token S510+]
@@ -1609,6 +1617,12 @@ Growth tokens by sprint:
 - S511 dep:S510  EFFECTS: DropShadowEffect + BlurEffect (the S208/GPU-blit-able set).
 - S512 dep:S511  VIEWER-GROWTH(11g): sample.vaml authors a Storyboard + a transform animation + an effect;
       the LIVE viewer animates visibly. BOTH CI LANES green.
+- S512a dep:S511  EVENTTRIGGER@11g (11k-5 forward token, NO-GAP — the roadmap's "full storyboard evaluation"):
+      `EventTrigger` + `BeginStoryboard` + the `Storyboard`/DoubleAnimation/keyframe action + the `TriggerAction::
+      Invoke` evaluation (begin the Storyboard when the RoutedEvent fires). Flip the `BeginStoryboard`/`Storyboard`
+      (`ParallelTimeline`) DAG rows PLANNED→DONE + finish the appendix C §5 animation-action subsection. (Owns the
+      NOT-silent 11k-5 action-content disclosure for 11g; this is where the Actions payload the 11k-5 container
+      parsed becomes live.)
 
 ---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
@@ -1914,6 +1928,22 @@ Growth tokens by sprint:
 >       the event-driven trigger AUTHORING surface (distinct from PropertyTrigger/DataTrigger S454/11j-7),
 >       parsed into the S362 trigger model; full storyboard evaluation links to S510 (recorded NO-GAP, not
 >       silent). Test 11k5_eventTrigger_test.cpp.
+>
+>       **DRIFT CLOSURE — the WPF-faithful correction (never silent).** WPF's `EventTrigger` is **Actions-based**
+>       (`[ContentProperty("Actions")]` of `TriggerAction` — canonical `<EventTrigger RoutedEvent><BeginStoryboard>
+>       <Storyboard>…</Storyboard></BeginStoryboard></EventTrigger>`), NOT Setter-based; Property/Data triggers carry
+>       `Setter`s but EventTrigger carries `TriggerAction`s. Verified against the REAL WPF source at
+>       `E:\GitRepos\wpf` (`EventTrigger.cs`, `TriggerBase.cs`, `TriggerAction.cs`, `BeginStoryboard.cs`,
+>       `Storyboard.cs`, `Trigger.cs`, `DataTrigger.cs`, `SetterBase.cs`). 11k-5 authors the **container** only
+>       (`RoutedEvent` required + optional `SourceName` → `TriggerKind::Event` in the S362 model), parsed in BOTH the
+>       element-level `<Owner.Triggers>` loop (11j-7) and the `<Style.Triggers>` loop (S454). The concrete `TriggerAction`
+>       payloads are distributed across the real sprints where those types land — **11e / 11f / 11g**, each with an
+>       explicit token (below) — so no action content is silently excluded. **DAG + appendix C + 11m gating:** the
+>       trigger family rows were added to `docs/DAG_controls.md` under the closure-under-ancestry invariant (also fixing
+>       the dangling `SoundPlayerAction → TriggerAction` parent edge — `TriggerAction` had no row), and `appendix
+>       C §5` was expanded to author ALL trigger forms for a control; the 11e/11f/11g tokens below flip their DAG rows
+>       (PLANNED→DONE) and finish their appendix §5 subsections; S559 (11m SURVIVOR) re-states the DAG to ground truth
+>       after these sprints (the defined DAG re-apply step).
 > - 11k-6 — VIEWER-GROWTH(11k): a corpus-shaped `sample.corpus.xaml` authors `TextBlock` + the added controls
 >       + a vector resource + an EventTrigger; the LIVE viewer loads it and renders (including a real
 >       `<TextBlock>` glyph via the S409_1/S400 SDF path). BOTH CI LANES green. [VIEWER GROWTH: TextBlock +

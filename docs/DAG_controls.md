@@ -10,6 +10,14 @@
 > exist and carry their properties. A control's full effective surface = its own DPs + every ancestor's.
 > (This is the invariant that catches `TextBlock`-is-not-a-`Control` class bugs.)
 >
+> **12k-5 (manual add, trigger family, under the closure-under-ancestry invariant).** The trigger/action
+> family rows (`TriggerBase`, `Trigger`, `DataTrigger`, `EventTrigger`, `SetterBase`, `Setter`,
+> `TriggerAction`, `BeginStoryboard`, `Storyboard`) were added here manually under the documented
+> manual-add escape hatch (the `gap_dp_daggen.py` generator output did not include them; they are the
+> `Style/Triggers` authoring family, parent nodes of the already-listed `SoundPlayerAction → TriggerAction`
+> — whose dangling parent edge this closes). Follow the DAG contract: row states are flipped PLANNED→DONE at
+> their owning sprints (EventTrigger@11e/11f/11g + S559's full re-apply), never silently.
+>
 > **Tri-state:** every WPF type is in EXACTLY ONE state — `DONE` (Vaml models it + its surface),
 > `PLANNED` (declared, scheduled), or `OUT-OF-SCOPE(<resolution-sprint>)` (declared, NOT silent).
 > *Nothing is hidden*: unmodeled controls are declared `OUT-OF-SCOPE`, never omitted.
@@ -27,6 +35,7 @@
 | `Border` | Border → Decorator → FrameworkElement, | DONE | BorderBrush, BorderThickness, CornerRadius, Padding | — |
 | `BorderGapMaskConverter` | BorderGapMaskConverter → IMultiValueConverter | PLANNED | — | — |
 | `BulletDecorator` | BulletDecorator → Decorator → FrameworkElement, | PLANNED | — | — |
+| `BeginStoryboard` | BeginStoryboard → TriggerAction | PLANNED | Storyboard | — |
 | `Button` | Button → ButtonBase → ContentControl, | DONE | IsCancel, IsDefault | — |
 | `ButtonBase` | ButtonBase → ContentControl, | PLANNED | ClickMode, Command, CommandParameter, CommandTarget | Click |
 | `Calendar` | Calendar → Control → FrameworkElement | PLANNED | CalendarButtonStyle, CalendarDayButtonStyle, CalendarItemStyle, DisplayDate, DisplayDateEnd, DisplayDateStart, DisplayMode, FirstDayOfWeek, IsTodayHighlighted, SelectedDate, SelectionMode | SelectedDatesChanged |
@@ -116,6 +125,7 @@
 | `DataGridTextColumn` | DataGridTextColumn → DataGridBoundColumn → DataGridColumn → DependencyObject | PLANNED | — | — |
 | `DataGridrowEditEndingEventArgs` | DataGridrowEditEndingEventArgs → EventArgs | PLANNED | — | — |
 | `DataTemplateSelector` | DataTemplateSelector | PLANNED | — | — |
+| `DataTrigger` | DataTrigger → TriggerBase | PLANNED | Binding, Value | — |
 | `DatePicker` | DatePicker → Control → FrameworkElement | PLANNED | CalendarStyle, DisplayDate, DisplayDateEnd, DisplayDateStart, FirstDayOfWeek, IsDropDownOpen, IsTodayHighlighted, SelectedDate, SelectedDateFormat, Text | SelectedDateChanged |
 | `DatePickerDateValidationErrorEventArgs` | DatePickerDateValidationErrorEventArgs → EventArgs | PLANNED | — | — |
 | `DatePickerFormat` | DatePickerFormat | PLANNED | — | — |
@@ -134,6 +144,7 @@
 | `DragDeltaEventArgs` | DragDeltaEventArgs → RoutedEventArgs | PLANNED | — | — |
 | `DragStartedEventArgs` | DragStartedEventArgs → RoutedEventArgs | PLANNED | — | — |
 | `Ellipse` | Ellipse → Shape → FrameworkElement | DONE | — | — |
+| `EventTrigger` | EventTrigger → TriggerBase | PLANNED | RoutedEvent, SourceName | — |
 | `ExceptionRoutedEventArgs` | ExceptionRoutedEventArgs → RoutedEventArgs | PLANNED | — | — |
 | `ExceptionValidationRule` | ExceptionValidationRule → ValidationRule | PLANNED | — | — |
 | `Expander` | Expander → HeaderedContentControl → ContentControl → Control, | DONE | ExpandDirection, IsExpanded | Collapsed, Expanded |
@@ -242,6 +253,8 @@
 | `SelectiveScrollingOrientation` | SelectiveScrollingOrientation | PLANNED | — | — |
 | `Selector` | Selector → ItemsControl → Control, | PLANNED | IsSelected, IsSynchronizedWithCurrentItem, SelectedIndex, SelectedItem, SelectedValue, SelectedValuePath | Selected, SelectionChanged, Unselected |
 | `Separator` | Separator → Control → FrameworkElement | DONE | — | — |
+| `Setter` | Setter → SetterBase | PLANNED | Property, TargetName, Value | — |
+| `SetterBase` | SetterBase → DependencyObject | PLANNED | — | — |
 | `Shape` | Shape → FrameworkElement | PLANNED | Fill, Stretch, Stroke, StrokeDashArray, StrokeDashCap, StrokeDashOffset, StrokeEndLineCap, StrokeLineJoin, StrokeMiterLimit, StrokeStartLineCap, StrokeThickness | — |
 | `SinglePageViewer` | SinglePageViewer → DocumentViewerBase, | PLANNED | MaxZoom, MinZoom, Zoom, ZoomIncrement | — |
 | `Slider` | Slider → RangeBase → Control → FrameworkElement | DONE | AutoToolTipPlacement, AutoToolTipPrecision, IsDirectionReversed, IsMoveToPointEnabled, IsSelectionRangeEnabled, IsSnapToTickEnabled, Orientation, SelectionEnd, SelectionStart, TickFrequency, TickPlacement, Ticks | — |
@@ -252,6 +265,7 @@
 | `StatusBar` | StatusBar → ItemsControl → Control, | DONE | — | — |
 | `StatusBarItem` | StatusBarItem → ContentControl → Control, | PLANNED | — | — |
 | `StickyNote` | StickyNote | PLANNED | CaptionFontFamily, CaptionFontSize, CaptionFontStretch, CaptionFontStyle, CaptionFontWeight, IsActive, IsExpanded, PenWidth | — |
+| `Storyboard` | Storyboard → ParallelTimeline | PLANNED | — | — |
 | `StyleSelector` | StyleSelector | PLANNED | — | — |
 | `TabControl` | TabControl → Selector → ItemsControl → Control, | PLANNED | ContentStringFormat, ContentTemplate, ContentTemplateSelector, TabStripPlacement | — |
 | `TabItem` | TabItem → HeaderedContentControl → ContentControl → Control, | PLANNED | — | — |
@@ -275,6 +289,9 @@
 | `ToolTip` | ToolTip → ContentControl → Control, | PLANNED | IsOpen | Closed, Opened |
 | `ToolTipService` | ToolTipService → RoutedEventArgs | PLANNED | BetweenShowDelay, HasDropShadow, HorizontalOffset, InitialShowDelay, IsEnabled, Placement, PlacementRectangle, PlacementTarget, ShowDuration, ShowOnDisabled, ShowsToolTipOnKeyboardFocus, ToolTip, VerticalOffset | ToolTipClosing, ToolTipOpening |
 | `Track` | Track → FrameworkElement | PLANNED | IsDirectionReversed, Orientation, ViewportSize | — |
+| `Trigger` | Trigger → TriggerBase | PLANNED | Property, Value | — |
+| `TriggerAction` | TriggerAction → DependencyObject | PLANNED | — | — |
+| `TriggerBase` | TriggerBase → DependencyObject | PLANNED | — | — |
 | `TreeView` | TreeView → ItemsControl → Control, | PLANNED | SelectedValuePath | SelectedItemChanged |
 | `TreeViewItem` | TreeViewItem → HeaderedItemsControl, | PLANNED | IsExpanded, IsSelected | Collapsed, Expanded, Selected, Unselected |
 | `UIElementCollection` | UIElementCollection → IList | PLANNED | — | — |
