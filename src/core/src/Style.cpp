@@ -74,6 +74,15 @@ Trigger Trigger::MakeData(DataTrigger t)
     return tr;
 }
 
+VAML_CORE_EXPORT
+Trigger Trigger::MakeEvent(EventTrigger t)
+{
+    Trigger tr;
+    tr.kind = TriggerKind::Event;
+    tr.event = std::move(t);
+    return tr;
+}
+
 // ------------------------------------------------------------------ Style
 VAML_CORE_EXPORT
 Style::Style() = default;

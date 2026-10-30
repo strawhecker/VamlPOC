@@ -72,6 +72,7 @@ add_executable(vaml-core-tests
     WindowDp_s11j4_test.cpp
     TagDp_s11j8_test.cpp
     ElementTriggers_s11j7_test.cpp
+    11k5_eventTrigger_test.cpp
     GridColumnDefs_s11j9_test.cpp
     VamlReader_test.cpp
     VamlReader_defer_test.cpp

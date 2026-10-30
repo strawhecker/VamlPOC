@@ -694,6 +694,46 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                         }
                         trigs.push_back(Trigger::MakeData(std::move(dt)));
                     }
+                    // 11k-5 — `EventTrigger` element-level authoring. WPF-FAITHFUL:
+                    // Actions-based container, NOT Setter-based (Property/Data
+                    // triggers carry Setters; EventTrigger carries TriggerActions).
+                    // At 11k-5 ONLY the container (RoutedEvent required + optional
+                    // SourceName) is parsed into the S362 model. The Actions payload
+                    // (BeginStoryboard → Storyboard/DoubleAnimation) + its
+                    // TriggerAction::Invoke evaluation are the recorded NO-GAP
+                    // continuations owned by the 11e/11f/11g tokens (roadmap), resolved
+                    // at S510. Fails loudly (never silent) if RoutedEvent is missing.
+                    else if (tl == "EventTrigger")
+                    {
+                        std::string routedEvent;
+                        std::string sourceName;
+                        for (const ParsedAttribute& a : trig.attributes)
+                        {
+                            if (a.directive == XmlDirectiveType::None && a.key == "RoutedEvent")
+                            {
+                                routedEvent = a.value;
+                            }
+                            else if (a.directive == XmlDirectiveType::None && a.key == "SourceName")
+                            {
+                                sourceName = a.value;
+                            }
+                        }
+                        if (routedEvent.empty())
+                        {
+                            throw VamlReaderException(
+                                VamlReaderError::UnknownProperty, "RoutedEvent",
+                                "an <EventTrigger> must name a 'RoutedEvent'");
+                        }
+                        EventTrigger et;
+                        et.eventName = vaml::intern(routedEvent);
+                        et.sourceName = sourceName.empty() ? std::string_view{}
+                                                           : vaml::intern(sourceName);
+                        // An <EventTrigger> carries an Actions collection whose concrete
+                        // TriggerAction content is authored by the 11f/11g tokens; it is
+                        // NOT Setter children. Any child authored here is a forward action
+                        // (accepted, held by the owning token) rather than a Setter.
+                        trigs.push_back(Trigger::MakeEvent(et));
+                    }
                     else
                     {
                         throw VamlReaderException(
@@ -1767,6 +1807,40 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
                         }
                     }
                     style.add_trigger(Trigger::MakeData(std::move(dt)));
+                }
+                // 11k-5 — `<Style.Triggers><EventTrigger>` element-level-style authoring.
+                // WPF-FAITHFUL: Actions-based container, NOT Setter-based. Only the
+                // container (RoutedEvent required + optional SourceName) is parsed into
+                // the S362 model at 11k-5; the Actions payload (BeginStoryboard →
+                // Storyboard/DoubleAnimation) + TriggerAction::Invoke evaluation are the
+                // recorded NO-GAP continuations owned by the 11f/11g tokens (roadmap),
+                // resolved at S510. Fails loudly if RoutedEvent is missing.
+                else if (tl == "EventTrigger")
+                {
+                    std::string routedEvent;
+                    std::string sourceName;
+                    for (const ParsedAttribute& a : trig.attributes)
+                    {
+                        if (a.directive == XmlDirectiveType::None && a.key == "RoutedEvent")
+                        {
+                            routedEvent = a.value;
+                        }
+                        else if (a.directive == XmlDirectiveType::None && a.key == "SourceName")
+                        {
+                            sourceName = a.value;
+                        }
+                    }
+                    if (routedEvent.empty())
+                    {
+                        throw VamlReaderException(
+                            VamlReaderError::UnknownProperty, "RoutedEvent",
+                            "an <EventTrigger> must name a 'RoutedEvent'");
+                    }
+                    EventTrigger et;
+                    et.eventName = vaml::intern(routedEvent);
+                    et.sourceName = sourceName.empty() ? std::string_view{}
+                                                       : vaml::intern(sourceName);
+                    style.add_trigger(Trigger::MakeEvent(et));
                 }
                 // Unknown trigger child -> structured authoring error.
                 else

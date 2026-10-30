@@ -1,5 +1,5 @@
 #pragma once
-// VAML Style + Setter + BasedOn + PropertyTrigger + DataTrigger.
+// VAML Style + Setter + BasedOn + PropertyTrigger + DataTrigger + EventTrigger.
 // S362 (dep:S361) — Sprint 9, the WPF-faithful style model.
 //
 // A `Style` is a template of property-setters keyed to a TARGET TYPE NAME
@@ -26,21 +26,35 @@
 //   BaseOn chain lets a derived style inherit + override a base style.
 //
 // TRIGGERS:
-//   A style may carry PropertyTrigger and DataTrigger records:
+//   A style may carry PropertyTrigger, DataTrigger, and EventTrigger records:
 //     - PropertyTrigger { PropertyId property; Value value; setters } — fires
 //       when the styled element's DP `property` EQUALS `value`.
 //     - DataTrigger { PropertyPath path; Value value; setters } — S240's real
 //       PropertyPath; fires when the resolved data value (through the binding
 //       reader, S243-style) equals `value`. This is the DATA-BOUND trigger.
+//     - EventTrigger { eventName; sourceName } — 11k-5: the event-driven
+//       trigger AUTHORING CONTAINER. WPF-faithful: it is ACTIONS-based
+//       (`[ContentProperty("Actions")]` of TriggerAction — canonical
+//       `<EventTrigger RoutedEvent><BeginStoryboard><Storyboard>…`), NOT
+//       Setter-based like Property/Data triggers. At 11k-5 only the container
+//       (RoutedEvent required + optional SourceName) is authored into the S362
+//       model. The concrete `TriggerAction` payload (BeginStoryboard →
+//       Storyboard/DoubleAnimation) + the `TriggerAction::Invoke` evaluation
+//       (begin the Storyboard when the RoutedEvent fires) are the recorded
+//       NO-GAP continuations owned by the 11e/11f/11g forward tokens (roadmap),
+//       resolved at S510 — never silent.
 //   S363's applier both evaluates these at apply time and (for PropertyTrigger)
-//   subscribes the element's DP so a change can re-fire/un-fire.
+//   subscribes the element's DP so a change can re-fire/un-fire. EventTrigger is
+//   an authoring record at apply time (the S363 trigger switch's `default:
+//   fires=false` holds it dormant until the 11g/S510 Invoke evaluation lands).
 //
 // SEAMS (headless, exported):
 //   - `style_valid(s)`: a Style is authoring-valid iff it names a non-empty
 //     target type. Used as the gate before apply/register.
 //   - `setter_value_kind(v)`: the SetterValue kind (Literal/Static/Dynamic/
 //     TemplateBinding) — the setter-resolution discrimination seam.
-//   - `trigger_kind(t)`: Property vs Data — the trigger discrimination seam.
+//   - `trigger_kind(t)`: Property vs Data vs Event — the trigger discrimination
+//     seam.
 //   - SetterValue kind predicates: is_literal / is_static_resource /
 //     is_dynamic_resource / is_template_binding.
 //
@@ -130,14 +144,30 @@ struct VAML_CORE_EXPORT DataTrigger
 };
 
 // ---------------------------------------------------------------------------
-// Trigger — a discriminated PropertyTrigger | DataTrigger. The S362
-// discrimination seam is `trigger_kind(t)`.
+// EventTrigger — 11k-5 the event-driven AUTHORING CONTAINER.
+// WPF-FAITHFUL: Actions-based, NOT Setter-based. Only the container is modelled
+// here (RoutedEvent required + optional SourceName); the `TriggerAction` payload
+// (BeginStoryboard → Storyboard/DoubleAnimation) + its `TriggerAction::Invoke`
+// evaluation are the recorded NO-GAP continuations owned by the 11e/11f/11g
+// forward tokens, resolved at S510 (roadmap + DAG_controls trigger family).
+// Names are interned (S140) for stable identity.
+// ---------------------------------------------------------------------------
+struct VAML_CORE_EXPORT EventTrigger
+{
+    std::string_view eventName;   // the routed event name (e.g. "Button.Click")
+    std::string_view sourceName;  // optional: which named source to listen on
+};
+
+// ---------------------------------------------------------------------------
+// Trigger — a discriminated PropertyTrigger | DataTrigger | EventTrigger. The
+// S362 discrimination seam is `trigger_kind(t)`.
 // ---------------------------------------------------------------------------
 enum class TriggerKind : std::uint8_t
 {
     None   = 0, // unset / default
     Property = 1, // a PropertyTrigger
     Data     = 2, // a DataTrigger
+    Event    = 3, // an EventTrigger (11k-5)
 };
 
 struct VAML_CORE_EXPORT Trigger
@@ -145,9 +175,11 @@ struct VAML_CORE_EXPORT Trigger
     TriggerKind kind = TriggerKind::None;
     PropertyTrigger property; // valid when kind == Property
     DataTrigger     data;     // valid when kind == Data
+    EventTrigger    event;    // valid when kind == Event
 
     [[nodiscard]] static Trigger MakeProperty(PropertyTrigger t);
     [[nodiscard]] static Trigger MakeData(DataTrigger t);
+    [[nodiscard]] static Trigger MakeEvent(EventTrigger t);
 };
 
 // ---------------------------------------------------------------------------
@@ -195,7 +227,7 @@ private:
 // The SetterValue kind — the setter-resolution discrimination seam.
 [[nodiscard]] VAML_CORE_EXPORT SetterValue::Kind setter_value_kind(const SetterValue& v) noexcept;
 
-// The Trigger kind — Property vs Data — the trigger discrimination seam.
+// The Trigger kind — Property vs Data vs Event — the trigger discrimination seam.
 [[nodiscard]] VAML_CORE_EXPORT TriggerKind trigger_kind(const Trigger& t) noexcept;
 
 } // namespace vaml

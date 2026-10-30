@@ -1927,7 +1927,7 @@ Growth tokens by sprint:
 > - 11k-5 — `EventTrigger` element-level authoring: `<Control.Triggers><EventTrigger RoutedEvent="...">...` —
 >       the event-driven trigger AUTHORING surface (distinct from PropertyTrigger/DataTrigger S454/11j-7),
 >       parsed into the S362 trigger model; full storyboard evaluation links to S510 (recorded NO-GAP, not
->       silent). Test 11k5_eventTrigger_test.cpp.
+>       silent). Test 11k5_eventTrigger_test.cpp. **[DONE — BOTH CI LANES GREEN this session (build/verify_s11k5.cmd).]**
 >
 >       **DRIFT CLOSURE — the WPF-faithful correction (never silent).** WPF's `EventTrigger` is **Actions-based**
 >       (`[ContentProperty("Actions")]` of `TriggerAction` — canonical `<EventTrigger RoutedEvent><BeginStoryboard>
@@ -1944,6 +1944,24 @@ Growth tokens by sprint:
 >       C §5` was expanded to author ALL trigger forms for a control; the 11e/11f/11g tokens below flip their DAG rows
 >       (PLANNED→DONE) and finish their appendix §5 subsections; S559 (11m SURVIVOR) re-states the DAG to ground truth
 >       after these sprints (the defined DAG re-apply step).
+>
+>       **IMPL (11k-5, done this session):** `TriggerKind::Event = 3` (APPENDED; Property=1/Data=2 unchanged) +
+>       `struct EventTrigger` (container: `eventName` + optional `sourceName`, interned S140) in `Style.h` +
+>       `Trigger::MakeEvent` + the `trigger_kind()` Event arm. Authoring parse added in BOTH `VamlReader.cpp`
+>       trigger loops (element-level 11j-7 `<Owner.Triggers>` + `build_style` S454 `<Style.Triggers>`):
+>       `RoutedEvent` required (missing → structured `VamlReaderException(UnknownProperty,"RoutedEvent")`, fail
+>       loud, never silent) + optional `SourceName`. ZERO MINIMAL REAL added (the container is real permanent
+>       surface; only the Action payload is forward-bound — recorded NO-GAP, never a silent dead-end). NEW
+>       `test/unit/11k5_eventTrigger_test.cpp` (7 TEST_CASEs / 35 assertions, vaml-core-tests): element-level
+>       parse + kind Event + eventName; SourceName; `<Style.Triggers>` coherence; mixed
+>       Property/Data/Event order + discrimination; enum-stability (1/2/3) + no Property/Data regression; missing
+>       `RoutedEvent` → throw; unknown child still throws. Registered in `test/unit/CMakeLists.txt`. NEW
+>       `build/verify_s11k5.cmd` (two-lane gate). StyleApplier untouched (its trigger switch's `default:
+>       fires=false` holds EventTriggers dormant at apply time — they are authoring records until the 11g/S510
+>       Invoke evaluation lands). GREEN on BOTH CI LANES: windows-msvc (ctest 4/4, incl. vaml-core-tests
+>       7/7/35) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug, ctest 4/4). Docs (roadmap drift-closure +
+>       DAG trigger-family rows + appendix C §5 triggers + 11e/11f/11g tokens) were authored + committed at the
+>       plan stage (the committer was the driver's standing `commitit`).]
 > - 11k-6 — VIEWER-GROWTH(11k): a corpus-shaped `sample.corpus.xaml` authors `TextBlock` + the added controls
 >       + a vector resource + an EventTrigger; the LIVE viewer loads it and renders (including a real
 >       `<TextBlock>` glyph via the S409_1/S400 SDF path). BOTH CI LANES green. [VIEWER GROWTH: TextBlock +
