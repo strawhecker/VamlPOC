@@ -12,9 +12,23 @@
 // parser + the markup shape are complete and headless-testable on delivery,
 // and are kept-and-extended by S253 {Command}).
 //
+// S501 (dep:S500) — the CONVERTER clause: the parser now also handles
+// `Converter=<token>` (a Binding sub-clause, not a new MarkupExtensionKind).
+//   {Binding Icon, Converter={StaticResource BoolVis}}  -> converter="BoolVis"
+//   {Binding Icon, Converter=BoolVis}                   -> converter="BoolVis"
+// `Converter={StaticResource key}` strips the `{StaticResource ...}` braces;
+// `Converter=Key` is the bare converter-name form. The resolved key is stored
+// in `converter` (+ `hasConverter`), and the VamlReader resolves it via a
+// reader-owned converter REGISTRY into the S242 `BindingExpressionSpec.converter`
+// (S501). Both `Mode=` and `Converter=` may coexist in either order, separated
+// by a single comma.
+//
 // Grammar (WPF-faithful, minimal for the v1 surface):
 //   {Binding Title}
 //   {Binding Title, Mode=TwoWay}        (Mode=OneTime | OneWay | TwoWay)
+//   {Binding Title, Converter={StaticResource K}}
+//   {Binding Title, Converter=K}
+//   {Binding Title, Mode=OneWay, Converter=BoolVis}
 //   {Command DoIt}
 //   {x:Static local:Constants.AppName}  -> kind Static (S461: a static value,
 //                                          resolved via the S461 static registry)
@@ -63,6 +77,11 @@ struct VAML_CORE_EXPORT BindingMarkup
     std::string_view path;    // the Binding path (e.g. "Title") / the Command name (e.g. "DoIt")
     std::string_view mode;    // the Mode= value verbatim when present (e.g. "TwoWay"); empty otherwise
     bool hasMode = false;     // true iff a Mode=<value> token was authored
+    // S501 — the CONVERTER clause. `converter` is the resolved converter KEY:
+    // `Converter={StaticResource K}` and `Converter=K` both yield converter="K"
+    // (the braces are stripped). Empty + hasConverter=false when absent.
+    std::string_view converter; // the converter key (e.g. "BoolVis"); empty otherwise
+    bool hasConverter = false;  // true iff a Converter=<token> was authored
     bool malformed = false;   // true iff this is a Binding/Command extension with bad inner syntax
 };
 

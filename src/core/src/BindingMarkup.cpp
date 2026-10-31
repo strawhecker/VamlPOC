@@ -2,6 +2,12 @@
 // Implements parse_markup_binding (see BindingMarkup.h for the grammar + the
 // outcome table): structured parse of a deferred {Binding ...} / {Command ...}
 // markup-extension source text.
+//
+// S501 (dep:S500) — the CONVERTER clause: after the path, zero or more
+// comma-separated `Mode=<value>` / `Converter=<token>` clauses are parsed (in
+// any order). `Converter={StaticResource K}` / `Converter=K` both resolve to
+// the key `K`. A bad Mode= value, an empty Converter token, a repeated clause,
+// or trailing junk is a Class A MalformedBindingMarkup (never silent).
 
 #include "vaml/core/BindingMarkup.h"
 
@@ -128,42 +134,128 @@ BindingMarkup parse_markup_binding(std::string_view source) noexcept
     if (afterP >= inE)
         return out; // plain {Binding Title}
 
-    // Expect exactly ", Mode=<value>" after the path.
-    if (source[afterP] != ',')
+    // S501 — parse zero or more comma-separated `Mode=<value>` / `Converter=<token>`
+    // clauses after the path. Each clause is `, <kw>=<value>`. Repeated
+    // clauses (a second Mode= or a second Converter=) and unknown keywords are
+    // malformed (Class A — never silent).
+    size_t pos = afterP;
+    while (pos < inE)
     {
-        out.malformed = true; // {Binding Title Extra} / {Binding Title x} — no comma
-        return out;
+        if (source[pos] != ',')
+        {
+            out.malformed = true; // {Binding Title Extra} — expected a comma clause
+            return out;
+        }
+        const size_t cB = ltrim(source, pos + 1, inE); // clause start (after ',')
+        if (cB >= inE)
+        {
+            out.malformed = true; // trailing comma with nothing after
+            return out;
+        }
+        // The clause keyword ("Mode" / "Converter") — up to '='. Whitespace
+        // around the keyword is tolerated (`Mode = TwoWay` == `Mode=TwoWay`),
+        // so trim the keyword's trailing whitespace.
+        size_t ckwB = cB;
+        size_t ckwE = ckwB;
+        while (ckwE < inE && source[ckwE] != '=')
+        {
+            ++ckwE;
+        }
+        if (ckwE >= inE)
+        {
+            out.malformed = true; // a clause with no '=' (authoring error)
+            return out;
+        }
+        size_t ckwTrim = ckwE;
+        while (ckwTrim > ckwB && is_space(source[ckwTrim - 1])) --ckwTrim;
+        const std::string_view clauseKw = source.substr(ckwB, ckwTrim - ckwB);
+        if (clauseKw.empty())
+        {
+            out.malformed = true; // ", =" with no keyword
+            return out;
+        }
+        // The clause's VALUE extends to the next comma (or the end of the
+        // inner content), whitespace-trimmed — NOT to the end of the input
+        // (a subsequent `, Mode=...` / `, Converter=...` clause follows).
+        size_t cbvB = ltrim(source, ckwE + 1, inE);
+        if (cbvB >= inE)
+        {
+            out.malformed = true; // <kw>= with no value
+            return out;
+        }
+        size_t cbvE = cbvB;
+        while (cbvE < inE && source[cbvE] != ',')
+        {
+            ++cbvE;
+        }
+        while (cbvE > cbvB && is_space(source[cbvE - 1])) --cbvE;
+
+        if (clauseKw == "Mode")
+        {
+            if (out.hasMode)
+            {
+                out.malformed = true; // a second Mode= clause (duplicate)
+                return out;
+            }
+            const std::string_view modeVal = source.substr(cbvB, cbvE - cbvB);
+            if (modeVal != "OneWay" && modeVal != "OneTime" && modeVal != "TwoWay")
+            {
+                out.malformed = true; // a bad Mode= value (authoring error)
+                return out;
+            }
+            out.mode = modeVal;
+            out.hasMode = true;
+        }
+        else if (clauseKw == "Converter")
+        {
+            if (out.hasConverter)
+            {
+                out.malformed = true; // a second Converter= clause (duplicate)
+                return out;
+            }
+            std::string_view convToken = source.substr(cbvB, cbvE - cbvB);
+            // `Converter={StaticResource K}` -> K (strip the braces + keyword);
+            // `Converter=K` -> K. A `{DynamicResource ...}` converter token is
+            // malformed here (only a StaticResource naming form is a converter
+            // key; see the S501 authoring syntax in RENDER_SURFACE.md).
+            if (convToken.size() >= 2 && convToken.front() == '{' && convToken.back() == '}')
+            {
+                const std::string_view inner = convToken.substr(1, convToken.size() - 2);
+                // Inner is "<keyword> <key>"; the key is everything after the
+                // first whitespace. We require the StaticResource keyword.
+                size_t iw = ltrim(inner, 0, inner.size());
+                size_t kwEnd = iw;
+                while (kwEnd < inner.size() && !is_space(inner[kwEnd])) ++kwEnd;
+                const std::string_view innerKw = inner.substr(iw, kwEnd - iw);
+                if (innerKw != "StaticResource")
+                {
+                    out.malformed = true; // only {StaticResource K} is a converter key
+                    return out;
+                }
+                size_t keyB = ltrim(inner, kwEnd, inner.size());
+                if (keyB >= inner.size())
+                {
+                    out.malformed = true; // {StaticResource } with no key
+                    return out;
+                }
+                convToken = inner.substr(keyB);
+            }
+            if (convToken.empty())
+            {
+                out.malformed = true; // Converter= with no key
+                return out;
+            }
+            out.converter = convToken;
+            out.hasConverter = true;
+        }
+        else
+        {
+            out.malformed = true; // an unknown clause keyword (authoring error)
+            return out;
+        }
+
+        pos = cbvE; // continue after this clause's value
     }
-    size_t mB = ltrim(source, afterP + 1, inE);
-    constexpr std::string_view kModeKw = "Mode";
-    size_t modeKwEnd = mB + kModeKw.size();
-    if (modeKwEnd > inE || source.substr(mB, kModeKw.size()) != kModeKw)
-    {
-        out.malformed = true;
-        return out;
-    }
-    size_t eqB = ltrim(source, modeKwEnd, inE);
-    if (eqB >= inE || source[eqB] != '=')
-    {
-        out.malformed = true;
-        return out;
-    }
-    size_t vB = ltrim(source, eqB + 1, inE);
-    if (vB >= inE)
-    {
-        out.malformed = true; // Mode= with no value
-        return out;
-    }
-    size_t vE = inE;
-    while (vE > vB && is_space(source[vE - 1])) --vE;
-    const std::string_view modeVal = source.substr(vB, vE - vB);
-    if (modeVal != "OneWay" && modeVal != "OneTime" && modeVal != "TwoWay")
-    {
-        out.malformed = true; // a bad Mode= value (authoring error)
-        return out;
-    }
-    out.mode = modeVal;
-    out.hasMode = true;
     return out;
 }
 

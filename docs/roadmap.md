@@ -1649,12 +1649,19 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
       Details in the `SPRINT 11f — SURVIVOR (S500)` block in progress.md.
 - S501 dep:S500  CONVERTER SURFACE completed — **WPF-TRUTHFUL (D1):** the app's `*Converter` patterns through the
       S242 converter seam + a `{ConverterResource}`-style authoring path — "converters are logic, not rendering"
-      (ADR-011). **NEW core `ValueConverter` base** (Convert/ConvertBack; ConvertBack default not-supported) — the
-      seam the app authors its OWN `*Converter` (incl. `NullTo*`) with, exactly as it writes its own VMs/commands;
-      **NEW `BooleanToVisibilityConverter : ValueConverter`** — the SOLE framework-owned concrete converter (bool →
+      (ADR-011). **WPF-SOURCE CORRECTION (the "ValueConverter base" wording of this roadmap line was MAKE-BELIEVE —
+      verified against `E:\GitRepos\wpf`, there is NO `ValueConverter` base class anywhere in the WPF tree; the
+      binding value-converter surface is the `IValueConverter` INTERFACE).** S501 therefore delivers the
+      WPF-truthful **new core `IValueConverter` interface** (Convert/ConvertBack; ConvertBack default not-supported)
+      — the seam the app authors its OWN `*Converter` (incl. `NullTo*`) with, exactly as it writes its own
+      VMs/commands; **renames the S089 literal/type-converter alias `ValueConverter` -> `LiteralConverter`** (it
+      was a misnomer squatting on the honest name — see the S089 record) so the two surfaces never collide;
+      **NEW `BooleanToVisibilityConverter : IValueConverter`** — the SOLE framework-owned concrete converter (bool →
       the S120 Visibility Int32 DP). **`{ConverterResource}`/`Converter={` authoring:** extend S252 `BindingMarkup` to
-      parse `Converter={StaticResource key}` (+ bare converter-name form); `BindExtensions` resolves via S360 into
-      the S242 `BindingExpressionSpec.converter` (Fallback/Strict/diagnostics = S242/S242_1 unchanged).
+      parse `Converter={StaticResource key}` (+ bare converter-name form); a reader-owned, app-registered converter
+      REGISTRY resolves the key; `BindExtensions` wires the resolved `IValueConverter` into the S242
+      `BindingExpressionSpec.converter` via `ToBindingConverter` (Fallback/Strict/diagnostics = S242/S242_1
+      unchanged; an UNRESOLVED converter key is a Class A reader error, never silent).
       **NO-GAP (not silent):** the remaining framework S556 converters (`AlternationConverter`,
       `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
       `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`) are **S556-consumed**;
@@ -2342,12 +2349,12 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
       `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
       `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`). These are
       consumed by the DONE surfaces (the S242/S501 converter seam + binding glue); ZERO new MINIMAL REAL;
-      DAG rows PLANNED→DONE as consumed. **CONSUMES the S501 `ValueConverter` base + `{ConverterResource}` seam
-      (S501)**: `BooleanToVisibilityConverter` was delivered REAL at S501; the remaining four S556 converters
-      (`AlternationConverter`, `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
+      DAG rows PLANNED→DONE as consumed. **CONSUMES the S501 `IValueConverter` interface + the `Converter=`
+      authoring seam (S501)**: `BooleanToVisibilityConverter` was delivered REAL at S501; the remaining four S556
+      converters (`AlternationConverter`, `BooleanToSelectiveScrollingOrientationConverter`, `BorderGapMaskConverter`,
       `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`) + the app-authored
-      `NullTo*` pattern land here via the S501 base — their seam is laid at S501 (per D1), recorded NO-GAP not
-      silent.
+      `NullTo*` pattern land here via the S501 `IValueConverter` interface — their seam is laid at S501 (per D1),
+      recorded NO-GAP not silent.
 - S557 dep:S556  **PURE VALUE/ENUM/ARG-ONLY DATA TYPES (`System`-level, DAG `PLANNED`):** the enum +
       sealed event-arg + metadata rows (AutoToolTipPlacement, ClickMode, CharacterCasing, Orientation, etc.
       + the *EventArgs classes + `DefinitionBase`, `ColumnDefinition`/`RowDefinition` collection converters,

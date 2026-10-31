@@ -9,7 +9,7 @@
 // ValueConversionException with MalformedValue) propagates unchanged.
 //
 // S146 (refactor gate) — the pimpl (class Impl + impl_) is COLLAPSED: the
-// registry holds its vaml::detail::NameTable<ValueConverter> BY VALUE (see
+// registry holds its vaml::detail::NameTable<LiteralConverter> BY VALUE (see
 // ValueConverter.h). The delegating methods call table_ directly (no impl_->
 // trampoline, no per-object heap hop, no Impl heap node).
 
@@ -39,7 +39,7 @@ VAML_CORE_EXPORT
 ValueConverterRegistry& ValueConverterRegistry::operator=(ValueConverterRegistry&&) noexcept = default;
 
 VAML_CORE_EXPORT
-void ValueConverterRegistry::register_converter(std::string_view typeName, ValueConverter converter)
+void ValueConverterRegistry::register_converter(std::string_view typeName, LiteralConverter converter)
 {
     // The NameTable's content insert returns nullptr on a duplicate and leaves
     // the existing entry unchanged (dedupe, S032 discipline).
@@ -53,7 +53,7 @@ void ValueConverterRegistry::register_converter(std::string_view typeName, Value
 VAML_CORE_EXPORT
 Value ValueConverterRegistry::convert(std::string_view typeName, std::string_view literal) const
 {
-    const ValueConverter* converter = table_.find(typeName);
+    const LiteralConverter* converter = table_.find(typeName);
     if (converter == nullptr)
     {
         // No converter registered for this type -> structured UnknownType error
@@ -81,7 +81,7 @@ bool ValueConverterRegistry::try_infer_type(std::string_view literal, std::strin
     // probing.
     for (const std::string_view typeName : table_.names())
     {
-        const ValueConverter* converter = table_.find(typeName);
+        const LiteralConverter* converter = table_.find(typeName);
         if (converter == nullptr)
         {
             continue; // defensive: the order-list never diverges from the map

@@ -68,10 +68,21 @@ public:
     explicit ValueAlreadyRegistered(const char* what) : std::logic_error(what) {}
 };
 
-// A converter turns a source string literal into a vaml::Value of a target
-// type's payload. A converter rejects malformed input by throwing
+// A literal converter turns a source string literal into a vaml::Value of a
+// target type's payload. A converter rejects malformed input by throwing
 // ValueConversionException with kind() == MalformedValue.
-using ValueConverter = std::function<Value(std::string_view literal)>;
+//
+// S501 (dep:S500) — RENAMED from `ValueConverter` -> `LiteralConverter`. The
+// old name was a past misnomer: this is an ATTRIBUTE-LITERAL / TYPE converter
+// (the WPF type-converter analog), NOT a binding VALUE converter. It squatted
+// on the `ValueConverter` name that the binding-converter surface needs. WPF
+// source (`E:\GitRepos\wpf`) has NO `ValueConverter` base class — the binding
+// value-converter surface is the `IValueConverter` INTERFACE (see
+// IValueConverter.h, S501). The S501 binding surface is corrected to the
+// WPF-truthful `IValueConverter`, and this alias is renamed `LiteralConverter`
+// so the two never collide. `ValueConverterRegistry` (the registry name) is
+// unchanged.
+using LiteralConverter = std::function<Value(std::string_view literal)>;
 
 class VAML_CORE_EXPORT ValueConverterRegistry
 {
@@ -88,7 +99,7 @@ public:
     // an already-present name throws ValueAlreadyRegistered and leaves the
     // registry unchanged (the converter is NOT replaced). The registry stores
     // an OWNED copy of `typeName`.
-    void register_converter(std::string_view typeName, ValueConverter converter);
+    void register_converter(std::string_view typeName, LiteralConverter converter);
 
     // Converts `literal` to a vaml::Value of `typeName`. An unregistered name
     // throws ValueConversionException{UnknownType} naming the type; a
@@ -138,10 +149,10 @@ public:
 
 private:
     // S146: pimpl collapsed — the content-keyed store is now a BY-VALUE member
-    // (vaml::detail::NameTable<ValueConverter>). NameTable is move-only (the
+    // (vaml::detail::NameTable<LiteralConverter>). NameTable is move-only (the
     // registry is move-only; copy stays deleted). insert/find/size/names
     // delegate directly (no impl_-> trampoline, no heap hop).
-    vaml::detail::NameTable<ValueConverter> table_;
+    vaml::detail::NameTable<LiteralConverter> table_;
 };
 
 // S089: idempotent startup registration of the four built-in converters

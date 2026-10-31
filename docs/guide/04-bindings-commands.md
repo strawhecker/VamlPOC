@@ -3,12 +3,13 @@
 > ### In This Chapter
 > - PropertyPath from the `DataContext` to your ViewModel's lapel
 > - The four binding modes and which one you actually mean
-> - **Converters are callables now** — the `IValueConverter` farewell tour
+> - **Converters implement `IValueConverter`** — the WPF-truthful converter surface (S501)
 > - The two-way tango: a `TextBox` that talks *and* listens
 > - Binding commands, and how a binding knows when to let go
 
-**Evidence:** S246 (binding engine), S142 (property system), S242 (converters), S252 (commands),
-S520–S529 (binding stress/property tests), S324/S4xx (lifecycle/detach). Snippets compiled in CI (S951).
+**Evidence:** S246 (binding engine), S142 (property system), S242 (converters), S501 (IValueConverter +
+BooleanToVisibilityConverter surface), S252 (commands), S520–S529 (binding stress/property tests),
+S324/S4xx (lifecycle/detach). Snippets compiled in CI (S951).
 
 ---
 
@@ -53,42 +54,48 @@ fallback — and it'll re-evaluate if the missing hop *later* appears (`S246` co
 merge into one correct final update, `S525`). So an empty text isn't always a null crime; sometimes it's a
 "the path wasn't there yet" that self-heals.
 
-## 4.4 Converters: The `IValueConverter` Farewell Tour
+## 4.4 Converters: `IValueConverter` — the WPF-truthful converter surface
 
-The C# way — a *class*, referenced as a resource:
+The C# way — a `*Converter` class implementing the `IValueConverter` **interface**, referenced as a resource:
 
 ```xml
 <TextBlock Text="{Binding Price, Converter={StaticResource PriceConverter}}"/>
 ```
 
-The VAML way — a **callable**, registered by name. There is no `IValueConverter` interface to implement.
-You hand the binding a lambda:
+The VAML way is **the same seam** (S501, WPF-truthful — there is **no `ValueConverter` base class** in WPF;
+the binding surface is the `IValueConverter` interface). You author a converter by implementing
+`vaml::IValueConverter`, then register it on the reader by name (app-owned, S250 pattern):
 
 ```cpp
-#include <vaml/binding.h>
+#include <vaml/core/IValueConverter.h>
+#include <vaml/core/BooleanToVisibilityConverter.h>
 
-// Convert: (value, target_type) -> target value
-vm.set_converter("price", [](vaml::value const& v, vaml::type_id /*target*/) -> vaml::value {
-    double cents = v.as<double>();
-    return vaml::value(std::format("${:.2f}", cents / 100.0));
-});
+// Convert: value (source) -> target value; ConvertBack: the TwoWay reverse trip.
+class PriceConverter : public vaml::IValueConverter {
+public:
+    vaml::BindingConversion Convert(const vaml::Value& v) const override {
+        double cents = v.get<double>();
+        return {true, vaml::Value::String(std::format("${:.2f}", cents / 100.0)), {}};
+    }
+};
+
+reader.register_converter("price", std::make_shared<PriceConverter>());
 ```
 
 ```vaml
-<TextBlock Text="{Binding PriceCents, Converter={StaticConverter price}}"/>
+<TextBlock Text="{Binding Price, Converter=price}"/>
 ```
 
-> ⚠ **Warning — mental-model change:** a C# converter is a **named class** discovered by reflection and
-> instantiated as a resource. A VAML converter is a **plain C++ callable** you register by name on the
-> owner/scope. Two practical consequences:
-> 1. Register it once, in the code-behind (see Ch.9 for where).
-> 2. **Keep converters pure** — no captured mutable state. The binding can re-run a converter (it's
->    fuzz-tested, `S522`, and stressed, `S525`, on the assumption of purity), and a stateful converter will
->    quietly misbehave. Pure in, deterministic out.
+The framework ships **exactly one** built-in converter — `BooleanToVisibilityConverter`
+(bool → Visibility). Everything else (`NullTo*`, formatters, etc.) is **app-authored** by implementing
+`IValueConverter`; WPF has no framework `NullTo*`, so neither does VAML.
 
-> 💡 **Tip:** A two-way binding may offer a second function (ConvertBack, the reverse trip). Check the
-> public header (`S920`) for the exact callable shape the release exposes for Convert/ConvertBack — the
-> guide gate verifies it (S951), so you never have to guess.
+> ⚠ **Reminder — keep converters pure.** The binding may re-run a converter on a source change. No captured
+> mutable state: pure in, deterministic out (a stateful converter will quietly misbehave, `S522`/`S525`).
+>
+> 💡 **ConvertBack default is not-supported.** A one-way converter doesn't need to override `ConvertBack`;
+> a TwoWay binding whose converter can't write back surfaces that as `WriteBackRejected` (S244), never a
+> silent corruption.
 
 ## 4.5 The Two-Way Tango: Binding a `TextBox`
 
@@ -144,6 +151,7 @@ over. Two rules, straight from the Chapter 3 ownership playbook:
 ## 4.9 In This Chapter, You Learned…
 
 - `DataContext` + PropertyPath + modes map 1:1 to what you knew, minus legacy baggage.
-- **Converters are callables**, not `IValueConverter` classes — register by name, keep them pure.
+- **Converters implement `IValueConverter`** — the WPF-truthful surface (S501); register by name, keep them
+  pure. The framework ships exactly one (`BooleanToVisibilityConverter`); `NullTo*` is app-authored.
 - Two-way goes through `property<T>::set`; commands bind via `relay_command` — no new verbs.
 - **Lifetime:** the source outlives the binding, or you detach explicitly. Ownership is a Chapter 3 habit.

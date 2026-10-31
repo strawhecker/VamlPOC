@@ -178,3 +178,83 @@ than started cold.
 **S503 (Viewer-Growth 11f)** adds templated items + converter output on the *live*
 path; any new draw it produces must be added to this matrix at the **same step**.
 
+---
+
+## The CONVERTER SURFACE (S501 — WPF-truthful)
+
+> **Purpose.** This section is the authoritative catalog of the VAML **value-converter**
+> surface. Converters convert a bound *source* value into a *target* value; per
+> ADR-011 they are **logic, not rendering** — a converter never draws, it only
+> produces a Value the renderer consumes. This catalog lives here (alongside the
+> render map) so the converter surface is *visible and searchable* and so no author
+> silently invents a converter that WPF does not have.
+
+### The seam — `IValueConverter` (NOT a `ValueConverter` base)
+
+**WPF ground truth (verified against `E:\GitRepos\wpf`):** the binding value-converter
+surface is the **`IValueConverter` INTERFACE** (`System\Windows\Data\IValueConverter.cs`).
+There is **no `ValueConverter` base class anywhere in the WPF tree**. (The roadmap's
+earlier "`ValueConverter` base" wording was make-believe; S501 corrected it to the
+WPF-truthful interface and renamed the S089 literal/type-converter alias
+`ValueConverter` → `LiteralConverter` so the two surfaces never collide.)
+
+| Concept | WPF | VAML (S501) | Status |
+|---|---|---|---|
+| The binding converter interface | `IValueConverter` | `IValueConverter` (`core/IValueConverter.h`) | **REAL** |
+| The concrete bool→Visibility converter | `BooleanToVisibilityConverter` | `BooleanToVisibilityConverter : IValueConverter` | **REAL** (the SOLE framework-owned) |
+| Convert / ConvertBack | both required in WPF | `Convert` + `ConvertBack`; **ConvertBack default = not-supported** | **REAL** |
+
+### Which converters are FRAMEWORK-owned
+
+The framework ships **exactly one** concrete converter: **`BooleanToVisibilityConverter`**
+(bool → the S120 Visibility Int32 DP: `true`→`Visible(0)`, `false`→`Collapsed(2)`).
+Everything else is **app-authored**.
+
+The remaining WPF framework converters are **NOT built at S501** — they are
+**S556-consumed** (recorded NO-GAP, not silent):
+`AlternationConverter`, `BooleanToSelectiveScrollingOrientationConverter`,
+`BorderGapMaskConverter`, `MenuScrollingVisibilityConverter`,
+`DataGridHeadersVisibilityToVisibilityConverter`.
+
+### `NullTo*` is APP-AUTHORED, NOT a framework type
+
+WPF has **no framework `NullTo*` converter** (the roadmap's "`NullTo*`" spelling
+mislead). `NullToVisibility`, `NullToCollapsed`, `NullToPlaceholder`, etc. are all
+**app-authored types** the app writes by implementing `IValueConverter`:
+
+```cpp
+class MyNullToPlaceholder : public vaml::IValueConverter {
+public:
+    vaml::BindingConversion Convert(const vaml::Value& v) const override {
+        if (v.isNull()) return {true, vaml::Value::String("[none]"), {}};
+        return {true, v, {}};
+    }
+};
+```
+
+### Authoring a converter in markup
+
+Register the converter by key on the reader (app-owned, S250 pattern) before binding,
+then reference it with `Converter=`:
+
+```cpp
+reader.register_converter("BoolVis", std::make_shared<vaml::BooleanToVisibilityConverter>());
+```
+
+```xml
+<TextBlock Visibility="{Binding IsAvailable, Converter={StaticResource BoolVis}}"/>
+<!-- or the bare-key form: -->
+<TextBlock Visibility="{Binding IsAvailable, Converter=BoolVis}"/>
+```
+
+The reader resolves the key through its converter registry and wires the resolved
+`IValueConverter` into the S242 `BindingExpressionSpec.converter` via `ToBindingConverter`.
+An **UNRESOLVED `Converter=` key is a Class A reader error** (fail loud, never silent).
+
+### Converter failure
+
+A converter returns `BindingConversion{ok=false, detail}` (or throws) on failure. The
+S242 pipeline emits `ConverterFailed` and, when a fallback is bound, applies it
+(`FallbackApplied`). `ConvertBack` failure on a TwoWay binding emits `WriteBackRejected`
+(S244) and skips the write-back — never a throw (ADR-016, Class B observation).
+

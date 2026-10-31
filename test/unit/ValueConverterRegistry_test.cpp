@@ -72,8 +72,8 @@ using vaml::Value;
 using vaml::ValueAlreadyRegistered;
 using vaml::ValueConversionError;
 using vaml::ValueConversionException;
-using vaml::ValueConverter;
 using vaml::ValueConverterRegistry;
+using vaml::LiteralConverter; // S501: renamed from `ValueConverter` (the literal/type converter alias)
 using vaml::parse_color;
 using vaml::parse_thickness;
 using vaml::register_builtin_converters;

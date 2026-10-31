@@ -52,6 +52,7 @@
 // error it can produce: DuplicateName (validated by this step's tests).
 
 #include "vaml/core/BindingExpression.h" // BindingExpression (the S252 live binding)
+#include "vaml/core/IValueConverter.h"  // S501 — IValueConverter (the converter registry surface)
 #include "vaml/core/Brush.h"          // S460 — GradientStopHost + LinearGradientBrush (BRUSH AUTHORING)
 #include "vaml/core/VectorDrawing.h"  // 11k-4 — geometry/drawing/vector-brush resource types
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
@@ -393,6 +394,27 @@ public:
     // (Value::String(typeName)), or Value::Null() when unregistered.
     [[nodiscard]] Value ResolveType(std::string_view name) const noexcept;
 
+    // ------------------------------------------------------------------
+    // S501 (dep:S500) — the CONVERTER REGISTRY (the {Converter=} key surface).
+    // The app registers the IValueConverters it wants markup `Converter=<key>`
+    // (a bare key or `{StaticResource <key>}`) to resolve. S250 app-owned
+    // composition (no reflection, no DI — mirrors register_static_value /
+    // register_command). NOT per-Load cleared (app-owned config).
+    // ------------------------------------------------------------------
+
+    // Registers an app-owned value converter under `key`. The reader stores the
+    // converter by SHARED pointer (the reader + each binding it produces share
+    // ownership of the same converter instance). Idempotent: a repeated `key`
+    // keeps the FIRST registration (first-wins, like register_static_value).
+    // A null converter / empty key is ignored. NOT per-Load cleared.
+    void register_converter(std::string key, std::shared_ptr<const IValueConverter> converter);
+
+    // Resolves a registered converter by its key. Returns nullptr when
+    // unregistered. Used by BindExtensions() to wire `{Binding ..., Converter=K}`
+    // into the S242 BindingExpressionSpec.converter.
+    [[nodiscard]] std::shared_ptr<const IValueConverter>
+    ResolveConverter(std::string_view key) const noexcept;
+
     // RESOLVES every recorded deferred {x:Static token} / {x:Type name}
     // extension — a S252 kind-Static/Type row now owned here — by pushing the
     // resolved value onto the authored target's DP (the extension's key). An
@@ -703,6 +725,13 @@ private:
     // like register_command).
     std::vector<std::pair<std::string, Value>> static_values_;
     std::vector<std::pair<std::string, std::string>> type_values_;
+
+    // S501 — the {Converter=} converter registry: (key, shared_ptr<const
+    // IValueConverter>). App-owned (S250), configured before BindExtensions();
+    // NOT per-Load cleared (a converter registration survives the tree it is
+    // authored on, like register_static_value). Shared ownership: the reader +
+    // each produced binding hold the SAME converter instance.
+    std::vector<std::pair<std::string, std::shared_ptr<const IValueConverter>>> converters_;
 
     // S361 — the reader-owned dynamic-resource links (created by
     // BindResources), re-evaluated by ReapplyDynamicResources. Per-Load

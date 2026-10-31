@@ -49,6 +49,8 @@ vaml_add_library(core
     src/ObservableObject.cpp
     src/BindingExpression.cpp
     src/BindingMarkup.cpp
+    src/IValueConverter.cpp            # S501 — IValueConverter + the binding-converter adapter
+    src/BooleanToVisibilityConverter.cpp  # S501 — the sole framework bool->Visibility converter
     src/RelayCommand.cpp
     src/RoutedEvent.cpp
     src/InputMarshaller.cpp

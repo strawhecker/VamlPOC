@@ -2193,6 +2193,25 @@ std::size_t VamlReader::BindExtensions()
                         : BindingMode::OneWay;
         spec.sourceType = "ObservableObject"; // the VM data context type (diagnostic metadata)
 
+        // S501 — the {Converter=} clause. When authored, resolve the converter
+        // key through the reader-owned converter REGISTRY and wire it into the
+        // S242 converter seam. An UNRESOLVED key is a Class A AUTHORING error
+        // (never silent) — the converter must be registered before bind time.
+        if (markup.hasConverter)
+        {
+            const std::shared_ptr<const IValueConverter> conv = ResolveConverter(markup.converter);
+            if (!conv)
+            {
+                throw VamlReaderException(
+                    VamlReaderError::MalformedBindingMarkup, std::string(ext.key),
+                    "{Binding ...} Converter= to UNRESOLVED converter '" +
+                        std::string(markup.converter) + "' on property '" +
+                        std::string(ext.key) + "'");
+            }
+            spec.converter     = vaml::ToBindingConverter(conv); // IValueConverter -> BindingConverter
+            spec.converterName = std::string(markup.converter);  // diagnostic metadata (S242)
+        }
+
         auto expr = BindingExpression::create(spec);
         if (expr)
         {
@@ -2334,6 +2353,39 @@ Value VamlReader::ResolveStatic(std::string_view token) const noexcept
                                      return s.first == t;
                                  });
     return it == static_values_.end() ? Value::Null() : it->second;
+}
+
+VAML_CORE_EXPORT
+void VamlReader::register_converter(std::string key,
+                                    std::shared_ptr<const IValueConverter> converter)
+{
+    // S501 — app-owned converter registry (first-wins, like register_static_value).
+    // NULL/empty ignored; a repeated key keeps the first registration.
+    if (key.empty() || !converter)
+    {
+        return;
+    }
+    const auto it = std::find_if(converters_.begin(), converters_.end(),
+                                 [&](const std::pair<std::string,
+                                                     std::shared_ptr<const IValueConverter>>& c) {
+                                     return c.first == key;
+                                 });
+    if (it == converters_.end())
+    {
+        converters_.emplace_back(std::move(key), std::move(converter));
+    }
+}
+
+VAML_CORE_EXPORT
+std::shared_ptr<const IValueConverter>
+VamlReader::ResolveConverter(std::string_view key) const noexcept
+{
+    const auto it = std::find_if(converters_.begin(), converters_.end(),
+                                 [&](const std::pair<std::string,
+                                                     std::shared_ptr<const IValueConverter>>& c) {
+                                     return c.first == key;
+                                 });
+    return it == converters_.end() ? nullptr : it->second;
 }
 
 VAML_CORE_EXPORT
