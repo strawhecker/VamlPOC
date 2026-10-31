@@ -30,9 +30,9 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 #include <vector>
-#include <unordered_map>
 #include <limits>   // std::numeric_limits (Width/Height DP auto-NaN sentinel)
 
 namespace vaml {
@@ -167,6 +167,72 @@ void ensure_uielement_properties_registered()
 
 } // namespace
 
+// ---------------------------------------------------------------------------
+// S500 per-element DataContext SIDE-TABLE (stored OUT-OF-LINE).
+// The WPF-faithful inheritable per-element DataContext is stored in this
+// process-wide side-table keyed by element address — NOT an inline member —
+// so an element/grid that never carries a local DataContext does not grow and
+// the S145 object-pool slot-size invariant is preserved (the S360
+// ResourceDictionary precedent). An element with a local DataContext has ONE
+// entry; the dtor releases it (remove_element_data_context) so no dangling key
+// survives. ADR-018: single-threaded UI use; no lock (the S360 registry
+// discipline).
+namespace detail {
+
+using ElementDataContextTable = std::unordered_map<const UIElement*, ObservableObject*>;
+
+VAML_CORE_EXPORT
+ElementDataContextTable& element_data_context_table() noexcept
+{
+    static ElementDataContextTable table;
+    return table;
+}
+
+VAML_CORE_EXPORT
+void set_element_data_context(UIElement* element, ObservableObject* ctx) noexcept
+{
+    if (element == nullptr)
+    {
+        return;
+    }
+    if (ctx == nullptr)
+    {
+        element_data_context_table().erase(element);
+        return;
+    }
+    // A local override replacing a prior one: direct assignment on the key.
+    element_data_context_table()[element] = ctx;
+}
+
+VAML_CORE_EXPORT
+ObservableObject* get_element_data_context(const UIElement* element) noexcept
+{
+    if (element == nullptr)
+    {
+        return nullptr;
+    }
+    const auto& table = element_data_context_table();
+    const auto it = table.find(element);
+    return it == table.end() ? nullptr : it->second;
+}
+
+VAML_CORE_EXPORT
+void remove_element_data_context(UIElement* element) noexcept
+{
+    if (element != nullptr)
+    {
+        element_data_context_table().erase(element);
+    }
+}
+
+VAML_CORE_EXPORT
+void element_data_context_master_reset() noexcept
+{
+    element_data_context_table().clear();
+}
+
+} // namespace detail
+
 VAML_CORE_EXPORT
 UIElement::UIElement()
 {
@@ -180,6 +246,10 @@ UIElement::~UIElement()
     // destruction so the side-table holds no dangling key (the S245 detach-on-
     // destroy discipline applied to the resource side-table).
     vaml::detail::remove_element_resources(this);
+    // S500 lifetime: an element that carried a LOCAL DataContext releases its
+    // side-table entry on destruction so no dangling key survives (the same
+    // side-table teardown discipline as the resource table).
+    vaml::detail::remove_element_data_context(this);
 }
 
 // --- S360 Resources slot (stored OUT-OF-LINE; see ResourceDictionary.cpp) ----
@@ -262,6 +332,64 @@ VAML_CORE_EXPORT
 vaml::Matrix2D UIElement::render_transform() const
 {
     return Get(PropertyId::of("RenderTransform")).get<vaml::Matrix2D>();
+}
+
+// --- S500 DataContext (per-element inheritable context, WPF-faithful) --------
+//
+// S145 OBJECT-POOL BUDGET: the per-element DataContext is stored OUT-OF-LINE in
+// a process-wide side-table keyed by element address (the S360 ResourceDictionary
+// precedent — UIElement is a fixed object-pool slot size under the S145 test
+// gate, so NO inline member may grow it). An element that never carries a local
+// DataContext has no side-table entry. A destroyed element is released via
+// detail::remove_element_data_context (see the dtor), so no dangling key survives.
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_data_context(::vaml::ObservableObject* ctx) noexcept
+{
+    // Local override semantics (WPF-faithful Inherits): a non-null ctx installs
+    // a LOCAL context; nullptr CLEARS the local override (the element then
+    // inherits from its parent again). Comparing the resolved current-local with
+    // the new value avoids a redundant erase/re-set + the NO_CHANGE return.
+    if (detail::get_element_data_context(this) == ctx)
+    {
+        return SetResult::NO_CHANGE;
+    }
+    detail::set_element_data_context(this, ctx);
+    InvalidateMeasure();
+    InvalidateArrange();
+    return SetResult::APPLIED;
+}
+
+VAML_CORE_EXPORT
+::vaml::ObservableObject* UIElement::data_context() const noexcept
+{
+    // The LOCAL context (the side-table entry). nullptr when the element does
+    // NOT carry a local override (it inherits from its parent).
+    return detail::get_element_data_context(this);
+}
+
+VAML_CORE_EXPORT
+::vaml::ObservableObject* UIElement::effective_data_context(
+    ::vaml::ObservableObject* documentContext) const noexcept
+{
+    // Walk the parent chain to the NEAREST local DataContext (WPF Inherits with
+    // local-wins). This element's own local (if any) wins first; else the first
+    // ancestor carrying a local context; else the caller-supplied document
+    // context (the reader's app-constructed VM). A `{Binding}` resolves its
+    // source against this value.
+    for (const DependencyObject* cur = this; cur != nullptr; cur = cur->parent())
+    {
+        const auto* ue = dynamic_cast<const UIElement*>(cur);
+        if (ue != nullptr)
+        {
+            ObservableObject* local = detail::get_element_data_context(ue);
+            if (local != nullptr)
+            {
+                return local;
+            }
+        }
+    }
+    return documentContext;
 }
 
 // --- S122 layout slot (RESOLVED BY S122) ------------------------------------

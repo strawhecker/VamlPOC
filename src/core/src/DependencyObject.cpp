@@ -162,15 +162,32 @@ DependencyObject::PD* DependencyObject::Store::emplace(PD pd)
     // Overflow path: grow the append-only array (never shrink). PDs are
     // trivially movable, so we reallocate + copy the existing overflow, then
     // append the new entry.
+    //
+    // BUGFIX (S500; pre-existing S142 defect surfaced by the DataTemplate
+    // S500 clone crossing the kInline=8 threshold): `fresh` is allocated with
+    // std::malloc, so its PD slots are RAW, UNCONSTRUCTED memory. Assigning
+    // into them (fresh[i] = overflow_[i], and slot = std::move(pd)) invokes
+    // PD::operator= -> Value::operator= on an UNINITIALIZED destination Value —
+    // which, for a String, reads the garbage type_/length and calls
+    // ~basic_string on a corrupt length field (the observed
+    // `free(): invalid pointer` on "prop_6" in the full clang suite).
+    // The fix: PLACEMENT-NEW construct each destination PD (and its Value) in
+    // the raw buffer BEFORE assignment, so the move/copy-assignment targets a
+    // fully-initialized object that releases nothing.
     const std::size_t newCap = (overflowCap_ == 0) ? 8 : overflowCap_ * 2;
     PD* fresh = static_cast<PD*>(std::malloc(newCap * sizeof(PD)));
     for (std::size_t i = 0; i < count_ - kInline; ++i)
     {
-        fresh[i] = overflow_[i];
+        // Construct the destination PD (raw buffer) in place, THEN copy-assign
+        // the source into it (Value::operator= now has a valid, empty target).
+        new (fresh + i) PD(overflow_[i]);
     }
     std::free(overflow_);
     overflow_ = fresh;
     overflowCap_ = newCap;
+    // Construct the new appended slot (raw buffer), then move-assign the new
+    // entry into the now-valid object.
+    new (overflow_ + (count_ - kInline)) PD();
     PD& slot = overflow_[count_ - kInline];
     slot = std::move(pd);
     ++count_;

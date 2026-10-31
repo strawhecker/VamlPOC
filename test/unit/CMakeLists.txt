@@ -75,6 +75,7 @@ add_executable(vaml-core-tests
     11k5_eventTrigger_test.cpp
     EventTrigger_s495a_test.cpp
     GridColumnDefs_s11j9_test.cpp
+    ItemsControlTemplate_test.cpp   # S500 (11f) — DataTemplate + ContentPresenter + per-item DataContext
     VamlReader_test.cpp
     VamlReader_defer_test.cpp
     VamlReader_s093_test.cpp

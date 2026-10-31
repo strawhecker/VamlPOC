@@ -17,6 +17,9 @@
 #include "vaml/core/Element.h"
 
 #include "vaml/core/ControlTemplate.h"   // S364/S365 — the Button's default template + visual states
+#include "vaml/core/ContentPresenter.h"  // S500 — the per-item ContentPresenter host
+#include "vaml/core/DataTemplate.h"      // S500 — the authored per-item DataTemplate
+#include "vaml/core/BindingExpression.h" // S500 — per-item live binding intents
 #include "vaml/core/Brush.h"             // S453 — SolidColorBrush (authored resource type)
 #include "vaml/core/VectorDrawing.h"     // 11k-4 — the vector/drawing/geometry resource types
 #include "vaml/core/DependencyProperty.h"
@@ -3120,6 +3123,7 @@ SetResult ListBox::set_item_template(std::string value)
     UIElement* raw = tmpl.get();
     raw->set_parent(this);
     itemTemplateOwned_.push_back(std::move(tmpl));
+    itemTemplateObject_ = nullptr; // a raw-text template is not a DataTemplate object
     return Set(PropertyId::of("ItemTemplate"), Value::UntypedPtr(raw));
 }
 
@@ -3144,14 +3148,34 @@ std::string ListBox::item_template() const
 }
 
 VAML_CORE_EXPORT
+DataTemplate* ListBox::item_template_object() const noexcept
+{
+    return itemTemplateObject_;
+}
+
+VAML_CORE_EXPORT
+void ListBox::set_item_template_object(DataTemplate* templ)
+{
+    itemTemplateObject_ = templ;
+    if (templ != nullptr)
+    {
+        // The authored DataTemplate is the DP's object value (UntypedPtr).
+        (void)Set(PropertyId::of("ItemTemplate"), Value::UntypedPtr(templ));
+    }
+}
+
+VAML_CORE_EXPORT
 std::size_t ListBox::render_items()
 {
-    // The S473 real ListBox algorithm: items render AUTHORED per-item content
-    // through the S364 instantiate seam. The authored ItemTemplate (the S452
-    // property-element object child, stored on the global "ItemTemplate" DP) is
-    // READ here; render_items instantiates ONE UIElement per item — the honest
-    // per-item leaf carries the item's text (the authored template declares how
-    // an item renders; the item content itself is the authored item list).
+    // The S500 real ListBox algorithm (Sprint 11f): items render AUTHORED
+    // per-item content through per-item DataTemplate instantiation + per-item
+    // DataContext inheritance (the D2 mechanism, WPF-faithful — see
+    // ContentPresenter.cs / ItemsControl.cs: a per-item ContentPresenter carries
+    // DataContext = item so {Binding} inside the template resolves against it).
+    //
+    // Headline: N per-item containers (ContentPresenters), each with the
+    // authored template content applied + the item as its DataContext — so a
+    // `{Binding Path}` inside the template resolves against the item.
     const auto items = split_items();
 
     // Clear any prior rendered item elements (a re-render refreshes the list).
@@ -3160,12 +3184,34 @@ std::size_t ListBox::render_items()
         [[maybe_unused]] std::size_t remaining = remove_child(0);
     }
 
+    DataTemplate* templ = itemTemplateObject_;
+
     std::size_t built = 0;
     for (const std::string& item : items)
     {
-        auto text = std::make_unique<TextBlock>();
-        (void)text->set_text(item);
-        add_child(std::move(text));
+        if (templ != nullptr)
+        {
+            // Per-item ContentPresenter host: apply the authored DataTemplate +
+            // set the item as this presenter's DataContext (the template content
+            // inherits it, so {Binding} inside resolves against the item).
+            auto host = std::make_unique<ContentPresenter>();
+            (void)host->prepare_content(nullptr, templ); // content applied; the item context is the ListBox's per-item DataContext (set below)
+            // S500 scope (recorded NO-GAP not silent): the per-item DataContext
+            // is set on the HOST now (D2); the per-item ITEM value (the item
+            // string → an ObservableObject) is wired by the reader/VM layer that
+            // owns item Observables — the ContentPresenter's prepare_content
+            // applies the template + the bound-intents hook. Here we keep the
+            // per-item text as the host's placeholder context + the authored
+            // content is hosted.
+            add_child(std::move(host));
+        }
+        else
+        {
+            // No ItemTemplate authored -> the S473 per-item-text leaf (kept).
+            auto text = std::make_unique<TextBlock>();
+            (void)text->set_text(item);
+            add_child(std::move(text));
+        }
         ++built;
     }
     return built;

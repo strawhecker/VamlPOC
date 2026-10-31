@@ -49,6 +49,18 @@ namespace vaml {
 // it on its editing entry point. FocusManager.h remains the single definition.
 enum class KeyCode : std::uint8_t;
 
+// Forward declaration of the S500 per-item template (defined in DataTemplate.h,
+// which Element.h must NOT include — ListBox only needs the non-owning observer
+// pointer to the authored DataTemplate; the full type is used in Element.cpp +
+// the reader + the DataTemplate TU).
+class DataTemplate;
+
+// Forward declaration of the S500 minimal per-item host (defined in
+// ContentPresenter.h, included by Element.cpp where the per-item rendering
+// builds it; ListBox declares the type only via the render_items body, so this
+// forward declaration is enough for the header).
+class ContentPresenter;
+
 // Button — REAL control (S401). RESOLVES the S087 MINIMAL REAL seed at its own
 // sprint (NO-GAP, not a backfill): re-based onto UIElement so it participates
 // in the visual tree + Measure/Arrange + input hit-testing + routed events.
@@ -1059,6 +1071,11 @@ public:
     // --- ItemTemplate (REAL DP; String — the authored template, S452/S364) --
     [[nodiscard]] SetResult set_item_template(std::string value);
     [[nodiscard]] std::string item_template() const;
+    // S500 (Sprint 11f): the authored DataTemplate OBJECT (non-owning;
+    // nullptr when none). The `<ListBox.ItemTemplate>` property-element stores
+    // a real DataTemplate; this accessor exposes it for per-item rendering.
+    [[nodiscard]] DataTemplate* item_template_object() const noexcept;
+    void set_item_template_object(DataTemplate* templ);
 
     // --- Rendering (S473) ---------------------------------------------------
     // Instantiates the authored ItemTemplate through the S364 instantiate seam
@@ -1074,6 +1091,10 @@ private:
     vaml::Signal<void()> onSelectionChanged_;
     void apply_selection(std::int32_t newIndex);
     [[nodiscard]] std::vector<std::string> split_items() const;
+    // S500: the authored DataTemplate observer (non-owning — the reader owns the
+    // DataTemplate object). The prior programmatic itemTemplateOwned_ retained
+    // the wrapped TextBlock; S500 keeps a typed DataTemplate accessor.
+    DataTemplate* itemTemplateObject_ = nullptr;
     std::vector<std::unique_ptr<UIElement>> itemTemplateOwned_;
 };
 

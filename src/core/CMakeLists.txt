@@ -42,6 +42,8 @@ vaml_add_library(core
     src/Brush.cpp                 # S364 — SolidColorBrush (core data brush + Color DP, ADR-011)
     src/VectorDrawing.cpp         # 11k-4 — geometry/drawing/vector-brush resources (core data)
     src/ControlTemplate.cpp       # S364/S365 — ControlTemplate + visual states + TemplateBinding
+    src/DataTemplate.cpp          # S500 (11f) — DataTemplate + clone_element + load_content
+    src/ContentPresenter.cpp      # S500 (11f) — the minimal per-item ContentPresenter host
     src/PropertyPath.cpp
     src/BindingDiagnostics.cpp
     src/ObservableObject.cpp

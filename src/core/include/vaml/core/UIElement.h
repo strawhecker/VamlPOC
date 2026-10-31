@@ -86,6 +86,12 @@ namespace vaml {
 // forward declaration is sufficient here and avoids an include cycle).
 class ResourceDictionary;
 
+// Forward declaration (the full ObservableObject is defined in
+// ObservableObject.h; UIElement holds a NON-OWNING pointer to it as its
+// DataContext, so a forward declaration avoids an include cycle and keeps the
+// pointer cheap — a VM is a data SOURCE, never a UIElement-owned visual).
+class ObservableObject;
+
 // WPF-faithful visibility states, stored on the Visibility DP via the Int32
 // value path (Value has no enum tag in S030 — the enum rides Int32).
 enum class Visibility : std::uint8_t
@@ -372,6 +378,38 @@ public:
     // (single-parent ownership invariant). Detach first (take_child/remove_child)
     // to move a child between parents.
 
+    // --- DataContext (S500 — per-element inheritable context) --------------
+    // WPF-faithful (FrameworkElement.DataContext IS inheritable, per the WPF
+    // source review of FrameworkElement.cs: FrameworkPropertyMetadataOptions.
+    // Inherits). A parent's DataContext inherits to its descendants unless a
+    // descendant carries its OWN local DataContext (local-wins). The classic
+    // S500 consumer: a per-item ContentPresenter sets DataContext = item so the
+    // template content it hosts inherits the item, and a `{Binding Path}` inside
+    // the template resolves against the inherited context (the per-item
+    // DataContext-inheritance mechanism).
+    //
+    // S145 OBJECT-POOL BUDGET (recorded, NOT silent): the DataContext is stored
+    // OUT-OF-LINE in a process-wide side-table keyed by element address (the
+    // S360 ResourceDictionary precedent — UIElement is a fixed object-pool slot
+    // size under the S145 test gate, so NO inline member may grow it). An
+    // element that never carries a local DataContext has no side-table entry.
+    // The entry is torn down when the element is destroyed (see UIElement.cpp).
+    //
+    // `set_data_context` sets a LOCAL context (nullptr clears the local
+    // override -> inherits the parent's). `effective_data_context()` walks the
+    // parent chain and returns the NEAREST local context (this's local if set,
+    // else the first ancestor with a local context, else the ultimate fallback
+    // passed in — the reader's document data context).
+    [[nodiscard]] ::vaml::SetResult set_data_context(::vaml::ObservableObject* ctx) noexcept;
+    // Returns THIS element's LOCAL DataContext (nullptr when it does NOT carry
+    // a local override — i.e. it inherits from its parent).
+    [[nodiscard]] ::vaml::ObservableObject* data_context() const noexcept;
+    // Walks the parent chain for the nearest local DataContext, falling back to
+    // `documentContext` (the reader's document data context) when no ancestor
+    // carries a local one. This is the value a `{Binding}` resolves against.
+    [[nodiscard]] ::vaml::ObservableObject* effective_data_context(
+        ::vaml::ObservableObject* documentContext) const noexcept;
+
     // --- Routed events (S321) --------------------------------------------
     // The per-event routed-handler surface built on the S320 Signal<T>
     // primitive. `add_routed_handler` registers a handler for `event` on THIS
@@ -449,3 +487,4 @@ private:
 };
 
 } // namespace vaml
+

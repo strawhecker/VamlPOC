@@ -1612,21 +1612,41 @@ Growth tokens by sprint:
 
 ---
 ## Sprint 11f — DataTemplate/ItemsControl authoring + converters + behaviors  (goal: the binding glue surface, ZERO gaps)  [token S500+]
+As of S500 - this project has become a WPF translate to c++ project. It remains vulkan in place of directX.
+For every plan, finalizeit, and implementit, always determine with the WPF source is doing.
+If you have a question or need to get agreement on a change in the roadmap, ALWAYS scan the WPF source to see if it answers the question.
+Whenever planning or implementing something new ALWAYS determine what the WPF source does.
+Whenever bug fixing or root causing; determine what the WPF source does.
+Whenever needing a new data structure, PD, PO, etc. determine how WPF implements it.
+The rule for DONE is the roadmap.md status includes DONE for both CI lanes green.
 > **VIEWER GROWTH:** this sprint's token is **S503** (templated items + converter output + a behavior rendered/interacting in the LIVE viewer) — no token, no ✅ per the S11+ OPEN-ENDED clause.
 > **RENDER-SURFACE-CONFORMANT (baked):** S500–S502 are **render-inert** (ADR-011 model/logic — they touch ZERO `classify_merge_element` arms), so they conform to `docs/RENDER_SURFACE.md` from birth; S503's new live draws must be added to the matrix at the same step.
 > **WPF-SOURCE-VERIFIED (baked, from plan review):** (D1) the framework's REAL converter set is `BooleanToVisibilityConverter` + the S556 list — there is **no framework `NullTo*`** (those are app-authored `ValueConverter` subclasses); (D2) the faithful per-item mechanism is **DataContext-inheritance** (`DataTemplate.LoadContent()`-style, item-as-container-DataContext, template content inherits; `{Binding}` inside resolves via S252), with the WPF container architecture (`ContentPresenter`/`ItemContainerGenerator`/`VirtualizingPanel`) recorded NO-GAP to S550 (11m); (D3) the DAG must gain the **Microsoft.Xaml.Behaviors** type-family + the missing **`DataTemplate`** row and **disambiguate the two EventTriggers** — a plain "flip + re-gen" would catalog the wrong family (S503a = **DAG-EXT-11f**, below).
 > **S7 compiled-path parity** for DataTemplate/ItemTemplate resource/template authoring is recorded NO-GAP (the 11b/11x benchmark norm) — not silently omitted.
-- S500 dep:S495  ItemsControl + DataTemplate AUTHORING: `ListBox.ItemTemplate`/`ListView.ItemTemplate`/
-      `DataGrid` item templates authored from `.vaml` (the S364 template engine serves item content), so
-      items render authored per-item content. **NEW core `DataTemplate`** (`DependencyObject`, `data_type()`, owned
-      authored content children via the S364 `LoadContent()`-style instantiate machinery, optional x:Key) +
-      **`ItemTemplate` DP** on the ItemsControl branch (ListBox/ListView + DataGrid row/item slot) authored via the
-      S473 property-element OR `{StaticResource templateKey}`. **PER-ITEM APPLICATION VIA DATACONTEXT INHERITANCE
-      (D2):** the ItemsControl instantiates the DataTemplate once per item (S364 `LoadContent()` semantics); the
-      container/item carries the item as **DataContext**; the template content **inherits** it, so a `{Binding Path}`
-      inside the template resolves against the item (S252). **NO-GAP (not silent):** WPF-faithful container
-      architecture = **S550 (11m)**; DataGrid cell/column editing = **S649/11k-11** (S500 renders item/row templated
-      content only); S7 compiled-path parity recorded forward. Test `ItemsControlTemplate_test.cpp`. BOTH CI LANES green.
+- S500 dep:S495  **[DONE — 11f; both CI lanes + ASan green from first principles]** ItemsControl + DataTemplate
+      AUTHORING: `ListBox.ItemTemplate`/`ListView.ItemTemplate`/`DataGrid` item templates authored from `.vaml`, so
+      items render authored per-item content. **IMPLEMENTED (WPF-SOURCE-VERIFIED D1/D2/D3):** NEW core `DataTemplate :
+      DependencyObject` (`data_type()`, owned authored content root, `add_binding` intents, `load_content()` → fresh
+      WPF-`LoadContent`-faithful per-item `clone_element`) + NEW minimal per-item **`ContentPresenter : UIElement`**
+      (`prepare_content` applies the DataTemplate + hosts the per-item content; Measure/Arrange size to it — the
+      WPF-faithful per-item DataContext unit) + **NEW per-element inheritable `DataContext` on `UIElement`**
+      (`set_data_context`/`data_context`/`effective_data_context`, WPF `Inherits` local-wins + parent-chain walk,
+      stored **OUT-OF-LINE in a detail side-table keyed by element address — the S145 object-pool slot budget
+      preserved, NO inline member**) + **ListBox re-scoped** (`item_template_object()`/`set_item_template_object()`
+      + `render_items()` → N per-item ContentPresenters via DataContext-inheritance; the S473 no-template per-item
+      text leaf kept, back-compat). **Container architecture (`ItemContainerGenerator`/`VirtualizingPanel`/ListBoxItem
+      chrome) stays S550 (11m)** (recorded NO-GAP); **DataGrid cell/column editing = S649/11k-11** (S500 renders item/
+      row templated content only); **implicit DataType template selection + VisualTree-FACTORY + S7 compiled-path
+      parity recorded forward** (all recorded, not silent). **RENDER-INERT (ADR-011): NO classifier arm added —
+      RENDER_SURFACE.md + validator unaffected.** **PRE-EXISTING S142 `Store::emplace` OVERFLOW HEAP BUG FIXED at
+      this step** (raw `std::malloc`'d PD slots assigned into uninitialized memory → plain-clang `free(): invalid
+      pointer`; surfaced because S500's clone crosses the `kInline=8` store threshold; fixed with placement-new
+      construction — a REAL core fix, all S036–S141 suites stay green under it). New test `test/unit/
+      ItemsControlTemplate_test.cpp` (5 cases / 31 assertions) + `DataTemplate.{h,cpp}`/`ContentPresenter.{h,cpp}`
+      + `UIElement.{h,cpp}` DataContext side-table + `Element.{h,cpp}` ListBox + `DependencyObject.cpp` bugfix
+      registered in CMake. BOTH CI LANES RECONFIRMED GREEN (windows-msvc msvc-debug WX-clean ctest 4/4 100% +
+      ubuntu-clang clang-debug on the VM WX-clean ctest 4/4 100%) + ASan (clang-asan full 1141/1141 clean).
+      Details in the `SPRINT 11f — SURVIVOR (S500)` block in progress.md.
 - S501 dep:S500  CONVERTER SURFACE completed — **WPF-TRUTHFUL (D1):** the app's `*Converter` patterns through the
       S242 converter seam + a `{ConverterResource}`-style authoring path — "converters are logic, not rendering"
       (ADR-011). **NEW core `ValueConverter` base** (Convert/ConvertBack; ConvertBack default not-supported) — the
