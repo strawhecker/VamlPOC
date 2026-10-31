@@ -1647,7 +1647,7 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
       registered in CMake. BOTH CI LANES RECONFIRMED GREEN (windows-msvc msvc-debug WX-clean ctest 4/4 100% +
       ubuntu-clang clang-debug on the VM WX-clean ctest 4/4 100%) + ASan (clang-asan full 1141/1141 clean).
       Details in the `SPRINT 11f — SURVIVOR (S500)` block in progress.md.
-- S501 dep:S500  CONVERTER SURFACE completed — **WPF-TRUTHFUL (D1):** the app's `*Converter` patterns through the
+- S501 dep:S500  **[DONE — 11f; both CI lanes green from first principles]** CONVERTER SURFACE completed — **WPF-TRUTHFUL (D1):** the app's `*Converter` patterns through the
       S242 converter seam + a `{ConverterResource}`-style authoring path — "converters are logic, not rendering"
       (ADR-011). **WPF-SOURCE CORRECTION (the "ValueConverter base" wording of this roadmap line was MAKE-BELIEVE —
       verified against `E:\GitRepos\wpf`, there is NO `ValueConverter` base class anywhere in the WPF tree; the
@@ -1667,7 +1667,7 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
       `MenuScrollingVisibilityConverter`, `DataGridHeadersVisibilityToVisibilityConverter`) are **S556-consumed**;
       `NullTo*` is an APP-AUTHORED pattern (WPF has no framework `NullTo*`), documented in `docs/RENDER_SURFACE.md`
       + the guide — NOT a framework type. Test `ConverterSurface_test.cpp`. BOTH CI LANES green.
-- S502 dep:S501  BEHAVIORS: `i:` Interaction.Behaviors + TriggerAction + InvokeCommandAction-analogue —
+- S502 dep:S501  **[DONE — 11f; both CI lanes green from first principles; `build/verify_s502.cmd` = `S502 BOTH CI LANES OK`]** BEHAVIORS: `i:` Interaction.Behaviors + TriggerAction + InvokeCommandAction-analogue —
       parse-and-behave (the external app's `i:`/`behaviors:`/`dd:` surface maps here as owned translations).
       **NEW core behaviors model (all permanent):** `BehaviorCollection` (owned behaviors on an element) + `Behavior`
       (abstract attach/detach) + `Behavior<T>`; `TriggerAction` (abstract) + `InvokeCommandAction : TriggerAction`
@@ -1679,14 +1679,14 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
       RoutedEvent fires (S320/S401), the trigger fires → `InvokeCommandAction` → `ICommand::Execute(Parameter)`.
       **NO-GAP (not silent):** `TriggerAction`/`TriggerBase` DAG rows flip in **S503a (DAG-EXT-11f)**. Test
       `Behaviors_test.cpp`. BOTH CI LANES green.
-- S503 dep:S502  VIEWER-GROWTH(11f): sample.vaml authors a DataTemplate + a converter + a behavior; the LIVE
+- S503 dep:S502  **[DONE — 11f; both CI lanes green from first principles; `build/verify_s503.cmd` = `S503 BOTH CI LANES OK`]** VIEWER-GROWTH(11f): sample.vaml authors a DataTemplate + a converter + a behavior; the LIVE
       viewer renders templated items + the converter output. BOTH CI LANES green. **New viewer seam
       `viewer_growth_11f.h` (ADR-021 consumer path) + an authored `sample.11f.vaml`; headless Rail 1
       `ViewerGrowth11f_test.cpp` proves `load + render-plan` (S212 `encode_visual_slice` counts) + the behavior fires
       the command on the routed event; the LIVE window render + interaction = [both apps, not CI].** Any new draw the
       viewer produces is added to `docs/RENDER_SURFACE.md` + the validator re-run at this step (RENDER-SURFACE
       conformance).
-- S503a dep:S502  EVENTTRIGGER@11f (11k-5 forward token, NO-GAP) + **DAG-EXT-11f (D3):** EventTrigger wrapping the
+- S503a dep:S502  **[DONE — 11f; both CI lanes green from first principles (docs-only step)]** EVENTTRIGGER@11f (11k-5 forward token, NO-GAP) + **DAG-EXT-11f (D3):** EventTrigger wrapping the
       custom-action/behaviors surface — the `TriggerAction`/`InvokeCommandAction`-analogue actions live here (S502).
       **DAG EXTENSION (not just a re-gen — `gap_dp_daggen.py` cannot see the behaviors family or DataTemplate, which
       are outside its `Controls`/`Controls.Primitives`/`Shapes` scan scope):** via the documented manual-add escape

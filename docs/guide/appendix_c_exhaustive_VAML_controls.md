@@ -361,6 +361,34 @@ DAG rows: `TriggerBase`, `Trigger` (Property), `DataTrigger`, `EventTrigger`, `S
   `SourceName` parse into the S362 trigger model (`TriggerKind::Event`); the `Actions` content is the
   `TriggerAction` family owned by the 11e/11f/11g tokens + S510's `TriggerAction::Invoke` evaluation.
 
+### Behaviors — the Microsoft.Xaml.Behaviors interactive surface (S502, 11f)
+
+DAG rows: `Behavior`/`Behavior<T>`, `BehaviorCollection`, interactivity `TriggerAction`,
+`InvokeCommandAction`, interactivity `EventTrigger` (the `i:`/`behaviors:`/`dd:` interaction surface;
+see `docs/DAG_controls.md` + the EventTrigger DISAMBIGUATION).
+
+```xml
+<Button xmlns:i="http://schemas.microsoft.com/expression/2010/interactivity">
+  <i:Interaction.Behaviors>
+    <!-- An interactivity EventTrigger (EventName, NOT the System.Windows Style.Triggers one) -->
+    <i:EventTrigger EventName="Click">
+      <i:InvokeCommandAction Command="SaveCommand" CommandParameter="doc1"/>
+    </i:EventTrigger>
+  </i:Interaction.Behaviors>
+</Button>
+```
+- VAML maps the WPF `Behavior<T>` base → `TypedBehavior<T>` (the C++ namespace cannot name a
+  non-template `Behavior` and a `Behavior<T>` template together).
+- `Behavior` (abstract) holds the attach/detach lifecycle + associated object.
+- `BehaviorCollection` is the `i:Interaction.Behaviors` attached list (owned, ordered, attach-on-add).
+- `TriggerAction` (interactivity, abstract) is the action base; `InvokeCommandAction : TriggerAction`
+  executes a bound `ICommand` with a `CommandParameter`, gated on `CanExecute` (WPF-faithful).
+- `InteractivityEventTrigger : Behavior` subscribes the element's ROUTED event named by `EventName`
+  (the S320/S321 engine) and fires its ordered `TriggerAction`s when the event raises — the
+  S502 headline "the behavior fires the command on the routed event."
+- The interactivity `EventTrigger` is DISTINCT from the `System.Windows` `Style.Triggers` `EventTrigger`
+  (D3); the System.Windows one stays PLANNED (S559 full re-apply).
+
 ---
 
 ## 6. Vaml-specific surface (declared, NOT hidden)

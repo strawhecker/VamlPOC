@@ -178,6 +178,18 @@ than started cold.
 **S503 (Viewer-Growth 11f)** adds templated items + converter output on the *live*
 path; any new draw it produces must be added to this matrix at the **same step**.
 
+**S503 CONFORMANCE (recorded, not silent):** the 11f viewer produces its templated
+items + converter output by COMPOSING the EXISTING classifier arms — a `ListBox`
+(→ `Solid`), its per-item `ContentPresenter`s (→ the shared `UIElement` Solid
+fallback), and `TextBlock`s (→ `Text`) — plus the converter-driven `Visibility`
+on a `TextBlock` (reusing the S120 Visibility DP + the `S501 BoolVis` converter,
+which map `Collapsed` → a zero-area skip via `ui_item_degenerate`). **No new
+classifier arm / material / matrix row is introduced by 11f.** The RENDER_SURFACE
+conformance validator passes at S503 (`OK`; the S212 `encode_visual_slice` render-
+plan in `ViewerGrowth11f_test` asserts the emitted Solid + Text draw counts). If a
+later step adds a genuinely NEW draw (a dedicated datatemplate material), the arm +
+row must be added at that step (NO-GAP).
+
 ---
 
 ## The CONVERTER SURFACE (S501 — WPF-truthful)

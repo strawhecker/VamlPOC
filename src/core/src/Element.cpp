@@ -19,6 +19,8 @@
 #include "vaml/core/ControlTemplate.h"   // S364/S365 — the Button's default template + visual states
 #include "vaml/core/ContentPresenter.h"  // S500 — the per-item ContentPresenter host
 #include "vaml/core/DataTemplate.h"      // S500 — the authored per-item DataTemplate
+#include "vaml/core/EventTriggerBehavior.h" // S502 — the interactivity EventTrigger (authorable element)
+#include "vaml/core/InvokeCommandAction.h"  // S502 — the InvokeCommandAction (authorable element)
 #include "vaml/core/BindingExpression.h" // S500 — per-item live binding intents
 #include "vaml/core/Brush.h"             // S453 — SolidColorBrush (authored resource type)
 #include "vaml/core/VectorDrawing.h"     // 11k-4 — the vector/drawing/geometry resource types
@@ -6764,6 +6766,20 @@ void register_builtin_elements()
     registry.register_element("DrawingBrush",      [] { return std::make_unique<DrawingBrush>(); });
     registry.register_element("DrawingImage",      [] { return std::make_unique<DrawingImage>(); });
     registry.register_element("ImageBrush",        [] { return std::make_unique<ImageBrush>(); });
+    // --- S502 (dep:S501) — BEHAVIORS vocabulary (the Microsoft.Xaml.Behaviors
+    // interactive surface). These are AUTHORABLE elements under the `i:`/
+    // `behaviors:`/`dd:` prefixes (the reader resolves a prefixed tag by its
+    // LOCAL name, so `<i:EventTrigger>` / `<i:InvokeCommandAction>` resolve
+    // these). `EventTrigger` + `InvokeCommandAction` are the interactivity types
+    // (NOT the System.Windows Style.Triggers family — the 11k-5 Style.Triggers
+    // parser handles that EventTrigger in build_style by checking the LOCAL
+    // name, and it is a different EventTrigger target than the interactivity
+    // one). `Behavior` + `BehaviorCollection` are NOT authorable element roots
+    // (Behavior has a protected ctor; BehaviorCollection is a non-DependencyObject
+    // container). Registered so the sample can AUTHOR the trigger + action.
+    // Built-in count +2 (EventTrigger/InvokeCommandAction).
+    registry.register_element("EventTrigger",         [] { return std::make_unique<InteractivityEventTrigger>(); });
+    registry.register_element("InvokeCommandAction",  [] { return std::make_unique<InvokeCommandAction>(); });
 }
 
 } // namespace vaml

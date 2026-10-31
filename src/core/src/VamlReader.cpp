@@ -25,6 +25,11 @@
 #include "vaml/core/Style.h"                   // S454: authored <Style>/<Setter>/<Trigger>
 #include "vaml/core/Thickness.h"               // 11k-3: parse_thickness (value-type element)
 #include "vaml/core/UIElement.h"               // S322: add_routed_handler target
+#include "vaml/core/EventTriggerBehavior.h"     // S502/S503: the interactivity EventTrigger behavior
+#include "vaml/core/InvokeCommandAction.h"      // S502/S503: the InvokeCommandAction action
+#include "vaml/core/BehaviorCollection.h"       // S502/S503: get_element_behaviors + BehaviorCollection
+#include "vaml/core/DataTemplate.h"             // S500/S503: ListBox.ItemTemplate -> DataTemplate + load_content
+#include "vaml/core/ContentPresenter.h"         // S500/S503: per-item ContentPresenter host
 #include "vaml/core/ValueConverter.h"          // ValueConverterRegistry + register_builtin_converters
 #include "vaml/core/XmlScanner.h"              // XmlDirectiveType
 
@@ -742,6 +747,69 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                     }
                 }
                 elementTriggers_.emplace_back(target, std::move(trigs));
+                continue; // NOT a visual child
+            }
+
+            // --- S502/S503 (dep:S501) — `i:Interaction.Behaviors` (the Microsoft.
+            // Xaml.Behaviors interactive surface). The WPF `<Owner.Interaction.
+            // Behaviors>` property-element (owner `Interaction`, prop `Behaviors` —
+            // the `i:Interaction.Behaviors` attached list) authors the behaviors
+            // attached to THIS element. Only the fully-authored behavior family is
+            // consumed here (an EventTrigger + its InvokeCommandAction children);
+            // anything else fails loud (never silent). A non-UIElement owner has no
+            // i:Interaction.Behaviors (fail loud).
+            if (ownerName == "Interaction" && propName == "Behaviors")
+            {
+                UIElement* behaviorHost = dynamic_cast<UIElement*>(obj.get());
+                if (behaviorHost == nullptr)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string("Interaction.Behaviors"),
+                        "i:Interaction.Behaviors can only be authored on a UIElement");
+                }
+                build_behaviors(behaviorHost, child, depth);
+                continue; // NOT a visual child
+            }
+
+            // --- S500/S503 — `<ListBox.ItemTemplate>` / `<ListView.ItemTemplate>`
+            // (the S500 DataTemplate authored from .vaml). The single authored
+            // child (e.g. `<TextBlock/>`) becomes the DataTemplate's content ROOT;
+            // the template is set as the ListBox's ItemTemplate + the ListBox
+            // renders N per-item ContentPresenters (S500 render_items). The
+            // DataTemplate is reader-owned (owned_templates_) since the ListBox
+            // holds only the non-owning observer pointer.
+            if (propName == "ItemTemplate")
+            {
+                ListBox* list = dynamic_cast<ListBox*>(obj.get());
+                if (list == nullptr)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(propName),
+                        "an ItemTemplate can only be authored on a <ListBox>/<ListView>");
+                }
+                if (child.children.size() != 1)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(propName),
+                        "an ItemTemplate requires exactly ONE authored content child");
+                }
+                std::unique_ptr<DependencyObject> authored = build(child.children[0], depth + 1);
+                UIElement* authoredUI = dynamic_cast<UIElement*>(authored.get());
+                if (authoredUI == nullptr)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(propName),
+                        "an ItemTemplate content root must be a UIElement");
+                }
+                // Transfer ownership of the authored content subtree into the
+                // DataTemplate's template root (the DataTemplate OWNS it).
+                auto templ = std::make_unique<DataTemplate>();
+                templ->set_template_root(
+                    std::unique_ptr<UIElement>(static_cast<UIElement*>(authored.release())));
+                DataTemplate* templRaw = templ.get();
+                owned_templates_.push_back(std::move(templ));
+                list->set_item_template_object(templRaw);
+                (void)list->render_items(); // N per-item ContentPresenters
                 continue; // NOT a visual child
             }
 
@@ -1675,6 +1743,117 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
 }
 
 VAML_CORE_EXPORT
+void VamlReader::build_behaviors(UIElement* owner, const ParsedElement& element,
+                                 std::size_t /*depth*/)
+{
+    // S502/S503 — the `i:Interaction.Behaviors` interactive surface. Each
+    // authored behavior child is built + attached to `owner`'s BehaviorCollection.
+    // The fully-authored behavior family: an `<EventTrigger EventName>` (the
+    // interactivity one — DISTINCT from the System.Windows Style.Triggers one,
+    // D3) that owns `<InvokeCommandAction Command=... CommandParameter=...>`
+    // actions. Anything else fails loud (never silent).
+    BehaviorCollection* col = get_element_behaviors(*owner);
+
+    for (const ParsedElement& bhv : element.children)
+    {
+        const std::string_view bl = bhv.local_name.empty() ? bhv.tagName : bhv.local_name;
+        if (bl == "EventTrigger")
+        {
+            // The interactivity EventTrigger behavior (this is the `i:` surface).
+            std::string eventName;
+            for (const ParsedAttribute& a : bhv.attributes)
+            {
+                if (a.directive == XmlDirectiveType::None && a.key == "EventName")
+                {
+                    eventName = a.value;
+                }
+            }
+            if (eventName.empty())
+            {
+                throw VamlReaderException(
+                    VamlReaderError::UnknownProperty, "EventName",
+                    "an interactivity <EventTrigger> must name an 'EventName'");
+            }
+            auto trigger = std::make_unique<InteractivityEventTrigger>();
+            trigger->set_event_name(eventName);
+
+            // The action children (`<InvokeCommandAction Command=...>`).
+            for (const ParsedElement& act : bhv.children)
+            {
+                const std::string_view al =
+                    act.local_name.empty() ? act.tagName : act.local_name;
+                if (al != "InvokeCommandAction")
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(al),
+                        "an interactivity <EventTrigger> may only contain "
+                        "<InvokeCommandAction> children (got '" + std::string(al) + "')");
+                }
+                std::string commandName;
+                std::string param;
+                for (const ParsedAttribute& a : act.attributes)
+                {
+                    if (a.directive != XmlDirectiveType::None)
+                    {
+                        continue;
+                    }
+                    if (a.key == "Command" || a.key == "CommandParameter")
+                    {
+                        // Command may be a bare name or `{Command Name}` markup.
+                        std::string val(a.value);
+                        const std::string_view mark = "{Command ";
+                        if (val.size() > mark.size() && val.substr(0, mark.size()) == mark &&
+                            val.back() == '}')
+                        {
+                            val = val.substr(mark.size(), val.size() - mark.size() - 1);
+                        }
+                        if (a.key == "Command")
+                        {
+                            commandName = std::move(val);
+                        }
+                        else
+                        {
+                            param = std::move(val);
+                        }
+                    }
+                }
+                if (commandName.empty())
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, "Command",
+                        "an <InvokeCommandAction> must name a 'Command'");
+                }
+                auto action = std::make_unique<InvokeCommandAction>();
+                // Resolve the command by name against the S253 command registry.
+                ICommand* cmd = commandName.empty() ? nullptr : ResolveCommand(commandName);
+                if (cmd == nullptr)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::MalformedBindingMarkup, commandName,
+                        "no registered command '" + commandName +
+                            "' for an <InvokeCommandAction> (register via register_command)");
+                }
+                action->set_command(cmd);
+                if (!param.empty())
+                {
+                    // The CommandParameter is authored as a String literal here (the
+                    // generic attr literal; a typed parameter is a later refinement).
+                    action->set_command_parameter(Value::String(param));
+                }
+                (void)trigger->add_action(std::move(action));
+            }
+            (void)col->add(std::move(trigger));
+            continue;
+        }
+
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, std::string(bl),
+            "unknown i:Interaction.Behaviors behavior child '" + std::string(bl) +
+                "' (expected an <EventTrigger>)");
+    }
+}
+
+VAML_CORE_EXPORT
 void VamlReader::build_style(Style& style, const ParsedElement& element)
 {
     // S454 — STYLE AUTHORING. Consumes ONLY the authored `<Style>` content into
@@ -1945,6 +2124,7 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     live_bindings_.clear();          // S252: per-Load live binding scope (RAII detach)
     dynamicResourceLinks_.clear();   // S361: per-Load dynamic-resource scope
     owned_merged_.clear();           // S453: per-Load merged-resource scope
+    owned_templates_.clear();        // S503: per-Load authored DataTemplate scope
     built_dicts_.clear();            // S454: per-Load authored-dict index
     deferred_based_on_.clear();      // S454: per-Load Style BasedOn wires
     issues_.clear();                 // 11d-DEBUG: per-Load scan-issue scope

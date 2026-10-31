@@ -1,0 +1,49 @@
+<!--
+  vaml_viewer sample document — S503, VIEWER-GROWTH(11f) (dep:S502).
+  The LIVE viewer renders templated items (S500 DataTemplate) + converter output
+  (S501) + the behavior fires the command on the routed event (S502).
+
+  The sample AUTHORS the three 11f surfaces:
+   1. a DATATEMPLATE — <ListBox.ItemTemplate> (the S500 authored per-item
+      template; the reader builds a DataTemplate + renders one ContentPresenter
+      per item).
+   2. a CONVERTER OUTPUT — <TextBlock Visibility="{Binding IsAvailable,
+      Converter=BoolVis}"> (the S501 Converter= authoring path; the app registers
+      the BoolVis BooleanToVisibilityConverter in the seam).
+   3. a BEHAVIOR — <i:Interaction.Behaviors> (the S502 interactive surface): an
+      <i:EventTrigger EventName="Click"> owning an <i:InvokeCommandAction
+      Command="{Command DoIt}" CommandParameter="templated"/> — when the root's
+      Click routed event raises, the behavior executes the DoIt command.
+
+  The wiring (app-owned VM with IsAvailable + the DoIt RelayCommand + the BoolVis
+  converter registration) lives in the seam run_viewer_growth_11f_plan
+  (viewer_growth_11f.h, the ADR-021 consumer path) — the exact code the live
+  viewer runs. The LIVE window display = [both apps, not CI]; this file is the
+  authored surface both apps load.
+-->
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            xmlns:i="http://schemas.microsoft.com/expression/2010/interactivity"
+            x:Name="Root" Width="280" Height="240" Margin="4">
+
+  <!-- 1) DATA TEMPLATE: the S500 authored per-item template. The reader builds a
+       DataTemplate whose root is the TextBlock; the ListBox renders one
+       ContentPresenter per item hosting that template content. -->
+  <ListBox x:Name="FruitList" ListBox.Items="Apple, Banana, Cherry" Margin="4">
+    <ListBox.ItemTemplate>
+      <TextBlock FontSize="12"/>
+    </ListBox.ItemTemplate>
+  </ListBox>
+
+  <!-- 2) CONVERTER OUTPUT: the S501 Converter= path. IsAvailable(true) -> Visible
+       (the S120 Visibility Int32 DP); the converter is registered in the seam. -->
+  <TextBlock x:Name="Status" Text="Converter output: template + behavior (S503, 11f)"
+             Visibility="{Binding IsAvailable, Converter=BoolVis}" Margin="4"/>
+
+  <!-- 3) BEHAVIOR: the S502 interactive surface. When the root's Click raises,
+       the EventTrigger fires the InvokeCommandAction -> DoIt command executes. -->
+  <i:Interaction.Behaviors>
+    <i:EventTrigger EventName="Click">
+      <i:InvokeCommandAction Command="{Command DoIt}" CommandParameter="templated"/>
+    </i:EventTrigger>
+  </i:Interaction.Behaviors>
+</StackPanel>

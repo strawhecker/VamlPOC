@@ -21,6 +21,7 @@
 
 #include "vaml/core/UIElement.h"
 
+#include "vaml/core/BehaviorCollection.h"   // S502 — remove_element_behaviors (side-table teardown)
 #include "vaml/core/ResourceDictionary.h" // S360 — the complete Resources slot type (dtor + accessors)
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/PropertyMetadata.h"
@@ -250,6 +251,12 @@ UIElement::~UIElement()
     // side-table entry on destruction so no dangling key survives (the same
     // side-table teardown discipline as the resource table).
     vaml::detail::remove_element_data_context(this);
+    // S502 lifetime: an element that carried a BehaviorCollection releases it
+    // (detaching each behavior) so no dangling key survives into static
+    // teardown. This runs at the START of ~UIElement — while routedHandlers_
+    // (S321) is still alive — so the EventTrigger's remove_routed_handler in
+    // on_detach never touches a freed handler store.
+    remove_element_behaviors(this);
 }
 
 // --- S360 Resources slot (stored OUT-OF-LINE; see ResourceDictionary.cpp) ----

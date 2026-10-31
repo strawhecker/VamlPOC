@@ -52,6 +52,11 @@ vaml_add_library(core
     src/IValueConverter.cpp            # S501 — IValueConverter + the binding-converter adapter
     src/BooleanToVisibilityConverter.cpp  # S501 — the sole framework bool->Visibility converter
     src/RelayCommand.cpp
+    src/Behavior.cpp                 # S502 (11f) — Behavior base attach/detach
+    src/BehaviorCollection.cpp       # S502 (11f) — BehaviorCollection + i:Interaction.Behaviors
+    src/TriggerAction.cpp            # S502 (11f) — TriggerAction base
+    src/InvokeCommandAction.cpp      # S502 (11f) — InvokeCommandAction : TriggerAction
+    src/EventTriggerBehavior.cpp     # S502 (11f) — EventTrigger : Behavior (the i: surface)
     src/RoutedEvent.cpp
     src/InputMarshaller.cpp
     src/FocusManager.cpp

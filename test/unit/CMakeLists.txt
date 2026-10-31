@@ -77,6 +77,9 @@ add_executable(vaml-core-tests
     GridColumnDefs_s11j9_test.cpp
     ItemsControlTemplate_test.cpp   # S500 (11f) — DataTemplate + ContentPresenter + per-item DataContext
     ConverterSurface_test.cpp       # S501 (11f) — IValueConverter + BooleanToVisibility + Converter= authoring
+    Behaviors_test.cpp              # S502 (11f) — Behavior/BehaviorCollection/TriggerAction/InvokeCommandAction + the
+                                    #             InteractivityEventTrigger (the behavior fires the command on the routed
+                                    #             event — the S11k-5 Actions payload resolved at 11f)
     VamlReader_test.cpp
     VamlReader_defer_test.cpp
     VamlReader_s093_test.cpp
@@ -1040,6 +1043,12 @@ add_executable(vaml-presentation-tests
     # sample: the 11e sample loads cleanly + the classifier emits Solid for
     # every authored 11e control + the interaction surfaces interoperate.
     ViewerGrowth_s495_test.cpp
+    # S503 (dep:S502) — VIEWER-GROWTH(11f): the sample AUTHORS a DataTemplate
+    # + a converter + a behavior; the LIVE viewer renders templated items +
+    # the converter output, and the behavior fires the command on the routed
+    # event. Compiles the S503 seam viewer_growth_11f.h (ADR-021) + links
+    # vaml-presentation so the S212 encode_visual_slice render-plan is provable.
+    ViewerGrowth11f_test.cpp
     # S11c (S470–S473) — the DockPanel + selection controls (RadioButton/
     # ComboBox/ListBox/ListView) materials at the vertical-slice boundary:
     # classify_merge_element -> MaterialKind::Solid for each (DockPanel fill /

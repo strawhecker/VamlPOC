@@ -53,6 +53,8 @@
 
 #include "vaml/core/BindingExpression.h" // BindingExpression (the S252 live binding)
 #include "vaml/core/IValueConverter.h"  // S501 — IValueConverter (the converter registry surface)
+#include "vaml/core/BehaviorCollection.h" // S502/S503 — i:Interaction.Behaviors authoring
+#include "vaml/core/DataTemplate.h"     // S500/S503 — authored DataTemplate (reader-owned list) + ListBox.ItemTemplate
 #include "vaml/core/Brush.h"          // S460 — GradientStopHost + LinearGradientBrush (BRUSH AUTHORING)
 #include "vaml/core/VectorDrawing.h"  // 11k-4 — geometry/drawing/vector-brush resource types
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
@@ -610,6 +612,18 @@ private:
     // Setter (used for both top-level Style setters and trigger child setters).
     void parse_setter(const ParsedElement& el, std::string owner, Setter& out);
 
+    // S502/S503 — BEHAVIORS AUTHORING. Consumes an authored `<Owner.Interaction.
+    // Behaviors>` (the `i:Interaction.Behaviors` interactive surface) property-
+    // element on a UIElement: each authored behavior child
+    // (`<i:EventTrigger EventName=...>` containing `<i:InvokeCommandAction
+    // Command=... CommandParameter=...>`) is built + added to the element's
+    // BehaviorCollection (get_element_behaviors). The `EventTrigger`'s
+    // InvokeCommandAction resolves its Command against the S253 command registry
+    // (ResolveCommand). The behaviors are attached so the element's routed event
+    // fires the command (the S503 "behavior fires the command on the routed
+    // event" proof). ADR-018 zero locks.
+    void build_behaviors(UIElement* owner, const ParsedElement& element, std::size_t depth);
+
     // S460 (dep:S456) — BRUSH AUTHORING. Consumes ONE authored `<GradientStop/>`
     // element (already resolved to a GradientStopHost) into its Color/Offset DPs.
     // Attributes: `Color="#RRGGBB"` + `Offset="0.5"`. Never a visual child.
@@ -671,6 +685,13 @@ private:
     // merged dictionary ALIVE for the parent's lifetime (cleared at Load start,
     // like the other per-Load scopes).
     std::vector<std::unique_ptr<ResourceDictionary>> owned_merged_;
+
+    // S503 — reader-owned authored DataTemplates (per-Load). A `<ListBox.
+    // ItemTemplate>` property-element builds a DataTemplate whose content root is
+    // reader-owned; the ListBox holds only the NON-OWNING item_template_object,
+    // so this vector keeps the template (and its content subtree) alive for the
+    // tree's lifetime. Cleared at Load start.
+    std::vector<std::unique_ptr<DataTemplate>> owned_templates_;
 
     // S454 — reader-owned authored dictionaries (per-Load) used to resolve a
     // Style BasedOn by key: every ResourceDictionary this Load BUILT
