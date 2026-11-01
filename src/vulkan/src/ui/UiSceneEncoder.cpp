@@ -214,6 +214,40 @@ DrawItemKind material_to_draw_kind(MaterialKind kind) noexcept
     }
 }
 
+void append_effect_draws(const vaml::Effect* effect,
+                         const vaml::UIElement& element,
+                         const ElementVisual& visual,
+                         std::vector<DrawItem>& out) noexcept
+{
+    if (effect == nullptr)
+        return;
+    // Only DropShadowEffect contributes a shadow draw here; BlurEffect passes
+    // through (its offscreen blur is the NO-GAP forward token).
+    const auto* ds = dynamic_cast<const vaml::DropShadowEffect*>(effect);
+    if (ds == nullptr || visual.kind == MaterialKind::None)
+        return;
+
+    const vaml::Rect r = element.final_rect();
+    if (r.width <= 0.0f || r.height <= 0.0f)
+        return;
+
+    // The WPF-faithful offset + tint (core seams).
+    double dx = 0.0, dy = 0.0;
+    drop_shadow_offset(ds->direction(), ds->shadow_depth(), dx, dy);
+    const vaml::Color tint = drop_shadow_color(ds->color(), ds->opacity());
+    const float a = static_cast<float>(tint.a) / 255.0f;
+    // The shadow quad: the element's box OFFSET by the shadow offset, drawn
+    // BEHIND (appended before the element's own quad — z-order via tree order).
+    DrawItem shadow = solid_rect(
+        r.x + static_cast<float>(dx), r.y + static_cast<float>(dy), r.width, r.height,
+        Color4{ static_cast<float>(tint.r) / 255.0f,
+                static_cast<float>(tint.g) / 255.0f,
+                static_cast<float>(tint.b) / 255.0f,
+                a });
+    apply_element_render_state(element, shadow);
+    out.push_back(shadow);
+}
+
 std::uint32_t MaterialGroupCount(std::span<const DrawItem> items) noexcept
 {
     // S208 note: this counts CONTIGUOUS same-MATERIAL runs (the S207 "draw list
@@ -287,6 +321,12 @@ void encode_visual_tree(const vaml::UIElement& root,
         // S208 RenderTransform + Clip: fold the per-element Model into the item
         // and (for a transformed element) mark the clip to the S124 render slot.
         apply_element_render_state(element, visual.item);
+
+        // S511 — EFFECT: when the element carries a DropShadowEffect, emit the
+        // offset translucent shadow quad BEHIND the element's own draw (z-order
+        // via tree order — the shadow is appended first, so the element paints
+        // over it). BlurEffect passes through (NO-GAP).
+        append_effect_draws(element.effect(), element, visual, out);
 
         //   4. Append: the element contributes its draw (in tree/z-order).
         out.push_back(visual.item);

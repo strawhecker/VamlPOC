@@ -66,11 +66,17 @@
 #include "vaml/core/Value.h"          // Value (literal values + trigger match values)
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace vaml {
+
+// Forward declaration (the full TriggerAction is in TriggerAction.h; the
+// EventTrigger holds SHARED actions so the Trigger record stays copyable — a
+// vector of shared_ptr<TriggerAction> requires only this forward decl).
+class TriggerAction;
 
 // ---------------------------------------------------------------------------
 // SetterValue — the tagged payload of one Setter.
@@ -156,6 +162,15 @@ struct VAML_CORE_EXPORT EventTrigger
 {
     std::string_view eventName;   // the routed event name (e.g. "Button.Click")
     std::string_view sourceName;  // optional: which named source to listen on
+
+    // S512a — the ACTIONS payload (WPF-faithful: `EventTrigger.Actions`, an
+    // ordered TriggerAction collection). Resolves the 11k-5 recorded NO-GAP:
+    // the `<BeginStoryboard><Storyboard>…` authoring parses into the owning
+    // SHARED BeginStoryboard actions here. `attach_event_triggers` subscribes
+    // the eventName on the source and, on fire, invokes each action in order
+    // (BeginStoryboard -> storyboard.start). Shared_ptr keeps Trigger copyable
+    // (the record is copied into elementTriggers_/Style.trigger vectors).
+    std::vector<std::shared_ptr<TriggerAction>> actions;
 };
 
 // ---------------------------------------------------------------------------

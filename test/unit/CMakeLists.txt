@@ -74,6 +74,10 @@ add_executable(vaml-core-tests
     ElementTriggers_s11j7_test.cpp
     11k5_eventTrigger_test.cpp
     EventTrigger_s495a_test.cpp
+    Animation_test.cpp            # S510 (11g) — animation engine (Storyboard/DoubleAnimation/keyframes/transform)
+    StoryboardAnimation_test.cpp  # S510 (11g) — REAL Storyboard tick on a live element tree (see Animation_test.cpp for the fused-clock proto)
+    Effect_test.cpp               # S511 (11g) — the effects model (DropShadow/Blur) + the pure shadow seams + set_effect side-table
+    EventTriggerAnimation_s512a_test.cpp # S512a (11g) — LIVE evaluation of the EventTrigger Actions payload (BeginStoryboard)
     GridColumnDefs_s11j9_test.cpp
     ItemsControlTemplate_test.cpp   # S500 (11f) — DataTemplate + ContentPresenter + per-item DataContext
     ConverterSurface_test.cpp       # S501 (11f) — IValueConverter + BooleanToVisibility + Converter= authoring
@@ -857,6 +861,10 @@ add_executable(vaml-vulkan-tests
     RetainedBufferPool_test.cpp
     UiSceneEncoder_test.cpp
     UiSceneEncoder_transform_test.cpp
+    # S511 — the EFFECT render seam (headless VERTICAL-SLICE): the encoder emits a
+    # DropShadowEffect's offset translucent shadow BEHIND the element, BlurEffect
+    # passes through. The offscreen blur shader is the NO-GAP forward token.
+    UiSceneEncoder_effect_test.cpp
     # S210 — the render-thread loop contract (render_loop_steps, should_reencode) +
     # the retained-scene owner structure. Device-backed record/recycle is [s210-live].
     SceneRenderer_test.cpp
@@ -1049,6 +1057,12 @@ add_executable(vaml-presentation-tests
     # event. Compiles the S503 seam viewer_growth_11f.h (ADR-021) + links
     # vaml-presentation so the S212 encode_visual_slice render-plan is provable.
     ViewerGrowth11f_test.cpp
+    # S512 (dep:S511/S510) — VIEWER-GROWTH(11g): the sample AUTHORS a Storyboard
+    # (a transform animation + an opacity fade) + a DropShadowEffect; the LIVE
+    # viewer animates visibly (translate + fade + blurred shadow). Compiles the
+    # S512 seam viewer_growth_11g.h (ADR-021) + links vaml-presentation so the
+    # S212 encode_visual_slice render-plan + the S511 effect arm are provable.
+    ViewerGrowth11g_test.cpp
     # S11c (S470–S473) — the DockPanel + selection controls (RadioButton/
     # ComboBox/ListBox/ListView) materials at the vertical-slice boundary:
     # classify_merge_element -> MaterialKind::Solid for each (DockPanel fill /

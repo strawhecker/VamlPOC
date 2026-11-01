@@ -58,6 +58,11 @@ vaml_add_library(core
     src/InvokeCommandAction.cpp      # S502 (11f) — InvokeCommandAction : TriggerAction
     src/EventTriggerBehavior.cpp     # S502 (11f) — EventTrigger : Behavior (the i: surface)
     src/RoutedEvent.cpp
+    src/Animation.cpp                # S510 (11g) — the animation engine primitives
+    src/Storyboard.cpp               # S510 (11g) — the Storyboard container + fused clock
+    src/Effect.cpp                   # S511 (11g) — the effects model + pure shadow seams
+    src/BeginStoryboard.cpp          # S512a (11g) — the TriggerAction that begins a Storyboard
+    src/EventTriggerAction.cpp       # S512a (11g) — LIVE evaluation of the EventTrigger Actions payload
     src/InputMarshaller.cpp
     src/FocusManager.cpp
     src/TextLayout.cpp          # S400 — TextLayout (pure CPU text layout + wrap engine)

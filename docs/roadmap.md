@@ -1706,17 +1706,66 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 
 ---
 ## Sprint 11g — Animation + effects (Storyboard/DoubleAnimation/transforms/effects)  (goal: the visual-motion surface)  [token S510+]
+> **VIEWER GROWTH (OPEN-ENDED clause):** this sprint's token is **S512** (the sample authors a Storyboard +
+> transform animation + an effect; the LIVE viewer animates visibly) — no token, no ✅ (see the S11+ OPEN-ENDED
+> clause). S512's Rail 1 proof (ViewerGrowth11g) drives the authored seam + the per-frame tick + the S212
+> render-plan headlessly; the LIVE window display stays [both apps, not CI].
+> **Sprint 11g is COMPLETE (S510/S511/S512a/S512 all [DONE]， BOTH CI LANES green).**
 - S510 dep:S503  ANIMATION: Storyboard + DoubleAnimation + keyframes + the per-element transform animation
       surface (drives the S208 RenderTransform/S208 MVP path), change-driven off the viewer's tick cadence.
+      **[DONE — 11g; both CI lanes + ASan green.** NEW core `Animation.{h,cpp}` (WPF-faithful clock primitives —
+      FillBehavior/RepeatBehavior/KeyTime+parse_key_time, the pure `timeline_clock_progress` autoReverse/Repeat/
+      fill authority, `Timeline→AnimationTimeline`, `DoubleAnimation` From/To/By-from-base, `DoubleAnimationUsingKeyFrames`
+      Linear/Discrete + out-of-order-fails-loud, `TransformAnimation` + `TransformChannel` + the `channel_matrix`
+      S208 composer) + `Storyboard.{h,cpp}` (the fused-clock container — `start` captures base transform + resolves
+      targets via an injected name resolver, `tick` is the change-driven evaluation writing the animated value/DP/
+      RenderTransform, `complete/stop` FillBehavior HoldEnd-keeps / Stop-restores). S208 `Matrix2D` composition over a
+      captured base transform (an authored base is preserved while the animated channel drives). Tests
+      `Animation_test.cpp` + `StoryboardAnimation_test.cpp` (23 S510 cases / real Storyboard on a live StackPanel+
+      TextBlock tree). WPF-faithful rev 3 (user-accepted): Timeline/Clock fused into Storyboard; the true split is
+      the recorded NO-GAP `Clock` DAG row. Spline/Easing keyframes recorded NO-GAP (forward token).]**
 - S511 dep:S510  EFFECTS: DropShadowEffect + BlurEffect (the S208/GPU-blit-able set).
+      **[DONE — 11g; both CI lanes + ASan green; RENDER_SURFACE-conformant (44 rows OK).** NEW core `Effect.{h,cpp}`
+      (`Effect` base + `DropShadowEffect{Color,BlurRadius,ShadowDepth,Direction,Opacity}` + `BlurEffect{Radius}`,
+      validated setters rejecting negative physical resources) + the pure `drop_shadow_offset`/`drop_shadow_color`
+      seams + `UIElement::set_effect` via the OUT-OF-LINE S145 side-table (S145 object-pool budget — no inline slot)
+      + the vaml-vulkan `UiSceneEncoder` effect arm (`append_effect_draws`: DropShadow emits an offset translucent
+      shadow quad BEHIND the element's draw, Blur passes through). The full WPF offscreen separable-Gaussian
+      blur/blit is the recorded NO-GAP forward token (`S649-offscreen-blur`); the core model + the shadow-quad
+      vertical slice are real. Tests `Effect_test.cpp` (6) + `UiSceneEncoder_effect_test.cpp` (4); RENDER_SURFACE.md
+      Effects section + validator updated at this step.]**
 - S512 dep:S511  VIEWER-GROWTH(11g): sample.vaml authors a Storyboard + a transform animation + an effect;
       the LIVE viewer animates visibly. BOTH CI LANES green.
+      **[DONE — 11g VIEWER GROWTH; both CI lanes green (core 1202, vulkan 233, presentation 109 — incl. 3 S512
+      cases / 19 asserts on both lanes).** NEW `vaml_viewer/viewer_growth_11g.h` (the S512 ADR-021 consumer seam:
+      loads `sample.11g.vaml` through a retained VamlReader, authors the S510 Storyboard (a TransformAnimation
+      translate + a DoubleAnimation opacity fade) + attaches the S511 DropShadowEffect, retains reader+storyboard,
+      per-frame `storyboard.tick` + the S212 `encode_visual_slice` render-plan) + `vaml_viewer/sample.11g.vaml`
+      (named Ball Border + caption) + Rail 1 `ViewerGrowth11g_test.cpp` — the tick moves the Ball's RenderTransform
+      + Opacity on the REAL elements and the render-plan emits the Ball + the DropShadow shadow quad + the caption
+      text. LIVE window animate = [both apps, not CI].]**
 - S512a dep:S511  EVENTTRIGGER@11g (11k-5 forward token, NO-GAP — the roadmap's "full storyboard evaluation"):
       `EventTrigger` + `BeginStoryboard` + the `Storyboard`/DoubleAnimation/keyframe action + the `TriggerAction::
       Invoke` evaluation (begin the Storyboard when the RoutedEvent fires). Flip the `BeginStoryboard`/`Storyboard`
       (`ParallelTimeline`) DAG rows PLANNED→DONE + finish the appendix C §5 animation-action subsection. (Owns the
       NOT-silent 11k-5 action-content disclosure for 11g; this is where the Actions payload the 11k-5 container
       parsed becomes live.)
+      **[DONE — 11g; both CI lanes + ASan green.** The 11k-5 EventTrigger ACTIONS payload becomes LIVE. NEW core
+      `BeginStoryboard.{h,cpp}` — a concrete `TriggerAction` OWNING a `Storyboard`; `invoke()` → `storyboard.start()`
+      (WPF-faithful: the Storyboard is evaluated only when the trigger fires). `EventTriggerAction.{h,cpp}` — the
+      `attach_event_triggers`/`attach_event_trigger` seam + `EventTriggerHandle` (RAII routed subscription): an
+      EventTrigger's `RoutedEvent` is subscribed on the source (honoring `SourceName`); on fire the ordered actions
+      are invoked → BeginStoryboard starts its Storyboard. `Style.h` `EventTrigger` EXTENDED with the shared
+      `actions` collection (the S362 model otherwise unchanged; Property/Data triggers untouched — the S363 Style-
+      applier's dormant EventTrigger path is replaced by this live evaluation). `BeginStoryboard`/`Storyboard`
+      (`ParallelTimeline`) DAG rows flipped PLANNED→DONE at the DAG-add norm; appendix C §5 animation-action
+      subsection extended. The `ControllableStoryboardAction` family (named storyboard stop/pause) is the recorded
+      NO-GAP forward token. Tests `EventTriggerAnimation_s512a_test.cpp` (5 — a REAL raised Click fires →
+      BeginStoryboard starts → tick moves the target).]**
+> **SURVIVOR note (see progress.md / session-context):** the Sprint 11g visual-motion surface wraps with
+> S510/S511/S512a/S512 all DONE on both CI lanes. Recorded NO-GAP forward tokens: Timeline/Clock split (DAG
+> `Clock` row · ), Spline/Easing keyframes, the offscreen blur/blit shader (`S649-offscreen-blur`), and the
+> `ControllableStoryboardAction` (named stop/pause) family — each a named forward resolution, never silent.
 
 ---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]

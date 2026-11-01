@@ -76,6 +76,13 @@ CLASSIFIER_ARMS = {
     # Structural (base fallback + non-UIElement GAP)
     "UIElement-fallback": {"status": "VERTICAL-SLICE", "no_gap": ("S400", "S364")},
     "non-UIElement":      {"status": "GAP",            "no_gap": "sprint"},
+    # S511 — EFFECTS (the vaml-vulkan UiSceneEncoder effect arm, NOT a
+    # classify_merge_element classifier arm). DropShadow emits an offset
+    # translucent shadow quad BEHIND the element (VERTICAL-SLICE); Blur passes
+    # through (VERTICAL-SLICE). Both resolve to the offscreen blur/blit NO-GAP
+    # token.
+    "DropShadowEffect": {"status": "VERTICAL-SLICE", "no_gap": "S649-offscreen-blur"},
+    "BlurEffect":       {"status": "VERTICAL-SLICE", "no_gap": "S649-offscreen-blur"},
 }
 
 # Controls that share a single classifier arm (the base UIElement Solid fallback).

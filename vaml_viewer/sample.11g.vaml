@@ -1,0 +1,25 @@
+<!--
+  vaml_viewer sample document — S512, VIEWER-GROWTH(11g) (dep:S510, S511).
+  The LIVE viewer animates visibly: the sample authors a static layout with a
+  NAMED "Ball" element; the S510 Storyboard (a TransformAnimation translating
+  the Ball + a DoubleAnimation fading its Opacity) + the S511 DropShadowEffect
+  are authored + driven by the seam (viewer_growth_11g.h, the ADR-021 consumer
+  path), which ticks the storyboard per-frame on the viewer's loop.
+
+  The static layout here parses through the real reader (finalize_visual_tree);
+  the animation + effect are the S510/S511 authored surface the reader-markup
+  production (S512) builds from <Storyboard>/<TransformAnimation>/
+  <DoubleAnimation>/<DropShadowEffect>. The LIVE window display = [both apps,
+  not CI]; the headless Rail 1 proof (ViewerGrowth11g) asserts a storyboard tick
+  moves the Ball's RenderTransform + Opacity + emits the DropShadow shadow quad.
+-->
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="Root"
+            Width="280" Height="240" Margin="4">
+
+  <!-- The animated, shadowed element: the S510 Storyboard targets "Ball" (X
+       translate) + fades its Opacity; the S511 DropShadowEffect attaches to it. -->
+  <Border x:Name="Ball" Width="60" Height="60" Margin="8"/>
+
+  <!-- Static companion text (renders via the S400 Text path). -->
+  <TextBlock x:Name="Caption" Text="11g — animation + effects" Margin="4"/>
+</StackPanel>

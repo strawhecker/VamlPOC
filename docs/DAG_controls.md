@@ -65,7 +65,7 @@
 | `Border` | Border → Decorator → FrameworkElement, | DONE | BorderBrush, BorderThickness, CornerRadius, Padding | — |
 | `BorderGapMaskConverter` | BorderGapMaskConverter → IMultiValueConverter | PLANNED | — | — |
 | `BulletDecorator` | BulletDecorator → Decorator → FrameworkElement, | PLANNED | — | — |
-| `BeginStoryboard` | BeginStoryboard → TriggerAction | PLANNED | Storyboard | — |
+| `BeginStoryboard` | BeginStoryboard → TriggerAction | **DONE** (S512a) | Storyboard | — |
 | `Behavior` | Behavior → DependencyObject | **DONE** | AssociatedObject (attached), AssociatedType, IsEnabled | — |
 | `Behavior<T>` | Behavior<T> → Behavior → DependencyObject | **DONE** (VAML maps → `TypedBehavior<T>`) | — | — |
 | `BehaviorCollection` | BehaviorCollection → IList<Behavior> | **DONE** | — | — |
@@ -300,7 +300,7 @@
 | `StatusBar` | StatusBar → ItemsControl → Control, | DONE | — | — |
 | `StatusBarItem` | StatusBarItem → ContentControl → Control, | PLANNED | — | — |
 | `StickyNote` | StickyNote | PLANNED | CaptionFontFamily, CaptionFontSize, CaptionFontStretch, CaptionFontStyle, CaptionFontWeight, IsActive, IsExpanded, PenWidth | — |
-| `Storyboard` | Storyboard → ParallelTimeline | PLANNED | — | — |
+| `Storyboard` | Storyboard → ParallelTimeline | **DONE** (S510) | — | — |
 | `StyleSelector` | StyleSelector | PLANNED | — | — |
 | `TabControl` | TabControl → Selector → ItemsControl → Control, | PLANNED | ContentStringFormat, ContentTemplate, ContentTemplateSelector, TabStripPlacement | — |
 | `TabItem` | TabItem → HeaderedContentControl → ContentControl → Control, | PLANNED | — | — |

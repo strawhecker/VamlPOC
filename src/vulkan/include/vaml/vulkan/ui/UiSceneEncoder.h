@@ -65,6 +65,7 @@
 
 #include <vaml/core/Element.h>        // Text (S400 — real per-control material THROUGH the default classifier)
 #include <vaml/core/UIElement.h>      // vaml::UIElement, Visibility (the REAL core visual tree)
+#include <vaml/core/Effect.h>         // S511 — DropShadowEffect/BlurEffect (the effect model + seams)
 
 #include <cstdint>
 #include <cstddef>
@@ -156,6 +157,27 @@ VAML_VULKAN_EXPORT const std::vector<VisualWalkStep>& visual_walk_steps() noexce
 // consumes it — carried, unexercised), None->SolidRect (unreachable — a None
 // visual is skipped before append). Pure + headless-testable.
 VAML_VULKAN_EXPORT DrawItemKind material_to_draw_kind(MaterialKind kind) noexcept;
+
+// ---------------------------------------------------------------------------
+// S511 — the effect render seam (headless VERTICAL-SLICE).
+// ---------------------------------------------------------------------------
+
+// Appends the S511 effect draws for `element`'s (already-classified) `visual`
+// into `out`, honoring the element's own Effect (from its out-of-line slot):
+//   * DropShadowEffect -> an OFFSET translucent shadow quad is appended FIRST
+//     (BEHIND, via z-order), from the core drop_shadow_offset/drop_shadow_color
+//     seams, then the element's own quad follows (the caller appends it). The
+//     sharp (unblurred) shadow is the honest VERTICAL-SLICE default; the REAL
+//     offscreen separable-Gaussian blur/blit is the recorded NO-GAP forward
+//     token (see RENDER_SURFACE.md "Effects").
+//   * BlurEffect -> pass-through (renders as-is; the blur is the NO-GAP token).
+//   * nullptr / a None visual -> no effect draw.
+// Pure + headless-testable. Called BY encode_visual_tree (below) between the
+// element's own Skip/Append decision and its append, so the shadow precedes the
+// element's quad in z-order.
+VAML_VULKAN_EXPORT void
+append_effect_draws(const vaml::Effect* effect, const vaml::UIElement& element,
+                    const ElementVisual& visual, std::vector<DrawItem>& out) noexcept;
 
 // ---------------------------------------------------------------------------
 // The headline encoder (the REAL S207 surface; walks the REAL core visual tree)

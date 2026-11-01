@@ -23,6 +23,7 @@
 
 #include "vaml/core/BehaviorCollection.h"   // S502 — remove_element_behaviors (side-table teardown)
 #include "vaml/core/ResourceDictionary.h" // S360 — the complete Resources slot type (dtor + accessors)
+#include "vaml/core/Effect.h"           // S511 — the complete Effect type (side-table payload)
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/PropertyMetadata.h"
 #include "vaml/core/PropertyFlags.h"
@@ -234,6 +235,61 @@ void element_data_context_master_reset() noexcept
 
 } // namespace detail
 
+// --- S511 Effect slot (stored OUT-OF-LINE; S145 budget) ----------------------
+// Mirror of the DataContext/Resources side-table discipline: UIElement is a
+// fixed object-pool slot size (S145 test gate), so the per-element Effect lives
+// in a process-wide table keyed by element address. An element with no effect
+// has no entry; the owner unique_ptr is torn down on destruction so no dangling
+// key survives. ADR-018: single-threaded UI use; no lock.
+namespace detail {
+
+using ElementEffectTable = std::unordered_map<const UIElement*, std::unique_ptr<Effect>>;
+
+VAML_CORE_EXPORT
+ElementEffectTable& element_effect_table() noexcept
+{
+    static ElementEffectTable table;
+    return table;
+}
+
+VAML_CORE_EXPORT
+void set_element_effect(UIElement* element, std::unique_ptr<Effect> effect) noexcept
+{
+    if (element == nullptr)
+    {
+        return;
+    }
+    if (!effect)
+    {
+        element_effect_table().erase(element);
+        return;
+    }
+    element_effect_table()[element] = std::move(effect);
+}
+
+VAML_CORE_EXPORT
+Effect* get_element_effect(const UIElement* element) noexcept
+{
+    if (element == nullptr)
+    {
+        return nullptr;
+    }
+    const auto& table = element_effect_table();
+    const auto it = table.find(element);
+    return it == table.end() ? nullptr : it->second.get();
+}
+
+VAML_CORE_EXPORT
+void remove_element_effect(UIElement* element) noexcept
+{
+    if (element != nullptr)
+    {
+        element_effect_table().erase(element);
+    }
+}
+
+} // namespace detail
+
 VAML_CORE_EXPORT
 UIElement::UIElement()
 {
@@ -251,6 +307,10 @@ UIElement::~UIElement()
     // side-table entry on destruction so no dangling key survives (the same
     // side-table teardown discipline as the resource table).
     vaml::detail::remove_element_data_context(this);
+    // S511 lifetime: an element that owned an Effect releases it on destruction
+    // (the owner unique_ptr is torn down) so no dangling key survives — the same
+    // side-table teardown discipline as the resource/DataContext tables.
+    vaml::detail::remove_element_effect(this);
     // S502 lifetime: an element that carried a BehaviorCollection releases it
     // (detaching each behavior) so no dangling key survives into static
     // teardown. This runs at the START of ~UIElement — while routedHandlers_
@@ -267,6 +327,28 @@ void UIElement::set_resources(std::unique_ptr<ResourceDictionary> resources)
     // The side-table is populated/owned by ResourceDictionary.cpp (the only TU
     // that knows the complete ResourceDictionary type).
     vaml::detail::set_element_resources(this, std::move(resources));
+}
+
+// --- S511 Effect slot ------------------------------------------------
+
+VAML_CORE_EXPORT
+void UIElement::set_effect(std::unique_ptr<vaml::Effect> effect)
+{
+    // The side-table is populated/owned by UIElement.cpp (the only TU that
+    // knows the complete Effect type + the side-table).
+    vaml::detail::set_element_effect(this, std::move(effect));
+}
+
+VAML_CORE_EXPORT
+const vaml::Effect* UIElement::effect() const noexcept
+{
+    return vaml::detail::get_element_effect(this);
+}
+
+VAML_CORE_EXPORT
+vaml::Effect* UIElement::effect() noexcept
+{
+    return vaml::detail::get_element_effect(this);
 }
 
 VAML_CORE_EXPORT

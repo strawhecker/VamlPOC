@@ -92,6 +92,11 @@ class ResourceDictionary;
 // pointer cheap — a VM is a data SOURCE, never a UIElement-owned visual).
 class ObservableObject;
 
+// Forward declaration (the full Effect is defined in Effect.h; UIElement holds
+// an OWNED unique_ptr to it as its per-element visual effect, so this forward
+// declaration avoids an include cycle — mirroring ResourceDictionary).
+class Effect;
+
 // WPF-faithful visibility states, stored on the Visibility DP via the Int32
 // value path (Value has no enum tag in S030 — the enum rides Int32).
 enum class Visibility : std::uint8_t
@@ -299,8 +304,7 @@ public:
     [[nodiscard]] SetResult set_opacity(double value);
     [[nodiscard]] double opacity() const;
 
-    // --- RenderTransform (REAL DP; the S208 Resolution) --------------
-    // The per-element 2D affine model matrix (default identity), NOT inherited
+    // --- RenderTransform (REAL DP; the S208 Resolution) --------------    // The per-element 2D affine model matrix (default identity), NOT inherited
     // (each element owns its own, like Margin). WPF-faithful: FrameworkElement
     // renders at its layout slot (final_rect) and maps its content through this
     // transform; S208's encoder CPU-folds it into the quad vertex positions
@@ -312,6 +316,26 @@ public:
     // encoder re-emits).
     [[nodiscard]] SetResult set_render_transform(const vaml::Matrix2D& value);
     [[nodiscard]] vaml::Matrix2D render_transform() const;
+
+    // --- Effect (S511 — per-element visual effect) ---------------------
+    // WPF-faithful (UIElement.Effect): OPTIONAL visual effect applied when the
+    // element's subtree renders. Stored OUT-OF-LINE in a process-wide side-table
+    // keyed by element address (S145 object-pool budget — the S360/Q500
+    // precedent: UIElement is a fixed object-pool slot size, so NO inline member
+    // may grow it). An element that never sets an effect has no side-table entry.
+    // The entry is torn down on destruction (see UIElement.cpp).
+    //
+    // `set_effect` takes OWNERSHIP of a heap Effect (unique_ptr<Effect>); the
+    // element becomes its owner. Passing nullptr CLEARS the effect. `effect()`
+    // returns the non-owning pointer (nullptr when none).
+    //
+    // ADR-018: ZERO new locks (single-threaded UI-thread set/destroy; the S360
+    // side-table discipline). The render consumption is the vaml-vulkan
+    // UiSceneEncoder arm (RENDER_SURFACE-conformant at S511).
+    void set_effect(std::unique_ptr<vaml::Effect> effect);
+    [[nodiscard]] const vaml::Effect* effect() const noexcept;
+    [[nodiscard]] vaml::Effect* effect() noexcept;
+
 
     // --- Visual children (S121: create/attach/detach + parent traversal) ----
     // A parent OWNS its children (std::unique_ptr). Attaching a child ALSO

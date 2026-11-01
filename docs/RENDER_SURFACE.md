@@ -192,8 +192,35 @@ row must be added at that step (NO-GAP).
 
 ---
 
-## The CONVERTER SURFACE (S501 — WPF-truthful)
+## The EFFECTS surface (S511 — WPF-truthful, dep:S510)
 
+> **Purpose.** This section catalogues how the WPF `UIElement.Effect` visual effects
+> (`DropShadowEffect`, `BlurEffect`) map onto the VAML render surface. It exists so
+> that the effect surface is **visible and searchable** and so the two-GPU-blit
+> caveat (the sharp-shadow vertical slice vs. the true offscreen blur) is never
+> silent. The core effect MODEL + the pure shadow seams live in `vaml/core`
+> (`Effect.h`); the RENDER arm lives in the vaml-vulkan `UiSceneEncoder`
+> (`append_effect_draws`), NOT in `classify_merge_element` (the encoder is the
+> authoritative effect emitter, so the validator's classifier-arm walk does not
+> cover it — its rows are exercised by `UiSceneEncoder_effect_test.cpp`).
+
+| XAML concept | Model + seams (vaml/core) | Vulkan render arm | Status | NO-GAP token |
+|---|---|---|---|---|
+| `DropShadowEffect` (S511) | `DropShadowEffect {Color,BlurRadius,ShadowDepth,Direction,Opacity}` + `drop_shadow_offset`/`drop_shadow_color` | `UiSceneEncoder::append_effect_draws` — an OFFSET translucent shadow quad emitted BEHIND the element's draw, tinted at Effect.Opacity | **VERTICAL-SLICE** (sharp, unblurred shadow quad; the true offscreen alpha-mask Gaussian blur is the NO-GAP token) | `S649`-style offscreen blur/blit shader pass (forward token) |
+| `BlurEffect` (S511) | `BlurEffect {Radius}` | pass-through (renders the element as-is) | **VERTICAL-SLICE** (the true offscreen Gaussian blur of the subtree + blit is the NO-GAP token) | `S649`-style offscreen blur/blit shader pass (forward token) |
+
+> **CONFORMANCE (recorded, not silent):** the S511 drop-shadow and blur are the
+> honest headless vertical slices: DropShadow emits a real offset translucent
+> shadow quad BEHIND the element (proven by `UiSceneEncoder_effect_test`), Blur
+> passes through. The full WPF-faithful offscreen separable-Gaussian blur + blit
+> (which makes both DropShadow's blurred mask and BlurEffect's blurred subtree
+> true GPU blits) is the named forward token. Effects introduce NO change to any
+> existing `classify_merge_element` arm, so the RENDER_SURFACE conformance
+> validator stays `OK` at S511 (re-run below).
+
+---
+
+## The CONVERTER SURFACE (S501 — WPF-truthful)
 > **Purpose.** This section is the authoritative catalog of the VAML **value-converter**
 > surface. Converters convert a bound *source* value into a *target* value; per
 > ADR-011 they are **logic, not rendering** — a converter never draws, it only
