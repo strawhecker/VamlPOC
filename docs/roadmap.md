@@ -1768,36 +1768,6 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 > `ControllableStoryboardAction` (named stop/pause) family — each a named forward resolution, never silent.
 
 ---
-## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
-> HARD GOAL 3 (sealed): to close out the lib we implement a means of importing 3rd-party libs and/or DLLs.
-> Likely ONE sprint. We pick something we can put in a lib and INJECT, and the last step vaml_viewer shows the
-> 3rd-party works.
-- S520 dep:S512  IMPORT/INJECT seam: a `vaml::inject` surface that presents a foreign widget as a VAML
-      element — a host-injected native control/layer (a nullable handle + a data bridge + a draw-step hook)
-      WITHOUT VAML owning the foreign type. Single-executable discipline: the injection is a seam the app
-      links, not a runtime DLL shipper.
-- S521 dep:S520  TEST 3RD-PARTY LIB: a small in-repo test widget (a trivial "injected third-party" control, NOT
-      IP-relevant — e.g. a labeled frame with its own draw path) packaged for injection, so the seam is
-      proven against a REAL injected payload.
-- S522 dep:S521  VIEWER-GROWTH(11h): the injected 3rd-party control is composed into a sample.vaml + rendered
-      in the LIVE viewer — **"last step vaml_viewer to show the 3rd party works"** (hard-goal-3 rule 1).
-      The viewer hosts the injected widget + it renders + interacts. BOTH CI LANES green.
-
----
-## Sprint 11i — lib completion refactor gate + SURVIVOR  (goal: the non-3rd-party content is COMPLETE, ZERO gaps, proven)  [token S530+]
-- S530 dep:S522  REFACTOR GATE(11-series): full build + ctest BOTH lanes green; grep-audit — every new control/
-      layout/converter/behavior is REAL (no stub / no MINIMAL REAL / no silent backfill); the S366 authoring
-      NO-GAP is CONSUMED; the complete non-3rd-party content set is present (hard goal 2, ZERO gaps).
-      RESOLVES the 11d DESIGN-TIME STRIP [MINIMAL REAL] (11d): the general abbreviation/URI-namespace +
-      mc:Ignorable-driven ignorable-set model is authored HERE, replacing the scoped 11d d:-prefix guard in
-      VamlReader.cpp (design-time attributes resolved via the namespace model, not stripped by prefix).
-- S531 dep:S530  VIEWER-GROWTH(11-series-closure): a consolidated sample.series.vaml exercises the ENTIRE
-      non-3rd-party content breadth in the LIVE viewer; every prior sprint's growth redisplays green.
-      BOTH CI LANES green.
-- S532 dep:S531  SURVIVOR + checkpoint: the 11-series (11a…11i) SURVIVOR consolidated in progress.md; the lib
-      is content-complete (non-3rd-party); checkpoint advances toward S540 (Sprint 11z). Short.
-
----
 ## Sprint 11j — GAP CLOSE: WPF corpus load surface (unknown-element / DP / value / doc-level)  (goal: close the WPF-corpus LOAD-SURFACE gaps so the external WPF corpus's .xaml docs load through vaml_viewer)  [token S11j]
 > STATUS: **COMPLETE — all nine 11j steps [DONE], BOTH CI LANES green.** This is a GAP-CLOSE sprint (the
 > 11d-DEBUG follow-up's recorded "remaining SplashWindow unknowns" + the broader corpus blockers): no new
@@ -2417,6 +2387,36 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
       (the generic renderer via classify_element). BOTH CI LANES green. [VIEWER GROWTH: the DAG tail set
       renders in the live viewer]
 - S559 dep:S558  **DAG RE-STATE + SURVIVOR(11m):** run `gap_dp_daggen.py` — **this is the DEFINED step that closes the DAG-side drift** (the orphan: 11k-0a generated the DAG once, and no prior step re-applied it after the 11c/11d/11e + S10 closures). Concretely it (a) flips every closure-consumed 11m `PLANNED` row DONE; **and (b) re-states the whole DAG to ground truth** — the 11c/11d/11e controls already implemented-but-stale (`ListView`, `TabControl`/`TabItem`, `Menu`/`MenuItem`/`ContextMenu`, `Popup`/`ToolTip`, `GridSplitter`, `DataGrid`, `Path`/`Polygon`/`Polyline`) and the `ViewBox`→`Viewbox` WPF-true spelling all flip PLANNED→DONE / corrected here, so after S559 the DAG's tri-state agrees with the roadmap top-to-bottom (nothing hidden, exactly-one-state per the DAG contract); (c) grep-audit ZERO new MINIMAL REAL/stubs; (d) SURVIVOR consolidated; checkpoint advances: last = S11m, next = **S540+ (Sprint 11z)**. Both CI lanes green. Re-gens the DAG after control sprints from here on (see the roadmap norm: every control-closing SURVIVOR re-runs `gap_dp_daggen.py`).
+
+---
+## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
+> HARD GOAL 3 (sealed): to close out the lib we implement a means of importing 3rd-party libs and/or DLLs.
+> Likely ONE sprint. We pick something we can put in a lib and INJECT, and the last step vaml_viewer shows the
+> 3rd-party works.
+- S520 dep:S512  IMPORT/INJECT seam: a `vaml::inject` surface that presents a foreign widget as a VAML
+      element — a host-injected native control/layer (a nullable handle + a data bridge + a draw-step hook)
+      WITHOUT VAML owning the foreign type. Single-executable discipline: the injection is a seam the app
+      links, not a runtime DLL shipper.
+- S521 dep:S520  TEST 3RD-PARTY LIB: a small in-repo test widget (a trivial "injected third-party" control, NOT
+      IP-relevant — e.g. a labeled frame with its own draw path) packaged for injection, so the seam is
+      proven against a REAL injected payload.
+- S522 dep:S521  VIEWER-GROWTH(11h): the injected 3rd-party control is composed into a sample.vaml + rendered
+      in the LIVE viewer — **"last step vaml_viewer to show the 3rd party works"** (hard-goal-3 rule 1).
+      The viewer hosts the injected widget + it renders + interacts. BOTH CI LANES green.
+
+---
+## Sprint 11i — lib completion refactor gate + SURVIVOR  (goal: the non-3rd-party content is COMPLETE, ZERO gaps, proven)  [token S530+]
+- S530 dep:S522  REFACTOR GATE(11-series): full build + ctest BOTH lanes green; grep-audit — every new control/
+      layout/converter/behavior is REAL (no stub / no MINIMAL REAL / no silent backfill); the S366 authoring
+      NO-GAP is CONSUMED; the complete non-3rd-party content set is present (hard goal 2, ZERO gaps).
+      RESOLVES the 11d DESIGN-TIME STRIP [MINIMAL REAL] (11d): the general abbreviation/URI-namespace +
+      mc:Ignorable-driven ignorable-set model is authored HERE, replacing the scoped 11d d:-prefix guard in
+      VamlReader.cpp (design-time attributes resolved via the namespace model, not stripped by prefix).
+- S531 dep:S530  VIEWER-GROWTH(11-series-closure): a consolidated sample.series.vaml exercises the ENTIRE
+      non-3rd-party content breadth in the LIVE viewer; every prior sprint's growth redisplays green.
+      BOTH CI LANES green.
+- S532 dep:S531  SURVIVOR + checkpoint: the 11-series (11a…11i) SURVIVOR consolidated in progress.md; the lib
+      is content-complete (non-3rd-party); checkpoint advances toward S540 (Sprint 11z). Short.
 
 ---
 ## Sprint 11z — Injected-dispatcher interop + injected-dispatch wrap  (goal: the library runs inside a host message pump / dispatcher; the 3rd-party test + injected test dispatch CLOSE OUT the lib roadmap)  [token S540+]
