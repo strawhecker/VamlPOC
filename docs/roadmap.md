@@ -9,7 +9,9 @@
 >
 > Sprint headers list the sprint's goal. Token ranges reserve room; gaps mean reserved headroom
 > for steps discovered mid-execution (append new steps into the nearest open token, then renumber
-> the tail in one pass — do NOT edit the checkpoint by hand).
+> the tail in one pass — do NOT edit the checkpoint by hand
+
+the roadmap MUST ALWAYS be updated before informing user the status is DONE.
 
 ## GUARD RAILS (operative project contracts — codified from S003 forward)
 ### MINIMAL REAL (official term)

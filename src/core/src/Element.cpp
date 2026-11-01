@@ -1050,11 +1050,13 @@ void register_control_base_properties()
     (void)DependencyProperty::Register(
         "VerticalContentAlignment", ValueType::Int32, "Control",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    // FontSize: Double, default 16, validated >= 0 (a negative em size is
-    // structurally meaningless -> REJECTED). Owner "Control".
+    // FontSize: Double, default = the standard 96-DPI WPF message-font size
+    // (12.0 DIPs — SystemFonts.ThemeMessageFontSize; WPF's live value derives
+    // from the OS message font, which is 12.0 at 96 DPI), validated >= 0 (a
+    // negative em size is structurally meaningless -> REJECTED). Owner "Control".
     (void)DependencyProperty::Register(
         "FontSize", ValueType::Double, "Control",
-        std::move(PropertyMetadata::WithDefault(Value::Double(16.0), PropertyFlags::None))
+        std::move(PropertyMetadata::WithDefault(Value::Double(12.0), PropertyFlags::None))
             .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
     // FontFamily: String, default "".
     (void)DependencyProperty::Register(
@@ -1630,7 +1632,9 @@ Size TextBox::MeasureOverride(const Size& available) const
     // the S400 text_layout_plan (multi-line growth when AcceptsReturn); report a
     // bounded default box for the edit field. The base Measure finalizer applies
     // the S123 stretch-vs-wrap rule.
-    const float fs = 16.0f;
+    // FontSize reads the shared Control-bundle DP (default 12.0 — the WPF
+    // theme-message-font size @96 DPI), NOT a hardcoded literal.
+    const float fs = static_cast<float>(Get(PropertyId::of("FontSize")).get<double>());
     const float lineH = 1.2f * fs;
     const TextLayoutPlan plan = text_layout_plan(
         text(), fs, available.width,
@@ -2246,6 +2250,13 @@ void UserControl::ArrangeOverride(const vaml::Rect& finalSlot)
 // RESOLVES `<Application ... StartupUri="...">` (the canonical WPF app entry).
 // Application is NOT a UIElement (WPF-faithful — it is the app-level object);
 // it is a loadable DependencyObject root carrying a String StartupUri DP.
+// MODELING NOTE (drift-audit, non-silent): WPF's Application derives from
+// DispatcherObject (NOT DependencyObject), and StartupUri is a PLAIN property
+// (Application.cs:1021), not a DP. VAML has no DispatcherObject, so the app
+// root is modeled as a DependencyObject + String DP — a deliberate modeling
+// mapping, not a sourced equivalence. StartupUri is record-only this step;
+// the NAVIGATION (opening the referenced window) is the Sprint 12 / S490+
+// window-host step.
 
 namespace {
 

@@ -83,7 +83,7 @@ TEST_CASE("11k-1: TextBlock measures to its wrapped extent + classifies to Mater
     tb.Measure(vaml::Size{ 40.0f, vaml::Size::Infinite().height });
     const float wrappedH = tb.desired_size().height;
 
-    SHOULD(ShouldlyString(singleLineH).ShouldBe(1.2f * 16.0f));
+    SHOULD(ShouldlyString(singleLineH).ShouldBe(1.2f * 12.0f));
     SHOULD(ShouldlyString(wrappedH > singleLineH).ShouldBe(true));
 
     // Give it an arranged box so the classifier uses a real render slot.

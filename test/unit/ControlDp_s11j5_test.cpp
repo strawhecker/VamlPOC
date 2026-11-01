@@ -105,13 +105,14 @@ TEST_CASE("11j-5: migrated accessors still round-trip (Label/TextBlock/Border re
     CHECK(border.padding() == vaml::Thickness{5, 6, 7, 8});
 }
 
-TEST_CASE("11j-5: the control DEFAULT for FontSize/Padding/HAlignment is the Control bundle's (16/0/Left-Top)")
+TEST_CASE("11j-5: the control DEFAULT for FontSize/Padding/HAlignment is the Control bundle's (12/0/Left-Top)")
 {
-    // WPF-faithful defaults: FontSize 16 em; Padding 0; HorizontalContentAlignment
-    // Left (0); VerticalContentAlignment Top (0).
+    // WPF-faithful defaults: FontSize 12.0 (SystemFonts.ThemeMessageFontSize at
+    // 96 DPI — the standard message-font size, not 16); Padding 0;
+    // HorizontalContentAlignment Left (0); VerticalContentAlignment Top (0).
     TextBlock text; // also forces the bundle to exist
     DependencyObject o;
-    CHECK(o.Get(PropertyId::of("FontSize")).get<double>() == 16.0);
+    CHECK(o.Get(PropertyId::of("FontSize")).get<double>() == 12.0);
     CHECK(o.Get(PropertyId::of("Padding")).get<vaml::Thickness>() == vaml::Thickness{});
     CHECK(o.Get(PropertyId::of("HorizontalContentAlignment")).get<std::int32_t>() == 0);
     CHECK(o.Get(PropertyId::of("VerticalContentAlignment")).get<std::int32_t>() == 0);

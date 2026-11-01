@@ -28,7 +28,7 @@ TEST_CASE("S480: Label DP surface round-trips")
 {
     Label label;
     SHOULD(ShouldlyString(label.content()).ShouldBe(std::string("")));
-    SHOULD(ShouldlyIntegral(static_cast<int>(label.font_size() == 16.0)).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(label.font_size() == 12.0)).ShouldBe(1));
     (void)label.set_content("Hello, world");
     (void)label.set_font_size(20.0);
     (void)label.set_font_family("Consolas");

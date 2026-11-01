@@ -437,7 +437,7 @@ enum class Dock : std::uint8_t
 //   - Text   (String, default "") — the content. `<TextBlock>label</TextBlock>`
 //     inline content lands here via the reader's TextBlock content routing
 //     (WPF IAddChild behavior, 11k-1).
-//   - FontSize (Double, default 16) — glyph em size.
+//   - FontSize (Double, default 12 — SystemFonts.ThemeMessageFontSize @96 DPI) — glyph em size.
 //   - FontWeight (Int32, default Normal=0 — reuses the S206 convention).
 //   - Foreground (BrushId, default 0 = a resolved default opaque black) — the
 //     WPF-faithful "foreground is a BRUSH" read: WPF TextBlock.Foreground is a
@@ -466,7 +466,7 @@ public:
     [[nodiscard]] SetResult set_text(std::string value);
     [[nodiscard]] std::string text() const;
 
-    // --- FontSize (REAL DP; Double, default 16, validated >= 0) ----------
+    // --- FontSize (REAL DP; Double, default 12 — theme-message-font @96 DPI, validated >= 0) ---
     [[nodiscard]] SetResult set_font_size(double value);
     [[nodiscard]] double font_size() const;
 
@@ -1303,7 +1303,7 @@ private:
 //
 // S480 surface:
 //   - Content (String, default "") — the label text.
-//   - FontSize (Double, default 16, validated >= 0).
+//   - FontSize (Double, default 12 — theme-message-font @96 DPI, validated >= 0).
 //   - FontFamily (String, default "") — a font family name (the embedded font
 //     is single-weight; the DP is the WPF-faithful surface).
 //   - Foreground (BrushId, default 0) — the WPF-faithful brush read (mirrors
@@ -1324,7 +1324,7 @@ public:
     [[nodiscard]] SetResult set_content(std::string value);
     [[nodiscard]] std::string content() const;
 
-    // --- FontSize (REAL DP; Double, default 16, validated >= 0) -----------
+    // --- FontSize (REAL DP; Double, default 12 — theme-message-font @96 DPI, validated >= 0) --
     [[nodiscard]] SetResult set_font_size(double value);
     [[nodiscard]] double font_size() const;
 

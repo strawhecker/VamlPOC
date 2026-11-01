@@ -183,9 +183,10 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     // EllipseGeometry/GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/
     // ImageBrush (the vector-drawing + brush-resource volume), then 59 as
     // Sprint 11e added TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/
-    // Popup/GridSplitter/DataGrid (count bumps authored at the step, never
-    // silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(59u));
+    // Popup/GridSplitter/DataGrid, then 61 as S502 (Sprint 11f) added the
+    // interactivity EventTrigger + InvokeCommandAction (count bumps authored at
+    // the step, never silent).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(61u));
 }
 
 // ---------------------------------------------------------------------------

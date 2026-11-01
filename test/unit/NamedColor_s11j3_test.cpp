@@ -8,7 +8,7 @@
 // The hex path is UNCHANGED (the S089 suite stays green); named-color support
 // is ADDITIVE:
 //   1. representative named colors parse to their canonical 8-bit RGBA;
-//   2. `Transparent` = fully-transparent BLACK (0,0,0,0);
+//   2. `Transparent` = fully-transparent WHITE (0xFF, 0xFF, 0xFF, 0);
 //   3. case-insensitivity (`aliceblue`, `BLACK`, `Transparent`);
 //   4. an unknown bare identifier still throws MalformedValue (never a silent
 //      color — the S090 error discipline);
@@ -44,13 +44,14 @@ TEST_CASE("11j-3: representative named colors parse to their canonical RGBA")
     SHOULD(ShouldlyString(parse_color("SlateGray")).ShouldBe(Color{0x70, 0x80, 0x90, 0xFF}));
 }
 
-TEST_CASE("11j-3: Transparent = fully-transparent BLACK (0,0,0,0)")
+TEST_CASE("11j-3: Transparent = fully-transparent WHITE (0xFF,0xFF,0xFF,0)")
 {
-    // The `Transparent` overlay unblock the sprint names — WPF-faithful.
+    // The `Transparent` overlay unblock the sprint names — WPF-faithful
+    // (Knowncolors.cs: Transparent = 0x00FFFFFF, i.e. R=G=B=0xFF, A=0).
     const Color c = parse_color("Transparent");
-    SHOULD(ShouldlyString(c.r).ShouldBe(0));
-    SHOULD(ShouldlyString(c.g).ShouldBe(0));
-    SHOULD(ShouldlyString(c.b).ShouldBe(0));
+    SHOULD(ShouldlyString(c.r).ShouldBe(0xFF));
+    SHOULD(ShouldlyString(c.g).ShouldBe(0xFF));
+    SHOULD(ShouldlyString(c.b).ShouldBe(0xFF));
     SHOULD(ShouldlyString(c.a).ShouldBe(0));
 }
 

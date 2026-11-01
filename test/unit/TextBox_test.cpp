@@ -179,5 +179,5 @@ TEST_CASE("S402: TextBox MeasureOverride wraps multi-line content (multi-line gr
     (void)multi.set_text("AAAAA\nBBBBB"); // one line of 5 + a newline + 5
     // A narrow available wraps/grows (multi-line accepts the vertical growth).
     multi.Measure(Size{ 200.0f, vaml::Size::Infinite().height });
-    SHOULD(ShouldlyString(multi.desired_size().height >= 1.2f * 16.0f).ShouldBe(true));
+    SHOULD(ShouldlyString(multi.desired_size().height >= 1.2f * 12.0f).ShouldBe(true));
 }

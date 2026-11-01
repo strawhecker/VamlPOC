@@ -188,7 +188,7 @@ TEST_CASE("S400: TextBlock is a real UIElement (S087 seed re-based) + DPs round-
 
     // DP defaults.
     SHOULD(ShouldlyString(t.text()).ShouldBe(std::string("")));
-    SHOULD(ShouldlyString(t.font_size()).ShouldBe(16.0));
+    SHOULD(ShouldlyString(t.font_size()).ShouldBe(12.0));
     SHOULD(ShouldlyString(t.font_weight()).ShouldBe(0));
     SHOULD(ShouldlyString(t.foreground()).ShouldBe(0));
 
@@ -217,8 +217,8 @@ TEST_CASE("S400: TextBlock FontSize validated >= 0 (negative REJECTED)")
 {
     TextBlock t;
     SHOULD(ShouldlyString(t.set_font_size(-5.0)).ShouldBe(vaml::SetResult::REJECTED));
-    // Unchanged (still the 16 default).
-    SHOULD(ShouldlyString(t.font_size()).ShouldBe(16.0));
+    // Unchanged (still the 12.0 default — SystemFonts.ThemeMessageFontSize @ 96 DPI).
+    SHOULD(ShouldlyString(t.font_size()).ShouldBe(12.0));
 }
 
 TEST_CASE("S400: TextBlock MeasureOverride measures the wrapped extent (via Measure)")

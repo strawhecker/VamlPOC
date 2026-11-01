@@ -68,7 +68,7 @@ struct NamedColor
 };
 
 constexpr NamedColor kNamedColors[] = {
-    {"Transparent", 0x00, 0x00, 0x00, 0x00}, // fully-transparent BLACK (WPF-faithful)
+    {"Transparent", 0xFF, 0xFF, 0xFF, 0x00}, // fully-transparent WHITE (WPF-faithful: Knowncolors.cs Transparent = 0x00FFFFFF)
     {"AliceBlue", 0xF0, 0xF8, 0xFF, 0xFF},
     {"AntiqueWhite", 0xFA, 0xEB, 0xD7, 0xFF},
     {"Aqua", 0x00, 0xFF, 0xFF, 0xFF},
