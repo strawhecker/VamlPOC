@@ -2553,6 +2553,124 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 - S559 dep:S558  **DAG RE-STATE + SURVIVOR(11m):** run `gap_dp_daggen.py` — **this is the DEFINED step that closes the DAG-side drift** (the orphan: 11k-0a generated the DAG once, and no prior step re-applied it after the 11c/11d/11e + S10 closures). Concretely it (a) flips every closure-consumed 11m `PLANNED` row DONE; **and (b) re-states the whole DAG to ground truth** — the 11c/11d/11e controls already implemented-but-stale (`ListView`, `TabControl`/`TabItem`, `Menu`/`MenuItem`/`ContextMenu`, `Popup`/`ToolTip`, `GridSplitter`, `DataGrid`, `Path`/`Polygon`/`Polyline`) and the `ViewBox`→`Viewbox` WPF-true spelling all flip PLANNED→DONE / corrected here, so after S559 the DAG's tri-state agrees with the roadmap top-to-bottom (nothing hidden, exactly-one-state per the DAG contract); (c) grep-audit ZERO new MINIMAL REAL/stubs; (d) SURVIVOR consolidated; checkpoint advances: last = S11m, next = **S540+ (Sprint 11z)**. Both CI lanes green. Re-gens the DAG after control sprints from here on (see the roadmap norm: every control-closing SURVIVOR re-runs `gap_dp_daggen.py`).
 
 ---
+# Sprint 11n — DAG-anchored binding / input / themes / observables / 3D / visuals closure
+
+## Governing discipline (all steps)
+- **Remove drift against the real WPF source (`E:\GitRepos\wpf`, PresentationCore/PresentationFramework
+  PresentationFramework + WindowsBase) at all times.** Any plan/DP/base-interface/behavior decision is checked
+  against what WPF actually does first.
+- **BOTH CI LANES green per step, from first principles** (never assumed, never deferred):
+  `windows-msvc` = preset `msvc-debug` via `build/verify_s11n*.cmd` (build warning-as-error clean + ctest);
+  `ubuntu-clang` = preset `clang-debug` on the VM from `/mnt/hgfs/VamlPOC` (configure+build+ctest).
+  `windows-clang-debug` is NOT a CI lane.
+- **ZERO MINIMAL REAL + ZERO invented names** across the sprint. NO-GAP clean.
+- **ADR-018 (zero new locks) held** UNLESS a step explicitly renegotiates it WITH A HUMAN (never silent).
+- The **DAG** is updated at 11n-0 (before the body) and re-checked/closed at 11n-7 (before wrap) so it stays
+  live and complete.
+
+---
+
+## 11n-0 — DAG UNCOVER + UPDATE
+Before the body steps (and again at wrap), walk each addition's WPF base-class / implemented-interface
+anchors from `E:\GitRepos\wpf` and record every anchor the DAG must carry, using uncovered bases/interfaces
+to find OTHERS WE WERE MISSING. Confirmed anchors to unify under:
+`ICommandSource` (the ButtonBase touchpoint), `Freezable` / `Animatable` (immutable/animatable content base),
+`BindingBase` / `BindingExpressionBase` / `MarkupExtension` (binding spine),
+`FrameworkTemplate` (shared by ControlTemplate/DataTemplate/ItemsPanelTemplate),
+`DispatcherObject`, `IWeakEventListener` (the subscription-lifetime contract for Option A),
+`ICollectionView` / `INotifyPropertyChanged` / `INotifyCollectionChanged`.
+Uncover-driven additions (base -> new):
+- `ICommand` -> `RoutedCommand` + `CommandManager`
+- `InputGesture` -> `KeyGesture` / `MouseGesture`
+- `InputBinding`(ICommandSource) -> `KeyBinding` / `MouseBinding`
+- `Visual3D`(DependencyObject, NOT Visual) -> `Viewport3D`(FrameworkElement, IAddChild) + `Model3D`(Animatable) + `Geometry3D`(Animatable)
+- `BindingBase` -> `Binding` / `MultiBinding` / `PriorityBinding`
+- `BindingExpressionBase` -> `BindingExpression`
+- `FrameworkTemplate` -> `ItemsPanelTemplate`
+- `CollectionView : DispatcherObject, ICollectionView, INotifyPropertyChanged`
+Update the DAG doc so it is up to date + complete.
+
+---
+
+## 11n-1 — AUTOMATIONPROPERTIES
+PresentationCore static attached-property class; reuses the existing DependencyProperty/PropertyId machinery.
+Register `AutomationProperties.Name / .AutomationId / .HelpText / .ItemStatus / .IsOffscreenBehavior` (etc.)
+as attached DPs; a corpus doc authoring them on a UIElement resolves + reads back. No new base.
+Test `AutomationProperties_s11n1_test.cpp`.
+
+---
+
+## 11n-2 — THE ICOMMAND SPINE
+Self-contained PresentationCore. `ICommand` (interface: Execute/CanExecute/CanExecuteChanged);
+`RoutedCommand : ICommand`; `CommandManager` (static connect/disconnect + the routed-command table);
+`InputGesture` (abstract) -> `KeyGesture`/`MouseGesture`; `InputBinding : Freezable, ICommandSource` ->
+`KeyBinding`/`MouseBinding`; **upgrade ButtonBase (Button/RepeatButton/ToggleButton/MenuItem) to
+`ICommandSource`** (Command/CommandParameter/CommandTarget DP upgraded from string to the real command
+object). The uncovered `ICommandSource` interface is the anchor this step lands on.
+Test `ICommand_s11n2_test.cpp`.
+
+---
+
+## 11n-3 — FRAMEWORKTEMPLATE + ITEMSPANELTEMPLATE
+Rides existing Style/ResourceDictionary. Unify the `FrameworkTemplate` base under ControlTemplate/DataTemplate;
+add `ItemsPanelTemplate` (e.g. VirtualizingStackPanel recipe) so `ItemsControl.ItemsPanel` resolves.
+Test `FrameworkTemplate_s11n3_test.cpp`.
+
+---
+
+## 11n-4 — BINDINGBASE + IMultiValueConverter + CollectionView + OBSERVABLE COLLECTIONS — **OPTION A (WPF-fidelity event subscription)**
+The reactive spine (the substantial observable-collection infrastructure VAML lacks -> landed HERE):
+- `INotifyPropertyChanged` / `INotifyCollectionChanged` / `NotifyCollectionChangedEventArgs` (+
+  `CollectionChangedAction` enum) — the notification interfaces.
+- `ObservableCollection<T>` (VAML-native, over a heterogeneous `Value::Collection`) raising
+  `PropertyChanged("Count"/"Item[]")` + `CollectionChanged` on every mutation.
+- `BindingBase` (a MarkupExtension) -> `Binding` / `MultiBinding` / `PriorityBinding`; `BindingExpression`
+  subscribes via `IWeakEventListener` (the weak-handler subscription-lifetime contract) and RE-RUNS on
+  `PropertyChanged` / `CollectionChanged` (true event-subscription, WPF-faithful — NOT polled).
+- `CollectionView : DispatcherObject, ICollectionView, INotifyPropertyChanged` — the live collection read
+  model under `ItemsControl`.
+- `ItemsControl` incrementally adds/removes containers on `CollectionChanged`.
+- **ROADMAP NOTE (per directive, recorded verbatim in the roadmap 11n-4):** this step works CLOSELY WITH A
+  HUMAN for the locking/threading reasoning. **Locks can be engineered out, but not always.** Single-threaded
+  UI paths avoid locks; the subscription-lifetime weak-handler re-entrancy (a collection mutated mid-
+  enumeration inside a callback) is where a lock may be unavoidable — that decision is made WITH A HUMAN,
+  never silently. ADR-018 is deliberately renegotiated here with human sign-off.
+Test `BindingBase_s11n4_test.cpp` (reactive: mutate the ObservableCollection -> the bound ItemsControl
+reflects the change live).
+
+---
+
+## 11n-5 — 3D (Viewport3D / Model3D / Visual3D / Geometry3D)
+`Visual3D : DependencyObject, IVisual3DContainer` (NOT a Visual); `Viewport3D : FrameworkElement, IAddChild`
+(hosts Model3D content); `Model3D : Animatable`; `Geometry3D : Animatable`. A `Viewport3D` is an isolatable
+FrameworkElement; Model3D/Geometry3D content + camera/projection are authored. Rendered through the headless
+software rasterizer (BOTH lanes) + the GPU path ([both-apps, not CI]).
+Test `Viewport3D_s11n5_test.cpp` (headless geometry->tile, no GPU).
+
+---
+
+## 11n-6 — ADORNER + VISUALTREEHELPER — done LAST
+Forces a real visual-tree model that collides with the ADR-011 classifier/encode architecture — deliberately
+its own step. TESTING SPLIT (per directive): unit-test WITHOUT GPU everything CPU-side (visual-tree walk,
+`VisualTreeHelper.GetParent/GetChildrenCount/GetChild`, AdornerLayer attach/detach, hit-test data) in the
+standard both-lane suite; unit-test WITH GPU the render side as the [both-apps, not CI] lane.
+Test `VisualTreeHelper_s11n6_test.cpp`.
+
+---
+
+## 11n-7 — ROADMAP WRAP + DAG CLOSE
+Final DAG update with the uncovered anchors; the full 11n delta recorded in roadmap + progress SURVIVOR;
+coverage-matrix + DAG-anchor inventory consolidated; no silent gaps. The roadmap 11n-4 note (the
+human-locking note) is a standing entry in the roadmap.
+
+## Notes honoring constraints
+- Steps 1-3, 5, 6 are single-green-gate units. Step 4 is Option A (fidelity-pure) + the ONLY step with the
+  explicit human-reasoning locking note written into the roadmap.
+- The DAG is modified before wrapping (11n-0 + 11n-7) so it stays live/complete.
+- The observable-collection infrastructure (the most substantial omission) is folded into step 4 as the core
+  of the reactive spine — Option A, event-subscription, WPF-true.
+
+---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
 > HARD GOAL 3 (sealed): to close out the lib we implement a means of importing 3rd-party libs and/or DLLs.
 > Likely ONE sprint. We pick something we can put in a lib and INJECT, and the last step vaml_viewer shows the

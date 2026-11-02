@@ -422,3 +422,123 @@ documented as such so nobody mistakes them for WPF fidelity.
 | `Scroll` (bubbling) | ScrollBar | routed |
 | TextChanged, selection, input events | TextBox-family | PLANNED (input surface, 11k-11) |
 | `Loaded/Unloaded`, mouse/keyboard | FrameworkElement / UIElement | PLANNED (11k-11) |
+
+---
+
+## 9. Sprint-11n — DAG-anchored binding / input / themes / observables / 3D / visuals additions
+
+> **Status: the DAG rows are `PLANNED` (added at **11n-0**, the DAG update delivered before the roadmap
+> commit).** The underlying IMPLEMENTATION steps **11n-1…11n-6** flip each row `PLANNED → DONE`. Sections
+> below are the authoring encyclopedia for the Sprint-11n additions; they are **declared now, not hidden**,
+> exactly as the appendix's own rule requires. Cross-referenced to the `DAG_controls.md` 11n-0 cluster.
+
+### 9.1 Automation (11n-1) — `AutomationProperties` (static attached props)
+
+`AutomationProperties` is a static attached-property class (reuses the DP/PropertyId machinery; no new base).
+Attached DPs a corpus doc can author on any `UIElement`/`FrameworkElement`:
+
+```xml
+<Button AutomationProperties.Name="Save"
+        AutomationProperties.AutomationId="btnSave"
+        AutomationProperties.HelpText="Persists the document"/>
+```
+Attached props: `Name`, `AutomationId`, `HelpText`, `ItemStatus`, `ItemType`, `LabeledBy`,
+`AcceleratorKey`, `AccessKey`, `IsColumnHeader`, `IsRowHeader` (all `PLANNED`, 11n-1).
+
+### 9.2 Input / commands (11n-2) — the `ICommand` spine
+
+WPF truth: `ICommand` (Executor), `CommandManager` (static routed-command table + requery),
+`InputGesture` → `KeyGesture`/`MouseGesture`, `InputBinding`(ICommandSource) → `KeyBinding`/`MouseBinding`.
+VAML upgrades `ButtonBase` (Button/RepeatButton/ToggleButton/MenuItem) to the `ICommandSource` surface
+(`Command`/`CommandParameter`/`CommandTarget` become the real command object, not a string DP):
+
+```xml
+<Button Command="App.SaveCommand" CommandParameter="doc1"/>
+<Button.CommandBindings>
+  <CommandBinding Command="App.SaveCommand" Executed="OnSave" CanExecute="OnCanSave"/>
+</Button.CommandBindings>
+<Window.InputBindings>
+  <KeyBinding  Command="App.SaveCommand" Key="S" Modifiers="Control"/>
+  <MouseBinding Command="App.OpenCommand" MouseAction="LeftClick"/>
+</Window.InputBindings>
+```
+Types: `ICommand` (interface), `RoutedCommand : ICommand`, `CommandBinding`, `CommandManager`,
+`ICommandSource`, `InputGesture` (abstract) → `KeyGesture`/`MouseGesture`, `InputBinding` → `KeyBinding`/
+`MouseBinding` (all `PLANNED`, 11n-2).
+
+### 9.3 Templates (11n-3) — `FrameworkTemplate` + `ItemsPanelTemplate`
+
+`FrameworkTemplate` becomes the explicit parent of `ControlTemplate`/`DataTemplate` and gains
+`ItemsPanelTemplate` (the `ItemsControl.ItemsPanel` recipe):
+
+```xml
+<ListBox>
+  <ListBox.ItemsPanel>
+    <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+  </ListBox.ItemsPanel>
+</ListBox>
+```
+Types: `FrameworkTemplate → DispatcherObject, INameScope`, `ItemsPanelTemplate → FrameworkTemplate`
+(`PLANNED`, 11n-3).
+
+### 9.4 Binding / observables (11n-4 — OPTION A: true WPF event-subscription fidelity)
+
+> **Roadmap note (per directive, recorded verbatim):** this step works CLOSELY WITH A HUMAN for the
+> locking/threading reasoning. **Locks can be engineered out, but not always.** Single-threaded UI paths
+> avoid locks; the subscription-lifetime weak-handler re-entrancy (a collection mutated mid-enumeration in
+> a callback) is where a lock may be unavoidable — that decision is made WITH A HUMAN, never silently.
+> ADR-018 is deliberately renegotiated here with human sign-off.
+
+The reactive spine VAML lacked (observable-collection infrastructure) lands here. `{Binding}` becomes
+**reactive** — a bound `ItemsControl` re-renders when its source collection changes:
+
+```xml
+<Window.Resources>
+  <ResourceDictionary>
+    <ObservableCollection x:Key="Logs" ItemType="String"/>
+  </ResourceDictionary>
+</Window.Resources>
+<ListBox ItemsSource="{Binding Logs}" ItemTemplate="{Binding}"/>
+<!-- mutating the source (a PropertyChanged/CollectionChanged event) re-runs the bind + re-renders -->
+```
+Types: `INotifyPropertyChanged`/`INotifyCollectionChanged` (interfaces), `NotifyCollectionChangedEventArgs`
+(+ `CollectionChangedAction`), `ObservableCollection<T>` (VAML-native over `Value::Collection`), `Freezable`,
+`DispatcherObject`, `IWeakEventListener` (weak subscription lifetime), `BindingBase`(+`Binding`/`MultiBinding`/
+`PriorityBinding`), `BindingExpressionBase`/`BindingExpression`, `IMultiValueConverter`,
+`ICollectionView`/`CollectionView` (all `PLANNED`, 11n-4).
+
+### 9.5 3D (11n-5) — `Viewport3D` / `Model3D` / `Visual3D` / `Geometry3D`
+
+`Viewport3D : FrameworkElement, IAddChild` hosts modeled content; `Model3D : Animatable`, `Geometry3D :
+Animatable`, `Visual3D : DependencyObject, IVisual3DContainer`; camera/projection via `Camera`/
+`PerspectiveCamera`. Headless software rasterization runs BOTH lanes; GPU is the [both-apps, not CI] path:
+
+```xml
+<Viewport3D>
+  <Viewport3D.Camera>
+    <PerspectiveCamera Position="0,0,5" LookDirection="0,0,-1" FieldOfView="60"/>
+  </Viewport3D.Camera>
+  <!-- Model3D/Geometry3D content -->
+</Viewport3D>
+```
+Types: `Visual3D`, `IVisual3DContainer`, `Viewport3D`, `Model3D`, `Geometry3D`, `Animatable`, `Camera`,
+`PerspectiveCamera` (all `PLANNED`, 11n-5; also corrects the pre-existing `ViewPort3D` row spelling in the DAG).
+
+### 9.6 Visuals / adorners (11n-6 — done LAST) — `Adorner` / `VisualTreeHelper`
+
+`VisualTreeHelper` forces a real visual-tree model that collides with the ADR-011 classifier/encode
+architecture — deliberately its own step. Testing split: CPU-side (tree walk, `GetParent`/
+`GetChildrenCount`/`GetChild`, `AdornerLayer` attach/detach, hit-test data) unit-tested WITHOUT GPU in the
+both-lane suite; the render side unit-tested WITH GPU as the [both-apps, not CI] lane:
+
+```xml
+<AdornerLayer>
+  <!-- adorner content hosted over an adorned element -->
+</AdornerLayer>
+```
+Types: `Adorner : FrameworkElement`, `AdornerLayer`, `VisualTreeHelper` (static walk) (all `PLANNED`, 11n-6).
+
+> **After 11n-6 + the 11n-7 wrap**, the DAG + this appendix are the EXHAUSTIVE, WPF-true survived surface,
+> with the observable spine (9.4), the ICommand spine (9.2), 3D (9.5), and the visual-tree/adorners (9.6)
+> no longer "conspicuously missing."
+

@@ -54,6 +54,40 @@
 
 | Type | Inheritance (DAG) | Vaml tri-state | Own DPs | Routed events |
 |------|-------------------|----------------|---------|---------------|
+> **11n-0 DAG-EXT (manual add, Sprint-11n content, under the closure-under-ancestry invariant).**
+> `gap_dp_daggen.py` scans only `PresentationFramework\System\Windows\Controls`, `Controls\Primitives`,
+> and `Shapes` — it **cannot** emit PresentationCore (`Input\Command\*`, `System\Windows\Media\*`,
+> `System\Windows\Automation\*`, `System\Windows\Input\*`), WindowsBase /
+> `System.ComponentModel`/`System.Collections.ObjectModel` (the observable + weak-event interfaces), nor the
+> `FrameworkTemplate`/`FrameworkContentElement`/`DispatcherObject` branches. These are the Sprint-11n
+> types (added with the DAG update at **11n-0**; the underlying IMPLEMENTATION sprints 11n-1..11n-6 flip the
+> rows PLANNED→DONE — this 11n-0 row-add is the DAG update the roadmap wrap commits BEFORE those
+> implementation steps, so the DAG is live and complete at 11n-0). Added under the same escape hatch, at
+> ground truth from `E:\GitRepos\wpf`:
+> - **Input/command spine (11n-2):** `ICommand` (interface), `RoutedCommand → ICommand`,
+>   `CommandBinding`, `CommandManager`, `ICommandSource` (interface — the `ButtonBase` touchpoint),
+>   `InputGesture` (abstract) → `KeyGesture`/`MouseGesture`, `InputBinding : Freezable, ICommandSource` →
+>   `KeyBinding`/`MouseBinding`.
+> - **Automation (11n-1):** `AutomationProperties` (static attached-property class on
+>   `DependencyObject`/`UIElement`: Name/AutomationId/HelpText/ItemStatus).
+> - **Templates (11n-3):** `FrameworkTemplate` (parent of the already-listed `ControlTemplate`/
+>   `DataTemplate`; closes the `ItemsPanelTemplate → FrameworkTemplate` parent edge already listed).
+> - **Binding/observables (11n-4, OPTION A event-subscription):** `Freezable`,
+>   `DispatcherObject`, `IWeakEventListener` (the weak subscription-lifetime contract),
+>   `INotifyPropertyChanged` / `INotifyCollectionChanged`, `NotifyCollectionChangedEventArgs`
+>   (+ `CollectionChangedAction`), `ObservableCollection<T>`,
+>   `BindingBase` (a `MarkupExtension`) → `MultiBinding`/`PriorityBinding`,
+>   `BindingExpressionBase` → `BindingExpression`, `IMultiValueConverter`,
+>   `ICollectionView` → `CollectionView : DispatcherObject, ICollectionView, INotifyPropertyChanged`.
+> - **3D (11n-5):** `Visual3D : DependencyObject, IVisual3DContainer` (NOT a `Visual`),
+>   `Viewport3D : FrameworkElement, IAddChild` (the host — corrects the pre-existing `ViewPort3D`
+>   spelling row), `Model3D : Animatable`, `Geometry3D : Animatable`, `IVisual3DContainer`,
+>   `Animatable` (animatable-content base).
+> - **Visuals/adorners (11n-6, done LAST):** `Adorner : FrameworkElement`, `AdornerLayer` (a
+>   panel-like adorner host), `VisualTreeHelper` (static visual-tree walk — forces the visual-tree model
+>   decision; the ADR-011 classifier/encode collision is recorded NO-GAP by 11n-6).
+> All rows below are added as `PLANNED` (their owning 11n step flips them PLANNED→DONE, never silently).
+
 | `AVElementHelper` | AVElementHelper | PLANNED | — | — |
 | `AccessText` | AccessText → FrameworkElement, | PLANNED | Text | — |
 | `AddingNewItemEventArgs` | AddingNewItemEventArgs → EventArgs | PLANNED | — | — |
@@ -352,6 +386,49 @@
 | `VisualStates` | VisualStates | PLANNED | — | — |
 | `WebBrowser` | WebBrowser → ActiveXHost | PLANNED | — | — |
 | `WrapPanel` | WrapPanel → Panel → FrameworkElement, | DONE | ItemHeight, ItemWidth | — |
+<!-- ============ 11n-0 DAG-EXT cluster (Sprint-11n content, PLANNED — flipped DONE at 11n-1..11n-6) ============ -->
+| `ICommand` | ICommand (interface) | PLANNED(11n-2) | — | — |
+| `RoutedCommand` | RoutedCommand → ICommand | PLANNED(11n-2) | Name | — |
+| `CommandBinding` | CommandBinding → Freezable | PLANNED(11n-2) | Command, CanExecute, Executed (attached) | CanExecute, PreviewCanExecute, Executed, PreviewExecuted |
+| `CommandManager` | CommandManager (static) | PLANNED(11n-2) | — | RequerySuggested, PreviewCanExecute, CanExecute, PreviewExecuted, Executed |
+| `ICommandSource` | ICommandSource (interface) | PLANNED(11n-2) | Command, CommandParameter, CommandTarget | — |
+| `InputGesture` | InputGesture (abstract) | PLANNED(11n-2) | — | — |
+| `KeyGesture` | KeyGesture → InputGesture | PLANNED(11n-2) | Key, Modifiers, DisplayString | — |
+| `MouseGesture` | MouseGesture → InputGesture | PLANNED(11n-2) | MouseAction, Modifiers | — |
+| `InputBinding` | InputBinding → Freezable, ICommandSource | PLANNED(11n-2) | Command, CommandParameter, CommandTarget, CommandTarget, Gesture | — |
+| `KeyBinding` | KeyBinding → InputBinding | PLANNED(11n-2) | Key, Modifiers | — |
+| `MouseBinding` | MouseBinding → InputBinding | PLANNED(11n-2) | MouseAction, Modifiers | — |
+| `AutomationProperties` | AutomationProperties (static attached props) | PLANNED(11n-1) | HelpText, IsColumnHeader, IsRowHeader, ItemStatus, ItemType, LabeledBy, Name, AcceleratorKey, AccessKey, AutomationId | — |
+| `FrameworkTemplate` | FrameworkTemplate → DispatcherObject, INameScope (base of ControlTemplate/DataTemplate/ItemsPanelTemplate) | PLANNED(11n-3) | — | — |
+| `ItemsPanelTemplate` | ItemsPanelTemplate → FrameworkTemplate | PLANNED(11n-3) | — | — |
+| `Freezable` | Freezable → DependencyObject (immutable content base) | PLANNED(11n-4) | — | — |
+| `DispatcherObject` | DispatcherObject | PLANNED(11n-4) | — | — |
+| `IWeakEventListener` | IWeakEventListener (interface) | PLANNED(11n-4) | — | — |
+| `INotifyPropertyChanged` | INotifyPropertyChanged (interface) | PLANNED(11n-4) | — | PropertyChanged |
+| `INotifyCollectionChanged` | INotifyCollectionChanged (interface) | PLANNED(11n-4) | — | CollectionChanged |
+| `NotifyCollectionChangedEventArgs` | NotifyCollectionChangedEventArgs → EventArgs | PLANNED(11n-4) | Action, NewItems, NewStartingIndex, OldItems, OldStartingIndex | — |
+| `CollectionChangedAction` | CollectionChangedAction (enum) | PLANNED(11n-4) | — | — |
+| `ObservableCollection<T>` | ObservableCollection<T> → Collection<T>, INotifyPropertyChanged, INotifyCollectionChanged | PLANNED(11n-4) | — | CollectionChanged, PropertyChanged |
+| `BindingBase` | BindingBase → MarkupExtension | PLANNED(11n-4) | — | — |
+| `Binding` | Binding → BindingBase | PLANNED(11n-4) | Path, Source, ElementName, Mode, Converter, ConverterParameter, UpdateSourceTrigger, BindsDirectlyToSource | — |
+| `MultiBinding` | MultiBinding → BindingBase | PLANNED(11n-4) | Bindings, Converter, ConverterParameter, Mode | — |
+| `PriorityBinding` | PriorityBinding → BindingBase | PLANNED(11n-4) | Bindings | — |
+| `BindingExpressionBase` | BindingExpressionBase → DispatcherObject | PLANNED(11n-4) | — | — |
+| `BindingExpression` | BindingExpression → BindingExpressionBase | PLANNED(11n-4) | ParentBinding, ResolvedSource, ResolvedSourcePropertyName | — |
+| `IMultiValueConverter` | IMultiValueConverter (interface) | PLANNED(11n-4) | — | — |
+| `ICollectionView` | ICollectionView (interface) | PLANNED(11n-4) | CurrentItem, CurrentPosition, IsCurrentAfterLast, IsCurrentBeforeFirst, IsEmpty, SortDescriptions | — |
+| `CollectionView` | CollectionView → DispatcherObject, ICollectionView, INotifyPropertyChanged | PLANNED(11n-4) | — | CurrentChanged, CurrentChanging |
+| `Visual3D` | Visual3D → DependencyObject, IVisual3DContainer | PLANNED(11n-5) | Transform | — |
+| `IVisual3DContainer` | IVisual3DContainer (interface) | PLANNED(11n-5) | — | — |
+| `Viewport3D` | Viewport3D → FrameworkElement, IAddChild | PLANNED(11n-5) | Camera, Children, ClipToBounds | — |
+| `Model3D` | Model3D → Animatable | PLANNED(11n-5) | Transform | — |
+| `Geometry3D` | Geometry3D → Animatable | PLANNED(11n-5) | — | — |
+| `Animatable` | Animatable (abstract animation base) | PLANNED(11n-5) | — | — |
+| `Camera` | Camera → Animatable | PLANNED(11n-5) | — | — |
+| `PerspectiveCamera` | PerspectiveCamera → Camera | PLANNED(11n-5) | FarPlaneDistance, FieldOfView, LookDirection, NearPlaneDistance, Position, UpDirection | — |
+| `Adorner` | Adorner → FrameworkElement | PLANNED(11n-6) | — | — |
+| `AdornerLayer` | AdornerLayer → FrameworkElement | PLANNED(11n-6) | — | — |
+| `VisualTreeHelper` | VisualTreeHelper (static visual-tree walk) | PLANNED(11n-6) | — | — |
 
 ## Notes / recorded NO-GAP deferrals
 
