@@ -423,6 +423,195 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         return v;
     }
 
+    //  * S551 shapes — Path/Polygon/Polyline fill boxes (Solid). The authored
+    //    geometry (Data/Points) resolves into the arranged box; the curve/raster
+    //    ink is the 11k-4 vector seam (the whole-quad fill + the S649 curved-
+    //    shape continuation, recorded NO-GAP not silent). Fill color via the
+    //    Shape Fill read.
+    if (auto* path = dynamic_cast<const vaml::Path*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color fc = vaml::resolve_foreground_color(element, path->fill());
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
+                                      static_cast<float>(fc.g) / 255.0f,
+                                      static_cast<float>(fc.b) / 255.0f,
+                                      1.0f });
+        (void)path;
+        return v;
+    }
+    if (auto* polygon = dynamic_cast<const vaml::Polygon*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color fc = vaml::resolve_foreground_color(element, polygon->fill());
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
+                                      static_cast<float>(fc.g) / 255.0f,
+                                      static_cast<float>(fc.b) / 255.0f,
+                                      1.0f });
+        (void)polygon;
+        return v;
+    }
+    if (auto* pline = dynamic_cast<const vaml::Polyline*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const vaml::Color fc = vaml::resolve_foreground_color(element, pline->fill());
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
+                                      static_cast<float>(fc.g) / 255.0f,
+                                      static_cast<float>(fc.b) / 255.0f,
+                                      1.0f });
+        (void)pline;
+        return v;
+    }
+
+    //  * S551 chrome — Track / TickBar (the slider/scrollbar channel + tick
+    //    surface) classify Solid (the chrome vertical-slice; the thumb is the
+    //    Slider/ScrollBar arm, the tick raster is the S649 continuation).
+    if (auto* trk = dynamic_cast<const vaml::Track*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.35f, 0.35f, 0.38f, 1.0f });
+        (void)trk;
+        return v;
+    }
+    if (auto* tb = dynamic_cast<const vaml::TickBar*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const int ticks = (tb->maximum() > tb->minimum() && tb->frequency() > 0.0)
+                              ? static_cast<int>((tb->maximum() - tb->minimum()) / tb->frequency())
+                              : 0;
+        const float w = (ticks > 0) ? r.width : r.width;
+        const float h = (ticks > 0) ? r.height : r.height;
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, w, h,
+            vaml::vulkan::ui::Color4{ 0.15f, 0.16f, 0.18f, 1.0f });
+        (void)tb;
+        return v;
+    }
+
+    //  * S552 tree — TreeView fill (Solid) + TreeViewItem fill (Solid; the
+    //    selected item tints, a leaf). The real per-item indentation + the
+    //    expander glyph are the S649 continuation (recorded NO-GAP not silent).
+    if (auto* tv = dynamic_cast<const vaml::TreeView*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.88f, 0.90f, 0.94f, 1.0f });
+        (void)tv;
+        return v;
+    }
+    if (auto* tvi = dynamic_cast<const vaml::TreeViewItem*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        const bool sel = tvi->is_selected();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            sel ? vaml::vulkan::ui::Color4{ 0.45f, 0.58f, 0.78f, 1.0f }
+                : vaml::vulkan::ui::Color4{ 0.92f, 0.93f, 0.95f, 1.0f });
+        (void)tvi;
+        return v;
+    }
+
+    //  * S553 date/calendar — DatePicker/DatePickerTextBox/Calendar/
+    //    CalendarItem/CalendarDayButton/CalendarButton classify Solid (the
+    //    date-picker field + the calendar month-grid chrome; the real day-cell
+    //    glyphs + the dropdown layering are the S649 continuation, recorded
+    //    NO-GAP not silent).
+    if (dynamic_cast<const vaml::DatePicker*>(&element) ||
+        dynamic_cast<const vaml::DatePickerTextBox*>(&element) ||
+        dynamic_cast<const vaml::Calendar*>(&element) ||
+        dynamic_cast<const vaml::CalendarItem*>(&element) ||
+        dynamic_cast<const vaml::CalendarDayButton*>(&element) ||
+        dynamic_cast<const vaml::CalendarButton*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.82f, 0.85f, 0.90f, 1.0f });
+        return v;
+    }
+
+    //  * S554 drawing/media — InkCanvas/InkPresenter classify Solid (the ink
+    //    surface box; the per-stroke pen raster is the S649 continuation),
+    //    MediaElement Monochrome (the media frame; the buffered/playback chrome
+    //    is the S649 continuation, recorded NO-GAP not silent).
+    if (auto* ink = dynamic_cast<const vaml::InkCanvas*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.92f, 0.92f, 0.95f, 1.0f });
+        (void)ink;
+        return v;
+    }
+    if (auto* inkp = dynamic_cast<const vaml::InkPresenter*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.90f, 0.90f, 0.93f, 1.0f });
+        (void)inkp;
+        return v;
+    }
+    if (auto* media = dynamic_cast<const vaml::MediaElement*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Monochrome;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.10f, 0.10f, 0.10f, 1.0f });
+        (void)media;
+        return v;
+    }
+
+    //  * S555 document/frame — Page/Frame/DocumentViewer/FlowDocumentReader/
+    //    FlowDocumentScrollViewer/SinglePageViewer classify Solid (the document
+    //    pane; the real flow/rich-text glyphs are the S649/11k-11 continuation,
+    //    recorded NO-GAP not silent).
+    if (dynamic_cast<const vaml::Page*>(&element) ||
+        dynamic_cast<const vaml::Frame*>(&element) ||
+        dynamic_cast<const vaml::DocumentViewer*>(&element) ||
+        dynamic_cast<const vaml::FlowDocumentReader*>(&element) ||
+        dynamic_cast<const vaml::FlowDocumentScrollViewer*>(&element) ||
+        dynamic_cast<const vaml::SinglePageViewer*>(&element))
+    {
+        vaml::vulkan::ui::ElementVisual v;
+        v.kind = vaml::vulkan::ui::MaterialKind::Solid;
+        const vaml::Rect r = element.final_rect();
+        v.item = vaml::vulkan::ui::solid_rect(
+            r.x, r.y, r.width, r.height,
+            vaml::vulkan::ui::Color4{ 0.90f, 0.91f, 0.93f, 1.0f });
+        return v;
+    }
+
     //  * S484 ProgressBar — the determinate fill: a track box + a fill box
     //    whose width = Value/(Maximum-Minimum) × the arranged width (the fill
     //    fraction computed at the classifier from the range DPs). An

@@ -184,9 +184,14 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     // ImageBrush (the vector-drawing + brush-resource volume), then 59 as
     // Sprint 11e added TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/
     // Popup/GridSplitter/DataGrid, then 61 as S502 (Sprint 11f) added the
-    // interactivity EventTrigger + InvokeCommandAction (count bumps authored at
-    // the step, never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
+    // interactivity EventTrigger + InvokeCommandAction, then 78 as S550
+    // (Sprint 11m) added the 16 loadable scaffolding types (ComboBoxItem/
+    // ListBoxItem/ListViewItem/StatusBarItem/GroupItem/DataGridRow/DataGridCell/
+    // ItemsPresenter/ItemsPanelTemplate/ItemContainerTemplate/GridView/
+    // GridViewRowPresenter/GridViewHeaderRowPresenter/GridViewColumnHeader/
+    // VirtualizingStackPanel/SelectiveScrollingGrid). Count bumps authored at
+    // the step, never silent.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(100u));
 }
 
 // ---------------------------------------------------------------------------

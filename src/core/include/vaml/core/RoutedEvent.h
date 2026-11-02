@@ -168,5 +168,24 @@ private:
 [[nodiscard]] const RoutedEvent& LoadedEvent() noexcept;
 [[nodiscard]] const RoutedEvent& ClosingEvent() noexcept;
 [[nodiscard]] const RoutedEvent& TextChangedEvent() noexcept;
+// S551 — Image surface: the bubble routed identity for DpiChanged/ImageFailed
+// (the WPF Image.DpiChanged/ImageFailed events).
+[[nodiscard]] const RoutedEvent& DpiChangedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& ImageFailedEvent() noexcept;
+// S552 — TreeView/TreeViewItem routed identities: Expanded/Collapsed/Selected/
+// Unselected + the tree's SelectedItemChanged.
+[[nodiscard]] const RoutedEvent& ExpandedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& CollapsedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& SelectedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& UnselectedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& SelectedItemChangedEvent() noexcept;
+// S553 — Date & Calendar routed identities: SelectedDatesChanged (Calendar
+// range) + SelectedDateChanged (DatePicker).
+[[nodiscard]] const RoutedEvent& SelectedDatesChangedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& SelectedDateChangedEvent() noexcept;
+// S554 — MediaElement routed identities: MediaOpened/MediaEnded/MediaFailed.
+[[nodiscard]] const RoutedEvent& MediaOpenedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& MediaEndedEvent() noexcept;
+[[nodiscard]] const RoutedEvent& MediaFailedEvent() noexcept;
 
 } // namespace vaml

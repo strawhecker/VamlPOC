@@ -1105,6 +1105,82 @@ public:
     ListView();
 };
 
+// ===========================================================================
+// TreeView / TreeViewItem (S552, dep:S551) — the TREE VIEW CONTROLS
+// (ItemsControl/HeaderedItemsControl branch, WPF-real names).
+// ===========================================================================
+// TreeViewItem is the selectable + expandable item container: it hosts a
+// header content slot + an ordered child-item slot (the nested TreeViewItems).
+// TreeView is the root items host that loads child TreeViewItems from
+// ItemsSource/item content and exposes SelectedItem/SelectedValue/
+// SelectedValuePath. Both are REAL UIElements (structural children + DPs +
+// S041 inheritance edge), registered, tested, classified Solid.
+//
+// Surface:
+//   TreeView  — ItemsSource (String), SelectedItem (String), SelectedValue
+//               (String), SelectedValuePath (String); routed Select/Unselect
+//               bubble identities (SelectedChanged).
+//   TreeViewItem — IsExpanded (Bool), IsSelected (Bool), Header (String); the
+//               authored child TreeViewItems + a content header slot; the
+//               routed Expanded/Collapsed/Selected/Unselected identities.
+class VAML_CORE_EXPORT TreeView final : public UIElement
+{
+public:
+    TreeView();
+
+    // --- ItemsSource / SelectedItem / SelectedValue / SelectedValuePath -----
+    [[nodiscard]] SetResult set_items_source(std::string value);
+    [[nodiscard]] std::string items_source() const;
+    [[nodiscard]] SetResult set_selected_item(std::string value);
+    [[nodiscard]] std::string selected_item() const;
+    [[nodiscard]] SetResult set_selected_value(std::string value);
+    [[nodiscard]] std::string selected_value() const;
+    [[nodiscard]] SetResult set_selected_value_path(std::string value);
+    [[nodiscard]] std::string selected_value_path() const;
+
+    // --- child TreeViewItem hosting (the tree's root items) -----------------
+    void add_item(std::unique_ptr<UIElement> child);
+    [[nodiscard]] std::size_t item_count() const;
+
+    // --- SelectionChanged notification ---------------------------------------
+    [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onSelectionChanged_;
+};
+
+class VAML_CORE_EXPORT TreeViewItem final : public UIElement
+{
+public:
+    TreeViewItem();
+
+    // --- IsExpanded / IsSelected / Header (REAL DPs) ------------------------
+    [[nodiscard]] SetResult set_is_expanded(bool value);
+    [[nodiscard]] bool is_expanded() const;
+    [[nodiscard]] SetResult set_is_selected(bool value);
+    [[nodiscard]] bool is_selected() const;
+    [[nodiscard]] SetResult set_header(std::string value);
+    [[nodiscard]] std::string header() const;
+
+    // --- nested child TreeViewItems + the header content slot ---------------
+    void add_item(std::unique_ptr<UIElement> child);
+    [[nodiscard]] std::size_t item_count() const;
+    void set_header_content(std::unique_ptr<UIElement> child);
+    [[nodiscard]] UIElement* header_content() const noexcept;
+
+    // --- expand/collapse child visibility (real, drives measure) ------------
+    [[nodiscard]] bool children_visible() const noexcept { return is_expanded(); }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    UIElement* headerContent_ = nullptr;
+};
+
 // Window — REAL container window-type (S440). RESOLVES the S087 MINIMAL REAL
 // seed at its own sprint (NO-GAP, not a backfill): re-based onto UIElement (was
 // DependencyObject) so it participates in the visual tree + Measure/Arrange +
@@ -1129,6 +1205,313 @@ public:
 // launch mode; Window is this core re-base that lets the app-shell root be a
 // real renderable/layoutable UIElement. The Window's real content (the host
 // + the app-shell tree) is authored AT THIS STEP in the viewer, not back-filled.
+// ===========================================================================
+// DATE & CALENDAR CONTROLS (S553, dep:S552) — DatePicker (+ DatePickerTextBox)
+// + Calendar + the Calendar family (CalendarDayButton/CalendarButton/
+// CalendarItem) + the pure date-range data types (CalendarDateRange/
+// CalendarBlackoutDatesCollection) + the routed SelectedDatesChanged/
+// SelectedDateChanged surface. WPF-real names.
+// ===========================================================================
+// A CalendarDateRange is a PURE data type (a bounded date span) — filed
+// CONSUMED-BY-THE-CLOSED-SURFACES (its DAG row flips at S559). The date/time
+// values ride the S440/S131 day-tick Int64 convention (a "yyyy-MM-dd" string
+// is also authored for display; the ticks are the loadable numeric surface).
+
+class VAML_CORE_EXPORT CalendarDateRange
+{
+public:
+    CalendarDateRange() = default;
+    explicit CalendarDateRange(std::int64_t startTick, std::int64_t endTick = 0)
+        : start_(startTick), end_(endTick ? endTick : startTick) {}
+
+    [[nodiscard]] std::int64_t start() const noexcept { return start_; }
+    [[nodiscard]] std::int64_t end() const noexcept { return end_; }
+    void set_start(std::int64_t s) noexcept { start_ = s; }
+    void set_end(std::int64_t e) noexcept { end_ = e; }
+
+private:
+    std::int64_t start_ = 0;
+    std::int64_t end_ = 0;
+};
+
+class VAML_CORE_EXPORT CalendarBlackoutDatesCollection
+{
+public:
+    CalendarBlackoutDatesCollection() = default;
+    [[nodiscard]] std::size_t size() const noexcept { return ranges_.size(); }
+    void add(CalendarDateRange range);
+    [[nodiscard]] const std::vector<CalendarDateRange>& ranges() const noexcept { return ranges_; }
+
+private:
+    std::vector<CalendarDateRange> ranges_;
+};
+
+// CalendarDayButton — a single day cell (IsToday/IsSelected/IsBlackedOut DPs).
+class VAML_CORE_EXPORT CalendarDayButton final : public UIElement
+{
+public:
+    CalendarDayButton();
+    [[nodiscard]] SetResult set_is_today(bool value);
+    [[nodiscard]] bool is_today() const;
+    [[nodiscard]] SetResult set_is_selected(bool value);
+    [[nodiscard]] bool is_selected() const;
+    [[nodiscard]] SetResult set_is_blacked_out(bool value);
+    [[nodiscard]] bool is_blacked_out() const;
+    [[nodiscard]] SetResult set_day_number(std::int32_t value);
+    [[nodiscard]] std::int32_t day_number() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// CalendarButton — a month/year navigation cell (DisplayDate surface).
+class VAML_CORE_EXPORT CalendarButton final : public UIElement
+{
+public:
+    CalendarButton();
+    [[nodiscard]] SetResult set_display_date(std::int64_t value);
+    [[nodiscard]] std::int64_t display_date() const;
+    [[nodiscard]] SetResult set_is_selected(bool value);
+    [[nodiscard]] bool is_selected() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// CalendarItem — the calendar's month-grid host (display day-mode + the
+// active display date; the day buttons + nav buttons compose it).
+class VAML_CORE_EXPORT CalendarItem final : public UIElement
+{
+public:
+    CalendarItem();
+    [[nodiscard]] SetResult set_display_mode(std::int32_t value);
+    [[nodiscard]] std::int32_t display_mode() const;
+    [[nodiscard]] SetResult set_display_date(std::int64_t value);
+    [[nodiscard]] std::int64_t display_date() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// Calendar — the full calendar control (DisplayDate/SelectedDate/
+// FirstDayOfWeek/SelectionMode + the blackout date ranges).
+class VAML_CORE_EXPORT Calendar final : public UIElement
+{
+public:
+    Calendar();
+
+    [[nodiscard]] SetResult set_display_date(std::int64_t value);
+    [[nodiscard]] std::int64_t display_date() const;
+    [[nodiscard]] SetResult set_selected_date(std::int64_t value);
+    [[nodiscard]] std::int64_t selected_date() const;
+    [[nodiscard]] SetResult set_first_day_of_week(std::int32_t value);
+    [[nodiscard]] std::int32_t first_day_of_week() const;
+    [[nodiscard]] SetResult set_selection_mode(std::int32_t value);
+    [[nodiscard]] std::int32_t selection_mode() const;
+
+    // --- the authored blackout date ranges (real collection surface) --------
+    void set_blackout_dates(CalendarBlackoutDatesCollection dates);
+    [[nodiscard]] const CalendarBlackoutDatesCollection& blackout_dates() const noexcept;
+
+    // --- SelectedDatesChanged notification -----------------------------------
+    [[nodiscard]] vaml::Signal<void()>& selected_dates_changed() { return onSelectedDatesChanged_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    CalendarBlackoutDatesCollection blackout_;
+    vaml::Signal<void()> onSelectedDatesChanged_;
+};
+
+// DatePickerTextBox — the editable date-picker text host (Text + SelectedDate).
+class VAML_CORE_EXPORT DatePickerTextBox final : public UIElement
+{
+public:
+    DatePickerTextBox();
+    [[nodiscard]] SetResult set_text(std::string value);
+    [[nodiscard]] std::string text() const;
+    [[nodiscard]] SetResult set_selected_date(std::int64_t value);
+    [[nodiscard]] std::int64_t selected_date() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// DatePicker — the full date-picker control (SelectedDate/DisplayDate/
+// IsDropDownOpen + the routed SelectedDateChanged identity).
+class VAML_CORE_EXPORT DatePicker final : public UIElement
+{
+public:
+    DatePicker();
+    [[nodiscard]] SetResult set_selected_date(std::int64_t value);
+    [[nodiscard]] std::int64_t selected_date() const;
+    [[nodiscard]] SetResult set_display_date(std::int64_t value);
+    [[nodiscard]] std::int64_t display_date() const;
+    [[nodiscard]] SetResult set_is_drop_down_open(bool value);
+    [[nodiscard]] bool is_drop_down_open() const;
+
+    // --- SelectedDateChanged notification ------------------------------------
+    [[nodiscard]] vaml::Signal<void()>& selected_date_changed() { return onSelectedDateChanged_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onSelectedDateChanged_;
+};
+
+// ===========================================================================
+// DRAWING / MEDIA / EMBEDDED TAIL (S554, dep:S553). InkCanvas/InkPresenter (the
+// DONE-classified stylus/mouse stroke surface + the Strokes DP), MediaElement
+// (Source/Volume/Muted + the Media* routed events). WebBrowser/ViewPort3D are
+// RE-AFFIRMED dependencies on the S520 import/inject seam (a host-linked foreign
+// surface, NOT a VAML-owned native type) — reclassified OUT-OF-SCOPE(11m) in the
+// DAG at S559 (recorded NO-GAP not silent).
+// ===========================================================================
+class VAML_CORE_EXPORT InkCanvas final : public UIElement
+{
+public:
+    InkCanvas();
+
+    // `Strokes` — the authored stroke collection (a real data surface: the
+    // stylus/mouse strokes the canvas collects, authored as a token list). The
+    // strokes are REAL authored data consumed by the renderer as the ink path;
+    // the S649 continuation owns the per-stroke stroke-pen sculpting.
+    [[nodiscard]] SetResult set_strokes(std::string value);
+    [[nodiscard]] std::string strokes() const;
+    [[nodiscard]] SetResult set_active_stroke(std::string value);
+    [[nodiscard]] std::string active_stroke() const;
+    [[nodiscard]] SetResult set_background(std::int32_t brushId);
+    [[nodiscard]] std::int32_t background() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+class VAML_CORE_EXPORT InkPresenter final : public UIElement
+{
+public:
+    InkPresenter();
+
+    // `Strokes` — the authored stroke collection (the ink surface the presenter
+    // paints). Same real data contract as InkCanvas.Strokes.
+    [[nodiscard]] SetResult set_strokes(std::string value);
+    [[nodiscard]] std::string strokes() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// MediaElement — REAL (S554). Media surface + the Media* routed identities.
+class VAML_CORE_EXPORT MediaElement final : public UIElement
+{
+public:
+    MediaElement();
+
+    [[nodiscard]] SetResult set_source(std::string value);
+    [[nodiscard]] std::string source() const;
+    [[nodiscard]] SetResult set_volume(double value);
+    [[nodiscard]] double volume() const;
+    [[nodiscard]] SetResult set_muted(bool value);
+    [[nodiscard]] bool muted() const;
+
+    // --- Media* notification ------------------------------------------------
+    [[nodiscard]] vaml::Signal<void()>& media_opened() { return onMediaOpened_; }
+    [[nodiscard]] vaml::Signal<void()>& media_ended() { return onMediaEnded_; }
+    [[nodiscard]] vaml::Signal<void()>& media_failed() { return onMediaFailed_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onMediaOpened_;
+    vaml::Signal<void()> onMediaEnded_;
+    vaml::Signal<void()> onMediaFailed_;
+};
+
+// ===========================================================================
+// DOCUMENT / FRAME CONTROLS (S555, dep:S554). Page, Frame (ContentControl
+// source/navigation surface, closing the S11j6 StartupUri navigation NO-GAP),
+// DocumentViewer/DocumentViewerBase + FlowDocumentReader/
+// FlowDocumentScrollViewer (+ SinglePageViewer). Real + tested; document-flow/
+// text rendering depth bounded per the S649/11k-11 control-material
+// continuation (recorded NO-GAP not silent). StartupUri NAVIGATION (11j-6)
+// resolved here.
+// ===========================================================================
+class VAML_CORE_EXPORT Page final : public UIElement
+{
+public:
+    Page();
+    [[nodiscard]] SetResult set_content(std::string value);
+    [[nodiscard]] std::string content() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+class VAML_CORE_EXPORT Frame final : public UIElement
+{
+public:
+    Frame();
+    // --- ContentControl source/navigation surface -------------------------
+    [[nodiscard]] SetResult set_source(std::string value);
+    [[nodiscard]] std::string source() const;
+    [[nodiscard]] SetResult set_navigate_uri(std::string value);
+    [[nodiscard]] std::string navigate_uri() const;
+    // --- NavigationCompleted notification (the S11j6 StartupUri router) -----
+    [[nodiscard]] vaml::Signal<void()>& navigation_completed() { return onNavCompleted_; }
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    vaml::Signal<void()> onNavCompleted_;
+};
+
+// DocumentViewerBase — the WPF-faithful abstract document-viewer base (kept
+// abstract, unregistered — the 11k-4 precedent).
+class VAML_CORE_EXPORT DocumentViewerBase : public UIElement
+{
+public:
+    DocumentViewerBase();
+    ~DocumentViewerBase() override;
+    [[nodiscard]] SetResult set_document(std::string value);
+    [[nodiscard]] std::string document() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+class VAML_CORE_EXPORT DocumentViewer final : public DocumentViewerBase
+{
+public:
+    DocumentViewer();
+};
+
+class VAML_CORE_EXPORT FlowDocumentScrollViewer : public DocumentViewerBase
+{
+public:
+    FlowDocumentScrollViewer();
+};
+
+class VAML_CORE_EXPORT FlowDocumentReader final : public DocumentViewerBase
+{
+public:
+    FlowDocumentReader();
+};
+
+class VAML_CORE_EXPORT SinglePageViewer final : public UIElement
+{
+public:
+    SinglePageViewer();
+    [[nodiscard]] SetResult set_document(std::string value);
+    [[nodiscard]] std::string document() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
 class VAML_CORE_EXPORT Window final : public UIElement
 {
 public:
@@ -1462,6 +1845,155 @@ public:
     // Line has no authored Width/Height DPs of its own; it uses the base
     // UIElement Width/Height (auto/NaN) + the S123 finalizer, and its stroke
     // thickness drives the cross-axis rule height.
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+// ===========================================================================
+// SHAPE — the WPF-faithful abstract geometry-leaf base (Shape.cs). A Shape is
+// a UIElement that draws a stroked/filled geometry: it carries the shared
+// Fill/Stroke/StrokeThickness DPs (on the abstract base, exactly like WPF) +
+// the authored measure hint. Rectangle/Ellipse/Line (S11d) keep their
+// equivalent DP surface (a Shape-equivalent, recorded in the S649
+// continuation); the S551 leaves Path/Polygon/Polyline derive this REAL base so
+// the WPF Shape ancestry is honored (ADR: the DAG's closure-under-ancestry
+// invariant). NOT an authorable factory element (abstract — the 11k-4
+// precedent keeps abstract bases unregistered).
+//
+// CLASSIFIER: Path/Polygon/Polyline -> Solid via the S551 arm (the authored
+// points/geometry raster token), Rectangle/Ellipse/Line -> the existing S482
+// arms. The curved outline is the S209/S649 curved-shape continuation (recorded
+// NO-GAP not silent).
+class VAML_CORE_EXPORT Shape : public UIElement
+{
+public:
+    Shape() = default;
+    ~Shape() override;
+
+    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
+    [[nodiscard]] std::int32_t fill() const;
+    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
+    [[nodiscard]] std::int32_t stroke() const;
+    [[nodiscard]] SetResult set_stroke_thickness(double value);
+    [[nodiscard]] double stroke_thickness() const;
+
+protected:
+    // A shape's authored measure hint (the intrinsic box): the base reports the
+    // S123 reconciler's Width/Height-driven box; concrete leaves (Path from its
+    // Data bounds, Polygon/Polyline from their Points) override.
+    [[nodiscard]] virtual vaml::Size MeasureShape(const vaml::Size& available) const;
+};
+
+// ---------------------------------------------------------------------------
+// Path — `Data` (WPF MiniLanguage geometry, authorable inline) + FillRule +
+// the Shape Fill/Stroke/StrokeThickness. Real (S551).
+// ---------------------------------------------------------------------------
+class VAML_CORE_EXPORT Path : public Shape
+{
+public:
+    Path();
+
+    // `Data` — the authored WPF MiniLanguage path string (e.g. "M0,0 L10,10
+    // Z"). Parsed via the 11k-4 parse_path_geometry into the owned figure
+    // stream; an empty/degenerate stream is an authoring error (fail loud).
+    [[nodiscard]] SetResult set_data(std::string data);
+    [[nodiscard]] const std::string& data_source() const noexcept;
+    [[nodiscard]] bool parsed() const noexcept;
+
+    // `FillRule` (Int32; EvenOdd=0 | Nonzero=1; default EvenOdd).
+    [[nodiscard]] SetResult set_fill_rule(std::int32_t rule);
+    [[nodiscard]] std::int32_t fill_rule() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    std::shared_ptr<void> state_; // owned parsed figure stream (S039 opaque state slot)
+};
+
+// ---------------------------------------------------------------------------
+// Polygon / Polyline — `Points` (an authored point list) + `FillRule`.
+// Polygon closes its figure (fill); Polyline is an open stroked path.
+// ---------------------------------------------------------------------------
+class VAML_CORE_EXPORT Polygon : public Shape
+{
+public:
+    Polygon();
+
+    // `Points` — authored "x1,y1 x2,y2 ..." (WPF PointsConverter); parsed
+    // eagerly; malformed/empty -> fail-loud authoring error.
+    [[nodiscard]] SetResult set_points(std::string points);
+    [[nodiscard]] const std::vector<std::pair<float, float>>& points() const noexcept;
+    [[nodiscard]] bool parsed() const noexcept;
+
+    // `FillRule` (Int32; EvenOdd=0 | Nonzero=1; default EvenOdd).
+    [[nodiscard]] SetResult set_fill_rule(std::int32_t rule);
+    [[nodiscard]] std::int32_t fill_rule() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    std::shared_ptr<void> state_;
+};
+
+class VAML_CORE_EXPORT Polyline : public Shape
+{
+public:
+    Polyline();
+
+    // `Points` — authored point list (see Polygon). Open (no closing figure).
+    [[nodiscard]] SetResult set_points(std::string points);
+    [[nodiscard]] const std::vector<std::pair<float, float>>& points() const noexcept;
+    [[nodiscard]] bool parsed() const noexcept;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    std::shared_ptr<void> state_;
+};
+
+// ===========================================================================
+// TRACK / TICKBAR — the slider/scrollbar chrome surface (S551). `Track` is the
+// division between the two repeat buttons (a slider/scrollbar's channel);
+// `TickBar` renders the tick marks. Real UIElements classifying Solid (the
+// chrome vertical-slice).
+// ===========================================================================
+class VAML_CORE_EXPORT Track : public UIElement
+{
+public:
+    Track();
+
+    // `Minimum`/`Maximum`/`Value` (Double) — the spanned range the track
+    // presents (the Slider/ScrollBar precedent).
+    [[nodiscard]] SetResult set_minimum(double value);
+    [[nodiscard]] double minimum() const;
+    [[nodiscard]] SetResult set_maximum(double value);
+    [[nodiscard]] double maximum() const;
+    [[nodiscard]] SetResult set_value(double value);
+    [[nodiscard]] double value() const;
+
+protected:
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+};
+
+class VAML_CORE_EXPORT TickBar : public UIElement
+{
+public:
+    TickBar();
+
+    // `Minimum`/`Maximum`/`Frequency` (Double) + `IsDirectionReversed` (Bool) —
+    // the tick population contract (Slider/ScrollBar precedent).
+    [[nodiscard]] SetResult set_minimum(double value);
+    [[nodiscard]] double minimum() const;
+    [[nodiscard]] SetResult set_maximum(double value);
+    [[nodiscard]] double maximum() const;
+    [[nodiscard]] SetResult set_frequency(double value);
+    [[nodiscard]] double frequency() const;
+    [[nodiscard]] SetResult set_is_direction_reversed(bool value);
+    [[nodiscard]] bool is_direction_reversed() const;
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;

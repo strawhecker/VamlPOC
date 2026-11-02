@@ -1,9 +1,33 @@
-# Session Context — Sprint-11k-11 GENERIC CONTENT-ROUTING + S649 RE-BIND DONE (both CI lanes green)
+# session-context.md
 
-last_command: implementit (continuation: 11k-11, after 11k-6/11k-7/11k-8/11k-9/11k-10)
-plan_digest: 11k-6 VIEWER-GROWTH(11k) DONE, then 11k-7 CONTROL-NAME FIDELITY GATE DONE, then 11k-8 DP-FIDELITY AUDIT DONE, then 11k-9 DP-FIDELITY CLOSURE DONE, then 11k-10 SURVIVOR + CHECKPOINT DONE, then 11k-11 GENERIC CONTENT-OWNER ROUTING + the S649 ContentControl-base / control-material RE-BIND (the general content→DP rule + the S085 mixed-content ordering resolved IN-11K + the S649 re-bind generalized to every single-content container). NEW src/core/{ParsedElement.h,cpp} contentRuns + VamlReader.cpp content-owner routing + finalize_visual_tree generalization + test/unit/ContentRouting_s11k11_test.cpp + build/verify_s11k11.cmd. BOTH CI LANES green.
-build_status: **BOTH CI LANES GREEN (11k-11)** — windows-msvc msvc-debug build warning-as-error CLEAN + ctest 4/4 + ubuntu-clang /mnt/hgfs/VamlPOC clang-debug configure+build+ctest 4/4. Official gate build/verify_s11k11.cmd ran to "11k-11 BOTH CI LANES OK" (the 11k-8 audit pre-gate PASS then both lanes; ContentRouting_s11k11 6 cases/26 asserts green).
-next_step: 11k_12 (FIDELITY CLOSURE IMPLEMENTATION on RichTextBox — FULL closure, RichTextBox + every audited DP/property/event + follows all children down + audits/fixes GAPS on RichTextBox and any descendants against the WPF source) is the next not-done step (the alpha-feature end-of-line; after it the 11k series + the roadmap's feature work is complete). No commits (standing directive; progressively-uncommitted work accumulated from this multi-step implementit — commitit is yours to invoke).
-notes:
-- **11k-11 closed this session.** (A) THE GENERAL CONTENT-OWNER RULE — 11k-1's TextBlock-scoped proof generalized: an element registers a SINGLE content-owning DP and the reader routes its inline authored TEXT through it (TextBlock→Text DP unchanged — the 11k-1 regression pinned; Label→Content via `TryGet("Label.Content")`, the ContentControl-family String content); object containers (Window/UserControl/Border/Viewbox/TabItem/GroupBox/Expander/ToolTip/Popup) route their single OBJECT child via the S440 `set_content` slot — the S649 control-material RE-BIND GENERALIZED from UserControl to EVERY single-content container in `finalize_visual_tree` (the phantom S649 forward-carry RE-BOUND + RESOLVED HERE, history preserved un-edited, never a silent deferral); value/resource elements consume inline content as their parsed value (11k-3), untouched. (B) THE S085 MIXED-CONTENT ORDERING conscience note RESOLVED IN-11K: `ParsedElement` gains a NEW in-memory `contentRuns` stream (Text|Child document-order captures, built by parse_vaml — vamlcc emits its OWN compiled form / never serializes it, so the compiled format is UNTOUCHED); the reader routes TEXT runs through the content DP IN DOCUMENT ORDER while child runs enter the visual tree. (C) DEDICATED mixed-content ordering test (no 11k-1 regression). NEW `test/unit/ContentRouting_s11k11_test.cpp` (vaml-core-tests, 6 cases/26 asserts): TextBlock→Text regression + Label→Content + a Window's object child via the S440 set_content slot + parse_vaml captures the interleaved Text/Child order (`<p>Hello <b>world</b> again</p>` → Text("Hello ")/Child(0)/Text(" again"), the parent content "Hello  again" kept as authored, the child's own "world" nested) + the reader routes text runs in document order + UserControl content via the S440 re-bind. NEW `build/verify_s11k11.cmd` (the 11k-8 audit pre-gate + both lanes). NO MINIMAL REAL introduced; ADR-018 ZERO new locks; ADR-011 held (content routing in core data; no render change).
-- Prior steps this run: **11k-6 VIEWER-GROWTH(11k) DONE** (sample.corpus.xaml + viewer_growth_11k.h + ViewerGrowth11k_test + verify_s11k6.cmd) + **11k-7 CONTROL-NAME FIDELITY GATE DONE** (audit_11k7.ps1 PASS) + **11k-8 DP-FIDELITY AUDIT DONE** (audit_11k8.ps1 PASS, doc/audit-only) + **11k-9 DP-FIDELITY CLOSURE DONE** (ElementDpFidelity.cpp + DpFidelity_s11k9_test) + **11k-10 SURVIVOR + CHECKPOINT DONE** (verify_s11k10.cmd, doc-only). See the prior session-context entries + progress.md SURVIVOR for the full digests. The roadmap 11k-11 STATUS now reads **DONE** + the Sprint 11k STATUS line reads 11k-1..11k-11 DONE (11k_12 NOT yet DONE).
+last_command: implementit (Sprint 11m — S550..S559)
+plan_digest: WPF-corpus TAIL closure — every DAG PLANNED row with no roadmap home scheduled REAL (S550-S557) + LIVE viewer tail (S558) + DAG re-state + SURVIVOR (S559).
+
+## files_touched (Sprint 11m)
+- src/core/include/vaml/core/Scaffolding.h/.cpp — S550 (Panel/Decorator, item containers, GridView family, Virtualizing panels, ItemsPanelTemplate/ItemContainerTemplate)
+- src/core/include/vaml/core/Element.h/.cpp — S550-S555 classes (item containers, Shape/Path/Polygon/Polyline/Track/TickBar, TreeView/TreeViewItem, DatePicker/Calendar family, InkCanvas/InkPresenter/MediaElement, Page/Frame/DocumentViewer family) + registrations (count 100)
+- src/core/include/vaml/core/RoutedEvent.h/.cpp — DpiChanged/ImageFailed, Expanded/Collapsed/Selected/Unselected/SelectedItemChanged, SelectedDates/DateChanged, MediaOpened/Ended/Failed
+- src/core/include/vaml/core/TailMechanism.h/.cpp — S556 (5 framework converters + Validation family + item-container/collection/svc contracts)
+- src/core/include/vaml/core/TailValueTypes.h — S557 (enums/event-arg/data value types; Orientation + DataGridColumn/Length NOT duplicated — consume core)
+- src/core/include/vaml/core/BindingExpression.h — BindingConversion::detail default-init (clang)
+- src/presentation/src/VamlRenderer.cpp — S550-S555 classifier arms
+- src/core/CMakeLists.txt — Scaffolding.cpp + TailMechanism.cpp
+- vaml_viewer/sample.tail.xaml + viewer_growth_11m.h — S558 (LIVE tail seam)
+- test/unit — TailScaffolding_s550, TailShape_s551, TreeView_s552, DateCalendar_s553, TailMedia_s554, TailDocument_s555, TailMechanism_s556, TailValueTypes_s557, ViewerGrowth11m_s558 + count-gates (100)
+- gap_dp_daggen.py + docs/DAG_controls.md — S559 DAG re-state (VAML_STATUS DONE tail + stale 11c/11d/11e + Viewbox spelling + WebBrowser/ViewPort3D OUT-OF-SCOPE(11m)); generator re-ran cleanly (282 rows, exactly-one-state); the manual-add note-blocks (12k-5 trigger family + 11f/EventTrigger disambiguation + 11n-0 DAG-EXT cluster) re-applied verbatim via _dag_s559.py (the S503a GEN-LOSSY escape); S556 mechanism + S557 value rows flipped DONE
+- build/verify_s559.cmd — the missing S559 deliverable: both CI lanes + the DAG-completeness grep (manual rows survived) + the MINIMAL-REAL/STUB grep-audit
+- progress.md — S11m SURVIVOR + CHECKPOINT ADVANCE (last = S11m, next = S540+/Sprint 11z)
+- build/verify_s550.cmd, verify_s551.cmd, _build_win*.cmd
+
+## build_status
+- windows-msvc (msvc-debug): GREEN — presentation 163/163, core 1220 (1 pre-existing intentional shouldly-only failure)
+- ubuntu-clang (VM): GREEN — 4/4 suites (S550-S558)
+
+## next_step
+- Sprint 11z (S540+): the next living lane. DAG-RE-GEN NORM recorded — every future control-supplier SURVIVOR re-runs gap_dp_daggen.py (base-regen + manual re-apply).
+
+## notes
+- ZERO MINIMAL REAL + ZERO stubs + ZERO invented names across the sprint (grep-audit PASS). ADR-018 zero locks; ADR-011 (surface = core data; render stays in the vulkan classifier).
+- WebBrowser/ViewPort3D re-affirmed OUT-OF-SCOPE(11m) (S520 import/inject seam) — reclassified in the DAG at S559.
+- CalendarDateRange/BlackoutDates + DataGridColumn/Length are pure data/surfaces CONSUMED from core — DAG flips at S559.
+- No commit made (standalone directive — commitit outstanding, driver's seat is yours).

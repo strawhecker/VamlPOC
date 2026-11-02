@@ -27,6 +27,7 @@
 #include "vaml/core/Element.h"
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/DependencyObject.h"
+#include "vaml/core/Scaffolding.h" // S550 — the derived-base + scaffolding item-container types
 
 #include <memory>
 #include <string>
@@ -323,6 +324,64 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     assertConcrete<vaml::Application>(g.create("Application"));
     // 11j-2: the ResourceDictionary root (a DependencyObject HOLDER).
     assertConcrete<vaml::ResourceDictionaryHolder>(g.create("ResourceDictionary"));
+    // S550 (Sprint 11m): the derived-base + scaffolding surface resolves to its
+    // concrete UIElement item-container / presenter type (the abstract bases
+    // Panel/Decorator/VirtualizingPanel stay unregistered — WPF keeps them
+    // abstract). GridView/ItemsPanelTemplate/ItemContainerTemplate are authored
+    // resource/value types resolved via is_registered (below).
+    assertConcrete<vaml::ComboBoxItem>(g.create("ComboBoxItem"));
+    assertConcrete<vaml::ListBoxItem>(g.create("ListBoxItem"));
+    assertConcrete<vaml::ListViewItem>(g.create("ListViewItem"));
+    assertConcrete<vaml::StatusBarItem>(g.create("StatusBarItem"));
+    assertConcrete<vaml::GroupItem>(g.create("GroupItem"));
+    assertConcrete<vaml::DataGridRow>(g.create("DataGridRow"));
+    assertConcrete<vaml::DataGridCell>(g.create("DataGridCell"));
+    assertConcrete<vaml::ItemsPresenter>(g.create("ItemsPresenter"));
+    assertConcrete<vaml::GridViewRowPresenter>(g.create("GridViewRowPresenter"));
+    assertConcrete<vaml::GridViewHeaderRowPresenter>(g.create("GridViewHeaderRowPresenter"));
+    assertConcrete<vaml::GridViewColumnHeader>(g.create("GridViewColumnHeader"));
+    assertConcrete<vaml::VirtualizingStackPanel>(g.create("VirtualizingStackPanel"));
+    assertConcrete<vaml::SelectiveScrollingGrid>(g.create("SelectiveScrollingGrid"));
+    // S551 (Sprint 11m): the SHAPE + CHANNEL tail resolves to its concrete
+    // UIElement leaves (Path/Polygon/Polyline derive the Shape base; Track/
+    // TickBar the chrome surface). The abstract Shape base stays unregistered.
+    assertConcrete<vaml::Path>(g.create("Path"));
+    assertConcrete<vaml::Polygon>(g.create("Polygon"));
+    assertConcrete<vaml::Polyline>(g.create("Polyline"));
+    assertConcrete<vaml::Track>(g.create("Track"));
+    assertConcrete<vaml::TickBar>(g.create("TickBar"));
+    SHOULD(ShouldlyIntegral(g.is_registered("Shape")).ShouldBe(false));
+    // S552 (Sprint 11m): the TREE VIEW controls resolve to their concrete
+    // UIElement types.
+    assertConcrete<vaml::TreeView>(g.create("TreeView"));
+    assertConcrete<vaml::TreeViewItem>(g.create("TreeViewItem"));
+    // S553 (Sprint 11m): the DATE & CALENDAR controls resolve to their concrete
+    // UIElement types. (CalendarDateRange/CalendarBlackoutDatesCollection are
+    // pure data — no factory element, filed CONSUMED-BY-THE-CLOSED-SURFACES.)
+    assertConcrete<vaml::DatePicker>(g.create("DatePicker"));
+    assertConcrete<vaml::DatePickerTextBox>(g.create("DatePickerTextBox"));
+    assertConcrete<vaml::Calendar>(g.create("Calendar"));
+    assertConcrete<vaml::CalendarDayButton>(g.create("CalendarDayButton"));
+    assertConcrete<vaml::CalendarButton>(g.create("CalendarButton"));
+    assertConcrete<vaml::CalendarItem>(g.create("CalendarItem"));
+    // S554 (Sprint 11m): the drawing/media tail resolve to their concrete
+    // UIElement types (InkCanvas/InkPresenter are DONE-classified; MediaElement
+    // real). WebBrowser/ViewPort3D are OUT-OF-SCOPE(11m) (not registered).
+    assertConcrete<vaml::InkCanvas>(g.create("InkCanvas"));
+    assertConcrete<vaml::InkPresenter>(g.create("InkPresenter"));
+    assertConcrete<vaml::MediaElement>(g.create("MediaElement"));
+    SHOULD(ShouldlyIntegral(g.is_registered("WebBrowser")).ShouldBe(false));
+    SHOULD(ShouldlyIntegral(g.is_registered("ViewPort3D")).ShouldBe(false));
+    // S555 (Sprint 11m): the document/frame tail resolve to their concrete
+    // UIElement types (Page/Frame + the document viewers; DocumentViewerBase is
+    // abstract — unregistered.
+    assertConcrete<vaml::Page>(g.create("Page"));
+    assertConcrete<vaml::Frame>(g.create("Frame"));
+    assertConcrete<vaml::DocumentViewer>(g.create("DocumentViewer"));
+    assertConcrete<vaml::FlowDocumentReader>(g.create("FlowDocumentReader"));
+    assertConcrete<vaml::FlowDocumentScrollViewer>(g.create("FlowDocumentScrollViewer"));
+    assertConcrete<vaml::SinglePageViewer>(g.create("SinglePageViewer"));
+    SHOULD(ShouldlyIntegral(g.is_registered("DocumentViewerBase")).ShouldBe(false));
 
     // Size matches the full built-in set (36: the roadmap controls + WrapPanel +
     // Canvas + Icon + the S453 authored-resource types SolidColorBrush + Style +
@@ -336,9 +395,14 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // RectangleGeometry/EllipseGeometry/GeometryDrawing/DrawingGroup/
     // DrawingBrush/DrawingImage/ImageBrush + the Sprint 11e (11e) container +
     // menu controls TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/Popup/
-    // GridSplitter/DataGrid (50 -> 59; count bumps are authored at the step,
-    // never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
+    // GridSplitter/DataGrid (50 -> 59) + the S550 scaffolding set
+    // ComboBoxItem/ListBoxItem/ListViewItem/StatusBarItem/GroupItem/DataGridRow/
+    // DataGridCell/ItemsPresenter/ItemsPanelTemplate/ItemContainerTemplate/
+    // GridView/GridViewRowPresenter/GridViewHeaderRowPresenter/
+    // GridViewColumnHeader/VirtualizingStackPanel/SelectiveScrollingGrid
+    // (59 -> 78) + the S551 shape/channel leaves Path/Polygon/Polyline/Track/
+    // TickBar (78 -> 83; count bumps are authored at the step, never silent).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(100u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -359,7 +423,12 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // EllipseGeometry/GeometryDrawing/DrawingGroup/DrawingBrush/DrawingImage/
     // ImageBrush the 42nd-50th + the Sprint 11e (11e) set TabControl/TabItem/
     // Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid the
-    // 51st-59th (count bumps authored at the step, never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
+    // 51st-59th + the S550 scaffolding set ComboBoxItem/ListBoxItem/
+    // ListViewItem/StatusBarItem/GroupItem/DataGridRow/DataGridCell/
+    // ItemsPresenter/ItemsPanelTemplate/ItemContainerTemplate/GridView/
+    // GridViewRowPresenter/GridViewHeaderRowPresenter/GridViewColumnHeader/
+    // VirtualizingStackPanel/SelectiveScrollingGrid the 60th-75th (count bumps
+    // authored at the step, never silent).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(100u));
     assertConcrete<Button>(g.create("Button"));
 }

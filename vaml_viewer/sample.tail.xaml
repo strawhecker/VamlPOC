@@ -1,0 +1,30 @@
+<!-- S558 (Sprint 11m) — VIEWER-GROWTH(11m) corpus tail sample.
+     Authors the DAG tail set (TreeView / DatePicker / Calendar / DataGrid /
+     Polyline / Menu + the item/header scaffolding) so the LIVE viewer loads +
+     renders the tail interactively (the generic renderer via classify_element). -->
+<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Grid>
+    <TreeView>
+      <TreeViewItem>
+        <TreeViewItem/>
+      </TreeViewItem>
+    </TreeView>
+    <DatePicker/>
+    <Calendar/>
+    <DataGrid/>
+    <Polyline/>
+    <Polygon/>
+    <Menu>
+      <MenuItem/>
+    </Menu>
+    <ListBoxItem/>
+    <ComboBoxItem/>
+    <DataGridRow/>
+    <StatusBarItem/>
+    <GroupItem/>
+    <ItemsPresenter/>
+    <GridView/>
+    <ScrollBar/>
+    <Slider/>
+  </Grid>
+</Window>

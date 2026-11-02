@@ -36,6 +36,60 @@ VAML_STATUS = {
     "ContentControl": "PLANNED", "ButtonBase": "PLANNED", "RangeBase": "PLANNED",
     "ItemsControl": "PLANNED", "Control": "PLANNED", "FrameworkElement": "PLANNED",
     "UIElement": "PLANNED", "TextElement": "PLANNED",
+    # Sprint 11m — the WPF-corpus TAIL closure (S550-S558). Every DAG PLANNED row
+    # with a roadmap home closed here is REAL + classified; flips PLANNED->DONE.
+    # Item-container / header / presenter / panel + collection-value scaffolding.
+    "ComboBoxItem": "DONE", "ListBoxItem": "DONE", "ListViewItem": "DONE",
+    "StatusBarItem": "DONE", "GroupItem": "DONE", "DataGridRow": "DONE",
+    "DataGridCell": "DONE", "ContentPresenter": "DONE", "ItemsPresenter": "DONE",
+    "ItemsPanelTemplate": "DONE", "ItemContainerTemplate": "DONE",
+    "DataTemplate": "DONE", "GridView": "DONE", "GridViewColumnHeader": "DONE",
+    "VirtualizingPanel": "PLANNED", "VirtualizingStackPanel": "DONE",
+    "SelectiveScrollingGrid": "DONE", "Panel": "PLANNED", "Decorator": "PLANNED",
+    # Shape + channel tail (S551).
+    "Path": "DONE", "Polygon": "DONE", "Polyline": "DONE", "Shape": "PLANNED",
+    "Track": "DONE", "TickBar": "DONE",
+    # TreeView (S552).
+    "TreeView": "DONE", "TreeViewItem": "DONE",
+    # Date & Calendar controls (S553).
+    "DatePicker": "DONE", "DatePickerTextBox": "DONE", "Calendar": "DONE",
+    "CalendarDayButton": "DONE", "CalendarButton": "DONE", "CalendarItem": "DONE",
+    # Drawing / media / embedded tail (S554). WebBrowser/ViewPort3D re-affirmed
+    # OUT-OF-SCOPE(11m) (the S520 import/inject seam — host-linked foreign surface).
+    "InkCanvas": "DONE", "InkPresenter": "DONE", "MediaElement": "DONE",
+    "WebBrowser": "OUT-OF-SCOPE(11m)", "ViewPort3D": "OUT-OF-SCOPE(11m)",
+    # Document / frame controls (S555).
+    "Page": "DONE", "Frame": "DONE", "DocumentViewer": "DONE",
+    "DocumentViewerBase": "PLANNED", "FlowDocumentReader": "DONE",
+    "FlowDocumentScrollViewer": "DONE", "SinglePageViewer": "DONE",
+    # The 11c/11d/11e stale controls + Viewbox spelling corrected here (S559's
+    # ground-truth re-state — implemented-but-stale flips / spelling normalized).
+    "ListView": "DONE", "TabControl": "DONE", "TabItem": "DONE", "Menu": "DONE",
+    "MenuItem": "DONE", "ContextMenu": "DONE", "Popup": "DONE", "ToolTip": "DONE",
+    "GridSplitter": "DONE", "DataGrid": "DONE", "Viewbox": "DONE",
+    # S556 service/mechanism + U+ support types (delivered REAL -> DONE, consumed
+    # by the DONE controls' binding + item infrastructure).
+    "TextSearch": "DONE", "SpellCheck": "DONE", "ToolTipService": "DONE",
+    "ContextMenuService": "DONE", "PopupControlService": "DONE",
+    "ItemContainerGenerator": "DONE", "UIElementCollection": "DONE",
+    "ItemCollection": "DONE", "SelectedItemCollection": "DONE",
+    "SelectedCellsCollection": "DONE",
+    "Validation": "DONE", "ValidationRule": "DONE", "ValidationError": "DONE",
+    "ValidationResult": "DONE", "ExceptionValidationRule": "DONE",
+    "DataErrorValidationRule": "DONE", "NotifyDataErrorValidationRule": "DONE",
+    "ConversionValidationRule": "DONE",
+    "AlternationConverter": "DONE", "BooleanToSelectiveScrollingOrientationConverter": "DONE",
+    "BorderGapMaskConverter": "DONE", "MenuScrollingVisibilityConverter": "DONE",
+    "DataGridHeadersVisibilityToVisibilityConverter": "DONE",
+    # S557 pure value/enum/arg-only data types (delivered REAL -> DONE, consumed).
+    "AutoToolTipPlacement": "DONE", "ClickMode": "DONE", "CharacterCasing": "DONE",
+    "Orientation": "DONE", "PlacementMode": "DONE", "PopupAnimation": "DONE",
+    "ScrollUnit": "DONE", "VirtualizationMode": "DONE", "PanningMode": "DONE",
+    "DefinitionBase": "DONE", "VirtualizationCacheLength": "DONE",
+    "CustomPopupPlacement": "DONE", "CustomPopupPlacementCallback": "DONE",
+    "DataGridColumn": "DONE", "DataGridLength": "DONE",
+    "ScrollChangedEventArgs": "DONE", "SelectionChangedEventArgs": "DONE",
+    "TextChangedEventArgs": "DONE",
 }
 
 DP_RE = re.compile(

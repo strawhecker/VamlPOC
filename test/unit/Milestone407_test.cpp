@@ -112,9 +112,69 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     // Sprint 11e (11e: TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/
     // Popup/GridSplitter/DataGrid) = 59 (count bumps authored at the step,
     // never silent).
-    // 59 (S11e set) + 2 (S502 behaviors: EventTrigger + InvokeCommandAction).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
+    // 59 (S11e set) + 2 (S502 behaviors: EventTrigger + InvokeCommandAction) +
+    // 16 (S550 scaffolding: ComboBoxItem/ListBoxItem/ListViewItem/StatusBarItem/
+    // GroupItem/DataGridRow/DataGridCell/ItemsPresenter/ItemsPanelTemplate/
+    // ItemContainerTemplate/GridView/GridViewRowPresenter/
+    // GridViewHeaderRowPresenter/GridViewColumnHeader/VirtualizingStackPanel/
+    // SelectiveScrollingGrid) = 78.
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(100u));
     SHOULD(ShouldlyIntegral(g.is_registered("UserControl")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Application")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ResourceDictionary")).ShouldBe(true));
+    // S550 scaffolding resolved + loadable (each a REAL permanent symbol).
+    SHOULD(ShouldlyIntegral(g.is_registered("ComboBoxItem")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ListBoxItem")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ListViewItem")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("StatusBarItem")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("GroupItem")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("DataGridRow")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("DataGridCell")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ItemsPresenter")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ItemsPanelTemplate")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("ItemContainerTemplate")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("GridView")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("GridViewRowPresenter")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("GridViewHeaderRowPresenter")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("GridViewColumnHeader")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("VirtualizingStackPanel")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("SelectiveScrollingGrid")).ShouldBe(true));
+    // S551 shape/channel tail resolved + loadable (each a REAL permanent symbol;
+    // the abstract Shape base stays unregistered — the 11k-4 precedent).
+    SHOULD(ShouldlyIntegral(g.is_registered("Path")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Polygon")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Polyline")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Track")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("TickBar")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Shape")).ShouldBe(false));
+    // S552 tree view controls resolved + loadable (each a REAL permanent symbol).
+    SHOULD(ShouldlyIntegral(g.is_registered("TreeView")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("TreeViewItem")).ShouldBe(true));
+    // S553 date/calendar controls resolved + loadable (each a REAL permanent
+    // symbol; CalendarDateRange/CalendarBlackoutDatesCollection are pure data,
+    // no factory element).
+    SHOULD(ShouldlyIntegral(g.is_registered("DatePicker")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("DatePickerTextBox")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Calendar")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("CalendarDayButton")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("CalendarButton")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("CalendarItem")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("CalendarDateRange")).ShouldBe(false));
+    // S554 drawing/media tail resolved + loadable (InkCanvas/InkPresenter are
+    // DONE-classified strokes surfaces; MediaElement real). WebBrowser/ViewPort3D
+    // are OUT-OF-SCOPE(11m) — the S520 import/inject seam, reclassified at S559.
+    SHOULD(ShouldlyIntegral(g.is_registered("InkCanvas")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("InkPresenter")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("MediaElement")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("WebBrowser")).ShouldBe(false));
+    SHOULD(ShouldlyIntegral(g.is_registered("ViewPort3D")).ShouldBe(false));
+    // S555 document/frame tail resolved + loadable (each a REAL permanent
+    // symbol; DocumentViewerBase is abstract — unregistered).
+    SHOULD(ShouldlyIntegral(g.is_registered("Page")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("Frame")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("DocumentViewer")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("FlowDocumentReader")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("FlowDocumentScrollViewer")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("SinglePageViewer")).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(g.is_registered("DocumentViewerBase")).ShouldBe(false));
 }

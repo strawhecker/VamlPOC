@@ -174,7 +174,7 @@ struct VAML_CORE_EXPORT BindingConversion
 {
     bool  ok = false;
     Value value = Value::Null();
-    std::string detail; // converter failure detail (emitted as diagnostic detail)
+    std::string detail{}; // converter failure detail (emitted as diagnostic detail)
 };
 
 // The converter's Convert signature: takes the resolved source Value, returns

@@ -19,6 +19,7 @@
 #include "vaml/core/ControlTemplate.h"   // S364/S365 — the Button's default template + visual states
 #include "vaml/core/ContentPresenter.h"  // S500 — the per-item ContentPresenter host
 #include "vaml/core/DataTemplate.h"      // S500 — the authored per-item DataTemplate
+#include "vaml/core/Scaffolding.h"       // S550 — derived-base + scaffolding types (item/header/presenter/panel)
 #include "vaml/core/EventTriggerBehavior.h" // S502 — the interactivity EventTrigger (authorable element)
 #include "vaml/core/InvokeCommandAction.h"  // S502 — the InvokeCommandAction (authorable element)
 #include "vaml/core/BindingExpression.h" // S500 — per-item live binding intents
@@ -3248,6 +3249,743 @@ ListView::ListView()
 }
 
 // ---------------------------------------------------------------------------
+// S552 — TreeView / TreeViewItem (dep:S551). Real UIElements carrying the
+// tree item surface (parent/child hosting + expansion/selection DPs + the
+// routed Expanded/Collapsed/Selected/Unselected identities).
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void register_treeview_properties()
+{
+    (void)DependencyProperty::Register(
+        "TreeView.ItemsSource", ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TreeView.SelectedItem", ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TreeView.SelectedValue", ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TreeView.SelectedValuePath", ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+
+void ensure_treeview_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_treeview_properties();
+    }
+}
+
+void register_treeviewitem_properties()
+{
+    (void)DependencyProperty::Register(
+        "TreeViewItem.IsExpanded", ValueType::Int32, "TreeViewItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TreeViewItem.IsSelected", ValueType::Int32, "TreeViewItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TreeViewItem.Header", ValueType::String, "TreeViewItem",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+
+void ensure_treeviewitem_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_treeviewitem_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+TreeView::TreeView()
+{
+    ensure_treeview_properties_registered();
+}
+
+VAML_CORE_EXPORT
+SetResult TreeView::set_items_source(std::string value)
+{
+    return Set(PropertyId::of("TreeView.ItemsSource"), Value::String(std::move(value)));
+}
+VAML_CORE_EXPORT
+std::string TreeView::items_source() const
+{
+    return Get(PropertyId::of("TreeView.ItemsSource")).get<std::string>();
+}
+VAML_CORE_EXPORT
+SetResult TreeView::set_selected_item(std::string value)
+{
+    return Set(PropertyId::of("TreeView.SelectedItem"), Value::String(std::move(value)));
+}
+VAML_CORE_EXPORT
+std::string TreeView::selected_item() const
+{
+    return Get(PropertyId::of("TreeView.SelectedItem")).get<std::string>();
+}
+VAML_CORE_EXPORT
+SetResult TreeView::set_selected_value(std::string value)
+{
+    return Set(PropertyId::of("TreeView.SelectedValue"), Value::String(std::move(value)));
+}
+VAML_CORE_EXPORT
+std::string TreeView::selected_value() const
+{
+    return Get(PropertyId::of("TreeView.SelectedValue")).get<std::string>();
+}
+VAML_CORE_EXPORT
+SetResult TreeView::set_selected_value_path(std::string value)
+{
+    return Set(PropertyId::of("TreeView.SelectedValuePath"), Value::String(std::move(value)));
+}
+VAML_CORE_EXPORT
+std::string TreeView::selected_value_path() const
+{
+    return Get(PropertyId::of("TreeView.SelectedValuePath")).get<std::string>();
+}
+VAML_CORE_EXPORT
+void TreeView::add_item(std::unique_ptr<UIElement> child)
+{
+    if (!child) return;
+    add_child(std::move(child));
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+VAML_CORE_EXPORT
+std::size_t TreeView::item_count() const
+{
+    return child_count();
+}
+VAML_CORE_EXPORT
+Size TreeView::MeasureOverride(const Size& available) const
+{
+    // The root items host: measure the child TreeViewItems (a collapsed child
+    // with no visible items reports a zero extent); report the widest/accumulated
+    // extent.
+    float maxW = 0.0f, totalH = 0.0f;
+    const std::size_t n = child_count();
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        UIElement* c = child_at(i);
+        c->Measure(Size{ available.width, Size::Infinite().height });
+        if (c->desired_size().width > maxW) maxW = c->desired_size().width;
+        totalH += c->desired_size().height;
+    }
+    return Size{ maxW, totalH };
+}
+
+VAML_CORE_EXPORT
+TreeViewItem::TreeViewItem()
+{
+    ensure_treeviewitem_properties_registered();
+}
+VAML_CORE_EXPORT
+SetResult TreeViewItem::set_is_expanded(bool value)
+{
+    InvalidateMeasure();
+    InvalidateArrange();
+    return Set(PropertyId::of("TreeViewItem.IsExpanded"), Value::Int32(value ? 1 : 0));
+}
+VAML_CORE_EXPORT
+bool TreeViewItem::is_expanded() const
+{
+    return Get(PropertyId::of("TreeViewItem.IsExpanded")).get<int>() != 0;
+}
+VAML_CORE_EXPORT
+SetResult TreeViewItem::set_is_selected(bool value)
+{
+    InvalidateMeasure();
+    return Set(PropertyId::of("TreeViewItem.IsSelected"), Value::Int32(value ? 1 : 0));
+}
+VAML_CORE_EXPORT
+bool TreeViewItem::is_selected() const
+{
+    return Get(PropertyId::of("TreeViewItem.IsSelected")).get<int>() != 0;
+}
+VAML_CORE_EXPORT
+SetResult TreeViewItem::set_header(std::string value)
+{
+    return Set(PropertyId::of("TreeViewItem.Header"), Value::String(std::move(value)));
+}
+VAML_CORE_EXPORT
+std::string TreeViewItem::header() const
+{
+    return Get(PropertyId::of("TreeViewItem.Header")).get<std::string>();
+}
+VAML_CORE_EXPORT
+void TreeViewItem::add_item(std::unique_ptr<UIElement> child)
+{
+    if (!child) return;
+    add_child(std::move(child));
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+VAML_CORE_EXPORT
+std::size_t TreeViewItem::item_count() const
+{
+    return child_count();
+}
+VAML_CORE_EXPORT
+void TreeViewItem::set_header_content(std::unique_ptr<UIElement> child)
+{
+    headerContent_ = nullptr;
+    if (!child) { InvalidateMeasure(); InvalidateArrange(); return; }
+    UIElement* raw = child.get();
+    add_child(std::move(child));
+    headerContent_ = raw;
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+VAML_CORE_EXPORT
+UIElement* TreeViewItem::header_content() const noexcept { return headerContent_; }
+VAML_CORE_EXPORT
+Size TreeViewItem::MeasureOverride(const Size& available) const
+{
+    // The item: a header row (the header content slot, defaulting to a line at
+    // the Header string) + the nested child items, which only contribute when
+    // the item is expanded.
+    float w = 0.0f, h = 0.0f;
+    if (headerContent_)
+    {
+        headerContent_->Measure(Size{ available.width, Size::Infinite().height });
+        w = headerContent_->desired_size().width;
+        h = headerContent_->desired_size().height;
+    }
+    else if (available.height > 0.0f)
+    {
+        h = std::min(available.height, 20.0f);
+    }
+    if (children_visible())
+    {
+        const std::size_t n = child_count();
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            UIElement* c = child_at(i);
+            if (c == headerContent_) continue; // header already measured
+            if (dynamic_cast<const TreeViewItem*>(c) == nullptr) continue;
+            c->Measure(Size{ available.width, Size::Infinite().height });
+            if (c->desired_size().width > w) w = c->desired_size().width;
+            h += c->desired_size().height;
+        }
+    }
+    return Size{ w, h };
+}
+
+// ---------------------------------------------------------------------------
+// S553 — Date & Calendar controls (dep:S552). Real UIElements carrying the
+// date-picker + calendar surface + the pure date-range data types + the routed
+// SelectedDatesChanged/SelectedDateChanged identities.
+// ---------------------------------------------------------------------------
+
+VAML_CORE_EXPORT
+void CalendarBlackoutDatesCollection::add(CalendarDateRange range)
+{
+    ranges_.push_back(range);
+}
+
+namespace {
+
+void register_calendardaybutton_properties()
+{
+    (void)DependencyProperty::Register(
+        "CalendarDayButton.IsToday", ValueType::Int32, "CalendarDayButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "CalendarDayButton.IsSelected", ValueType::Int32, "CalendarDayButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "CalendarDayButton.IsBlackedOut", ValueType::Int32, "CalendarDayButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "CalendarDayButton.DayNumber", ValueType::Int32, "CalendarDayButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+void ensure_calendardaybutton_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_calendardaybutton_properties(); }
+}
+void register_calendarbutton_properties()
+{
+    (void)DependencyProperty::Register(
+        "CalendarButton.DisplayDate", ValueType::Int64, "CalendarButton",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "CalendarButton.IsSelected", ValueType::Int32, "CalendarButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+void ensure_calendarbutton_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_calendarbutton_properties(); }
+}
+void register_calendaritem_properties()
+{
+    (void)DependencyProperty::Register(
+        "CalendarItem.DisplayMode", ValueType::Int32, "CalendarItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "CalendarItem.DisplayDate", ValueType::Int64, "CalendarItem",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+}
+void ensure_calendaritem_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_calendaritem_properties(); }
+}
+void register_calendar_properties()
+{
+    (void)DependencyProperty::Register(
+        "Calendar.DisplayDate", ValueType::Int64, "Calendar",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Calendar.SelectedDate", ValueType::Int64, "Calendar",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Calendar.FirstDayOfWeek", ValueType::Int32, "Calendar",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Calendar.SelectionMode", ValueType::Int32, "Calendar",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+void ensure_calendar_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_calendar_properties(); }
+}
+void register_datepickertetxbox_properties()
+{
+    (void)DependencyProperty::Register(
+        "DatePickerTextBox.Text", ValueType::String, "DatePickerTextBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DatePickerTextBox.SelectedDate", ValueType::Int64, "DatePickerTextBox",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+}
+void ensure_datepickertetxbox_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_datepickertetxbox_properties(); }
+}
+void register_datepicker_properties()
+{
+    (void)DependencyProperty::Register(
+        "DatePicker.SelectedDate", ValueType::Int64, "DatePicker",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DatePicker.DisplayDate", ValueType::Int64, "DatePicker",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "DatePicker.IsDropDownOpen", ValueType::Int32, "DatePicker",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+void ensure_datepicker_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_datepicker_properties(); }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+CalendarDayButton::CalendarDayButton() { ensure_calendardaybutton_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult CalendarDayButton::set_is_today(bool v) { return Set(PropertyId::of("CalendarDayButton.IsToday"), Value::Int32(v ? 1 : 0)); }
+VAML_CORE_EXPORT
+bool CalendarDayButton::is_today() const { return Get(PropertyId::of("CalendarDayButton.IsToday")).get<int>() != 0; }
+VAML_CORE_EXPORT
+SetResult CalendarDayButton::set_is_selected(bool v) { return Set(PropertyId::of("CalendarDayButton.IsSelected"), Value::Int32(v ? 1 : 0)); }
+VAML_CORE_EXPORT
+bool CalendarDayButton::is_selected() const { return Get(PropertyId::of("CalendarDayButton.IsSelected")).get<int>() != 0; }
+VAML_CORE_EXPORT
+SetResult CalendarDayButton::set_is_blacked_out(bool v) { return Set(PropertyId::of("CalendarDayButton.IsBlackedOut"), Value::Int32(v ? 1 : 0)); }
+VAML_CORE_EXPORT
+bool CalendarDayButton::is_blacked_out() const { return Get(PropertyId::of("CalendarDayButton.IsBlackedOut")).get<int>() != 0; }
+VAML_CORE_EXPORT
+SetResult CalendarDayButton::set_day_number(std::int32_t v) { return Set(PropertyId::of("CalendarDayButton.DayNumber"), Value::Int32(v)); }
+VAML_CORE_EXPORT
+std::int32_t CalendarDayButton::day_number() const { return Get(PropertyId::of("CalendarDayButton.DayNumber")).get<int>(); }
+VAML_CORE_EXPORT
+Size CalendarDayButton::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? std::min(available.width, 28.0f) : 28.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 28.0f) : 28.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+CalendarButton::CalendarButton() { ensure_calendarbutton_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult CalendarButton::set_display_date(std::int64_t v) { return Set(PropertyId::of("CalendarButton.DisplayDate"), Value::Int64(v)); }
+VAML_CORE_EXPORT
+std::int64_t CalendarButton::display_date() const { return Get(PropertyId::of("CalendarButton.DisplayDate")).get<std::int64_t>(); }
+VAML_CORE_EXPORT
+SetResult CalendarButton::set_is_selected(bool v) { return Set(PropertyId::of("CalendarButton.IsSelected"), Value::Int32(v ? 1 : 0)); }
+VAML_CORE_EXPORT
+bool CalendarButton::is_selected() const { return Get(PropertyId::of("CalendarButton.IsSelected")).get<int>() != 0; }
+VAML_CORE_EXPORT
+Size CalendarButton::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? std::min(available.width, 40.0f) : 40.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 24.0f) : 24.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+CalendarItem::CalendarItem() { ensure_calendaritem_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult CalendarItem::set_display_mode(std::int32_t v) { return Set(PropertyId::of("CalendarItem.DisplayMode"), Value::Int32(v)); }
+VAML_CORE_EXPORT
+std::int32_t CalendarItem::display_mode() const { return Get(PropertyId::of("CalendarItem.DisplayMode")).get<int>(); }
+VAML_CORE_EXPORT
+SetResult CalendarItem::set_display_date(std::int64_t v) { return Set(PropertyId::of("CalendarItem.DisplayDate"), Value::Int64(v)); }
+VAML_CORE_EXPORT
+std::int64_t CalendarItem::display_date() const { return Get(PropertyId::of("CalendarItem.DisplayDate")).get<std::int64_t>(); }
+VAML_CORE_EXPORT
+Size CalendarItem::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? std::min(available.width, 240.0f) : 240.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 200.0f) : 200.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+Calendar::Calendar() { ensure_calendar_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult Calendar::set_display_date(std::int64_t v)
+{
+    return Set(PropertyId::of("Calendar.DisplayDate"), Value::Int64(v));
+}
+VAML_CORE_EXPORT
+std::int64_t Calendar::display_date() const { return Get(PropertyId::of("Calendar.DisplayDate")).get<std::int64_t>(); }
+VAML_CORE_EXPORT
+SetResult Calendar::set_selected_date(std::int64_t v)
+{
+    InvalidateMeasure();
+    return Set(PropertyId::of("Calendar.SelectedDate"), Value::Int64(v));
+}
+VAML_CORE_EXPORT
+std::int64_t Calendar::selected_date() const { return Get(PropertyId::of("Calendar.SelectedDate")).get<std::int64_t>(); }
+VAML_CORE_EXPORT
+SetResult Calendar::set_first_day_of_week(std::int32_t v) { return Set(PropertyId::of("Calendar.FirstDayOfWeek"), Value::Int32(v)); }
+VAML_CORE_EXPORT
+std::int32_t Calendar::first_day_of_week() const { return Get(PropertyId::of("Calendar.FirstDayOfWeek")).get<int>(); }
+VAML_CORE_EXPORT
+SetResult Calendar::set_selection_mode(std::int32_t v) { return Set(PropertyId::of("Calendar.SelectionMode"), Value::Int32(v)); }
+VAML_CORE_EXPORT
+std::int32_t Calendar::selection_mode() const { return Get(PropertyId::of("Calendar.SelectionMode")).get<int>(); }
+VAML_CORE_EXPORT
+void Calendar::set_blackout_dates(CalendarBlackoutDatesCollection dates) { blackout_ = std::move(dates); }
+VAML_CORE_EXPORT
+const CalendarBlackoutDatesCollection& Calendar::blackout_dates() const noexcept { return blackout_; }
+VAML_CORE_EXPORT
+Size Calendar::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? std::min(available.width, 260.0f) : 260.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 220.0f) : 220.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+DatePickerTextBox::DatePickerTextBox() { ensure_datepickertetxbox_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult DatePickerTextBox::set_text(std::string v) { return Set(PropertyId::of("DatePickerTextBox.Text"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string DatePickerTextBox::text() const { return Get(PropertyId::of("DatePickerTextBox.Text")).get<std::string>(); }
+VAML_CORE_EXPORT
+SetResult DatePickerTextBox::set_selected_date(std::int64_t v) { return Set(PropertyId::of("DatePickerTextBox.SelectedDate"), Value::Int64(v)); }
+VAML_CORE_EXPORT
+std::int64_t DatePickerTextBox::selected_date() const { return Get(PropertyId::of("DatePickerTextBox.SelectedDate")).get<std::int64_t>(); }
+VAML_CORE_EXPORT
+Size DatePickerTextBox::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 24.0f) : 24.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+DatePicker::DatePicker() { ensure_datepicker_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult DatePicker::set_selected_date(std::int64_t v)
+{
+    InvalidateMeasure();
+    return Set(PropertyId::of("DatePicker.SelectedDate"), Value::Int64(v));
+}
+VAML_CORE_EXPORT
+std::int64_t DatePicker::selected_date() const { return Get(PropertyId::of("DatePicker.SelectedDate")).get<std::int64_t>(); }
+VAML_CORE_EXPORT
+SetResult DatePicker::set_display_date(std::int64_t v) { return Set(PropertyId::of("DatePicker.DisplayDate"), Value::Int64(v)); }
+VAML_CORE_EXPORT
+std::int64_t DatePicker::display_date() const { return Get(PropertyId::of("DatePicker.DisplayDate")).get<std::int64_t>(); }
+VAML_CORE_EXPORT
+SetResult DatePicker::set_is_drop_down_open(bool v) { return Set(PropertyId::of("DatePicker.IsDropDownOpen"), Value::Int32(v ? 1 : 0)); }
+VAML_CORE_EXPORT
+bool DatePicker::is_drop_down_open() const { return Get(PropertyId::of("DatePicker.IsDropDownOpen")).get<int>() != 0; }
+VAML_CORE_EXPORT
+Size DatePicker::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 140.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 28.0f) : 28.0f;
+    return Size{ w, h };
+}
+
+// ---------------------------------------------------------------------------
+// S554 — Drawing/Media/Embedded tail (dep:S553). InkCanvas/InkPresenter (the
+// DONE-classified stylus/mouse stroke surface + Strokes DP), MediaElement
+// (Source/Volume/Muted + the Media* routed identities). WebBrowser/ViewPort3D
+// are re-affirmed OUT-OF-SCOPE(11m) (the S520 import/inject seam) — recorded
+// NO-GAP not silent; their DAG rows reclassify at S559.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void register_inkcanvas_properties()
+{
+    (void)DependencyProperty::Register(
+        "InkCanvas.Strokes", ValueType::String, "InkCanvas",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "InkCanvas.ActiveStroke", ValueType::String, "InkCanvas",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "InkCanvas.Background", ValueType::BrushId, "InkCanvas",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+}
+void ensure_inkcanvas_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_inkcanvas_properties(); }
+}
+void register_inkpresenter_properties()
+{
+    (void)DependencyProperty::Register(
+        "InkPresenter.Strokes", ValueType::String, "InkPresenter",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+void ensure_inkpresenter_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_inkpresenter_properties(); }
+}
+void register_mediaelement_properties()
+{
+    (void)DependencyProperty::Register(
+        "MediaElement.Source", ValueType::String, "MediaElement",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MediaElement.Volume", ValueType::Double, "MediaElement",
+        PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MediaElement.Muted", ValueType::Int32, "MediaElement",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+void ensure_mediaelement_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_mediaelement_properties(); }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+InkCanvas::InkCanvas() { ensure_inkcanvas_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult InkCanvas::set_strokes(std::string v) { return Set(PropertyId::of("InkCanvas.Strokes"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string InkCanvas::strokes() const { return Get(PropertyId::of("InkCanvas.Strokes")).get<std::string>(); }
+VAML_CORE_EXPORT
+SetResult InkCanvas::set_active_stroke(std::string v) { return Set(PropertyId::of("InkCanvas.ActiveStroke"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string InkCanvas::active_stroke() const { return Get(PropertyId::of("InkCanvas.ActiveStroke")).get<std::string>(); }
+VAML_CORE_EXPORT
+SetResult InkCanvas::set_background(std::int32_t b) { return Set(PropertyId::of("InkCanvas.Background"), Value::BrushId(b)); }
+VAML_CORE_EXPORT
+std::int32_t InkCanvas::background() const { return Get(PropertyId::of("InkCanvas.Background")).get<std::int32_t>(); }
+VAML_CORE_EXPORT
+Size InkCanvas::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float h = available.height > 0.0f ? available.height : 80.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+InkPresenter::InkPresenter() { ensure_inkpresenter_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult InkPresenter::set_strokes(std::string v) { return Set(PropertyId::of("InkPresenter.Strokes"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string InkPresenter::strokes() const { return Get(PropertyId::of("InkPresenter.Strokes")).get<std::string>(); }
+VAML_CORE_EXPORT
+Size InkPresenter::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float h = available.height > 0.0f ? available.height : 80.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+MediaElement::MediaElement() { ensure_mediaelement_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult MediaElement::set_source(std::string v) { return Set(PropertyId::of("MediaElement.Source"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string MediaElement::source() const { return Get(PropertyId::of("MediaElement.Source")).get<std::string>(); }
+VAML_CORE_EXPORT
+SetResult MediaElement::set_volume(double v) { return Set(PropertyId::of("MediaElement.Volume"), Value::Double(v)); }
+VAML_CORE_EXPORT
+double MediaElement::volume() const { return Get(PropertyId::of("MediaElement.Volume")).get<double>(); }
+VAML_CORE_EXPORT
+SetResult MediaElement::set_muted(bool v) { return Set(PropertyId::of("MediaElement.Muted"), Value::Int32(v ? 1 : 0)); }
+VAML_CORE_EXPORT
+bool MediaElement::muted() const { return Get(PropertyId::of("MediaElement.Muted")).get<int>() != 0; }
+VAML_CORE_EXPORT
+Size MediaElement::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 320.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, 180.0f) : 180.0f;
+    return Size{ w, h };
+}
+
+// ---------------------------------------------------------------------------
+// S555 — Document/Frame controls (dep:S554). Page, Frame (ContentControl
+// source/navigation surface, closing the S11j6 StartupUri navigation NO-GAP),
+// DocumentViewer/DocumentViewerBase + FlowDocumentReader/FlowDocumentScrollViewer
+// (+ SinglePageViewer). The document-flow/text rendering depth is bounded per
+// the S649/11k-11 control-material continuation (recorded NO-GAP not silent).
+// ---------------------------------------------------------------------------
+
+namespace {
+
+void register_page_properties()
+{
+    (void)DependencyProperty::Register(
+        "Page.Content", ValueType::String, "Page",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+void ensure_page_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_page_properties(); }
+}
+void register_frame_properties()
+{
+    (void)DependencyProperty::Register(
+        "Frame.Source", ValueType::String, "Frame",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Frame.NavigateUri", ValueType::String, "Frame",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+void ensure_frame_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_frame_properties(); }
+}
+void register_documentviewerbase_properties()
+{
+    (void)DependencyProperty::Register(
+        "DocumentViewerBase.Document", ValueType::String, "DocumentViewerBase",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+void ensure_documentviewerbase_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_documentviewerbase_properties(); }
+}
+void register_singlepageviewer_properties()
+{
+    (void)DependencyProperty::Register(
+        "SinglePageViewer.Document", ValueType::String, "SinglePageViewer",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+void ensure_singlepageviewer_properties_registered()
+{
+    static bool reg = false;
+    if (!reg) { reg = true; register_singlepageviewer_properties(); }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Page::Page() { ensure_page_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult Page::set_content(std::string v) { return Set(PropertyId::of("Page.Content"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string Page::content() const { return Get(PropertyId::of("Page.Content")).get<std::string>(); }
+VAML_CORE_EXPORT
+Size Page::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 240.0f;
+    const float h = available.height > 0.0f ? available.height : 180.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+Frame::Frame() { ensure_frame_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult Frame::set_source(std::string v) { return Set(PropertyId::of("Frame.Source"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string Frame::source() const { return Get(PropertyId::of("Frame.Source")).get<std::string>(); }
+VAML_CORE_EXPORT
+SetResult Frame::set_navigate_uri(std::string v) { return Set(PropertyId::of("Frame.NavigateUri"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string Frame::navigate_uri() const { return Get(PropertyId::of("Frame.NavigateUri")).get<std::string>(); }
+VAML_CORE_EXPORT
+Size Frame::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 300.0f;
+    const float h = available.height > 0.0f ? available.height : 200.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+DocumentViewerBase::DocumentViewerBase() { ensure_documentviewerbase_properties_registered(); }
+VAML_CORE_EXPORT
+DocumentViewerBase::~DocumentViewerBase() = default;
+VAML_CORE_EXPORT
+SetResult DocumentViewerBase::set_document(std::string v) { return Set(PropertyId::of("DocumentViewerBase.Document"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string DocumentViewerBase::document() const { return Get(PropertyId::of("DocumentViewerBase.Document")).get<std::string>(); }
+VAML_CORE_EXPORT
+Size DocumentViewerBase::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 260.0f;
+    const float h = available.height > 0.0f ? available.height : 220.0f;
+    return Size{ w, h };
+}
+
+VAML_CORE_EXPORT
+DocumentViewer::DocumentViewer() { ensure_documentviewerbase_properties_registered(); }
+VAML_CORE_EXPORT
+FlowDocumentScrollViewer::FlowDocumentScrollViewer() { ensure_documentviewerbase_properties_registered(); }
+VAML_CORE_EXPORT
+FlowDocumentReader::FlowDocumentReader() { ensure_documentviewerbase_properties_registered(); }
+
+VAML_CORE_EXPORT
+SinglePageViewer::SinglePageViewer() { ensure_singlepageviewer_properties_registered(); }
+VAML_CORE_EXPORT
+SetResult SinglePageViewer::set_document(std::string v) { return Set(PropertyId::of("SinglePageViewer.Document"), Value::String(std::move(v))); }
+VAML_CORE_EXPORT
+std::string SinglePageViewer::document() const { return Get(PropertyId::of("SinglePageViewer.Document")).get<std::string>(); }
+VAML_CORE_EXPORT
+Size SinglePageViewer::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 260.0f;
+    const float h = available.height > 0.0f ? available.height : 220.0f;
+    return Size{ w, h };
+}
+
+// ---------------------------------------------------------------------------
 // SPRINT 11d (S480–S486) — the core display + input controls. Each control is
 // a REAL re-based UIElement with owner-scoped DPs (the established name-keyed
 // registry — a reused name under a different owner would be ambiguous, per the
@@ -3763,6 +4501,475 @@ Size Line::MeasureOverride(const Size& available) const
     // applies the WPF-style Width/Height + stretch-vs-wrap.
     const float w = available.width > 0.0f ? available.width : 100.0f;
     const float h = static_cast<float>(stroke_thickness() > 0.0 ? stroke_thickness() : 1.0);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// --- S551: SHAPE base + Path/Polygon/Polyline/Track/TickBar -----------------
+
+namespace {
+
+// Register the abstract Shape base DPs (shared by Rectangle/Ellipse/Line
+// equivalents + the Path/Polygon/Polyline leaves).
+void register_shape_properties()
+{
+    (void)DependencyProperty::Register(
+        "Shape.Fill", ValueType::BrushId, "Shape",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Shape.Stroke", ValueType::BrushId, "Shape",
+        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Shape.StrokeThickness", ValueType::Double, "Shape",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+}
+
+void ensure_shape_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_shape_properties();
+    }
+}
+
+void register_path_properties()
+{
+    ensure_shape_properties_registered();
+    (void)DependencyProperty::Register(
+        "Path.Data", ValueType::String, "Path",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Path.FillRule", ValueType::Int32, "Path",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_path_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_path_properties();
+    }
+}
+
+void register_polygon_properties()
+{
+    ensure_shape_properties_registered();
+    (void)DependencyProperty::Register(
+        "Polygon.Points", ValueType::String, "Polygon",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Polygon.FillRule", ValueType::Int32, "Polygon",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_polygon_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_polygon_properties();
+    }
+}
+
+void register_polyline_properties()
+{
+    ensure_shape_properties_registered();
+    (void)DependencyProperty::Register(
+        "Polyline.Points", ValueType::String, "Polyline",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+}
+
+void ensure_polyline_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_polyline_properties();
+    }
+}
+
+// Parse an authored WPF PointsConverter list ("x1,y1 x2,y2 ...", comma or
+// space separated). Empty / malformed -> authoring error (fail loud).
+std::vector<std::pair<float, float>> parse_points(const std::string& s, bool* ok)
+{
+    std::vector<std::pair<float, float>> out;
+    if (ok) *ok = false;
+    if (s.empty()) return out;
+    std::vector<float> nums;
+    std::string cur;
+    for (char ch : s)
+    {
+        if (ch == ',' || ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
+        {
+            if (!cur.empty()) { nums.push_back(static_cast<float>(std::atof(cur.c_str()))); cur.clear(); }
+            continue;
+        }
+        cur.push_back(ch);
+    }
+    if (!cur.empty()) nums.push_back(static_cast<float>(std::atof(cur.c_str())));
+    if (nums.size() % 2 != 0) return out; // odd => not an even point list
+    for (std::size_t i = 0; i + 1 < nums.size(); i += 2)
+        out.emplace_back(nums[i], nums[i + 1]);
+    if (ok) *ok = !out.empty();
+    return out;
+}
+
+void register_track_properties()
+{
+    (void)DependencyProperty::Register(
+        "Track.Minimum", ValueType::Double, "Track",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Track.Maximum", ValueType::Double, "Track",
+        PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Track.Value", ValueType::Double, "Track",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+}
+
+void ensure_track_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_track_properties();
+    }
+}
+
+void register_tickbar_properties()
+{
+    (void)DependencyProperty::Register(
+        "TickBar.Minimum", ValueType::Double, "TickBar",
+        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TickBar.Maximum", ValueType::Double, "TickBar",
+        PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TickBar.Frequency", ValueType::Double, "TickBar",
+        PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "TickBar.IsDirectionReversed", ValueType::Int32, "TickBar",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+}
+
+void ensure_tickbar_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_tickbar_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+Shape::~Shape() = default;
+
+VAML_CORE_EXPORT
+SetResult Shape::set_fill(std::int32_t brushId)
+{
+    ensure_shape_properties_registered();
+    return Set(PropertyId::of("Shape.Fill"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Shape::fill() const
+{
+    return Get(PropertyId::of("Shape.Fill")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Shape::set_stroke(std::int32_t brushId)
+{
+    ensure_shape_properties_registered();
+    return Set(PropertyId::of("Shape.Stroke"), Value::BrushId(brushId));
+}
+VAML_CORE_EXPORT
+std::int32_t Shape::stroke() const
+{
+    return Get(PropertyId::of("Shape.Stroke")).get<std::int32_t>();
+}
+VAML_CORE_EXPORT
+SetResult Shape::set_stroke_thickness(double value)
+{
+    ensure_shape_properties_registered();
+    return Set(PropertyId::of("Shape.StrokeThickness"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double Shape::stroke_thickness() const
+{
+    return Get(PropertyId::of("Shape.StrokeThickness")).get<double>();
+}
+VAML_CORE_EXPORT
+Size Shape::MeasureShape(const Size& available) const
+{
+    const float w = available.width > 0.0f ? std::min(available.width, available.width) : 0.0f;
+    const float h = available.height > 0.0f ? std::min(available.height, available.height) : 0.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// Path
+VAML_CORE_EXPORT
+Path::Path()
+{
+    ensure_path_properties_registered();
+}
+
+namespace {
+struct PathState
+{
+    std::string dataSource;
+    PathData    figures;
+    bool        parsed = false;
+    int         fillRule = 0;
+};
+} // namespace
+
+VAML_CORE_EXPORT
+SetResult Path::set_data(std::string data)
+{
+    auto* st = static_cast<PathState*>(state_.get());
+    if (!st)
+    {
+        st = new PathState; // owned by the element's state slot (S039)
+        state_.reset(st);
+    }
+    std::string src;
+    st->figures = vaml::parse_path_geometry(data, &src);
+    st->dataSource = data;
+    st->parsed = true;
+    InvalidateMeasure();
+    InvalidateArrange();
+    return SetResult::APPLIED;
+}
+VAML_CORE_EXPORT
+const std::string& Path::data_source() const noexcept
+{
+    static const std::string kEmpty;
+    const auto* st = static_cast<const PathState*>(state_.get());
+    return st ? st->dataSource : kEmpty;
+}
+VAML_CORE_EXPORT
+bool Path::parsed() const noexcept
+{
+    const auto* st = static_cast<const PathState*>(state_.get());
+    return st ? st->parsed : false;
+}
+VAML_CORE_EXPORT
+SetResult Path::set_fill_rule(std::int32_t rule)
+{
+    return Set(PropertyId::of("Path.FillRule"), Value::Int32(rule));
+}
+VAML_CORE_EXPORT
+std::int32_t Path::fill_rule() const
+{
+    return Get(PropertyId::of("Path.FillRule")).get<int>();
+}
+VAML_CORE_EXPORT
+Size Path::MeasureOverride(const Size& available) const
+{
+    return MeasureShape(available);
+}
+
+// Polygon
+VAML_CORE_EXPORT
+Polygon::Polygon()
+{
+    ensure_polygon_properties_registered();
+}
+namespace {
+struct PolygonState
+{
+    std::vector<std::pair<float, float>> points;
+    bool parsed = false;
+};
+} // namespace
+VAML_CORE_EXPORT
+SetResult Polygon::set_points(std::string points)
+{
+    auto* st = static_cast<PolygonState*>(state_.get());
+    if (!st) { st = new PolygonState; state_.reset(st); }
+    bool ok = false;
+    st->points = parse_points(points, &ok);
+    st->parsed = ok;
+    InvalidateMeasure();
+    InvalidateArrange();
+    return SetResult::APPLIED;
+}
+VAML_CORE_EXPORT
+const std::vector<std::pair<float, float>>& Polygon::points() const noexcept
+{
+    static const std::vector<std::pair<float, float>> kEmpty;
+    const auto* st = static_cast<const PolygonState*>(state_.get());
+    return st ? st->points : kEmpty;
+}
+VAML_CORE_EXPORT
+bool Polygon::parsed() const noexcept
+{
+    const auto* st = static_cast<const PolygonState*>(state_.get());
+    return st ? st->parsed : false;
+}
+VAML_CORE_EXPORT
+SetResult Polygon::set_fill_rule(std::int32_t rule)
+{
+    return Set(PropertyId::of("Polygon.FillRule"), Value::Int32(rule));
+}
+VAML_CORE_EXPORT
+std::int32_t Polygon::fill_rule() const
+{
+    return Get(PropertyId::of("Polygon.FillRule")).get<int>();
+}
+VAML_CORE_EXPORT
+Size Polygon::MeasureOverride(const Size& available) const
+{
+    return MeasureShape(available);
+}
+
+// Polyline
+VAML_CORE_EXPORT
+Polyline::Polyline()
+{
+    ensure_polyline_properties_registered();
+}
+namespace {
+struct PolylineState
+{
+    std::vector<std::pair<float, float>> points;
+    bool parsed = false;
+};
+} // namespace
+VAML_CORE_EXPORT
+SetResult Polyline::set_points(std::string points)
+{
+    auto* st = static_cast<PolylineState*>(state_.get());
+    if (!st) { st = new PolylineState; state_.reset(st); }
+    bool ok = false;
+    st->points = parse_points(points, &ok);
+    st->parsed = ok;
+    InvalidateMeasure();
+    InvalidateArrange();
+    return SetResult::APPLIED;
+}
+VAML_CORE_EXPORT
+const std::vector<std::pair<float, float>>& Polyline::points() const noexcept
+{
+    static const std::vector<std::pair<float, float>> kEmpty;
+    const auto* st = static_cast<const PolylineState*>(state_.get());
+    return st ? st->points : kEmpty;
+}
+VAML_CORE_EXPORT
+bool Polyline::parsed() const noexcept
+{
+    const auto* st = static_cast<const PolylineState*>(state_.get());
+    return st ? st->parsed : false;
+}
+VAML_CORE_EXPORT
+Size Polyline::MeasureOverride(const Size& available) const
+{
+    return MeasureShape(available);
+}
+
+// Track
+VAML_CORE_EXPORT
+Track::Track()
+{
+    ensure_track_properties_registered();
+}
+VAML_CORE_EXPORT
+SetResult Track::set_minimum(double value)
+{
+    return Set(PropertyId::of("Track.Minimum"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double Track::minimum() const
+{
+    return Get(PropertyId::of("Track.Minimum")).get<double>();
+}
+VAML_CORE_EXPORT
+SetResult Track::set_maximum(double value)
+{
+    return Set(PropertyId::of("Track.Maximum"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double Track::maximum() const
+{
+    return Get(PropertyId::of("Track.Maximum")).get<double>();
+}
+VAML_CORE_EXPORT
+SetResult Track::set_value(double value)
+{
+    return Set(PropertyId::of("Track.Value"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double Track::value() const
+{
+    return Get(PropertyId::of("Track.Value")).get<double>();
+}
+VAML_CORE_EXPORT
+Size Track::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float h = available.height > 0.0f ? available.height : 6.0f;
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
+// TickBar
+VAML_CORE_EXPORT
+TickBar::TickBar()
+{
+    ensure_tickbar_properties_registered();
+}
+VAML_CORE_EXPORT
+SetResult TickBar::set_minimum(double value)
+{
+    return Set(PropertyId::of("TickBar.Minimum"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double TickBar::minimum() const
+{
+    return Get(PropertyId::of("TickBar.Minimum")).get<double>();
+}
+VAML_CORE_EXPORT
+SetResult TickBar::set_maximum(double value)
+{
+    return Set(PropertyId::of("TickBar.Maximum"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double TickBar::maximum() const
+{
+    return Get(PropertyId::of("TickBar.Maximum")).get<double>();
+}
+VAML_CORE_EXPORT
+SetResult TickBar::set_frequency(double value)
+{
+    return Set(PropertyId::of("TickBar.Frequency"), Value::Double(value));
+}
+VAML_CORE_EXPORT
+double TickBar::frequency() const
+{
+    return Get(PropertyId::of("TickBar.Frequency")).get<double>();
+}
+VAML_CORE_EXPORT
+SetResult TickBar::set_is_direction_reversed(bool value)
+{
+    return Set(PropertyId::of("TickBar.IsDirectionReversed"), Value::Int32(value ? 1 : 0));
+}
+VAML_CORE_EXPORT
+bool TickBar::is_direction_reversed() const
+{
+    return Get(PropertyId::of("TickBar.IsDirectionReversed")).get<int>() != 0;
+}
+VAML_CORE_EXPORT
+Size TickBar::MeasureOverride(const Size& available) const
+{
+    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float h = available.height > 0.0f ? available.height : 4.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -6938,6 +8145,77 @@ void register_builtin_elements()
     // UIElements you place in a visual tree). Built-in count 50 -> 51 (the only
     // new ELEMENT; the flow content model is not a factory element).
     registry.register_element("RichTextBox",   [] { return std::make_unique<RichTextBox>(); });   // 51
+    // --- S550 (dep:S554... S550)→ Sprint 11m — the derived-base + scaffolding
+    // surface (item-container/header/presenter/panel + collection-value types
+    // the closed controls' selector behavior and the DAG's closure-under-ancestry
+    // invariant require to be loadable). The abstract BASES (Panel/Decorator/
+    // VirtualizingPanel) are NOT registered as factory elements — WPF keeps them
+    // abstract (not directly authorable); the 11k-4 precedent documents the same
+    // for the abstract Geometry/Drawing bases. The LOADABLE concrete scaffolding
+    // types ARE registered (computed as factories). GridViewColumn/Collection,
+    // DataTemplate, ItemsPanelTemplate/ItemContainerTemplate are authored
+    // resource/value types with a dedicated authoring path (SolidColorBrush/
+    // Style precedent) — registered so they RESOLVE as authorable element types.
+    registry.register_element("ComboBoxItem",      [] { return std::make_unique<ComboBoxItem>(); });      // 52
+    registry.register_element("ListBoxItem",       [] { return std::make_unique<ListBoxItem>(); });       // 53
+    registry.register_element("ListViewItem",      [] { return std::make_unique<ListViewItem>(); });      // 54
+    registry.register_element("StatusBarItem",     [] { return std::make_unique<StatusBarItem>(); });     // 55
+    registry.register_element("GroupItem",         [] { return std::make_unique<GroupItem>(); });         // 56
+    registry.register_element("DataGridRow",       [] { return std::make_unique<DataGridRow>(); });       // 57
+    registry.register_element("DataGridCell",      [] { return std::make_unique<DataGridCell>(); });      // 58
+    registry.register_element("ItemsPresenter",    [] { return std::make_unique<ItemsPresenter>(); });    // 59
+    registry.register_element("ItemsPanelTemplate",[] { return std::make_unique<ItemsPanelTemplate>(); }); // 60
+    registry.register_element("ItemContainerTemplate", [] { return std::make_unique<ItemContainerTemplate>(); }); // 61
+    registry.register_element("GridView",          [] { return std::make_unique<GridView>(); });          // 62
+    registry.register_element("GridViewRowPresenter", [] { return std::make_unique<GridViewRowPresenter>(); }); // 63
+    registry.register_element("GridViewHeaderRowPresenter", [] { return std::make_unique<GridViewHeaderRowPresenter>(); }); // 64
+    registry.register_element("GridViewColumnHeader", [] { return std::make_unique<GridViewColumnHeader>(); }); // 65
+    registry.register_element("VirtualizingStackPanel", [] { return std::make_unique<VirtualizingStackPanel>(); }); // 66
+    registry.register_element("SelectiveScrollingGrid", [] { return std::make_unique<SelectiveScrollingGrid>(); }); // 67
+    // --- S551 (Sprint 11m) — SHAPE + CHANNEL TAIL (DAG `PLANNED`, WPF-real
+    // names): Path (Data geometry authoring), Polygon/Polyline (Points/FillRule)
+    // + the Shape base consolidation; Track + TickBar (the slider/scrollbar
+    // chrome surface). The abstract Shape base is NOT registered (kept abstract
+    // — the 11k-4 precedent). The 5 concrete leaves ARE factory elements.
+    registry.register_element("Path",          [] { return std::make_unique<Path>(); });          // 68
+    registry.register_element("Polygon",       [] { return std::make_unique<Polygon>(); });       // 69
+    registry.register_element("Polyline",      [] { return std::make_unique<Polyline>(); });      // 70
+    registry.register_element("Track",         [] { return std::make_unique<Track>(); });         // 71
+    registry.register_element("TickBar",       [] { return std::make_unique<TickBar>(); });       // 72
+    // --- S552 (Sprint 11m) — TREE VIEW CONTROLS (dep:S551): TreeView +
+    // TreeViewItem (ItemsControl/HeaderedItemsControl branch). Real + tested.
+    registry.register_element("TreeView",     [] { return std::make_unique<TreeView>(); });       // 73
+    registry.register_element("TreeViewItem", [] { return std::make_unique<TreeViewItem>(); });   // 74
+    // --- S553 (Sprint 11m) — DATE & CALENDAR CONTROLS (dep:S552): DatePicker
+    // (+ DatePickerTextBox) + Calendar + the Calendar family (CalendarDayButton/
+    // CalendarButton/CalendarItem). CalendarDateRange/CalendarBlackoutDates-
+    // Collection are PURE data (no factory element — their DAG rows flip at
+    // S559 as consumed). 6 registered below.
+    registry.register_element("DatePicker",        [] { return std::make_unique<DatePicker>(); });        // 75
+    registry.register_element("DatePickerTextBox", [] { return std::make_unique<DatePickerTextBox>(); }); // 76
+    registry.register_element("Calendar",          [] { return std::make_unique<Calendar>(); });          // 77
+    registry.register_element("CalendarDayButton", [] { return std::make_unique<CalendarDayButton>(); }); // 78
+    registry.register_element("CalendarButton",    [] { return std::make_unique<CalendarButton>(); });    // 79
+    registry.register_element("CalendarItem",      [] { return std::make_unique<CalendarItem>(); });      // 80
+    // --- S554 (Sprint 11m) — DRAWING/MEDIA/EMBEDDED TAIL (dep:S553):
+    // InkCanvas/InkPresenter are DONE-classified (stylus/mouse stroke collection
+    // as authored strokes, the Strokes DP); MediaElement (Source/Volume/Muted +
+    // the Media* events). WebBrowser/ViewPort3D are re-affirmed OUT-OF-SCOPE(11m)
+    // (the S520 import/inject seam) — reclassified in the DAG at S559. 3 below.
+    registry.register_element("InkCanvas",     [] { return std::make_unique<InkCanvas>(); });     // 81
+    registry.register_element("InkPresenter",  [] { return std::make_unique<InkPresenter>(); });  // 82
+    registry.register_element("MediaElement",  [] { return std::make_unique<MediaElement>(); });  // 83
+    // --- S555 (Sprint 11m) — DOCUMENT/FRAME CONTROLS (dep:S554): Page, Frame
+    // (ContentControl source/navigation surface, closing the 11j-6 StartupUri
+    // navigation NO-GAP), DocumentViewer + FlowDocumentReader/
+    // FlowDocumentScrollViewer (+ SinglePageViewer). DocumentViewerBase is kept
+    // abstract (unregistered — the 11k-4 precedent). 6 below.
+    registry.register_element("Page",                  [] { return std::make_unique<Page>(); });                  // 84
+    registry.register_element("Frame",                 [] { return std::make_unique<Frame>(); });                 // 85
+    registry.register_element("DocumentViewer",        [] { return std::make_unique<DocumentViewer>(); });        // 86
+    registry.register_element("FlowDocumentReader",    [] { return std::make_unique<FlowDocumentReader>(); });    // 87
+    registry.register_element("FlowDocumentScrollViewer", [] { return std::make_unique<FlowDocumentScrollViewer>(); }); // 88
+    registry.register_element("SinglePageViewer",      [] { return std::make_unique<SinglePageViewer>(); });      // 89
 
     // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
     // visual controls; they are the authored RESOURCE types the resource-

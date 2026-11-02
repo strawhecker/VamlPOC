@@ -1017,6 +1017,59 @@ add_executable(vaml-presentation-tests
     # events + the ToolBar/ToolBarTray strip layout + the Viewbox content-child
     # measure. Links vaml-presentation so the classifier arms are proven.
     11k2_addedControls_test.cpp
+    # S550 (Sprint 11m) — the derived-base + scaffolding surface (item-container/
+    # header/presenter/panel + collection-value types). Dictionary-registration +
+    # factory resolution + single-content hosting + DPs + the GridView column
+    # collection chrome + ItemsPanelTemplate freshness + the VirtualizingPanel
+    # lineage + end-to-end authored load. Links vaml-presentation (classifier
+    # arms). Links vaml-core (clone_element for ItemsPanelTemplate freshness).
+    TailScaffolding_s550_test.cpp
+    # S551 (Sprint 11m) — SHAPE + CHANNEL TAIL (DAG `PLANNED`, WPF-real names):
+    # Path (Data geometry authoring), Polygon/Polyline (Points/FillRule) + the
+    # Shape base consolidation; Track + TickBar (the slider/scrollbar chrome
+    # surface); Image's full DAG surface (DpiChanged/ImageFailed routed
+    # identities). Registration + Data/Points authoring + DPs + classifier arms +
+    # end-to-end authored load. Links vaml-presentation (classifier).
+    TailShape_s551_test.cpp
+    # S552 (Sprint 11m) — TREE VIEW CONTROLS (dep:S551): TreeView + TreeViewItem
+    # (ItemsControl/HeaderedItemsControl branch) — ItemsSource/child loading,
+    # IsExpanded/IsSelected + SelectedItem/SelectedValue/SelectedValuePath, the
+    # routed Expanded/Collapsed/Selected/Unselected/SelectedItemChanged. Links
+    # vaml-presentation (classifier).
+    TreeView_s552_test.cpp
+    # S553 (Sprint 11m) — DATE & CALENDAR CONTROLS (dep:S552): DatePicker (+
+    # DatePickerTextBox) + Calendar + the Calendar family (CalendarDayButton/
+    # CalendarButton/CalendarItem) + the pure date-range data types
+    # (CalendarDateRange/CalendarBlackoutDatesCollection) + the routed
+    # SelectedDatesChanged/SelectedDateChanged. Links vaml-presentation.
+    DateCalendar_s553_test.cpp
+    # S554 (Sprint 11m) — DRAWING/MEDIA/EMBEDDED TAIL (dep:S553): InkCanvas/
+    # InkPresenter (DONE-classified strokes surface + Strokes DP), MediaElement
+    # (Source/Volume/Muted + Media* events). WebBrowser/ViewPort3D re-affirmed
+    # OUT-OF-SCOPE(11m) (the S520 seam, reclassified at S559). Links
+    # vaml-presentation.
+    TailMedia_s554_test.cpp
+    # S555 (Sprint 11m) — DOCUMENT/FRAME CONTROLS (dep:S554): Page, Frame
+    # (ContentControl source/navigation, closing the 11j-6 StartupUri navigation
+    # NO-GAP), DocumentViewer/DocumentViewerBase + FlowDocumentReader/
+    # FlowDocumentScrollViewer (+ SinglePageViewer). Links vaml-presentation.
+    TailDocument_s555_test.cpp
+    # S556 (Sprint 11m) — SERVICE/MECHANISM + U+ support types (the DAG
+    # `PLANNED` data-mechanism rows): the remaining five framework IValueConverter
+    # concretes + the service/collection/validation/item-container contract types.
+    # Links vaml-core only (no classifier). ZERO MINIMAL REAL.
+    TailMechanism_s556_test.cpp
+    # S557 (Sprint 11m) — PURE VALUE/ENUM/ARG-ONLY DATA TYPES (System-level,
+    # DAG `PLANNED`): filed CONSUMED-BY-THE-CLOSED-SURFACES (no standalone
+    # behavior token) — each enum/event-arg/data type accounted, none omitted.
+    # Header value types (no vaml-core .cpp needed). Links vaml-core.
+    TailValueTypes_s557_test.cpp
+    # S558 (Sprint 11m) — VIEWER-GROWTH(11m): a corpus-tail-shaped sample
+    # (sample.tail.xaml) authors the DAG tail set (TreeView/DatePicker/Calendar/
+    # DataGrid/Polyline/Menu + the item/header scaffolding) and the LIVE viewer
+    # loads + renders it (the generic renderer via classify_element). ADR-021
+    # consumer (viewer_growth_11m.h). Links vaml-presentation.
+    ViewerGrowth11m_test.cpp
     # 11k-3 — AUTHORABLE VALUE-TYPE RESOURCE ELEMENTS. The existing value parsers
     # (S089 parse_color/parse_thickness, S440 Double converter, 11j-3
     # parse_grid_length) promoted to authorable ELEMENT types inside a

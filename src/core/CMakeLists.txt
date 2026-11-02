@@ -45,6 +45,8 @@ vaml_add_library(core
     src/ControlTemplate.cpp       # S364/S365 — ControlTemplate + visual states + TemplateBinding
     src/DataTemplate.cpp          # S500 (11f) — DataTemplate + clone_element + load_content
     src/ContentPresenter.cpp      # S500 (11f) — the minimal per-item ContentPresenter host
+    src/Scaffolding.cpp           # S550 (11m) — the derived-base + scaffolding surface
+    src/TailMechanism.cpp         # S556 (11m) — the service/mechanism + U+ support types (converters + validation + item-container contracts)
     src/PropertyPath.cpp
     src/BindingDiagnostics.cpp
     src/ObservableObject.cpp

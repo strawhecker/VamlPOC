@@ -110,4 +110,76 @@ const RoutedEvent& TextChangedEvent() noexcept
     return RoutedEvent::registered("TextChanged", RouteEventDirection::Bubble);
 }
 
+VAML_CORE_EXPORT
+const RoutedEvent& DpiChangedEvent() noexcept
+{
+    return RoutedEvent::registered("DpiChanged", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& ImageFailedEvent() noexcept
+{
+    return RoutedEvent::registered("ImageFailed", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& ExpandedEvent() noexcept
+{
+    return RoutedEvent::registered("Expanded", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& CollapsedEvent() noexcept
+{
+    return RoutedEvent::registered("Collapsed", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& SelectedEvent() noexcept
+{
+    return RoutedEvent::registered("Selected", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& UnselectedEvent() noexcept
+{
+    return RoutedEvent::registered("Unselected", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& SelectedItemChangedEvent() noexcept
+{
+    return RoutedEvent::registered("SelectedItemChanged", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& SelectedDatesChangedEvent() noexcept
+{
+    return RoutedEvent::registered("SelectedDatesChanged", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& SelectedDateChangedEvent() noexcept
+{
+    return RoutedEvent::registered("SelectedDateChanged", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& MediaOpenedEvent() noexcept
+{
+    return RoutedEvent::registered("MediaOpened", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& MediaEndedEvent() noexcept
+{
+    return RoutedEvent::registered("MediaEnded", RouteEventDirection::Bubble);
+}
+
+VAML_CORE_EXPORT
+const RoutedEvent& MediaFailedEvent() noexcept
+{
+    return RoutedEvent::registered("MediaFailed", RouteEventDirection::Bubble);
+}
+
 } // namespace vaml
