@@ -16,10 +16,17 @@ namespace vaml {
 // `contentScratch` is the owned accumulation buffer for the element's text —
 // interned into `el.content` (string_view) at finalization (ElementClose or a
 // self-closing open), because a single content string_view cannot accumulate.
+// 11k-11: `pendingText` is the not-yet-flushed text since the last child /
+// finalization, and `childRunsLive` is the running child count of `el.children`
+// (so a child's contentRuns index matches its `children` slot at append time).
+// The ordered Text|Child stream is flushed into `el.contentRuns` at
+// finalization (and at every child append), giving the lossless document-order
+// interleaving the generic content→DP routing needs (resolves the S085 note).
 struct ParseFrame
 {
     ParsedElement el;
     std::string contentScratch;
+    std::string pendingText;              // 11k-11: text since last child/close
 };
 
 namespace {
@@ -121,6 +128,9 @@ void applyElementIdentity(ParsedElement& el, const XmlToken& tok)
 // stack is empty) or as a child of the current open element. Returns the open
 // stack (may be unchanged or reduced by a self-closing child, which the caller
 // handles separately). Sets haveRoot / throws on a second root.
+// 11k-11: when attaching into a parent frame, flushes the parent's PENDING text
+// as a Text run + records a Child run at the appended child's index — the
+// document-order interleaving the generic content→DP routing reads.
 void attach(ParsedElement&& child,
             std::vector<struct ParseFrame>& open,
             ParsedElement& root,
@@ -140,7 +150,20 @@ void attach(ParsedElement&& child,
     }
     else
     {
-        open.back().el.children.push_back(std::move(child));
+        ParseFrame& parentFrame = open.back();
+        // Flush any pending text (since the last child / the open) as a Text run
+        // BEFORE this child — document order.
+        if (!parentFrame.pendingText.empty())
+        {
+            parentFrame.el.contentRuns.push_back(
+                ParsedElement::ContentRun{true, std::move(parentFrame.pendingText), 0});
+            parentFrame.pendingText.clear();
+        }
+        // The child run's index is its slot in `children` AT append.
+        const std::size_t childIndex = parentFrame.el.children.size();
+        parentFrame.el.children.push_back(std::move(child));
+        parentFrame.el.contentRuns.push_back(
+            ParsedElement::ContentRun{false, std::string(), childIndex});
     }
 }
 
@@ -194,6 +217,7 @@ ParsedElement parse_vaml(std::string_view source)
                 {
                     // Self-closing: no content, no children, closes immediately.
                     fr.el.content = intern(fr.contentScratch);
+                    // A self-closing element has no runs (no text, no child).
                     attach(std::move(fr.el), open, root, haveRoot, tok.line, tok.col);
                 }
                 else
@@ -217,18 +241,29 @@ ParsedElement parse_vaml(std::string_view source)
                 ParseFrame closed = std::move(open.back());
                 open.pop_back();
                 closed.el.content = intern(closed.contentScratch);
+                // 11k-11: flush any trailing text (the element's own final text
+                // since its last child) as a Text run — document order.
+                if (!closed.pendingText.empty())
+                {
+                    closed.el.contentRuns.push_back(
+                        ParsedElement::ContentRun{true, std::move(closed.pendingText), 0});
+                    closed.pendingText.clear();
+                }
                 attach(std::move(closed.el), open, root, haveRoot, tok.line, tok.col);
                 break;
             }
 
             case XmlTokenType::Text:
                 // Text between an element's tokens accumulates into the open
-                // element's content SCRATCH, kept AS AUTHORED (whitespace
-                // included). Leading/trailing text at top level (open empty) is
-                // dropped — it is not element content.
+                // element's content SCRATCH (the concatenated-text consumer
+                // path) AND its pendingText run (the document-order stream),
+                // kept AS AUTHORED (whitespace included). Leading/trailing text
+                // at top level (open empty) is dropped — it is not element
+                // content.
                 if (!open.empty())
                 {
                     open.back().contentScratch += tok.value;
+                    open.back().pendingText += tok.value;
                 }
                 break;
 

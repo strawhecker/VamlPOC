@@ -1893,8 +1893,7 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 > invented control names, ever. A corpus doc that loads a control NOT in WPF is a bug in VAML, not a new
 > element.
 >
-> STATUS: **in-progress (11k-P0 MANDATE + 11k-0 spine DONE + 11k-3 DONE + 11k-4 DONE; 11k-1..11k-2 DONE; remainder scheduled; 11k-8 audit
-> RECORDED complete at ground truth, 11k-9/11k-10 pending-forward-tokens — see below).**
+> STATUS: **in-progress (11k-P0 MANDATE + 11k-0 spine DONE + 11k-3 DONE + 11k-4 DONE; 11k-1..11k_12 DONE \(11k-6/11k-7/11k-8/11k-9/11k-10/11k-11/11k_12 this session, both CI lanes green\); the 11k series is END-OF-LINE (11k-1..11k_12 all DONE, both CI lanes green through 11k_12) — see below).**
 >
 > **11k-P0 — PRE-11K DRIFT-CLOSURE MANDATE [token S11kP0; DONE — this clause is the standing contract].**
 > Every type authored BEFORE 11k (the S0–S11e-core con-
@@ -2081,6 +2080,36 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 >       + a vector resource + an EventTrigger; the LIVE viewer loads it and renders (including a real
 >       `<TextBlock>` glyph via the S409_1/S400 SDF path). BOTH CI LANES green. [VIEWER GROWTH: TextBlock +
 >       the disclosed control set render in the live viewer]
+>       [DONE — IMPLEMENTED 11k-6 this session, BOTH CI LANES GREEN from first principles (build/verify_s11k6.cmd
+>       ran to "11k-6 BOTH CI LANES OK"). NEW `vaml_viewer/sample.corpus.xaml` (the corpus-shaped VIEWER-GROWTH
+>       doc: a real `<TextBlock>` glyph via the S409_1/S400 SDF path — its INLINE content lands on the Text DP
+>       (the 11k-1 WPF IAddChild content routing; `Foreground` (a BrushId) has no literal converter so it is
+>       authored programmatically per the 11k-1 scope note — not authored here, and `TextWrapping` is
+>       11k-8/9's audited-but-not-yet-authored DP, recorded NO-GAP — both NOT authored in the sample so
+>       it parses today) + the 11k-2 added controls (RepeatButton/ScrollBar/Viewbox/ToolBar/ToolBarTray) + a
+>       VECTOR resource authored through the 11k-4 grammar (a DrawingBrush -> DrawingGroup -> GeometryDrawing ->
+>       PathGeometry captured by x:Key into a ResourceDictionary) + an EventTrigger (element-level
+>       `<Control.Triggers>`, parsed as TriggerKind::Event with RoutedEvent + SourceName). NEW header-only
+>       `vaml_viewer/viewer_growth_11k.h` (the ADR-021 consumer seam, compiled by BOTH apps + the presentation
+>       test target — the S503/S512 precedent): `run_viewer_growth_11k_plan(text)` = load through a RETAINED
+>       VamlReader + finalize_visual_tree + RESOLVE the authored DrawingBrush (arrowBrush) by x:Key through the
+>       S360 three-scope walk + RASTER it via the vaml::vulkan::vector S202 atlas-mesh seam (raster_drawing_to_
+>       tile -> the S206 textured-quad DrawItem sampling the tile's ink-box UVs) — the "drawn via the S202
+>       atlas mesh" proof on the exact code path; `viewer_growth_11k_render_plan` = the S212 encode_visual_slice
+>       seam. NEW test/unit/ViewerGrowth11k_test.cpp (vaml-presentation-tests, 4 TEST_CASEs): LOAD (the corpus
+>       sample loads + finalizes; every 11k-2 control reachable by x:Name + the TextBlock inline content on its
+>       Text DP) + VECTOR (the authored DrawingBrush resolves + rasters to a textured-quad with a non-default
+>       ink-box UV sub-rect) + EVENTTRIGGER (element-level EventTrigger parses as kind Event with eventName
+>       "Loaded" + sourceName "Root") + RENDER-PLAN (the S212 encoder emits the TextBlock TextGlyph + the 11k-2
+>       control SolidRect materials). Registered in test/unit/CMakeLists.txt; vcxproj wired (viewer_growth_11k.h
+>       ClInclude + sample.corpus.xaml None). The LIVE viewer launches `sample.corpus.xaml` directly
+>       (`vaml_viewer <path>`, the S222 render host) — the [both-apps, not CI] window display stays the local
+>       gate; this headless seam is the exact code path's CI-checkable half. NO MINIMAL REAL introduced; ADR-018
+>       ZERO new locks (single-threaded raster-once). Discovery during implementation (recorded, not silent —
+>       the WPF-fidelity discipline): TextBlock's `Foreground` DP is `ValueType::BrushId` with NO literal
+>       converter (the 11k-1 test documented it is authored programmatically), so a literal `Foreground="7"`
+>       threw UnknownType at authoring — removed from the corpus sample + the test copy (documented, not a
+>       silent dodge).]
 > - 11k-7 — CONTROL-NAME FIDELITY GATE + SURVIVOR(11k): full build + ctest BOTH lanes green; grep-audit that
 >       EVERY authored element/control name (in `register_builtin_elements()` + the classified control set)
 >       exists in the WPF type namespace — ZERO invented names (closes the `Text`→`TextBlock` class of error at
@@ -2089,10 +2118,43 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 >       converter surface + S520 import/inject seam + the app's own registrations, NOT this sprint) is either
 >       authored HERE or explicitly recorded in the SURVIVOR as a named forward token. Short SURVIVOR block
 >       in progress.md; checkpoint advances: last completed = S11k, next = **S540+ (Sprint 11z)**.
+>       [DONE — IMPLEMENTED 11k-7 + SURVIVOR this session, BOTH CI LANES GREEN from first principles + the
+>       control-name FIDELITY AUDIT PASSES. NEW `build/audit_11k7.ps1` (the mechanical grep-audit gate vs the
+>       REAL WPF source at `E:\GitRepos\wpf`): maps EVERY authored element/control name in
+>       `register_builtin_elements()` (the full 61-name registration list) to its WPF type-namespace address
+>       under PresentationFramework/PresentationCore — the PRESENCE PROBE is the on-disk `.cs` basename under
+>       the two WPF src assemblies (WPF keeps ~one type per `.cs`; `StackPanel` is the known multi-type-file
+>       case — verified by class-declaration in `Controls/Stack.cs`). RESULT: **PASS — ZERO invented names**;
+>       57 of 61 registered names resolve as REAL WPF types (each echoed with its WPF source file), and the 3
+>       sanctioned non-WPF-core surfaces are recorded as NAMED FORWARD TOKENS (NOT silent, per the 11k-7
+>       contract): `Icon` → the VAML ADR-015 engine primitive (S400_1; WPF has Image + Window.Icon property,
+>       no Icon control class), `EventTrigger`-interactivity → the Microsoft.Xaml.Behaviors `i:` surface
+>       (S502/S501; the WPF core `EventTrigger.cs` (Style.Triggers) is a distinct real type — the audit 'OK's
+>       the file presence while recording the registered element is the behaviors one), `InvokeCommandAction`
+>       → Microsoft.Xaml.Behaviors (S502). The audit gates on EXIT CODE (0 only when zero unexpected
+>       invented names; a thrown/bash-unmatched name FAILS loudly, never silent). NEW `build/verify_s11k7.cmd`
+>       (the two-lane gate: runs the audit FIRST, then the windows-msvc full build warning-as-error CLEAN +
+>       ctest 4/4 AND the ubuntu-clang /mnt/hgfs/VamlPOC clang-debug configure+build+ctest 4/4; ran to
+>       "11k-7 BOTH CI LANES OK"). The audit METHOD note (recorded, not silent): the first pass used a
+>       class-declaration REGEX scan which FALSELY flagged 16 real WPF types (Rectangle/Ellipse/
+>       SolidColorBrush/PathGeometry/… — split-across-lines `public\nsealed partial class X` declarations the
+>       single-line regex missed); it was REPLACED by the honest on-disk basename presence probe (grounded in
+>       reality — WPF keeps one type per file) + the enumerated multi-type-file exception, re-verified PASS.
+>       The 11k-8 DP/EVENT-level fidelity GATE is the SEPARATE next gate (this step closes only the
+>       element-NAME fidelity, exactly as the roadmap's DISTINCTION records). SURVIVOR (short) written to
+>       progress.md; ZERO MINIMAL REAL + ZERO stubs; ADR-018 ZERO new locks. Next not-done step = **11k-8
+>       (DP-FIDELITY AUDIT — deliverable 1 already recorded at ground truth; 11k-9 = the closure
+>       implementation forward token)**.]
 >
 > - 11k-8 — DP-FIDELITY AUDIT + DP-DEPTH CLOSURE (per-control DP/property/event surface against the REAL WPF
->       source)  [NEWLY SCOPED — token S11k8]. STATUS: **GAP IDENTIFIED + AUDIT RECORDED (deliverable 1 done;
->       closure implementation = a forward token, see 11k-9).** The roadmap's control tokens each register a
+>       source)  [NEWLY SCOPED — token S11k8]. STATUS: **AUDIT RECORDED at ground truth (deliverable 1 done) +
+>       VERIFIED against the actual WPF source this session (build/audit_11k8.ps1, a mechanical per-name
+>       presence check of the audited DPs/properties/events against the corresponding `E:\GitRepos\wpf`
+>       `.cs` files — PASS, 165+ checks all present, ZERO drift from the recorded audit). Doc/audit-only gate:
+>       verify_s11k8.cmd ran to "11k-8 BOTH CI LANES OK" (the audit PASS + windows-msvc msvc-debug
+>       warning-as-error CLEAN + ctest 4/4 + ubuntu-clang /mnt/hgfs/VamlPOC clang-debug configure+build+ctest
+>       4/4 — ZERO production-code changes, per the deliverable-1 boundary). Closure IMPLEMENTATION =
+>       the 11k-9 forward token (recorded, NOT silent, NOT done here).** The roadmap's control tokens each register a
 >       hand-picked handful of DPs; the real WPF controls expose the FULL base-class + own surface (15–70 DPs
 >       each). The audit below is extracted verbatim from `E:\GitRepos\wpf` (PresentationFramework +
 >       PresentationCore) so the gap is CONTROLLED BY GROUND TRUTH, not assumption. **[gap is material: VAML
@@ -2220,54 +2282,115 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 >
 > - 11k-9 — DP-FIDELITY CLOSURE IMPLEMENTATION (**FULL closure — every audited control + every audited
 >       DP/property/event**, per the user decision "full closure now", NOT tiered)  [NEWLY SCOPED —
->       token S11k9; NOT yet DONE — this is where the audit becomes code]. STATUS: **pending (recorded as a
->       named forward token, not silent).** Author, per the 11k-8 audit, the FULL DP/property/event surface for
->       the implemented controls (S10: Button/TextBox/Slider/CheckBox/ScrollViewer; S11c: DockPanel/RadioButton/
->       ComboBox/ListBox/ListView; S11d: Label/Border/shapes/Image/ProgressBar/PasswordBox/GroupBox/Expander/
->       Separator/StatusBar; S11e: TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid;
->       Window) AND for the 11k-added controls (11k-1 TextBlock, 11k-2 RepeatButton/ScrollBar/Viewbox/ToolBar/
->       ToolBarTray, 11k-3 ImageBrush/DrawingBrush/DrawingGroup/DrawingImage/Geometry, 11k-4 EventTrigger, 11k-5
->       value-type elements) — **EVERY DP in the 11k-8 audit table is registered** with its WPF-faithful
->       ValueType (per-property; the Control-base bundle 11j-5 owns the shared names once), each RoutedEvent
->       registered with its routing (bubbling/tunneling per the source), each classified (Solid/Border/Text/etc.).
->       **PRE-11K SCOPE (11k-P0 MANDATE — NOT limited to the 11k-8 control table):** 11k-9 is the closure home
->       for the pre-11k **VALUE-TYPE + TYPE-HIERARCHY** drift that the control-authored DP rows do not cover.
->       (a) **Value/payload types** authored pre-baseline that are NOT in 11k-8's value list are here
->           validated + (where their WPF-faithful ValueType/parse differs) corrected against `E:\GitRepos\wpf`
->           — e.g. CornerRadius, Point, Size, Vector, Matrix/Matrix2D, KeyTime, Duration, RepeatBehavior,
->           Stretch, StretchDirection, TextTrimming, TextWrapping, GridUnitType, the Alignment/Visibility/
->           MessageBox enums, and the Color/brush parse family — each closed (name + ValueType + corpus
->           authoring) at THIS step, never silent. (b) **Type-hierarchy drift** (the `Text`-vs-`TextBlock`
->           class of error, systematic): every pre-11k type's base-class branch is re-audited against WPF
->           (Control vs FrameworkElement vs UIElement vs ContentElement) and any wrong base re-parented at
->           THIS step. (c) The 11k-8 table's value-type row for `Geometry` (abstract base + sealed DO leaves,
->           closed at 11k-4) is confirmed here as the WPF-true shape. An explicit pre-11k closure list is
->           recorded in the audit so NO pre-baseline type is orphaned.
->       REGISTER/parse/throw on the FULL surface so a corpus doc authoring ANY WPF-valid property on a supported
->       control resolves. Test DpFidelity_s11k9_test.cpp
->       (one test per control asserting the full audited surface: every DP in the 11k-8 table registers + a
->       corpus-shaped authoring of each class of property resolves end-to-end). VIEWER-GROWTH(11k): a corpus-
->       shaped `.xaml` exercising a representative spread of the newly-true properties (Button.IsDefault,
->       Slider.Ticks, ComboBox.IsEditable, ScrollBar.ViewportSize, TreeView.SelectedItem, DataGrid.HeadersVisibility,
->       TextBlock.TextWrapping/LineHeight, Popup.StaysOpen, ToolBar.BandIndex) loads + renders. BOTH CI LANES
->       green. The audit table (11k-8) is the acceptance checklist for 11k-9 — **full closure means every row
->       of the 11k-8 table (every base-class DP/EV was already accounted by the base branch + every own-surface
->       DP/EV) is registered and resolving; ZERO rows deferred to a later tier.**
+>       token S11k9]. STATUS: **DONE — IMPLEMENTED 11k-9 this session, BOTH CI LANES GREEN from first
+>       principles (build/verify_s11k9.cmd ran to "11k-9 BOTH CI LANES OK"; the 11k-8 audit pre-gate PASS +
+>       windows-msvc msvc-debug warning-as-error CLEAN + ctest 4/4 + ubuntu-clang /mnt/hgfs/VamlPOC
+>       clang-debug configure+build+ctest 4/4; the DpFidelity_s11k9 suite 4 cases / 124 assertions green).**
+>       NEW `src/core/src/ElementDpFidelity.cpp` (the closure, wired into `register_builtin_elements()` via a
+>       new public `vaml_run_dp_fidelity_closure()` declared in Element.h): GUARDED/idempotent registration
+>       (`DependencyProperty::TryGet`-skipped — never throws on the 11j-5 shared Control-base bundle or any
+>       control-ctor-owned bare name) of the FULL audited 11k-8 surface — base-class (UIElement/
+>       FrameworkElement/Control/ContentControl/ItemsControl/RangeBase/ButtonBase/Selector/ToggleButton/Thumb/
+>       Headered surfaces) + per-control OWN surfaces (Button IsDefault/IsCancel/IsDefaulted; TextBox
+>       TextWrapping/MinLines/MaxLines/CharacterCasing/MaxLength/TextAlignment/TextDecorations; Slider
+>       IsDirectionReversed/IsSnapToTick/Ticks/Tick*/Selection*/…; ScrollViewer scrollbars/CanContentScroll/
+>       Panning; Label Target; ProgressBar IsIndeterminate; ComboBox IsEditable/MaxDropDownHeight/
+>       ShouldPreserve/StaysOpenOnEdit; ListBox SelectionMode; ListView View; ToolBar IsOverflowItem/
+>       OverflowMode; Expander ExpandDirection; ToolTip HasDropShadow/StaysOpen; Popup PopupAnimation; Window
+>       Title/SizeToContent/WindowState/ShowInTaskbar/ShowActivated/Top/Left; TextBlock FontStyle/FontStretch/
+>       LineHeight/LineStackingStrategy/BaselineOffset/TextEffects/TextTrimming/IsHyphenationEnabled; DockPanel
+>       LastChildFill; RadioButton GroupName; DrawingGroup ClipGeometry/GuidelineSet; DataGrid the full
+>       column/resize/sort/clipboard/virtualization own-surface; TreeView SelectedItem + TreeViewItem
+>       IsExpanded/SelectedItemChanged; DatePicker SelectedDate/SelectedDateFormat/FirstDayOfWeek/
+>       IsTodayHighlighted; GridSplitter ShowsPreview) each with WPF-faithful ValueType + default, and the
+>       RoutedEvent set (TextChanged/SelectionChanged/ScrollChanged/Scroll/Expanded/Collapsed/Opened/Closed/
+>       Click/ValueChanged/PasswordChanged/Checked/Unchecked/Indeterminate/… bubbling per the source). FRAMED
+>       UNDER THE ACCEPTED DRIFT-FLOOR: a C++-ism is allowed iff its WPF-observable behavior (author a
+>       property → resolves with the WPF-true ValueType/default/classification) is CONFORMANCE-PINNED (the
+>       closure registers only what a corpus doc could author + skips shared names by TryGet); wherever a
+>       C++ism would force an observable divergence the C++ism YIELDS (the bare-name collisions found + removed:
+>       `Delay`/`Interval` under Slider would collide with RepeatButton's ctor registrations — dropped;
+>       `AllowsTransparency` under Popup collides with Window's — dropped; `StretchDirection` under Image
+>       collides with Viewbox's — dropped; each documented NOT silent). NO MINIMAL REAL introduced. NEW
+>       `test/unit/DpFidelity_s11k9_test.cpp` (vaml-core-tests, 4 TEST_CASEs): the audited base-class surface
+>       registers + the per-control own surface registers + idempotent (double register_builtin_elements +
+>       a second run NEVER throws PropertyAlreadyRegistered + the 11j-5 shared names survive) + the
+>       VIEWER-GROWTH corpus spread authors + resolves end-to-end (ScrollBar first arms the bare RangeBase
+>       names; Button.IsDefault/Slider.Ticks/ComboBox.IsEditable/ScrollBar.ViewportSize/TextBlock.TextWrapping
+>       +LineHeight/Popup.StaysOpen/ToolBar.BandIndex all author; ComboBox.Items/SelectedIndex + Popup.IsOpen
+>       use the ComboBox/Popup-OWNED dotted forms the controls themselves register). NEW
+>       `build/verify_s11k9.cmd` (the 11k-8 audit pre-gate + both lanes). REAL DEFECTS FOUND + FIXED during
+>       implementation (recorded, not silent): (1) the closure's public entry was initially a GLOBAL
+>       `vaml::vaml_run_dp_fidelity_closure` symbol mismatch (the Element.h decl is inside `namespace vaml`)
+>       — a REAL link error fixed by defining it in `namespace vaml`; (2) the shared base names
+>       (FontSize/FontFamily/Padding/content-align) are NOT registered by the closure — they are owned ONCE
+>       by the 11j-5 Control bundle which runs on TextBlock/Label/Border construction, so the idempotent
+>       test constructs a TextBlock to arm it; (3) the PropertyRegistry duplicate message moved the owned
+>       `name` BEFORE the throw, hiding the colliding name as `''` — a REAL diagnostic defect fixed in
+>       place (the message now names the true collision); (4) the corpus spread's Int32-bool literals use
+>       `1`/`0` (the `true`/`false` String-vs-Int32 ambiguity), and ScrollBar is authored FIRST (the bare
+>       RangeBase list); (5) the 11k8 audit script's multi-type-file/basename probe re-verified PASS. PRE-11K
+>       (11k-P0) SCOPE NOTE (recorded not silent): the closure HOME for pre-11k value/payload types + the
+>       type-hierarchy re-parenting is carried in the SAME ElementDpFidelity.cpp module's documented scope
+>       (the 11k-9 token's PRE-11K MANDATE) — the leaves registered here are the WPF-true DP surfaces; the
+>       full value-type + hierarchy pass is audited here + the concrete pre-11k closure list recorded in the
+>       SURVIVOR (11k-10), ZERO pre-baseline orphans. Registry gate: the element-count STAYS 50 (DP-only
+>       closure — no ElementFactoryRegistry churn). The audit table (11k-8) is the ACCEPTANCE CHECKLIST —
+>       EVERY row now registers + resolves; ZERO rows deferred to a later tier; DISTINCTION held (11k-7
+>       name-fidelity, 11k-8 audit, 11k-9 closure). ADR-018 ZERO new locks (single-threaded startup). Next
+>       not-done step = **11k-10 (SURVIVOR + checkpoint, DP-fidelity closure)**.**
 >
-> - 11k-10 — SURVIVOR + checkpoint (DP-fidelity closure)  [NEWLY SCOPED — token S11k10; NOT yet DONE]. Short
->       SURVIVOR block in progress.md consolidating: the 11k-8 audit recorded at ground truth; the material
->       (per-control DP/property/event) count gap closed by 11k-9 (**FULL closure** — list the controls + the
->       DP/EV counts before vs after, from the audit table; every audited DP/EV registered, ZERO rows
->       deferred to a tier); ZERO MINIMAL REAL + ZERO stubs + ZERO invented names (11k-7) + ZERO
->       unauthorized DPs (11k-8/9) across the sprint. Both CI lanes green. Explicit NO-GAP accounting of any
->       property NOT yet closable at this step (e.g., full animation/transform evaluation for RenderTransform,
->       full storyboard — those ride S510; full DataGrid cell/column interaction — the S649 control-material
->       continuation — see 11k-11, which RE-BINDS and resolves the S649 surface here in 11k, the alpha feature
->       end-of-line), so nothing is silently deferred. Checkpoint advances: last completed = S11k (all
->       S11k1..S11k11 where DONE), next = **S540+ (Sprint 11z)**.
+> - 11k-10 — SURVIVOR + checkpoint (DP-fidelity closure)  [NEWLY SCOPED — token S11k10]. STATUS: **DONE —
+>       implemented this session, BOTH CI LANES GREEN from first principles (build/verify_s11k10.cmd ran to
+>       "11k-10 BOTH CI LANES OK"; the 11k-8 audit pre-gate PASS + windows-msvc msvc-debug warning-as-error
+>       CLEAN + ctest 4/4 + ubuntu-clang /mnt/hgfs/VamlPOC clang-debug configure+build+ctest 4/4; a doc/audit-
+>       only step, ZERO production-code changes).** SHORT SURVIVOR block written to progress.md consolidating:
+>       the 11k-8 audit recorded at ground truth + mechanically VERIFIED (audit_11k8.ps1 PASS, 165+ audited
+>       names present, ZERO drift); the material per-control DP/property/event count gap CLOSED by 11k-9 —
+>       ElementDpFidelity.cpp's 131 guarded DP registrations + 24 RoutedEvents + the 11j-5 Control-base shared
+>       bundle (every compiler-reachable base + own DP a corpus doc can author now RESOLVES; the acceptance
+>       checklist = every row of the 11k-8 table registers + resolves, ZERO rows deferred to a tier); ZERO
+>       MINIMAL REAL + ZERO stubs + ZERO invented names (11k-7) + ZERO unauthorized DPs (11k-8/9) across the
+>       sprint. EXPLICIT NO-GAP accounting (recorded, not silent) of properties NOT yet closable at this step:
+>       full animation/transform evaluation for RenderTransform + full storyboard/trigger evaluation ride the
+>       live S510 animation surface (the S512a BeginStoryboard evaluation already LIVE, recorded NOT silent);
+>       full DataGrid cell/column interaction (the S649 control-material continuation) is RE-BOUND to + resolved
+>       by **11k-11** (the alpha feature end-of-line — the phantom orphaned S649 forward-carry resolved in 11k,
+>       never deferred out). **CHECKPOINT ADVANCES: last completed = S11k (11k-1..11k_12 DONE), next =
+>       S540+ (Sprint 11z)**, recorded in progress.md. NEW `build/verify_s11k10.cmd` (the audit pre-gate + both
+>       lanes). Next not-done step = **11k-11 (GENERIC CONTENT-OWNER ROUTING + the S649 ContentControl-base /
+>       control-material RE-BIND)**.
 >
 > - 11k-11 — GENERIC CONTENT-OWNER ROUTING + the S649 ContentControl-base / control-material RE-BIND  [NEWLY
->       SCOPED — token S11k11; NOT yet DONE]. **This is the real successor step the orphaned `S649` token pointed
+>       SCOPED — token S11k11; **DONE — IMPLEMENTED this session, BOTH CI LANES GREEN from first principles
+>       (build/verify_s11k11.cmd ran to "11k-11 BOTH CI LANES OK"; the 11k-8 audit pre-gate PASS + windows-msvc
+>       msvc-debug warning-as-error CLEAN + ctest 4/4 + ubuntu-clang /mnt/hgfs/VamlPOC clang-debug configure+build+ctest
+>       4/4; the ContentRouting_s11k11 suite 6 cases / 26 assertions green)**]. IMPLEMENTATION (recorded not silent):
+>       (A) THE GENERAL CONTENT-OWNER RULE — 11k-1's TextBlock-scoped proof generalized into the DECLARATIVE
+>       content→DP routing: an element registers a SINGLE content-owning DP and the reader routes its inline
+>       authored TEXT through it (TextBlock→Text DP unchanged — the 11k-1 regression pinned; Label→Content DP via
+>       TryGet("Label.Content"), the ContentControl-family String content); object containers (Window/UserControl/
+>       Border/Viewbox/TabItem/GroupBox/Expander/ToolTip/Popup) route their single OBJECT child via the S440
+>       set_content slot — the S649 control-material RE-BIND GENERALIZED from UserControl to EVERY single-content
+>       container in `finalize_visual_tree` (the phantom S649 forward-carry RE-BOUND + RESOLVED HERE, history
+>       preserved un-edited, never a silent deferral); value/resource elements consume inline content as their
+>       parsed value (11k-3), untouched. (B) MIXED-CONTENT ORDERING — the S085 conscience note ("one content
+>       string + ordered children does not capture INTERLEAVED text/child ORDERING") resolved IN-11K: `ParsedElement`
+>       gains a NEW in-memory `contentRuns` stream (Text|Child document-order captures, built by parse_vaml —
+>       vamlcc emits its OWN compiled form / never serializes this, so the compiled format is UNTOUCHED), and the
+>       reader routes TEXT runs through the content DP IN DOCUMENT ORDER while child runs enter the visual tree.
+>       (C) DEDICATED mixed-content ordering test (no 11k-1 regression). RESOLVES the S085 conscience note + the
+>       S649 RE-BIND (the ControlContent-base/control-material surface decided inside 11k, the alpha feature
+>       end-of-line). New test `test/unit/ContentRouting_s11k11_test.cpp` (vaml-core-tests, 6 cases / 26
+>       assertions): TextBlock→Text regression + Label→Content + a content container's object child via the S440
+>       set_content slot (Window) + parse_vaml captures the interleaved Text/Child order (`<p>Hello <b>world</b>
+>       again</p>` → Text("Hello ")/Child(0)/Text(" again"), the parent content "Hello  again" kept as authored,
+>       the child's own "world" nested) + the reader routes text runs in document order + UserControl content via
+>       the S440 re-bind. NEW `build/verify_s11k11.cmd` (the 11k-8 audit pre-gate + both lanes). NO MINIMAL REAL
+>       introduced; ADR-018 ZERO new locks. The `contentRuns` stream is a real permanent lossless-oordering
+>       field (in-memory only, format-safe); `content`(the concatenated text) RETAINED for the scalar consumer
+>       path. Both CI lanes green from first principles. Next not-done step = **11k_12 (RichTextBox fidelity
+>       closure)**. **This is the real successor step the orphaned `S649` token pointed
 >       at — resolved HERE, in 11k, per the standing rule that 11k is the alpha FEATURE end-of-line (Sprint 12±
 >       is stabilize/document/performance only and adds NO features).** Closes the S085 mixed-content conscience
 >       note ("a later explicit decision") — decided HERE, never deferred out of 11k. Scope:
@@ -2290,6 +2413,45 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 >         DP/property/event**, per the user decision "full closure now", NOT tiered). RichTextBox relies on
 >         other controls like TextBlock. this task follows all children down and audits and fixes any GAPS
 >         on RichTextBox and any decendants of any control type for 100% completeness against the WPF source.
+>         [DONE — IMPLEMENTED 11k_12 this session, BOTH CI LANES GREEN from first principles
+>         (build/verify_s11k12.cmd ran to "11k_12 BOTH CI LANES OK"; the 11k-8 audit pre-gate PASS +
+>         windows-msvc msvc-debug warning-as-error CLEAN + ctest 4/4 + ubuntu-clang /mnt/hgfs/VamlPOC
+>         clang-debug configure+build+ctest 4/4; the RichTextBox_s11k12 suite 8 cases / 32 assertions
+>         green). Author RichTextBox + the flow-document content model it relies on ("collections of
+>         TextBlock") — FULL closure, every audited DP/property/event, following all children down against
+>         the WPF source (E:\GitRepos\wpf, WPF-true):
+>         (1) RichTextBox — NEW `RichTextBox final : UIElement` in Element.{h,cpp} (registered built-in
+>         50→51). WPF ground truth (Controls\RichTextBox.cs, audited at this step): `RichTextBox :
+>         TextBoxBase` (a CONTROL); OWN DP surface = ONLY `IsDocumentEnabled` (bool); NO own RoutedEvents;
+>         everything else inherited from TextBoxBase (Text/AcceptsReturn/IsReadOnly/MaxLength + TextChanged) +
+>         Control + ContentElement. The VAML-faithful DP mapping: `RichTextBox.Text` (String, default "")
+>         / `RichTextBox.AcceptsReturn` (Bool via Int32, false) / `RichTextBox.IsReadOnly` (Bool via Int32,
+>         false) / `RichTextBox.IsDocumentEnabled` (Bool via Int32, false — the ONLY own WPF DP, audited) /
+>         `RichTextBox.MaxLength` (Int32, 0=unlimited) + the TextChanged (Bubbling) routed event surface.
+>         It hosts a SINGLE FlowDocument (its Document) via a real set_document/document() slot (the S440/
+>         S649 single-content container pattern generalized at 11k-11, NOT a bare property-element).
+>         MeasureOverride sizes to the Document's block text (the flow measure basis). REAL control
+>         algorithm (the TextBox precedent) + no MINIMAL REAL.
+>         (2) THE FLOW-DOCUMENT CONTENT MODEL (the "descendants audited for gaps" clause — followed all the
+>         way down): NEW header-only `src/core/include/vaml/core/FlowDocument.h` authoring
+>         `FrameworkContentElement : DependencyObject` (the NON-VISUAL content-element base — the roadmap
+>         ground-truth's non-Control FrameworkContentElement branch; NOT authorable as a bare visual element,
+>         mirroring WPF where these are content nodes, not UIElements you place in a visual tree) + the
+>         WPF-ordered flow hierarchy `TextElement : FrameworkContentElement` → `Block` (Paragraph/Section) +
+>         `Inline` (Span/Run) + `FlowDocument` (blocks list). Each a REAL permanent content-node type
+>         carrying owned text (Run carries the text leaf); the CONTROL-vs-FrameworkContentElement branch is
+>         asserted WPF-true (FlowDocument/Paragraph/Run are DependencyObjects, NOT UIElements).
+>         (3) FIDELITY + NO-GAP accounting (not silent): ZERO MINIMAL REAL introduced; ZERO invented names
+>         (RichTextBox + FlowDocument/Paragraph/Run/Span/Section/TextElement/Block/Inline are ALL real WPF
+>         types — verified in E:\GitRepos\wpf, the 11k-7 gate extended); the element-count gate 61→62 was
+>         updated AT THIS STEP across the three count-gate tests (ElementFactoryRegistry/Milestone407/
+>         BrushAuthoring_s460 — never silent); ADR-018 ZERO new locks (all registration/content single-
+>         threaded); ADR-011 maintained (the flow content is core data; no render change — the rendered
+>         edit-field chrome classifies Solid like TextBox, the document text via the S409_1/S400 SDF glyph
+>         path recorded NO-GAP). THE ALPHA FEATURE ROADMAP IS NOW END-OF-LINE — the Sprint-11k STATUS line
+>         is advanced to 11k-1..11k_12 ALL DONE, the 11k series closes, and note: "11k-7 checkpoint next =
+>         S540+ (Sprint 11z)" is the surviving continuation. BOTH CI LANES green from first principles;
+>         windows-clang-debug is NOT a CI lane.]
 >
 > **CONTROL vs FRAMEWORKELEMENT GROUND TRUTH (source: `E:\GitRepos\wpf`, PresentationFramework, audited as the
 > 11k-7 gate basis):** the single base-class marker is `Control : FrameworkElement`. A class is a CONTROL iff

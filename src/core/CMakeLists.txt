@@ -23,6 +23,7 @@ vaml_add_library(core
     src/ParsedElement.cpp
     src/ElementFactoryRegistry.cpp
     src/Element.cpp
+    src/ElementDpFidelity.cpp    # 11k-9 — the DP-FIDELITY CLOSURE (the 11k-8 audit table → code; guarded/idempotent)
     src/ElementResolver.cpp
     src/UIElement.cpp
     src/VamlReader.cpp

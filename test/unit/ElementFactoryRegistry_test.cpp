@@ -338,7 +338,7 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // menu controls TabControl/TabItem/Menu/MenuItem/ContextMenu/ToolTip/Popup/
     // GridSplitter/DataGrid (50 -> 59; count bumps are authored at the step,
     // never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(61u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -360,6 +360,6 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // ImageBrush the 42nd-50th + the Sprint 11e (11e) set TabControl/TabItem/
     // Menu/MenuItem/ContextMenu/ToolTip/Popup/GridSplitter/DataGrid the
     // 51st-59th (count bumps authored at the step, never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(61u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
     assertConcrete<Button>(g.create("Button"));
 }

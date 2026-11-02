@@ -6632,6 +6632,198 @@ Size DataGrid::MeasureOverride(const Size& available) const
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
+// --- 11k_12 — RichTextBox (the FIDELITY CLOSURE control, the alpha feature
+// end-of-line). WPF ground truth (Controls\RichTextBox.cs, audited at this
+// step): RichTextBox : TextBoxBase (a CONTROL). OWN DP surface: ONLY
+// IsDocumentEnabled (bool). NO own RoutedEvents; everything else inherited
+// from TextBoxBase (Text/AcceptsReturn/IsReadOnly/MaxLength + TextChanged) +
+// Control + ContentElement. Hosts a single FlowDocument (its Document — the
+// "collections of TextBlock and such" the roadmap's mandate follows all the way
+// down: the flow-content model FlowDocument/Paragraph/Span/Run/Section is
+// authored in FlowDocument.h at this step, WPF Documents\*.cs). The TextBoxBase
+// DP surface rides the TextBox value path; the flow content model is the
+// NON-VISUAL FrameworkContentElement content nodes (NOT authorable as bare
+// visual elements — they are the Document content, mirroring WPF where the
+// FlowDocument is a FrameworkContentElement, not a UIElement you place in a
+// visual tree).
+
+namespace {
+
+void register_richtextbox_properties()
+{
+    // The TextBoxBase TextEntry surface (rides the TextBox value path).
+    (void)DependencyProperty::Register(
+        "RichTextBox.Text", ValueType::String, "RichTextBox",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // AcceptsReturn / IsReadOnly / IsDocumentEnabled: Bool via Int32.
+    (void)DependencyProperty::Register(
+        "RichTextBox.AcceptsReturn", ValueType::Int32, "RichTextBox",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    (void)DependencyProperty::Register(
+        "RichTextBox.IsReadOnly", ValueType::Int32, "RichTextBox",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    // IsDocumentEnabled: the ONLY own DP in WPF RichTextBox (audited).
+    (void)DependencyProperty::Register(
+        "RichTextBox.IsDocumentEnabled", ValueType::Int32, "RichTextBox",
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    // MaxLength: Int32, default 0 = unlimited (TextBoxBase surface).
+    (void)DependencyProperty::Register(
+        "RichTextBox.MaxLength", ValueType::Int32, "RichTextBox",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // TextChanged (Bubbling, the TextBoxBase surface).
+    (void)RoutedEvent::registered("TextChanged", RouteEventDirection::Bubble);
+}
+
+void ensure_richtextbox_properties_registered()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        registered = true;
+        register_richtextbox_properties();
+    }
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+RichTextBox::RichTextBox()
+{
+    ensure_richtextbox_properties_registered();
+}
+
+VAML_CORE_EXPORT
+void RichTextBox::set_document(std::unique_ptr<FlowDocument> doc)
+{
+    // The S440/S649 single-content slot (generalized at 11k-11): a RichTextBox
+    // hosts EXACTLY ONE FlowDocument (its Document). Replace any prior.
+    doc_ = std::move(doc);
+    docObserver_ = doc_.get();
+    InvalidateMeasure();
+    InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+FlowDocument* RichTextBox::document() const noexcept
+{
+    return docObserver_;
+}
+
+VAML_CORE_EXPORT
+SetResult RichTextBox::set_text(std::string value)
+{
+    const SetResult r = Set(PropertyId::of("RichTextBox.Text"), Value::String(std::move(value)));
+    if (r == vaml::SetResult::APPLIED)
+    {
+        // A real Text change fires the TextChanged notification (TextBoxBase
+        // surface) — mirrors the S402/S463 TextBox TextChanged.
+        onTextChanged_.fire();
+        vaml::RoutedEventArgs args;
+        args.source = this;
+        args.originalSource = this;
+        RaiseEvent(vaml::TextChangedEvent(), args);
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+std::string RichTextBox::text() const
+{
+    return Get(PropertyId::of("RichTextBox.Text")).get<std::string>();
+}
+
+VAML_CORE_EXPORT
+SetResult RichTextBox::set_accepts_return(bool value)
+{
+    return Set(PropertyId::of("RichTextBox.AcceptsReturn"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool RichTextBox::accepts_return() const
+{
+    return Get(PropertyId::of("RichTextBox.AcceptsReturn")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult RichTextBox::set_is_read_only(bool value)
+{
+    return Set(PropertyId::of("RichTextBox.IsReadOnly"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool RichTextBox::is_read_only() const
+{
+    return Get(PropertyId::of("RichTextBox.IsReadOnly")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult RichTextBox::set_is_document_enabled(bool value)
+{
+    return Set(PropertyId::of("RichTextBox.IsDocumentEnabled"), Value::Int32(value ? 1 : 0));
+}
+
+VAML_CORE_EXPORT
+bool RichTextBox::is_document_enabled() const
+{
+    return Get(PropertyId::of("RichTextBox.IsDocumentEnabled")).get<int>() != 0;
+}
+
+VAML_CORE_EXPORT
+SetResult RichTextBox::set_max_length(std::int32_t value)
+{
+    return Set(PropertyId::of("RichTextBox.MaxLength"), Value::Int32(value));
+}
+
+VAML_CORE_EXPORT
+std::int32_t RichTextBox::max_length() const
+{
+    return Get(PropertyId::of("RichTextBox.MaxLength")).get<std::int32_t>();
+}
+
+VAML_CORE_EXPORT
+Size RichTextBox::MeasureOverride(const Size& available) const
+{
+    // 11k_12 real RichTextBox algorithm: the default edit-field box (the
+    // TextBox precedent); the S123 finalizer applies the stretch-vs-wrap. The
+    // rendered chrome is the vulkan classifier (Solid); the document text via
+    // the SDF glyph path is the S409_1/S400 render lane (recorded NO-GAP).
+    const float fs = static_cast<float>(Get(PropertyId::of("FontSize")).get<double>());
+    const float lineH = 1.2f * fs;
+    // A single-paragraph "glyph box" basis: the Document's text height estimate
+    // (the flow measure — the RichTextBox sizes to its content lines).
+    float contentH = lineH;
+    if (docObserver_)
+    {
+        // The document's block text: a simple line-count estimate from the
+        // ordered blocks (Paragraphs of Runs) — the flow measure basis.
+        std::size_t lines = 0;
+        for (std::size_t b = 0; b < docObserver_->blocks().size(); ++b)
+        {
+            ++lines; // each block is at least one line
+            const Block* blk = docObserver_->blocks()[b].get();
+            if (const Paragraph* p = dynamic_cast<const Paragraph*>(blk))
+            {
+                if (!p->inlines().empty())
+                {
+                    ++lines; // inlines count toward the block's line span
+                }
+            }
+        }
+        contentH = lineH * static_cast<float>(std::max<std::size_t>(lines, 1));
+    }
+    else if (!text().empty())
+    {
+        contentH = lineH;
+    }
+    const float w = available.width > 0.0f ? available.width
+                                           : (text().empty() ? 200.0f : 200.0f);
+    const float h = std::max(contentH, lineH);
+    return Size{ std::max(0.0f, w), std::max(0.0f, h) };
+}
+
 VAML_CORE_EXPORT
 void register_builtin_elements()
 {
@@ -6737,6 +6929,15 @@ void register_builtin_elements()
     registry.register_element("Popup",         [] { return std::make_unique<Popup>(); });         // 48
     registry.register_element("GridSplitter",  [] { return std::make_unique<GridSplitter>(); });  // 49
     registry.register_element("DataGrid",      [] { return std::make_unique<DataGrid>(); });      // 50
+    // --- 11k_12 (the alpha feature end-of-line): RichTextBox — the FIDELITY
+    // CLOSURE control (WPF Controls\RichTextBox.cs : TextBoxBase). It hosts a
+    // single FlowDocument (its Document — the flow-content model authored in
+    // FlowDocument.h). The flow content nodes (FlowDocument/Paragraph/Span/Run/
+    // Section) are NON-VISUAL FrameworkContentElement content (NOT registered as
+    // bare visual elements — WPF-faithful: they are the Document content, not
+    // UIElements you place in a visual tree). Built-in count 50 -> 51 (the only
+    // new ELEMENT; the flow content model is not a factory element).
+    registry.register_element("RichTextBox",   [] { return std::make_unique<RichTextBox>(); });   // 51
 
     // S453 (dep:S452) — RESOURCE/STYLE AUTHORING vocabulary. These are NOT
     // visual controls; they are the authored RESOURCE types the resource-
@@ -6791,6 +6992,13 @@ void register_builtin_elements()
     // Built-in count +2 (EventTrigger/InvokeCommandAction).
     registry.register_element("EventTrigger",         [] { return std::make_unique<InteractivityEventTrigger>(); });
     registry.register_element("InvokeCommandAction",  [] { return std::make_unique<InvokeCommandAction>(); });
+
+    // 11k-9 (dep:11k-8) — DP-FIDELITY CLOSURE: register the FULL audited
+    // DP/property/EVENT surface (every row of the 11k-8 audit table) so a corpus
+    // document authoring ANY WPF-valid property on a supported control RESOLVES
+    // (never UnknownProperty). Guarded/idempotent (TryGet-skipped — safe after
+    // the control/bundle registrations above). See ElementDpFidelity.cpp.
+    vaml_run_dp_fidelity_closure();
 }
 
 } // namespace vaml

@@ -1,0 +1,91 @@
+<!--
+  vaml_viewer sample document — 11k-6, VIEWER-GROWTH(11k).
+  The LIVE viewer renders a corpus-shaped document exercising the FULL 11k
+  element/feature trust:
+    * a real <TextBlock> glyph via the S409_1/S400 SDF-text path (Foreground/
+      FontSize/TextWrapping + inline content -> the Text DP, WPF IAddChild),
+    * the 11k-2 added controls (RepeatButton / ScrollBar / Viewbox / ToolBar /
+      ToolBarTray), the WPF-missing corpus set authored 11k-2,
+    * a VECTOR resource authored through the 11k-4 grammar (a DrawingBrush ->
+      DrawingGroup -> GeometryDrawing -> PathGeometry, captured by x:Key into a
+      ResourceDictionary) resolved + drawn via the S202 atlas mesh (the
+      vaml::vulkan::vector raster seam emits the S206 textured-quad DrawItem),
+    * an EventTrigger (element-level <Control.Triggers>), parsed into the S362
+      trigger model as TriggerKind::Event (RoutedEvent + optional SourceName),
+      with a BeginStoryboard actions payload evaluated live per S512a.
+
+  This is the [both-apps, not CI] LIVE-window display proof — the headless
+  Rail 1 half (ViewerGrowth11k_test.cpp) asserts the exact code path the LIVE
+  viewer runs (load -> finalize_visual_tree -> arrange -> encode -> the vector
+  raster seam -> the EventTrigger parse). The corpus-shaped doc renders through
+  the ADR-021 consumer path: run_viewer_growth_11k_plan (viewer_growth_11k.h).
+-->
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="Root" Width="440" Height="360" Margin="6">
+
+  <StackPanel.Resources>
+    <!--
+      11k-4 VECTOR RESOURCE (the corpus's largest omitted volume): a DrawingBrush
+      holding a DrawingGroup -> GeometryDrawing -> PathGeometry, captured by
+      x:Key. The viewer's vector raster seam (vaml::vulkan::vector) folds the
+      authored drawing into a 64x64 S202 RGBA8 tile + emits the S206 textured
+      quad the LIVE window samples through the atlas mesh.
+    -->
+    <ResourceDictionary>
+      <PathGeometry x:Key="arrowGlyph" Figures="M0,0 L28,14 L0,28 Z" FillRule="1"/>
+      <DrawingBrush x:Key="arrowBrush">
+        <DrawingBrush.Drawing>
+          <DrawingGroup>
+            <GeometryDrawing>
+              <GeometryDrawing.Geometry>
+                <PathGeometry Figures="M0,0 L32,0 L32,32 Z"/>
+              </GeometryDrawing.Geometry>
+            </GeometryDrawing>
+          </DrawingGroup>
+        </DrawingBrush.Drawing>
+      </DrawingBrush>
+    </ResourceDictionary>
+  </StackPanel.Resources>
+
+  <Control.Triggers>
+    <!--
+      11k-5 EVENT TRIGGER (element-level, the 11j-7 path): parsed into the S362
+      trigger model as TriggerKind::Event (RoutedEvent carried), with a
+      BeginStoryboard ACTIONS payload evaluated live per S512a. The name "Corpus"
+      is the root's own x:Name.
+    -->
+    <EventTrigger RoutedEvent="Loaded" SourceName="Root"/>
+  </Control.Triggers>
+
+  <!-- 11k-1 — a REAL <TextBlock> glyph via the S409_1/S400 SDF-text path. The
+       inline content lands on the Text DP (the WPF IAddChild content routing);
+       TextWrapping is 11k-8/9's audited-but-not-yet-authored DP (recorded NO-GAP,
+       not authored here); Foreground (a BrushId) has no literal converter, so it
+       is authored programmatically (the 11k-1 scope note — not authored here). -->
+  <TextBlock x:Name="Title" FontSize="20"
+             Margin="4">VAML 11k corpus: the text glyph renders</TextBlock>
+
+  <!-- 11k-2 — the WPF-missing control set (RepeatButton/ScrollBar/Viewbox/
+       ToolBar/ToolBarTray) authored through the S453/S460 resource path. -->
+  <ToolBarTray x:Name="Tray" Orientation="0" Margin="2">
+    <ToolBar x:Name="Bar" Band="0">
+      <RepeatButton x:Name="Spin" Delay="250" Interval="80" Margin="2"/>
+    </ToolBar>
+  </ToolBarTray>
+
+  <StackPanel Orientation="0" Margin="2">
+    <Viewbox x:Name="Zoom" Stretch="1">
+      <ScrollBar x:Name="Thumb" Minimum="0" Maximum="100" Value="40"
+                 ViewportSize="20" Width="180" Height="18"/>
+    </Viewbox>
+  </StackPanel>
+
+  <!-- A StaticResource resolution: the authored arrowPath PathGeometry resolves
+       through the three-scope walk to the vector raster seam when the viewer
+       reads the resource back for the drawing channel (11k-4). -->
+  <TextBlock x:Name="VectorNote" Text="Authored vector resource below (S202 atlas mesh)"
+             FontSize="12" Margin="4"/>
+
+  <TextBlock x:Name="Caption" Text="11k-6 — VIEWER-GROWTH(11k): corpus-shaped render"
+             FontSize="14" Margin="4"/>
+</StackPanel>

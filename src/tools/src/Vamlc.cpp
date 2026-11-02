@@ -450,6 +450,8 @@ int run_vamlcc(const std::vector<std::string>& args)
     CompileResult r = compile_text(source);
     if (!r.ok)
     {
+        std::fprintf(stderr, "vamlcc compile failed (%d/%zu:%zu): %s\n",
+                     static_cast<int>(r.kind), r.line, r.col, r.detail.c_str());
         return 3; // parse / resolve / binding / compile failure
     }
 

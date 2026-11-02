@@ -69,6 +69,36 @@ add_executable(vaml-core-tests
     ApplicationRoot_s11j6_test.cpp
     RDRoot_s11j2_test.cpp
     ControlDp_s11j5_test.cpp
+    # 11k-9 (dep:11k-8) — DP-FIDELITY CLOSURE IMPLEMENTATION (FULL closure):
+    # the 11k-8 audit table BECOMES CODE — ElementDpFidelity.cpp registers every
+    # audited DP/property/EVENT surface (base-class + per-control own surfaces +
+    # Window/Border/TextBlock/DockPanel/Image/DataGrid/TreeView/DatePicker + the
+    # 11k-4 brush surfaces) so a corpus doc authoring ANY WPF-valid property
+    # RESOLVES (never UnknownProperty). The audit table is the acceptance
+    # checklist: EVERY row registers (asserted per-name) + a corpus-shaped doc
+    # authoring the VIEWER-GROWTH spread (Button.IsDefault, Slider.Ticks,
+    # ComboBox.IsEditable, ScrollBar.ViewportSize, TextBlock.TextWrapping/
+    # LineHeight, Popup.StaysOpen, ToolBar.BandIndex, ...) loads + finalizes.
+    # Guarded/idempotent (TryGet-skipped — NO duplicate-Register throw). ZERO
+    # rows deferred; ZERO MINIMAL REAL.
+    DpFidelity_s11k9_test.cpp
+    # 11k-11 (dep:S085/11k-1/S440) — GENERIC CONTENT-OWNER ROUTING + the S649
+    # control-material RE-BIND: 11k-1's TextBlock-scoped content→DP proof is
+    # GENERALIZED (TextBlock→Text, Label→Content; object containers → the S440
+    # set_content slot), and the S085 mixed-content ordering conscience note is
+    # RESOLVED IN-11K (parse_vaml captures the ordered contentRuns Text|Child
+    # stream; the reader routes text runs in document order). Proves the order +
+    # the 11k-1 regression + the S649 re-bind surface.
+    ContentRouting_s11k11_test.cpp
+    # 11k_12 (the alpha feature END-OF-LINE, dep:S11k11) — FIDELITY CLOSURE on
+    # RichTextBox + the FLOW-DOCUMENT content model it relies on: author
+    # RichTextBox (a TextBoxBase-leaf CONTROL — WPF Controls\RichTextBox.cs; own
+    # DP surface ONLY IsDocumentEnabled + the inherited TextBoxBase TextEntry) +
+    # the rich-text descendants (FlowDocument/Paragraph/Span/Run/Section — the
+    # WPF Documents\*.cs FrameworkContentElement content nodes in FlowDocument.h).
+    # Audits + fixes GAPS on RichTextBox + its descendants for 100% completeness
+    # against the WPF source. ZERO MINIMAL REAL, ZERO invented names.
+    RichTextBox_s11k12_test.cpp
     WindowDp_s11j4_test.cpp
     TagDp_s11j8_test.cpp
     ElementTriggers_s11j7_test.cpp
@@ -1063,6 +1093,16 @@ add_executable(vaml-presentation-tests
     # S512 seam viewer_growth_11g.h (ADR-021) + links vaml-presentation so the
     # S212 encode_visual_slice render-plan + the S511 effect arm are provable.
     ViewerGrowth11g_test.cpp
+    # 11k-6 (dep:S11k1+2+3+4+5) — VIEWER-GROWTH(11k): the corpus-shaped
+    # sample.corpus.xaml authors TextBlock (a real glyph via the S409_1/S400 SDF
+    # path) + the 11k-2 added controls + a vector resource (the 11k-4 DrawingBrush
+    # resolved + rasterized via the vaml::vulkan::vector S202 atlas-mesh seam to an
+    # S206 textured-quad) + an EventTrigger (element-level, parsed as
+    # TriggerKind::Event). The LIVE viewer loads + renders; the vector raster seam
+    # is the "drawn via the S202 atlas mesh" proof. Compiles the seam
+    # viewer_growth_11k.h (ADR-021) + links vaml-presentation (which PUBLIC-links
+    # vaml-vulkan, so the vaml::vulkan::vector raster seam + UiScene are provable).
+    ViewerGrowth11k_test.cpp
     # S11c (S470–S473) — the DockPanel + selection controls (RadioButton/
     # ComboBox/ListBox/ListView) materials at the vertical-slice boundary:
     # classify_merge_element -> MaterialKind::Solid for each (DockPanel fill /

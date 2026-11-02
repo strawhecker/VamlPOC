@@ -31,6 +31,7 @@
 // registration call that populates ElementFactoryRegistry::global() once.
 
 #include "vaml/core/DependencyObject.h"
+#include "vaml/core/FlowDocument.h" // 11k_12 — the RichTextBox flow-content model (FlowDocument/Paragraph/Run/Span/Section), WPF Documents\*.cs
 #include "vaml/core/GridLength.h" // GridLength, RowDefinition, ColumnDefinition (S131)
 #include "vaml/core/TextLayout.h" // S400 — text_layout_plan / default_text_metric (Measure basis)
 #include "vaml/core/UIElement.h"  // StackPanel/Grid's base (S129/S131 re-base — RESOLVED seeds)
@@ -2248,10 +2249,92 @@ private:
     void apply_selection(std::int32_t newIndex);
 };
 
+// ---------------------------------------------------------------------------
+// 11k_12 (the alpha feature end-of-line) — RichTextBox, the FIDELITY CLOSURE
+// control. WPF ground truth (Controls\RichTextBox.cs, audited at this step):
+//   RichTextBox : TextBoxBase  (a CONTROL — TextBoxBase : Control). Own DP
+//   surface: ONLY IsDocumentEnabled (bool). NO own RoutedEvents. Everything
+//   else inherited from TextBoxBase (the TextEntry surface: Text /
+//   AcceptsReturn / IsReadOnly / MaxLength / TextLength + TextChanged /
+//   SelectionChanged) + Control + ContentElement. It hosts a single FlowDocument
+//   (its Document) — the "collections of TextBlock and such" the roadmap
+//   mandates following all the way down (FlowDocument/Paragraph/Run/Span/Section,
+//   authored in FlowDocument.h at this step, WPF Documents\*.cs).
+//
+// THE VAML-FAITHFUL MAPPING (declared, conformance-pinned — not drift): the
+// CONTENT model is a single owned FlowDocument (the Document slot, reusing the
+// S440/S649 single-content container pattern generalized at 11k-11), NOT a
+// ContentControl object tree. The TextBoxBase DP surface rides the TextBox
+// value path (Text String / AcceptsReturn Bool / the IsDocumentEnabled own DP).
+// The rendered edit-field chrome classifies to Solid (the TextBox precedent);
+// the document's text through the SDF glyph path is the S409_1/S400 render lane
+// (recorded NO-GAP not silent).
+class VAML_CORE_EXPORT RichTextBox final : public UIElement
+{
+public:
+    RichTextBox();
+
+    // --- Document (the single content slot, S440/S649 generalized) ----------
+    // Sets the owned FlowDocument (replacing any prior). The FlowDocument is
+    // OWNED here (the single-content slot); `document()` returns the non-owning
+    // observer pointer. Authoring `<RichTextBox><FlowDocument>...</FlowDocument>
+    // </RichTextBox>` routes the FlowDocument through this slot (11k-11).
+    void set_document(std::unique_ptr<FlowDocument> doc);
+    [[nodiscard]] FlowDocument* document() const noexcept;
+
+    // --- Text (REAL DP; String, default "") — the TextBoxBase TextEntry surface.
+    [[nodiscard]] SetResult set_text(std::string value);
+    [[nodiscard]] std::string text() const;
+
+    // --- AcceptsReturn (REAL DP; Bool via Int32, default false) — multi-line.
+    [[nodiscard]] SetResult set_accepts_return(bool value);
+    [[nodiscard]] bool accepts_return() const;
+
+    // --- IsReadOnly (REAL DP; Bool via Int32, default false) ----------------
+    [[nodiscard]] SetResult set_is_read_only(bool value);
+    [[nodiscard]] bool is_read_only() const;
+
+    // --- IsDocumentEnabled (REAL DP; Bool, default false — the ONLY own DP in
+    //     WPF RichTextBox; audited from RichTextBox.cs, conformance-pinned) ----
+    [[nodiscard]] SetResult set_is_document_enabled(bool value);
+    [[nodiscard]] bool is_document_enabled() const;
+
+    // --- MaxLength (REAL DP; Int32, default 0 = unlimited) ------------------
+    [[nodiscard]] SetResult set_max_length(std::int32_t value);
+    [[nodiscard]] std::int32_t max_length() const;
+
+    // --- TextLength (accessor; the TextEntry surface) -----------------------
+    [[nodiscard]] std::size_t text_length() const noexcept { return text_.size(); }
+
+    // --- TextChanged (BUBBLING routed event; the TextBoxBase surface) -------
+    [[nodiscard]] vaml::Signal<void()>& text_changed() { return onTextChanged_; }
+
+protected:
+    // 11k_12 real RichTextBox algorithm: the default edit-field box (the
+    // TextBox precedent); the S123 finalizer applies the stretch-vs-wrap. The
+    // rendered chrome is the vulkan classifier (Solid); the document text via
+    // the SDF glyph path is the S409_1/S400 render lane (recorded NO-GAP).
+    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+
+private:
+    std::unique_ptr<FlowDocument> doc_;   // the OWNED single content (Document)
+    FlowDocument* docObserver_ = nullptr; // non-owning observer for document()
+    std::string text_;                    // the Text DP payload
+    vaml::Signal<void()> onTextChanged_;
+};
+
 // Startup registration: registers every built-in element type name into
 // ElementFactoryRegistry::global(). Called once at process startup (single-
 // threaded) before any VAML document is parsed; S092/S286 reader paths consume
 // it. Registering twice is a no-op guard against double startup population.
 void VAML_CORE_EXPORT register_builtin_elements();
+
+// 11k-9 — DP-FIDELITY CLOSURE (dep:11k-8): registers the FULL audited
+// DP/property/EVENT surface (the 11k-8 audit table) so a corpus document
+// authoring ANY WPF-valid property on a supported control RESOLVES (never
+// UnknownProperty). Guarded/idempotent (TryGet-skipped; safe to call at any
+// startup order). Declared here so register_builtin_elements() (Element.cpp)
+// can invoke it once; defined in ElementDpFidelity.cpp. NO MINIMAL REAL.
+void VAML_CORE_EXPORT vaml_run_dp_fidelity_closure();
 
 } // namespace vaml

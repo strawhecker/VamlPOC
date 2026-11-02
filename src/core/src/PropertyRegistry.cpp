@@ -44,12 +44,16 @@ const PropertyKey& PropertyRegistry::register_key(PropertyKey key)
     // of argument evaluation is unspecified — the copy could see a moved-from
     // empty key). Copying first keeps the NameTable's owned key correct.
     // S146: the NameTable is now the BY-VALUE member (no pimpl).
-    std::string name = key.name();
+    // Capture the name up front + a copy for the error path (the insert MOVES
+    // the owned `name`; the message must keep the real name, not a moved-from
+    // empty '' black hole — fixed, not silent).
+    std::string name     = key.name();
+    std::string original = name;
 
     const PropertyKey* stored = table_.insert(std::move(name), std::move(key));
     if (stored == nullptr)
     {
-        std::string msg = "property already registered: '" + name + "'";
+        std::string msg = "property already registered: '" + original + "'";
         throw PropertyAlreadyRegistered(msg.c_str());
     }
     return *stored;

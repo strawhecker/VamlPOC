@@ -106,6 +106,26 @@ struct ParsedElement
     std::vector<ParsedElement> children;
     std::string content;     // text between the element's bounding tokens (as authored) — S140 interned
 
+    // 11k-11 (resolving the S085 conscience note — an explicit, IN-11K decision,
+    // NOT silent): `contentRuns` captures the FULL document-order sequence of
+    // this element's inline content as Text | Child runs — the lossless
+    // ordering the `content`(all-text)+`children`(element-order) split cannot
+    // express. A Text run is a non-empty text chunk (as authored, incl.
+    // whitespace); a Child run is the index into `children` of that child.
+    // `content` is RETAINED for the scalar/plain-text consumer path; contentRuns
+    // is the ordered stream the generic content→DP routing (11k-1's TextBlock
+    // proof GENERALIZED at 11k-11) uses to route mixed text+child content
+    // through the content-owning DP IN DOCUMENT ORDER. Built in-memory by
+    // parse_vaml (vamlcc emits its OWN compiled form; never serializes this).
+    // Contiguous-only-text -> a single Text run; no text/children -> none.
+    struct ContentRun
+    {
+        bool is_text = false;      // true = a text chunk; false = a child run
+        std::string text;          // the text chunk when is_text (else empty)
+        std::size_t child_index = 0; // the `children` index when !is_text
+    };
+    std::vector<ContentRun> contentRuns;
+
     // Extended (carried forward from the scanner); S140 interned:
     std::string_view prefix;      // S082: "" when no ':' split
     std::string_view local_name;  // S082: element name sans "prefix:"

@@ -186,7 +186,7 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     // Popup/GridSplitter/DataGrid, then 61 as S502 (Sprint 11f) added the
     // interactivity EventTrigger + InvokeCommandAction (count bumps authored at
     // the step, never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(61u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
 }
 
 // ---------------------------------------------------------------------------

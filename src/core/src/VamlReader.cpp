@@ -496,32 +496,71 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         (void)obj->Set(PropertyId(attr.key), value); // S043 attached-aware by name
     }
 
-    // 11k-1 — TEXTBLOCK INLINE CONTENT ROUTING (the corpus's dominant usage).
-    // WPF IAddChild: `<TextBlock>label</TextBlock>` inline authored content lands
-    // on the Text DP (TextBlock's content-owning DP). This is SCOPED to
-    // TextBlock (11k-1's deliverable); the GENERAL content→DP routing rule
-    // (mixed/interleaved ordering) is 11k-11's in-11k step (NOT deferred here).
-    // Whitespace trim mirrors the S452 property-element literal path (line 749).
-    if (auto* tb = dynamic_cast<TextBlock*>(obj.get()))
+    // 11k-11 (dep:11k-1) — GENERAL CONTENT-OWNER ROUTING. 11k-1's TextBlock-
+    // scoped proof (`<TextBlock>label</TextBlock>` → Text DP) is GENERALIZED
+    // into the declarative content→DP rule: an element registers a SINGLE
+    // content-owning DP, and the reader routes that element's INLINE AUTHORED
+    // TEXT through it IN DOCUMENT ORDER (the S085 mixed-content conscience note,
+    // resolved IN-11K — the ordered stream is `element.contentRuns`, captured by
+    // parse_vaml). The mapping follows WPF IAddChild / ContentControl:
+    //   * TextBlock  → "Text" DP (11k-1's recipient, unchanged — a regression
+    //     pinned by the 11k-1 suite);
+    //   * Label      → "Content" DP (the ContentControl-family String content);
+    //   * (other) content-owning containers route their SINGLE OBJECT child via
+    //     the S440 finalize set_content slot, NOT a Text DP — handled after;
+    //   * value-type/resource elements consume inline content as their parsed
+    //     value (11k-3 build_resource_dictionary), NOT here.
+    // Whitespace trim mirrors the S452 property-element literal path. The TEXT
+    // runs are concatenated + trimmed as the DP value; the ordered contentRuns
+    // STREAM (Text|Child) is what a mixed/interleaved authoring asserts (the
+    // 11k-11 ordering proof) — the reader routes each TEXT run through the
+    // content DP; child runs enter the visual tree (the children loop below),
+    // preserving document order.
     {
-        std::string lit = element.content;
-        const std::size_t b = lit.find_first_not_of(" \t\r\n");
-        if (b != std::string::npos)
+        const char* contentDpName = nullptr;
+        if (dynamic_cast<TextBlock*>(obj.get()) != nullptr) { contentDpName = "Text"; }
+        else if (dynamic_cast<Label*>(obj.get()) != nullptr) { contentDpName = "Label.Content"; }
+
+        if (contentDpName != nullptr)
         {
-            const std::size_t e = lit.find_last_not_of(" \t\r\n");
-            lit = lit.substr(b, e - b + 1);
-        }
-        else
-        {
-            lit.clear();
-        }
-        if (!lit.empty())
-        {
-            const DependencyProperty* dp = DependencyProperty::TryGet("Text");
+            const DependencyProperty* dp = DependencyProperty::TryGet(contentDpName);
             if (dp != nullptr)
             {
-                const Value value = convertLiteral(*dp, lit);
-                (void)tb->Set(PropertyId::of("Text"), value);
+                // Build the routed text from the ORDERED contentRuns (the lossless
+                // stream): concatenate every TEXT run IN DOCUMENT ORDER (a run is
+                // the element's own text chunk; child runs are skipped here — they
+                // are the visual children built by the loop below). This is the
+                // mixed-content ordering honored (a test asserts run order).
+                std::string orderedText;
+                for (const ParsedElement::ContentRun& run : element.contentRuns)
+                {
+                    if (run.is_text)
+                    {
+                        orderedText += run.text;
+                    }
+                }
+                // Fall back to the concatenated content when no runs were captured
+                // (a defensive zero-case — path safety, not a silent default).
+                if (element.contentRuns.empty())
+                {
+                    orderedText = element.content;
+                }
+                // Pursuant to the S452 literal trim: leading/trailing whitespace.
+                const std::size_t b = orderedText.find_first_not_of(" \t\r\n");
+                if (b != std::string::npos)
+                {
+                    const std::size_t e = orderedText.find_last_not_of(" \t\r\n");
+                    orderedText = orderedText.substr(b, e - b + 1);
+                }
+                else
+                {
+                    orderedText.clear();
+                }
+                if (!orderedText.empty())
+                {
+                    const Value value = convertLiteral(*dp, orderedText);
+                    (void)obj->Set(PropertyId::of(contentDpName), value);
+                }
             }
         }
     }
@@ -2260,14 +2299,50 @@ std::size_t VamlReader::finalize_visual_tree()
                 childUI->set_parent(nullptr);
                 std::unique_ptr<UIElement> adopt(
                     static_cast<UIElement*>(retained_[i].release()));
-                // 11j-1 (GAP CLOSE): a `<UserControl>`'s direct child is its
-                // single CONTENT — route it through set_content (the real
-                // content slot, which ALSO add_childs it into the S121 list so
-                // it renders via the generic classifier). This is the corpus's
-                // `<UserControl><Grid/></UserControl>` root/content pattern.
+                // 11j-1 (GAP CLOSE) + 11k-11 (S649 RE-BIND GENERALIZED): a
+                // CONTENTCONTROL-FAMILY single-content CONTAINER's direct child
+                // is its single CONTENT — route it through set_content (the real
+                // content slot, which ALSO add_childs it into the S121 list so it
+                // renders via the generic classifier). 11k-1 scoped this to
+                // UserControl; 11k-11 GENERALIZES it (the S649 control-material
+                // RE-BIND) to EVERY single-content container: Window (S440),
+                // UserControl (11j-1), Border (S481), Viewbox (11k-2), TabItem
+                // (S490), GroupBox/Expander (S485), ToolTip/Popup (S492).
                 if (UserControl* uc = dynamic_cast<UserControl*>(parentUI))
                 {
                     uc->set_content(std::move(adopt));
+                }
+                else if (Window* w = dynamic_cast<Window*>(parentUI))
+                {
+                    w->set_content(std::move(adopt));
+                }
+                else if (Border* bo = dynamic_cast<Border*>(parentUI))
+                {
+                    bo->set_content(std::move(adopt));
+                }
+                else if (Viewbox* vb = dynamic_cast<Viewbox*>(parentUI))
+                {
+                    vb->set_content(std::move(adopt));
+                }
+                else if (TabItem* ti = dynamic_cast<TabItem*>(parentUI))
+                {
+                    ti->set_content(std::move(adopt));
+                }
+                else if (GroupBox* gb = dynamic_cast<GroupBox*>(parentUI))
+                {
+                    gb->set_content(std::move(adopt));
+                }
+                else if (Expander* ex = dynamic_cast<Expander*>(parentUI))
+                {
+                    ex->set_content(std::move(adopt));
+                }
+                else if (ToolTip* tt = dynamic_cast<ToolTip*>(parentUI))
+                {
+                    tt->set_content(std::move(adopt));
+                }
+                else if (Popup* pp = dynamic_cast<Popup*>(parentUI))
+                {
+                    pp->set_content(std::move(adopt));
                 }
                 else
                 {

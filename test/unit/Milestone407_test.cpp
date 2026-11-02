@@ -113,7 +113,7 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     // Popup/GridSplitter/DataGrid) = 59 (count bumps authored at the step,
     // never silent).
     // 59 (S11e set) + 2 (S502 behaviors: EventTrigger + InvokeCommandAction).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(61u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(62u));
     SHOULD(ShouldlyIntegral(g.is_registered("UserControl")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Application")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ResourceDictionary")).ShouldBe(true));
