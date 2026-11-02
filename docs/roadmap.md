@@ -2671,6 +2671,27 @@ The reactive spine (the substantial observable-collection infrastructure VAML la
   UI paths avoid locks; the subscription-lifetime weak-handler re-entrancy (a collection mutated mid-
   enumeration inside a callback) is where a lock may be unavoidable — that decision is made WITH A HUMAN,
   never silently. ADR-018 is deliberately renegotiated here with human sign-off.
+
+> **DECISION-2 (11n-4 — the human-gated ADR-018 renegotiation, RESOLVED with the driver at plan review):**
+> the reactive spine is **lock-free by default**; locks are allowed **ONLY behind an explicit opt-in** —
+> mirroring WPF's `AllowsCrossThreadChanges`, verified against the WPF source.
+> - **Default (`AllowsCrossThreadChanges == false`, WPF `CollectionView.cs:81/1162`):** cross-thread producers
+>   are REJECTED at the collection boundary — a WPF-style `NotSupportedException` throw-guard, NOT a queue and
+>   NOT a lock; changes are processed SYNCHRONOUSLY (the single-affinity-thread model, S037/S041/S143).
+>   **No change log, no deque, no double-buffer, no lock.**
+> - **Opt-in (`AllowsCrossThreadChanges == true`):** the APP takes ownership of its own thread-pool / async
+>   (injected via the S540 `IUiExecutor` / 11z pump seam — the framework does NOT own or impose a
+>   dispatcher/InvokeAsync). The framework still manages ONLY its own change log — **two deques: `filling`
+>   and `draining`**, swapped when opted in (WPF `_changeLog`/`_tempChangeLog`, `CollectionView.cs:1900-1941`);
+>   the app is responsible for all other race conditions. A **mutex guards the framework's OWN fill→drain swap
+>   ONLY when `AllowsCrossThreadChanges == true`** (WPF `_changeLogLock`, `CollectionView.cs:2125`) — the single
+>   documented lock, the app's structured HANDOFF, never the framework's imposed threading.
+> - **Drain is pump-driven (not self-scheduling):** the app's main-loop (11z mode-2, or VAML's own pump) calls
+>   the drain. Cross-thread background updates are a STRUCTURED HANDOFF onto the affinity thread — never direct
+>   collection mutation.
+> - **ADR-018 verdict — renegotiated:** the default stays lock-free; the ONE permitted lock is the opt-in
+>   fill→drain swap mutex, exactly where WPF itself locks. Single-threaded UI paths have ZERO locks.
+>   S543_1 (11z) + the S211 lock-free postbox precedent stand as the related seams.
 Test `BindingBase_s11n4_test.cpp` (reactive: mutate the ObservableCollection -> the bound ItemsControl
 reflects the change live).
 
