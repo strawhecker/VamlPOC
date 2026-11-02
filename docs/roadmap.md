@@ -2593,7 +2593,9 @@ to find OTHERS WE WERE MISSING. Confirmed anchors to unify under:
 `DispatcherObject`, `IWeakEventListener` (the subscription-lifetime contract for Option A),
 `ICollectionView` / `INotifyPropertyChanged` / `INotifyCollectionChanged`.
 Uncover-driven additions (base -> new):
-- `ICommand` -> `RoutedCommand` + `CommandManager`
+- `ICommand` -> `RoutedCommand` + `CommandManager` (**reuses the EXISTING S246 `vaml::ICommand` family —
+  the interface is the single one already shipped; `RoutedCommand`/`CommandManager` IMPLEMENT it, never a
+  duplicated/parallel ICommand, never a bridge — see the 11n-2 DECISION record**)
 - `InputGesture` -> `KeyGesture` / `MouseGesture`
 - `InputBinding`(ICommandSource) -> `KeyBinding` / `MouseBinding`
 - `Visual3D`(DependencyObject, NOT Visual) -> `Viewport3D`(FrameworkElement, IAddChild) + `Model3D`(Animatable) + `Geometry3D`(Animatable)
@@ -2621,6 +2623,27 @@ Self-contained PresentationCore. `ICommand` (interface: Execute/CanExecute/CanEx
 `ICommandSource`** (Command/CommandParameter/CommandTarget DP upgraded from string to the real command
 object). The uncovered `ICommandSource` interface is the anchor this step lands on.
 Test `ICommand_s11n2_test.cpp`.
+
+> **DECISION (11n-2 / DAG — recorded at plan review, accepted by the driver):** the command object is the
+> EXISTING single `vaml::ICommand` (S246) family — there is NO second/parallel ICommand and NO bridge.
+> WPF has exactly one `ICommand`; `RoutedCommand : ICommand`, `RelayCommand : ICommand`, and every button
+> holds that one interface. 11n-2 therefore EXTENDS the S246 family:
+> - `RoutedCommand : vaml::ICommand` (implements Execute/CanExecute/CanExecuteChanged by raising a routed
+>   command event — WPF-true behavior, no delegate),
+> - `CommandManager` = the routed-command registry/hook (the object-level analogue of the S253 name
+>   registry),
+> - `ICommandSource` formalizes the `Command`/`CommandParameter`/`CommandTarget` DP trait ButtonBase already
+>   half-has,
+> - `ButtonBase.Command` DP UPGRADED from string to `vaml::ICommand*` — the string `Command="Save"` remains
+>   SUGAR resolving through the S253/S464 registry; `Command="{Binding SaveCommand}"` binds the real object
+>   directly,
+> - `InputBinding : Freezable, ICommandSource -> KeyBinding/MouseBinding` + `InputGesture -> KeyGesture/MouseGesture`.
+> Rationale (the driver's "for dummies" review): the S246 header already claims to BE the WPF
+> `System.Windows.Input.ICommand`-analogue, so a second parallel family would collide at the type level and
+> force a bridge WPF does not have; unifying keeps existing `vaml::RelayCommand` ViewModels binding to buttons
+> unchanged (no usability regression), matches WPF's single-interface design, and satisfies the roadmap's
+> stated "real command object" goal with ZERO name collision. Recorded NO-GAP: the S246 `ICommand` +
+> `RelayCommand` and the S253/S464 string-registry surface are REUSED, never re-pointed or duplicated.
 
 ---
 
@@ -2762,6 +2785,16 @@ human-locking note) is a standing entry in the roadmap.
       signal (pipe write / posted thread message), the executor is single-thread-owned by the pump thread
       (the S037/S041/S143 affinity model). [ADR-006: the seam is app-owned + replaceable; the library does
       NOT ship an executor of its own.]
+- S543_1 dep:S543  APP-OWNED-PUMP INBOUND SEAM — promote `HandleLibraryMessage(NativeMessage&)` (Win32) /
+      `HandleLibraryEvent(...)` (X11) from internal pump helpers into PUBLIC library surface: the documented,
+      headless-ctestable inbound entry an APP-owned main loop calls ONCE per native message/event, forwarding
+      to the S540 `IUiExecutor` + draining via `IdleForOneTask()`/`Awaken()`. S541/S542 carry a one-line
+      forward note (their internal call IS the body promoted public at S543_1 — supersede in place, no
+      duplicate implementation). Records the pump-ownership contract with BOTH hosting modes: (1) VAML runs
+      the pump (S541/S542) + calls the app's injected async (S540 `IUiExecutor`); (2) the APP runs the pump
+      + calls the S543_1 inbound seam each message. ADR-018: ZERO new locks — single pump-thread owner, the
+      S037/S041/S143 affinity model. NO-GAP: mode 2 becomes a named, resolvable contract, not an undocumented
+      backdoor.
 - S544 dep:S543  REFACTOR GATE(S11z): the injected-executor surface interops with the existing S323 input /
       S211 marshalling / S11z pump seams (a host may now drive our deferred work from its OWN
       pump, or keep our default); build + warning-clean + ctest GREEN both CI lanes (windows-msvc +
