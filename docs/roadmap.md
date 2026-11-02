@@ -2675,23 +2675,43 @@ The reactive spine (the substantial observable-collection infrastructure VAML la
 > **DECISION-2 (11n-4 — the human-gated ADR-018 renegotiation, RESOLVED with the driver at plan review):**
 > the reactive spine is **lock-free by default**; locks are allowed **ONLY behind an explicit opt-in** —
 > mirroring WPF's `AllowsCrossThreadChanges`, verified against the WPF source.
-> - **Default (`AllowsCrossThreadChanges == false`, WPF `CollectionView.cs:81/1162`):** cross-thread producers
->   are REJECTED at the collection boundary — a WPF-style `NotSupportedException` throw-guard, NOT a queue and
->   NOT a lock; changes are processed SYNCHRONOUSLY (the single-affinity-thread model, S037/S041/S143).
->   **No change log, no deque, no double-buffer, no lock.**
-> - **Opt-in (`AllowsCrossThreadChanges == true`):** the APP takes ownership of its own thread-pool / async
->   (injected via the S540 `IUiExecutor` / 11z pump seam — the framework does NOT own or impose a
->   dispatcher/InvokeAsync). The framework still manages ONLY its own change log — **two deques: `filling`
->   and `draining`**, swapped when opted in (WPF `_changeLog`/`_tempChangeLog`, `CollectionView.cs:1900-1941`);
->   the app is responsible for all other race conditions. A **mutex guards the framework's OWN fill→drain swap
->   ONLY when `AllowsCrossThreadChanges == true`** (WPF `_changeLogLock`, `CollectionView.cs:2125`) — the single
->   documented lock, the app's structured HANDOFF, never the framework's imposed threading.
-> - **Drain is pump-driven (not self-scheduling):** the app's main-loop (11z mode-2, or VAML's own pump) calls
->   the drain. Cross-thread background updates are a STRUCTURED HANDOFF onto the affinity thread — never direct
->   collection mutation.
-> - **ADR-018 verdict — renegotiated:** the default stays lock-free; the ONE permitted lock is the opt-in
->   fill→drain swap mutex, exactly where WPF itself locks. Single-threaded UI paths have ZERO locks.
->   S543_1 (11z) + the S211 lock-free postbox precedent stand as the related seams.
+> - **THE CHANGE LOG (codified):** the framework owns the collection-view change log as **two deques:
+>   `filling` and `draining`** (WPF `_changeLog`/`_tempChangeLog`, `CollectionView.cs:1900-1941`). Filling
+>   collects pending changes; draining processes them. On opt-in, the fill→drain **swap** happens under the
+>   one permitted mutex (WPF `_changeLogLock`, `CollectionView.cs:2125`); draining itself runs outside the
+>   lock.
+> - **`AllowsCrossThreadChanges` (codified):** a per-view OPT-IN, defaulting to **false**. Default `false`
+>   (WPF `CollectionView.cs:81/1162`): cross-thread producers are REJECTED at the collection boundary — a
+>   WPF-style `NotSupportedException` throw-guard, NOT a queue and NOT a lock. Opt-in `true`: cross-thread
+>   producers are allowed to FILL the filling deque; the APP owns its own thread-pool / async (injected via
+>   the S540 `IUiExecutor` / 11z pump seam — the framework does NOT own or impose a dispatcher/InvokeAsync)
+>   and is responsible for all OTHER race conditions beyond the framework's own change log.
+> - **DRAIN — TWO MODES (codified, resolving the WPF `DeferProcessing` drift):**
+>   - **`!AllowsCrossThreadChanges` (default) — DRAIN WHAT YOU FILL, synchronously.** Changes are processed
+>     SYNCHRONOUSLY in a single affinity-thread pass (S037/S041/S143): the fill and the drain are the same
+>     call (`PostChange` sync branch, `CollectionView.cs:1888-1893`). If the synchronous drain exceeds the
+>     WPF `DataBindEngine.CrossThreadThreshold` time budget, the overflow is re-queued (WPF
+>     `ProcessChangeLog` `mustDeferProcessing`, `CollectionView.cs:1846`) and **deferred to a later drain pass,
+>    to be harvested by the app's pump when it next calls the drain API** — it is still drained-what-it-filled,
+>    just across a pump boundary. **No deque, no lock.**
+>   - **`AllowsCrossThreadChanges` (opt-in) — BUDGET-DRAIN WITH RE-QUEUE.** Producers fill the filling deque;
+>     the fill→drain swap (under the mutex) isolates a draining deque; `ProcessChangeLog` drains it on the
+>     time budget; **overflow is re-queued back onto the filling deque (WPF `DeferProcessing`,
+>     `CollectionView.cs:1804-1830,1850`) for a later harvest** — the drain is NOT self-kicked in-library.
+>     Two deques, one swap mutex, one app-pumped budget-drain.
+>   - **NO WORK IS EVER DEFERRED TO 11z.** 11n-4 OWNS the drain code (`ProcessChangeLog`'s budgeted drain +
+>     `DeferProcessing`'s re-queue) — VAML library code resident in 11n-4. **11z SUPPORTS the dual mode only via
+>     API**: the app-side harvest point (S543_1 inbound seam, S540 `IUiExecutor` seam) the APP calls to pull
+>     ONE drain pass and harvest the deferred work. That is the REVERSE of 11z mode-1's "our pump harvests the
+>     app's async": here the APP's pump (or the 11z-hosted pump) calls OUR drain API, and in-library 11n-4 code
+>     runs. WPF's internal Dispatcher self-kick (`_engine.Marshal`) is swapped for this external app-pulled
+>     harvest — the collection-view drain is 11n-4's job, the app-side harvest API surface is 11z's, kept
+>     distinct to avoid the 11n/11z collision.
+> - **ADR-018 verdict — renegotiated:** single-threaded UI paths (default) have ZERO locks; the ONE permitted
+>   lock is the opt-in fill→drain swap mutex, exactly where WPF itself locks. `DeferProcessing`/the budgeted
+>   drain adds NO new lock. Cross-thread background updates are a STRUCTURED HANDOFF onto the affinity thread
+>   — never direct collection mutation. S543_1 (11z) + the S211 lock-free postbox precedent stand as the
+>   related seams.
 Test `BindingBase_s11n4_test.cpp` (reactive: mutate the ObservableCollection -> the bound ItemsControl
 reflects the change live).
 
