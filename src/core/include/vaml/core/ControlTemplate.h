@@ -34,6 +34,7 @@
 
 #include "vaml/core/Brush.h"             // SolidColorBrush (core data brush)
 #include "vaml/core/DependencyObject.h"  // ControlTemplate IS a DependencyObject (resource model)
+#include "vaml/core/FrameworkTemplate.h" // 11n-3 — the shared template base
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/Style.h"             // Setter (TemplateBinding reuses the setter model)
 #include "vaml/core/UIElement.h"         // UIElement (template content + templated element)
@@ -75,16 +76,13 @@ struct VAML_CORE_EXPORT VisualState
 };
 
 // ---------------------------------------------------------------------------
-// ControlTemplate.
+// ControlTemplate — unified under the 11n-3 FrameworkTemplate base.
 // ---------------------------------------------------------------------------
-class VAML_CORE_EXPORT ControlTemplate : public DependencyObject
+class VAML_CORE_EXPORT ControlTemplate : public FrameworkTemplate
 {
 public:
     ControlTemplate();
     ~ControlTemplate() override;
-
-    void set_target_type(std::string type);
-    [[nodiscard]] const std::string& target_type() const noexcept { return target_type_; }
 
     // The parsed content root tree (the control's internal structure).
     void set_content(TemplatePart root);
@@ -103,7 +101,6 @@ public:
     friend VAML_CORE_EXPORT VisualState* find_state(ControlTemplate&, std::string_view) noexcept;
 
 private:
-    std::string              target_type_;
     TemplatePart             content_;
     std::vector<VisualState> states_;
     // Flattened {TemplateBinding partProp -> controlProp} wires from set_content.

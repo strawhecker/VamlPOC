@@ -57,6 +57,10 @@
 #include "vaml/core/DataTemplate.h"     // S500/S503 — authored DataTemplate (reader-owned list) + ListBox.ItemTemplate
 #include "vaml/core/Brush.h"          // S460 — GradientStopHost + LinearGradientBrush (BRUSH AUTHORING)
 #include "vaml/core/VectorDrawing.h"  // 11k-4 — geometry/drawing/vector-brush resource types
+#include "vaml/core/Viewport3D.h"     // 11n-5 — the 3D scene root + camera family
+#include "vaml/core/Geometry3D.h"     // 11n-5 — Geometry3D / MeshGeometry3D
+#include "vaml/core/Model3D.h"        // 11n-5 — Model3D / GeometryModel3D / Model3DGroup
+#include "vaml/core/Visual3D.h"       // 11n-5 — Visual3D / ModelVisual3D
 #include "vaml/core/DependencyObject.h" // unique_ptr<DependencyObject>
 #include "vaml/core/Style.h"          // S454 — authored <Style>/<Setter>/<Trigger> authoring
 #include "vaml/core/StyleApplier.h"   // S454 — apply (explicit/implicit) + find_implicit
@@ -655,6 +659,21 @@ private:
     void build_drawing_brush(DrawingBrush& brush, const ParsedElement& element, std::size_t depth);
     void build_drawing_image(DrawingImage& image, const ParsedElement& element, std::size_t depth);
     void build_image_brush(ImageBrush& brush, const ParsedElement& element);
+
+    // 11n-5 (dep:11k-4) — 3D-ROOT authoring. A `<Viewport3D>` is the 3D root:
+    // its authored Visual3D children (ModelVisual3D leaves) + Camera wire the
+    // owned 3D scene tree. The concrete DO leaves (GeometryModel3D/
+    // Model3DGroup/MeshGeometry3D/DiffuseMaterial/PerspectiveCamera/
+    // OrthographicCamera) build into the owned model/geometry graph exactly as
+    // the 11k-4 drawing/geometry builders wire their owned shared_ptr graph.
+    void build_viewport3d(Viewport3D& viewport, const ParsedElement& element, std::size_t depth);
+    void build_mesh_geometry3d(MeshGeometry3D& mesh, const ParsedElement& element, std::size_t depth);
+    void build_geometry_model3d(GeometryModel3D& model, const ParsedElement& element, std::size_t depth);
+    void build_model3d_group(Model3DGroup& group, const ParsedElement& element, std::size_t depth);
+    void build_model_visual3d(ModelVisual3D& visual, const ParsedElement& element, std::size_t depth);
+    void build_diffuse_material(DiffuseMaterial& material, const ParsedElement& element);
+    void build_perspective_camera(PerspectiveCamera& camera, const ParsedElement& element);
+    void build_orthographic_camera(OrthographicCamera& camera, const ParsedElement& element);
 
     // 11k-4 — builds an authored child element (recursively via build()),
     // RETAINS it READER-OWNED, parent-links it, and returns the raw pointer.

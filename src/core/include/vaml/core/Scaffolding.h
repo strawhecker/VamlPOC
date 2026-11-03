@@ -38,7 +38,8 @@
 // classifier). ADR-018: zero new locks. WPF-name fidelity per the 11k-7 audit.
 
 #include "vaml/core/UIElement.h"
-#include "vaml/core/DependencyObject.h" // DependencyObject (GridView/ItemsPanelTemplate base)
+#include "vaml/core/DependencyObject.h" // DependencyObject (GridView base)
+#include "vaml/core/FrameworkTemplate.h"// 11n-3 — the shared template base (ItemsPanelTemplate base)
 #include "vaml/core/DataTemplate.h"     // DataTemplate (ItemContainerTemplate base)
 #include "vaml/core/export.h"
 
@@ -285,10 +286,11 @@ private:
 // ItemsPanelTemplate — the ItemsControl's panel template (ItemsPanelTemplate.cs
 // : FrameworkTemplate). WPF-faithful: it produces a Panel instance (the
 // ItemsHost) that the ItemsControl's ItemsPresenter surfaces its items into.
-// A REAL resource type (DependencyObject) with an ItemsPanel root slot +
-// load_items_panel() seam. classify: not a visual element (resource).
+// A REAL resource type (FrameworkTemplate : DependencyObject, unified 11n-3)
+// with an ItemsPanel root slot + load_items_panel() seam. classify: not a
+// visual element (resource).
 // ===========================================================================
-class VAML_CORE_EXPORT ItemsPanelTemplate : public DependencyObject
+class VAML_CORE_EXPORT ItemsPanelTemplate : public FrameworkTemplate
 {
 public:
     ItemsPanelTemplate();

@@ -151,12 +151,6 @@ VAML_CORE_EXPORT
 DataTemplate::~DataTemplate() = default;
 
 VAML_CORE_EXPORT
-void DataTemplate::set_data_type(std::string type)
-{
-    data_type_ = std::move(type);
-}
-
-VAML_CORE_EXPORT
 void DataTemplate::set_template_root(std::unique_ptr<UIElement> root)
 {
     if (root != nullptr)

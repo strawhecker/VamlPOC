@@ -76,6 +76,36 @@ CLASSIFIER_ARMS = {
     # Structural (base fallback + non-UIElement GAP)
     "UIElement-fallback": {"status": "VERTICAL-SLICE", "no_gap": ("S400", "S364")},
     "non-UIElement":      {"status": "GAP",            "no_gap": "sprint"},
+    # Sprint 11m — the corpus tail (S550-S558) controls, all REAL classified
+    # surfaces delivered at their own 11m steps. Path/Polygon/Polyline fill boxes
+    # (Solid) resolve to the real geometry render; Track/TickBar chrome; TreeView/
+    # TreeViewItem; DatePicker/Calendar family; InkCanvas/InkPresenter; MediaElement
+    # (Monochrome); Page/Frame/DocumentViewer/FlowDocumentReader/
+    # FlowDocumentScrollViewer/SinglePageViewer. Added at the 11n-7 wrap to close
+    # the RENDER_SURFACE coverage gap the 11m SURVIVOR recorded; exercised by the
+    # classifier arms emitted in classify_merge_element.
+    "Path":       {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "Polygon":    {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "Polyline":   {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "Track":      {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "TickBar":    {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "TreeView":   {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "TreeViewItem":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "DatePicker": {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "DatePickerTextBox": {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "Calendar":   {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "CalendarItem":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "CalendarDayButton": {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "CalendarButton":    {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "InkCanvas":  {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "InkPresenter":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "MediaElement":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "Page":       {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "Frame":      {"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "DocumentViewer":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "FlowDocumentReader":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "FlowDocumentScrollViewer":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
+    "SinglePageViewer":{"status": "VERTICAL-SLICE", "no_gap": "S649"},
     # S511 — EFFECTS (the vaml-vulkan UiSceneEncoder effect arm, NOT a
     # classify_merge_element classifier arm). DropShadow emits an offset
     # translucent shadow quad BEHIND the element (VERTICAL-SLICE); Blur passes

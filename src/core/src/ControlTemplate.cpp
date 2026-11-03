@@ -98,12 +98,6 @@ VAML_CORE_EXPORT
 ControlTemplate::~ControlTemplate() = default;
 
 VAML_CORE_EXPORT
-void ControlTemplate::set_target_type(std::string type)
-{
-    target_type_ = std::move(type);
-}
-
-VAML_CORE_EXPORT
 void ControlTemplate::set_content(TemplatePart root)
 {
     content_ = std::move(root);

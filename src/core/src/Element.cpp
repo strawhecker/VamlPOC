@@ -25,6 +25,10 @@
 #include "vaml/core/BindingExpression.h" // S500 — per-item live binding intents
 #include "vaml/core/Brush.h"             // S453 — SolidColorBrush (authored resource type)
 #include "vaml/core/VectorDrawing.h"     // 11k-4 — the vector/drawing/geometry resource types
+#include "vaml/core/Viewport3D.h"        // 11n-5 — the 3D scene root + camera family
+#include "vaml/core/Geometry3D.h"        // 11n-5 — Geometry3D / MeshGeometry3D
+#include "vaml/core/Model3D.h"           // 11n-5 — Model3D / GeometryModel3D / Model3DGroup
+#include "vaml/core/Visual3D.h"          // 11n-5 — Visual3D / ModelVisual3D
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/FocusManager.h"      // S325/S402 — KeyCode (the TextBox edits on)
@@ -308,6 +312,25 @@ void register_button_properties()
         "IsEnabled", ValueType::Int32, "Button",
         std::move(PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+
+    // --- ICommandSource (11n-2): Command / CommandParameter / CommandTarget.
+    // DECISION-1: Command holds the REAL `vaml::ICommand*` (ONE S246
+    // interface) via the UntypedPtr DP (null default). CommandParameter is a
+    // String DP (the authored parameter domain — WPF `object`; VAML's honest
+    // literal value), default empty. CommandTarget is a DependencyObject*
+    // (UntypedPtr, null default => the source routes to itself).
+    // NOTE: the WithDefault value MUST carry the DP's bound tag (UntypedPtr
+    // for the pointers, String for the parameter) so metadata.boundType == the
+    // key type — never Value::Null() (tag Null would mismatch the UntypedPtr key).
+    (void)DependencyProperty::Register(
+        "Button.Command", ValueType::UntypedPtr, "Button",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Button.CommandParameter", ValueType::String, "Button",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "Button.CommandTarget", ValueType::UntypedPtr, "Button",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
 }
 
 // A helper that builds ONE VisualState entry for the Button's default template:
@@ -525,14 +548,91 @@ bool Button::is_enabled() const
     return Get(PropertyId::of("IsEnabled")).get<int>() != 0;
 }
 
+// --- ICommandSource (11n-2) ------------------------------------------------
+VAML_CORE_EXPORT
+vaml::ICommand* Button::source_command() const noexcept
+{
+    return command();
+}
+
+VAML_CORE_EXPORT
+vaml::Value Button::source_command_parameter() const
+{
+    // The ICommandSource parameter domain is Value; the stored DP is a String
+    // (the authored literal) — pass it straight through.
+    return command_parameter();
+}
+
+VAML_CORE_EXPORT
+DependencyObject* Button::source_command_target() const noexcept
+{
+    return command_target();
+}
+
+VAML_CORE_EXPORT
+SetResult Button::set_command(vaml::ICommand* cmd)
+{
+    return Set(PropertyId::of("Button.Command"), Value::UntypedPtr(cmd));
+}
+
+VAML_CORE_EXPORT
+vaml::ICommand* Button::command() const noexcept
+{
+    const Value v = Get(PropertyId::of("Button.Command"));
+    return v.isNull() ? nullptr : static_cast<vaml::ICommand*>(v.get<void*>());
+}
+
+VAML_CORE_EXPORT
+SetResult Button::set_command_parameter(vaml::Value value)
+{
+    // The authored parameter travels as its string literal form (the DP is
+    // String). A Value::String is passed straight through; any other Value is
+    // stored as the generic literal.
+    if (value.type() == vaml::ValueType::String)
+        return Set(PropertyId::of("Button.CommandParameter"), value);
+    return Set(PropertyId::of("Button.CommandParameter"),
+               vaml::Value::String(std::string{}));
+}
+
+VAML_CORE_EXPORT
+vaml::Value Button::command_parameter() const
+{
+    return Get(PropertyId::of("Button.CommandParameter"));
+}
+
+VAML_CORE_EXPORT
+SetResult Button::set_command_target(DependencyObject* target)
+{
+    return Set(PropertyId::of("Button.CommandTarget"), Value::UntypedPtr(target));
+}
+
+VAML_CORE_EXPORT
+DependencyObject* Button::command_target() const noexcept
+{
+    const Value v = Get(PropertyId::of("Button.CommandTarget"));
+    return v.isNull() ? nullptr : static_cast<DependencyObject*>(v.get<void*>());
+}
+
 VAML_CORE_EXPORT
 bool Button::raise_click()
 {
     // IsEnabled gates the Click routing (WPF-faithful): a disabled Button does
-    // NOT raise Click. Raises the BUBBLING ClickEvent (S320/S321) with
-    // source==this; a handler setting handled=true stops the route.
+    // NOT raise Click. When an ICommandSource Command is set, the invoke ALSO
+    // executes it (WPF ButtonBase.OnClick -> Command.Execute) — the command is
+    // CanExecute-gated: only executed when CanExecute(parameter) is true.
     if (!is_enabled())
         return false;
+
+    // Execute the ICommandSource command first (WPF-faithful: the command runs
+    // as part of the invoke), then raise the bubbling Click.
+    if (vaml::ICommand* cmd = source_command())
+    {
+        if (cmd->CanExecute(source_command_parameter()))
+        {
+            cmd->Execute(source_command_parameter());
+        }
+    }
+
     vaml::RoutedEventArgs args;
     args.source = this;
     args.originalSource = this;
@@ -5879,6 +5979,19 @@ void register_repeatbutton_properties()
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     // The Click routed event (shared with the S401 Button via the S320 registry).
     (void)vaml::ClickEvent();
+
+    // --- ICommandSource (11n-2): a RepeatButton is a command-holding button.
+    // Same Command (UntypedPtr -> ICommand*) / CommandParameter (String)/
+    // CommandTarget (UntypedPtr) shape as Button, owner "RepeatButton".
+    (void)DependencyProperty::Register(
+        "RepeatButton.Command", ValueType::UntypedPtr, "RepeatButton",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "RepeatButton.CommandParameter", ValueType::String, "RepeatButton",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "RepeatButton.CommandTarget", ValueType::UntypedPtr, "RepeatButton",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
 }
 
 void ensure_repeatbutton_properties_registered()
@@ -5904,11 +6017,65 @@ bool RepeatButton::raise_click()
 {
     // ButtonBase-faithful Click raise (the S401 Button precedent; no IsEnabled
     // gate on a RepeatButton at 11k-2 — the ButtonBase IsEnabled is 11k-11).
+    // ICommandSource: execute the Command (CanExecute-gated) on invoke, then
+    // raise the bubbling Click (WPF ButtonBase.OnClick).
+    if (vaml::ICommand* cmd = source_command())
+    {
+        if (cmd->CanExecute(source_command_parameter()))
+        {
+            cmd->Execute(source_command_parameter());
+        }
+    }
     vaml::RoutedEventArgs args;
     args.source = this;
     args.originalSource = this;
     RaiseEvent(vaml::ClickEvent(), args);
     return args.handled;
+}
+
+// --- RepeatButton : ICommandSource (11n-2) ---------------------------------
+VAML_CORE_EXPORT
+vaml::ICommand* RepeatButton::source_command() const noexcept { return command(); }
+
+VAML_CORE_EXPORT
+vaml::Value RepeatButton::source_command_parameter() const
+{
+    return command_parameter();
+}
+
+VAML_CORE_EXPORT
+DependencyObject* RepeatButton::source_command_target() const noexcept
+{
+    const Value v = Get(PropertyId::of("RepeatButton.CommandTarget"));
+    return v.isNull() ? nullptr : static_cast<DependencyObject*>(v.get<void*>());
+}
+
+VAML_CORE_EXPORT
+SetResult RepeatButton::set_command(vaml::ICommand* cmd)
+{
+    return Set(PropertyId::of("RepeatButton.Command"), Value::UntypedPtr(cmd));
+}
+
+VAML_CORE_EXPORT
+vaml::ICommand* RepeatButton::command() const noexcept
+{
+    const Value v = Get(PropertyId::of("RepeatButton.Command"));
+    return v.isNull() ? nullptr : static_cast<vaml::ICommand*>(v.get<void*>());
+}
+
+VAML_CORE_EXPORT
+SetResult RepeatButton::set_command_parameter(vaml::Value value)
+{
+    if (value.type() == vaml::ValueType::String)
+        return Set(PropertyId::of("RepeatButton.CommandParameter"), value);
+    return Set(PropertyId::of("RepeatButton.CommandParameter"),
+               vaml::Value::String(std::string{}));
+}
+
+VAML_CORE_EXPORT
+vaml::Value RepeatButton::command_parameter() const
+{
+    return Get(PropertyId::of("RepeatButton.CommandParameter"));
 }
 
 VAML_CORE_EXPORT
@@ -6711,6 +6878,16 @@ void register_menuitem_properties()
     (void)DependencyProperty::Register(
         "MenuItem.CommandParameter", ValueType::String, "MenuItem",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // --- ICommandSource (11n-2): the REAL command object DP (DECISION-1). ---
+    (void)DependencyProperty::Register(
+        "MenuItem.CommandObject", ValueType::UntypedPtr, "MenuItem",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.CommandParameterObject", ValueType::String, "MenuItem",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    (void)DependencyProperty::Register(
+        "MenuItem.CommandTarget", ValueType::UntypedPtr, "MenuItem",
+        PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
     (void)DependencyProperty::Register(
         "MenuItem.IsCheckable", ValueType::Int32, "MenuItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
@@ -6779,6 +6956,45 @@ VAML_CORE_EXPORT
 std::string MenuItem::command_parameter() const
 {
     return Get(PropertyId::of("MenuItem.CommandParameter")).get<std::string>();
+}
+
+// --- MenuItem : ICommandSource (11n-2) -------------------------------------
+VAML_CORE_EXPORT
+vaml::ICommand* MenuItem::source_command() const noexcept { return command_object(); }
+
+VAML_CORE_EXPORT
+vaml::Value MenuItem::source_command_parameter() const
+{
+    return Get(PropertyId::of("MenuItem.CommandParameterObject"));
+}
+
+VAML_CORE_EXPORT
+DependencyObject* MenuItem::source_command_target() const noexcept
+{
+    const Value v = Get(PropertyId::of("MenuItem.CommandTarget"));
+    return v.isNull() ? nullptr : static_cast<DependencyObject*>(v.get<void*>());
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_command_object(vaml::ICommand* cmd)
+{
+    return Set(PropertyId::of("MenuItem.CommandObject"), Value::UntypedPtr(cmd));
+}
+
+VAML_CORE_EXPORT
+vaml::ICommand* MenuItem::command_object() const noexcept
+{
+    const Value v = Get(PropertyId::of("MenuItem.CommandObject"));
+    return v.isNull() ? nullptr : static_cast<vaml::ICommand*>(v.get<void*>());
+}
+
+VAML_CORE_EXPORT
+SetResult MenuItem::set_command_parameter_object(vaml::Value value)
+{
+    if (value.type() == vaml::ValueType::String)
+        return Set(PropertyId::of("MenuItem.CommandParameterObject"), value);
+    return Set(PropertyId::of("MenuItem.CommandParameterObject"),
+               vaml::Value::String(std::string{}));
 }
 
 VAML_CORE_EXPORT
@@ -6860,6 +7076,15 @@ bool MenuItem::raise_click()
         const bool next = !is_checked();
         (void)set_is_checked(next);
         apply_checked(next);
+    }
+    // ICommandSource (11n-2): execute the REAL command object (CanExecute-gated)
+    // when one is set (WPF MenuItem.OnClick -> ICommand.Execute).
+    if (vaml::ICommand* cmd = source_command())
+    {
+        if (cmd->CanExecute(source_command_parameter()))
+        {
+            cmd->Execute(source_command_parameter());
+        }
     }
     vaml::RoutedEventArgs args;
     args.source = this;
@@ -8277,6 +8502,26 @@ void register_builtin_elements()
     // (never UnknownProperty). Guarded/idempotent (TryGet-skipped — safe after
     // the control/bundle registrations above). See ElementDpFidelity.cpp.
     vaml_run_dp_fidelity_closure();
+
+    // --- 11n-5 (dep:11n-2/11k-4) — the 3D SURFACE (Viewport3D/Model3D/
+    // Visual3D/Geometry3D). The abstract 3D bases (Visual3D/Model3D/Geometry3D/
+    // Camera/Material) are NOT registered as factory elements (WPF-faithful:
+    // abstract + internal ctor — the 11k-4 abstract-base precedent). The
+    // LOADABLE concrete leaves ARE: the Viewport3D 3D file://ROOT (a UIElement
+    // the sample roots a scene in), the ModelVisual3D 3D leaf (a Visual3D that
+    // hosts a Model3D content), the model leaves (GeometryModel3D/Model3DGroup),
+    // the geometry leaf (MeshGeometry3D), the material identity
+    // (DiffuseMaterial), and the camera leaves (PerspectiveCamera/
+    // OrthographicCamera). Built-in count 100 -> 108 (+8; bumps authored at the
+    // step, never silent). All are REAL permanent symbols (no MINIMAL REAL).
+    registry.register_element("Viewport3D",        [] { return std::make_unique<Viewport3D>(); });          // 101
+    registry.register_element("ModelVisual3D",     [] { return std::make_unique<ModelVisual3D>(); });       // 102
+    registry.register_element("GeometryModel3D",   [] { return std::make_unique<GeometryModel3D>(); });     // 103
+    registry.register_element("Model3DGroup",      [] { return std::make_unique<Model3DGroup>(); });        // 104
+    registry.register_element("MeshGeometry3D",    [] { return std::make_unique<MeshGeometry3D>(); });      // 105
+    registry.register_element("DiffuseMaterial",   [] { return std::make_unique<DiffuseMaterial>(); });     // 106
+    registry.register_element("PerspectiveCamera", [] { return std::make_unique<PerspectiveCamera>(); });   // 107
+    registry.register_element("OrthographicCamera",[] { return std::make_unique<OrthographicCamera>(); });  // 108
 }
 
 } // namespace vaml

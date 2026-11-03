@@ -129,6 +129,39 @@ resolves the vertical-slice/placeholder to full fidelity.
 | `ToolBar` (11k-2) | `dynamic_cast<ToolBar>` | `Solid` (toolbar strip) | **VERTICAL-SLICE** | `S649`-style chrome |
 | `ToolBarTray` (11k-2) | `dynamic_cast<ToolBarTray>` | `Solid` (toolbar-tray host) | **VERTICAL-SLICE** | `S649`-style chrome |
 
+### Corpus tail + shape/channel/tree/date/document family (Sprint 11m, S550–S558)
+| XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |
+|---|---|---|---|---|
+| `Path` (S551) | `dynamic_cast<Path>` | `Solid` (fill box via `Fill`/`Stroke`) | **VERTICAL-SLICE** (curved/segmented outline) | `S649`-style real geometry render |
+| `Polygon` (S551) | `dynamic_cast<Polygon>` | `Solid` (fill box via `Fill`) | **VERTICAL-SLICE** | `S649`-style render |
+| `Polyline` (S551) | `dynamic_cast<Polyline>` | `Solid` (fill box via `Stroke`) | **VERTICAL-SLICE** | `S649`-style render |
+| `Track` (S551) | `dynamic_cast<Track>` | `Solid` (channel box) | **VERTICAL-SLICE** (thumb repeat) | `S649` |
+| `TickBar` (S551) | `dynamic_cast<TickBar>` | `Solid` (tick slot) | **VERTICAL-SLICE** (tick marks) | `S649` |
+| `TreeView` (S552) | `dynamic_cast<TreeView>` | `Solid` (tree fill) | **VERTICAL-SLICE** (indent/expand chrome) | `S649`-style render |
+| `TreeViewItem` (S552) | `dynamic_cast<TreeViewItem>` | `Solid` (item-row fill; selected tint) | **VERTICAL-SLICE** | `S649`-style render |
+| `DatePicker` (S553) | `dynamic_cast<DatePicker>` | `Solid` (field box) | **VERTICAL-SLICE** (dropdown calendar) | `S649`-style render |
+| `DatePickerTextBox` (S553) | `dynamic_cast<DatePickerTextBox>` | `Solid` (edit-field box) | **VERTICAL-SLICE** | `S649`-style render |
+| `Calendar` (S553) | `dynamic_cast<Calendar>` | `Solid` (calendar grid) | **VERTICAL-SLICE** (day-cell chrome) | `S649`-style render |
+| `CalendarItem` (S553) | `dynamic_cast<CalendarItem>` | `Solid` (calendar panel) | **VERTICAL-SLICE** | `S649`-style render |
+| `CalendarDayButton` (S553) | `dynamic_cast<CalendarDayButton>` | `Solid` (day-button slot) | **VERTICAL-SLICE** | `S649`-style render |
+| `CalendarButton` (S553) | `dynamic_cast<CalendarButton>` | `Solid` (button slot) | **VERTICAL-SLICE** | `S649`-style render |
+| `InkCanvas` (S554) | `dynamic_cast<InkCanvas>` | `Solid` (ink surface fill) | **VERTICAL-SLICE** (stroke rendering) | `S649`-style render |
+| `InkPresenter` (S554) | `dynamic_cast<InkPresenter>` | `Solid` (stroke host fill) | **VERTICAL-SLICE** | `S649`-style render |
+| `MediaElement` (S554) | `dynamic_cast<MediaElement>` | `Monochrome` (media frame texture) | **VERTICAL-SLICE** (buffered/playback chrome) | `S649` |
+| `Page` (S555) | `dynamic_cast<Page>` | `Solid` (page fill) | **VERTICAL-SLICE** | `S649`-style render |
+| `Frame` (S555) | `dynamic_cast<Frame>` | `Solid` (frame fill) | **VERTICAL-SLICE** | `S649`-style render |
+| `DocumentViewer` (S555) | `dynamic_cast<DocumentViewer>` | `Solid` (document view fill) | **VERTICAL-SLICE** | `S649`-style render |
+| `FlowDocumentReader` (S555) | `dynamic_cast<FlowDocumentReader>` | `Solid` (reader fill) | **VERTICAL-SLICE** | `S649`-style render |
+| `FlowDocumentScrollViewer` (S555) | `dynamic_cast<FlowDocumentScrollViewer>` | `Solid` (scroll reader fill) | **VERTICAL-SLICE** | `S649`-style render |
+| `SinglePageViewer` (S555) | `dynamic_cast<SinglePageViewer>` | `Solid` (single-page fill) | **VERTICAL-SLICE** | `S649`-style render |
+
+> **Sprint 11m conformance (recorded, not silent):** the S550–S558 tail controls are all
+> REAL classified surfaces (mostly `Solid`, `MediaElement` → `Monochrome`) delivered at their
+> own 11m steps. These rows close the RENDER_SURFACE gap that the 11m SURVIVOR recorded —
+> the catalog had not yet been extended for the tail controls (a coverage-matrix drift, now
+> consolidated at the 11n-7 wrap per the coverage-matrix obligation). No new classifier arm /
+> material / matrix row introduced by 11n itself (see the 11n surface note below).
+
 ### Non-UIElement / structural
 | XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |
 |---|---|---|---|---|
@@ -296,4 +329,30 @@ A converter returns `BindingConversion{ok=false, detail}` (or throws) on failure
 S242 pipeline emits `ConverterFailed` and, when a fallback is bound, applies it
 (`FallbackApplied`). `ConvertBack` failure on a TwoWay binding emits `WriteBackRejected`
 (S244) and skips the write-back — never a throw (ADR-016, Class B observation).
+
+---
+
+## The 11n SURFACE (3D + Adorner — non-`classify_merge_element` drawable surfaces)
+
+> **Purpose.** The 11n sprint (11n-5 3D, 11n-6 Adorner/VisualTreeHelper) delivers two
+> drawable surfaces that are **NOT `classify_merge_element` classifier arms** — they
+> render via dedicated seams OUTSIDE the base visual-slice walk, so the base-vs-
+> encoder split keeps ADR-011 clean (model/logic in core; "how to draw" in the
+> vulkan lane). They are cataloged here so they are **visible and searchable**
+> (the coverage-matrix obligation), with the honest vertical slice / live-lane /
+> forward-token split — never silent.
+
+| XAML concept | Model + seams (vaml/core) | Vulkan render arm | Status | NO-GAP token |
+|---|---|---|---|---|
+| `Viewport3D`/`Model3D`/`Geometry3D`/`Visual3D` (11n-5) | `Viewport3D` (FrameworkElement, IAddChild) hosts `Model3D`/`Geometry3D` (Animatable) content + camera/projection; `Visual3D : DependencyObject` (NOT Visual) | `vaml::vulkan::media3d` — the headless SOFTWARE rasterizer (pure geometry→tile; CPU, no GPU) | **VERTICAL-SLICE** (headless geometry→tile on BOTH lanes; the live viewport-presented Model3D on a real device is the [both apps, not CI] live lane) | live **GPU path** ([both-apps, not CI] live lane — viewport-presented Model3D), recorded not silent |
+| `Adorner` layer (11n-6) | `Adorner : UIElement` (measure-to-adorned-size + GetDesiredTransform + IsClipEnabled), `AdornerLayer` (Add/Remove/z-order/Update), `AdornerDecorator` host | `encode_adorner_tree` in the vaml-vulkan `UiSceneEncoder` — a SECOND-PASS adorner emission feeding the existing S206 batcher, rendered ABOVE at the adorned element's transform | **VERTICAL-SLICE** (CPU side on BOTH lanes; the second-pass adorner emission into the encoder is the [both apps, not CI] live lane) | **AdornerHitTest** + adorner input routing (overlaying S323 hit-test) = the named forward refinement, recorded not silent |
+
+> **CONFORMANCE (recorded, not silent):** neither the 11n-5 3D surface nor the 11n-6
+> adorner surface introduces a NEW `classify_merge_element` arm (they are non-classifier
+> drawable surfaces rendered via dedicated seams), so the RENDER_SURFACE conformance
+> validator stays `OK` at the 11n-7 wrap. The rows above make both surfaces first-class
+> catalog entries with an honest status + forward token — no silent gap. The 11n-5 GPU
+> path (viewport-presented Model3D on a real device) and the 11n-6 adorner render +
+> AdornerHitTest lanes are [both apps, not CI], exercised live on the NVIDIA box, never
+> CI gates (recorded not silent).
 

@@ -26,6 +26,7 @@
 // ADR-011 held (template = core data/logic). ADR-018: zero locks.
 
 #include "vaml/core/DependencyObject.h"  // DataTemplate IS a DependencyObject (resource model)
+#include "vaml/core/FrameworkTemplate.h" // 11n-3 — the shared template base
 #include "vaml/core/UIElement.h"         // UIElement (the template content root)
 #include "vaml/core/export.h"
 
@@ -49,15 +50,17 @@ struct VAML_CORE_EXPORT DataTemplateBinding
     std::string sourcePath;   // the binding path into the item (e.g. "Name")
 };
 
-class VAML_CORE_EXPORT DataTemplate : public DependencyObject
+class VAML_CORE_EXPORT DataTemplate : public FrameworkTemplate
 {
 public:
     DataTemplate();
     ~DataTemplate() override;
 
     // --- DataType (the WPF `DataType` target item-type name, optional) ------
-    void set_data_type(std::string type);
-    [[nodiscard]] const std::string& data_type() const noexcept { return data_type_; }
+    // Unified under the 11n-3 FrameworkTemplate base: set_data_type sets the
+    // inherited target_type_, and data_type() reads it — ONE target-type slot.
+    void set_data_type(std::string type) { set_target_type(std::move(type)); }
+    [[nodiscard]] const std::string& data_type() const noexcept { return target_type(); }
 
     // --- The authored content root (the template spec) ---------------------
     // S500 scopes the authored content to a SINGLE root (WPF DataTemplate has
@@ -80,7 +83,6 @@ public:
     }
 
 private:
-    std::string                 data_type_;
     std::unique_ptr<UIElement>  template_root_;
     std::vector<DataTemplateBinding> bindings_;
 };

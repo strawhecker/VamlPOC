@@ -100,6 +100,12 @@ vaml_add_library(vulkan
     # textured-quad DrawItem (the "drawn via the S202 atlas mesh"). Pure +
     # headless-testable (no Vulkan runtime); device upload = the live path.
     src/vector/VectorRaster.cpp
+    # 11n-5 (dep:11k-4) — the 3D RENDER seam: the headless software rasterizer
+    # projecting an authored Viewport3D -> S202 atlas-tile RGBA8 bytes + the
+    # S206 textured-quad DrawItem. Pure + headless-testable (no Vulkan runtime);
+    # device upload + a depth-buffered 3D GPU pipeline = the [both-apps, not CI]
+    # live lane.
+    src/media3d/Media3DRaster.cpp
 )
 
 # Only vaml-vulkan links the GPU stack (ADR-011): GLFW (S160) + Vulkan + VMA

@@ -55,6 +55,17 @@ vaml_add_library(core
     src/IValueConverter.cpp            # S501 — IValueConverter + the binding-converter adapter
     src/BooleanToVisibilityConverter.cpp  # S501 — the sole framework bool->Visibility converter
     src/RelayCommand.cpp
+    src/AutomationProperties.cpp     # 11n-1 — the AutomationProperties static attached-property class
+    src/Freezable.cpp                # 11n-2 — the immutable Freezable base (InputBinding/Animatable base)
+    src/RoutedCommand.cpp            # 11n-2 — the routed command (DAG ICommand->RoutedCommand+CommandManager)
+    src/CommandManager.cpp           # 11n-2 — the routed-command table + RequerySuggested hub
+    src/InputGesture.cpp             # 11n-2 — KeyGesture/MouseGesture
+    src/InputBinding.cpp             # 11n-2 — InputBinding(Freezable,ICommandSource)->KeyBinding/MouseBinding
+    src/FrameworkTemplate.cpp        # 11n-3 — the shared FrameworkTemplate base
+    src/ObservableCollection.cpp     # 11n-4 — the reactive-spine ObservableCollection core
+    src/BindingBase.cpp              # 11n-4 — BindingBase/MarkupExtension + Binding/MultiBinding/PriorityBinding recipes
+    src/CollectionView.cpp           # 11n-4 — CollectionView (DispatcherObject, ICollectionView) + DECISION-2 change-log/drain
+    src/ItemsControl.cpp             # 11n-4 — ItemsControl incremental per-item containers on CollectionChanged
     src/Behavior.cpp                 # S502 (11f) — Behavior base attach/detach
     src/BehaviorCollection.cpp       # S502 (11f) — BehaviorCollection + i:Interaction.Behaviors
     src/TriggerAction.cpp            # S502 (11f) — TriggerAction base
@@ -69,6 +80,15 @@ vaml_add_library(core
     src/InputMarshaller.cpp
     src/FocusManager.cpp
     src/TextLayout.cpp          # S400 — TextLayout (pure CPU text layout + wrap engine)
+    src/Media3D.cpp             # 11n-5 — the 3D value/base spine (Point3D/Matrix3D + Animatable : Freezable + projection)
+    src/Geometry3D.cpp          # 11n-5 — Geometry3D + MeshGeometry3D
+    src/Model3D.cpp             # 11n-5 — Model3D + GeometryModel3D + Model3DGroup + Material
+    src/Visual3D.cpp            # 11n-5 — Visual3D + ModelVisual3D + IVisual3DContainer
+    src/Viewport3D.cpp          # 11n-5 — Viewport3D + the Camera family
+    src/VisualTreeHelper.cpp    # 11n-6 — the static visual-tree navigation helper
+    src/Adorner.cpp             # 11n-6 — the abstract Adorner base (WPF Adorner.cs)
+    src/AdornerLayer.cpp        # 11n-6 — the AdornerLayer owner (WPF AdornerLayer.cs)
+    src/AdornerDecorator.cpp    # 11n-6 — the AdornerDecorator host (WPF AdornerDecorator.cs)
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()

@@ -35,6 +35,9 @@
 #include "vaml/core/GridLength.h" // GridLength, RowDefinition, ColumnDefinition (S131)
 #include "vaml/core/TextLayout.h" // S400 — text_layout_plan / default_text_metric (Measure basis)
 #include "vaml/core/UIElement.h"  // StackPanel/Grid's base (S129/S131 re-base — RESOLVED seeds)
+#include "vaml/core/ICommand.h"      // S246 — the ONE command interface (Button : ICommandSource)
+#include "vaml/core/ICommandSource.h"// 11n-2 — the command-invoking touchpoint anchor
+#include "vaml/core/Value.h"         // Value — the command-parameter domain
 
 #include <cstdint>
 #include <memory>
@@ -98,7 +101,7 @@ class ContentPresenter;
 // classify_merge_element (a Button classifies to MaterialKind::Solid, the
 // default Button material); the live per-state brush re-render is the
 // [s401-live]/S409_1 path — recorded NO-GAP, not silent.
-class VAML_CORE_EXPORT Button final : public UIElement
+class VAML_CORE_EXPORT Button final : public UIElement, public ICommandSource
 {
 public:
     Button();
@@ -128,6 +131,24 @@ public:
     // Pressed transitions; raise_click is IsEnabled-gated.
     [[nodiscard]] SetResult set_visual_state(std::string name);
     [[nodiscard]] std::string visual_state() const;
+
+    // --- ICommandSource (anchor 11n-2) --------------------------------------
+    // DECISION-1: Command is the REAL `vaml::ICommand*` (ONE S246 interface),
+    // stored via the UntypedPtr DP. A Button is now a command-holding object:
+    // when invoked (raise_click) it executes its Command.CanExecute-gated
+    // Execute(CommandParameter). CommandParameter is a Value (the VAML value
+    // domain; string literals stay Value::String). CommandTarget is
+    // DependencyObject* (the target the command is routed to; null => self).
+    [[nodiscard]] vaml::ICommand* source_command() const noexcept override;
+    [[nodiscard]] vaml::Value source_command_parameter() const override;
+    [[nodiscard]] DependencyObject* source_command_target() const noexcept override;
+
+    [[nodiscard]] SetResult set_command(vaml::ICommand* cmd);
+    [[nodiscard]] vaml::ICommand* command() const noexcept;
+    [[nodiscard]] SetResult set_command_parameter(vaml::Value value);
+    [[nodiscard]] vaml::Value command_parameter() const;
+    [[nodiscard]] SetResult set_command_target(DependencyObject* target);
+    [[nodiscard]] DependencyObject* command_target() const noexcept;
 
 protected:
     // S401 real Button algorithm: a Button measures at its natural (content)
@@ -2253,7 +2274,7 @@ private:
 // The auto-repeat TIMER loop (fires Click repeatedly while pressed) is the
 // S649/11k-11 continuation (recorded NO-GAP not silent); the Click raise +
 // Delay/Interval/IsPressed surface is the real 11k-2 core.
-class VAML_CORE_EXPORT RepeatButton final : public UIElement
+class VAML_CORE_EXPORT RepeatButton final : public UIElement, public ICommandSource
 {
 public:
     RepeatButton();
@@ -2272,6 +2293,19 @@ public:
     // --- IsPressed (REAL DP; Bool via Int32, default false) ---------------
     [[nodiscard]] SetResult set_is_pressed(bool value);
     [[nodiscard]] bool is_pressed() const;
+
+    // --- ICommandSource (11n-2) -------------------------------------------
+    // A RepeatButton is a command-holding button: on raise_click it executes
+    // its Command (CanExecute-gated), exactly like Button (WPF
+    // RepeatButton : ButtonBase).
+    [[nodiscard]] vaml::ICommand* source_command() const noexcept override;
+    [[nodiscard]] vaml::Value source_command_parameter() const override;
+    [[nodiscard]] DependencyObject* source_command_target() const noexcept override;
+
+    [[nodiscard]] SetResult set_command(vaml::ICommand* cmd);
+    [[nodiscard]] vaml::ICommand* command() const noexcept;
+    [[nodiscard]] SetResult set_command_parameter(vaml::Value value);
+    [[nodiscard]] vaml::Value command_parameter() const;
 
 protected:
     // 11k-2 real RepeatButton algorithm: a bounded default button box; the
@@ -2467,7 +2501,7 @@ private:
 // HeaderedItemsControl (Header + nested items + Click + Checkable) carrying
 // the S464 Command/CommandParameter hand-off; ContextMenu is a popup host
 // (IsOpen + Placement). MenuItem.Click raises the BUBBLING "Click" event.
-class VAML_CORE_EXPORT MenuItem final : public UIElement
+class VAML_CORE_EXPORT MenuItem final : public UIElement, public ICommandSource
 {
 public:
     MenuItem();
@@ -2485,6 +2519,21 @@ public:
     [[nodiscard]] std::string command() const;
     [[nodiscard]] SetResult set_command_parameter(std::string value);
     [[nodiscard]] std::string command_parameter() const;
+
+    // --- ICommandSource (11n-2) -------------------------------------------
+    // A MenuItem is ALSO a real command-holding object (WPF MenuItem :
+    // HeaderedItemsControl, ICommandSource). command_object holds the REAL
+    // `vaml::ICommand*` (DECISION-1: ONE S246 interface); when set,
+    // raise_click executes it (CanExecute-gated) IN ADDITION to the S464
+    // string-command surface.
+    [[nodiscard]] vaml::ICommand* source_command() const noexcept override;
+    [[nodiscard]] vaml::Value source_command_parameter() const override;
+    [[nodiscard]] DependencyObject* source_command_target() const noexcept override;
+
+    [[nodiscard]] SetResult set_command_object(vaml::ICommand* cmd);
+    [[nodiscard]] vaml::ICommand* command_object() const noexcept;
+    [[nodiscard]] SetResult set_command_parameter_object(vaml::Value value);
+
 
     // --- Checkable / IsChecked (REAL DPs; Bool via Int32, default false) ----
     [[nodiscard]] SetResult set_is_checkable(bool value);

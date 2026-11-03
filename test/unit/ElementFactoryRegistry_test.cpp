@@ -402,7 +402,7 @@ TEST_CASE("S087: startup registration — every built-in element resolves to its
     // GridViewColumnHeader/VirtualizingStackPanel/SelectiveScrollingGrid
     // (59 -> 78) + the S551 shape/channel leaves Path/Polygon/Polyline/Track/
     // TickBar (78 -> 83; count bumps are authored at the step, never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(100u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(108u));
 }
 
 TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op, not a throw)")
@@ -428,7 +428,9 @@ TEST_CASE("S087: register_builtin_elements is idempotent (second call is a no-op
     // ItemsPresenter/ItemsPanelTemplate/ItemContainerTemplate/GridView/
     // GridViewRowPresenter/GridViewHeaderRowPresenter/GridViewColumnHeader/
     // VirtualizingStackPanel/SelectiveScrollingGrid the 60th-75th (count bumps
-    // authored at the step, never silent).
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(100u));
+    // authored at the step, never silent) + the 11n-5 3D surface Viewport3D/
+    // ModelVisual3D/GeometryModel3D/Model3DGroup/MeshGeometry3D/DiffuseMaterial/
+    // PerspectiveCamera/OrthographicCamera the 76th-83rd (100 -> 108).
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(108u));
     assertConcrete<Button>(g.create("Button"));
 }

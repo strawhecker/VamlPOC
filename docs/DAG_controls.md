@@ -311,80 +311,96 @@
 
 ## Manual-add rows (re-applied verbatim — the S503a GEN-LOSSY escape)
 
-> **12k-5 (manual add, trigger family, under the closure-under-ancestry invariant).** The trigger/action
-> family rows (`TriggerBase`, `Trigger`, `DataTrigger`, `EventTrigger`, `SetterBase`, `Setter`,
-> `TriggerAction`, `BeginStoryboard`, `Storyboard`) were added here manually under the documented
-> manual-add escape hatch (the `gap_dp_daggen.py` generator output did not include them; they are the
-> `Style/Triggers` authoring family, parent nodes of the already-listed `SoundPlayerAction → TriggerAction`
-> — whose dangling parent edge this closes). Follow the DAG contract: row states are flipped PLANNED→DONE at
-> their owning sprints (EventTrigger@11e/11f/11g + S559's full re-apply), never silently.
->
-> **11f DAG-EXT (manual add, behaviors + DataTemplate family, under the closure-under-ancestry invariant).**
-> `gap_dp_daggen.py` scans only `PresentationFramework\System\Windows\Controls`, `Controls\Primitives`, and
-> `Shapes` — it **cannot** emit the Microsoft.Xaml.Behaviors type-family (a separate assembly) or the
-> `DataTemplate` parent node (a `System.Windows` FrameworkTemplate type outside the scan). Per D1/D3
-> (roadmap Sprint 11f), the following rows were added manually under the same escape hatch:
-> - **`DataTemplate → FrameworkTemplate`** — closes the dangling parent edge of the already-listed
->   `ItemContainerTemplate → DataTemplate` and `DataTemplateSelector` (S500 owns it).
-> - **Microsoft.Xaml.Behaviors family** (`Behavior → DependencyObject`, `Behavior<T> → Behavior`,
->   `BehaviorCollection`, interactivity `TriggerAction → DependencyObject`, `InvokeCommandAction →
->   TriggerAction`, interactivity `EventTrigger → TriggerBase`) — the `i:`/`behaviors:`/`dd:` interaction
->   surface S502/S503a owns. **RESOLVED at S503a**: S502 authored the types + behavior path
->   (Behavior + TypedBehavior<T> + BehaviorCollection + TriggerAction + InvokeCommandAction +
->   InteractivityEventTrigger); the rows are flipped PLANNED→DONE **here** at S503a.
-> **EventTrigger DISAMBIGUATION (D3):** two DISTINCT EventTrigger classes exist.
-> - `System.Windows EventTrigger` (RoutedEvent/SourceName — the `Style.Triggers` family) → stays `PLANNED`
->   (delivered at S559's full re-apply). NOT flipped by 11f.
-> - `Microsoft.Xaml.Behaviors EventTrigger` (EventName/SourceObject/Actions) → flipped `DONE` at S503a
->   (VAML maps it → `InteractivityEventTrigger`, the S502 behavior that fires its ordered
->   `TriggerAction`s on the routed event).
-> The S11k-5 EventTrigger container surface was authored at 11e (S495a); its `TriggerAction` payload
-> distributes 11e/11f/11g — 11f owns the behaviors action family.
->
-> **GEN-LOSSY NOTE (S503a, recorded NO-GAP not silent):** `gap_dp_daggen.py` REGENERATES the whole file
-> and therefore **overwrites these manual-add rows** (the generator's scan scope cannot emit the behaviors
-> family / the `DataTemplate → FrameworkTemplate` parent / the EventTrigger DISAMBIGUATION). Running it
-> after a manual-add is therefore DESTRUCTIVE to the closure-under-ancestry rows. The correct process is
-> the manual-add escape hatch itself: the generator's output is the base, and the manual rows are
-> re-applied AFTER any regeneration (they are never generated). At S503a the generator was NOT re-run
-> destructively; the manual rows + their PLANNED→DONE flips are the authoritative DAG state here.
->
-> **Tri-state:** every WPF type is in EXACTLY ONE state — `DONE` (Vaml models it + its surface),
-> `PLANNED` (declared, scheduled), or `OUT-OF-SCOPE(<resolution-sprint>)` (declared, NOT silent).
-> *Nothing is hidden*: unmodeled controls are declared `OUT-OF-SCOPE`, never omitted.
+> **12k-5 trigger family — MANUAL ADD (closure-under-ancestry / GEN-LOSSY escape):**
+> the framework `TriggerBase`/`TriggerAction`/`SetterBase` + the concrete
+> `BeginStoryboard`/`SoundPlayerAction`/`ControllableStoryboardAction` rows live OUTSIDE the
+> generator's `Controls`/`Primitives`/`Shapes` scan scope (they are `System.Windows`
+> core trigger/action types). Added under the closure-under-ancestry invariant so
+> `SoundPlayerAction -> TriggerAction` (and the trigger action ancestry) is NOT a dangling
+> parent edge. Row states: trigger family PLANNED until the trigger/action delivery steps;
+> the interactivity EventTrigger (Microsoft.Xaml.Behaviors) is DISTINCT from the
+> System.Windows Style.Triggers EventTrigger (S503a).
 
+> **11f behaviors / DataTemplate — MANUAL ADD (DAG-EXT-11f, GEN-LOSSY escape):**
+> the Microsoft.Xaml.Behaviors family (`Behavior -> DependencyObject`, `Behavior<T> -> Behavior`,
+> `BehaviorCollection`, `TriggerAction -> DependencyObject`, `InvokeCommandAction -> TriggerAction`,
+> interactivity `EventTrigger -> TriggerBase` with EventName/SourceObject) + the missing
+> `DataTemplate` row (closing the dangling `ItemContainerTemplate -> DataTemplate` parent edge).
+> States: the behaviors rows flipped PLANNED->DONE at S503a (11f) — behavior/trigger/action are
+> REAL; the System.Windows `EventTrigger` (Style.Triggers) row stays PLANNED (the Style.Triggers
+> family, delivered later).
 
-> **11n-0 DAG-EXT (manual add, Sprint-11n content, under the closure-under-ancestry invariant).**
-> `gap_dp_daggen.py` scans only `PresentationFramework\System\Windows\Controls`, `Controls\Primitives`,
-> and `Shapes` — it **cannot** emit PresentationCore (`Input\Command\*`, `System\Windows\Media\*`,
-> `System\Windows\Automation\*`, `System\Windows\Input\*`), WindowsBase /
-> `System.ComponentModel`/`System.Collections.ObjectModel` (the observable + weak-event interfaces), nor the
-> `FrameworkTemplate`/`FrameworkContentElement`/`DispatcherObject` branches. These are the Sprint-11n
-> types (added with the DAG update at **11n-0**; the underlying IMPLEMENTATION sprints 11n-1..11n-6 flip the
-> rows PLANNED→DONE — this 11n-0 row-add is the DAG update the roadmap wrap commits BEFORE those
-> implementation steps, so the DAG is live and complete at 11n-0). Added under the same escape hatch, at
-> ground truth from `E:\GitRepos\wpf`:
-> - **Input/command spine (11n-2):** `ICommand` (interface), `RoutedCommand → ICommand`,
->   `CommandBinding`, `CommandManager`, `ICommandSource` (interface — the `ButtonBase` touchpoint),
->   `InputGesture` (abstract) → `KeyGesture`/`MouseGesture`, `InputBinding : Freezable, ICommandSource` →
->   `KeyBinding`/`MouseBinding`.
-> - **Automation (11n-1):** `AutomationProperties` (static attached-property class on
->   `DependencyObject`/`UIElement`: Name/AutomationId/HelpText/ItemStatus).
-> - **Templates (11n-3):** `FrameworkTemplate` (parent of the already-listed `ControlTemplate`/
->   `DataTemplate`; closes the `ItemsPanelTemplate → FrameworkTemplate` parent edge already listed).
-> - **Binding/observables (11n-4, OPTION A event-subscription):** `Freezable`,
->   `DispatcherObject`, `IWeakEventListener` (the weak subscription-lifetime contract),
->   `INotifyPropertyChanged` / `INotifyCollectionChanged`, `NotifyCollectionChangedEventArgs`
->   (+ `CollectionChangedAction`), `ObservableCollection<T>`,
->   `BindingBase` (a `MarkupExtension`) → `MultiBinding`/`PriorityBinding`,
->   `BindingExpressionBase` → `BindingExpression`, `IMultiValueConverter`,
->   `ICollectionView` → `CollectionView : DispatcherObject, ICollectionView, INotifyPropertyChanged`.
-> - **3D (11n-5):** `Visual3D : DependencyObject, IVisual3DContainer` (NOT a `Visual`),
->   `Viewport3D : FrameworkElement, IAddChild` (the host — corrects the pre-existing `ViewPort3D`
->   spelling row), `Model3D : Animatable`, `Geometry3D : Animatable`, `IVisual3DContainer`,
->   `Animatable` (animatable-content base).
-> - **Visuals/adorners (11n-6, done LAST):** `Adorner : FrameworkElement`, `AdornerLayer` (a
->   panel-like adorner host), `VisualTreeHelper` (static visual-tree walk — forces the visual-tree model
->   decision; the ADR-011 classifier/encode collision is recorded NO-GAP by 11n-6).
-> All rows below are added as `PLANNED` (their owning 11n step flips them PLANNED→DONE, never silently).
+> **11n-0 DAG-EXT cluster — MANUAL ADD (the DAG-anchor closure 11n carries, GEN-LOSSY escape):**
+> the 11n sprint's binding/input/observable/3D/visual anchors live OUTSIDE the generator's
+> `Controls`/`Primitives`/`Shapes` scan scope (they are `System.Windows.Input`,
+> `System.Windows.Data`, `System.Windows.Media`, `System.Windows` core interfaces + base
+> classes). Recorded under the closure-under-ancestry invariant so each anchor is a named,
+> forward-resolvable DAG row (NO-GAP — never silent). The anchors 11n unifies under + their
+> uncover-driven additions (per the 11n-0 roadmap block):
+>
+> **Unify-under anchors (the shared bases/interfaces 11n's additions implement):**
+> - `ICommand` (EXISTING S246 `vaml::ICommand`) — the single command interface; 11n-2 EXTENDS it.
+> - `ICommandSource` (the ButtonBase touchpoint) — Command/CommandParameter/CommandTarget.
+> - `Freezable` / `Animatable` — immutable/animatable content base; `Animatable -> Freezable`.
+> - `BindingBase` / `BindingExpressionBase` / `MarkupExtension` — the binding spine.
+> - `FrameworkTemplate` — shared by ControlTemplate/DataTemplate/ItemsPanelTemplate.
+> - `DispatcherObject` — the affinity/threading base (S037/S041/S143).
+> - `IWeakEventListener` — the subscription-lifetime contract (11n-4 Option A).
+> - `ICollectionView` / `INotifyPropertyChanged` / `INotifyCollectionChanged` — the reactive spine.
+>
+> **Uncover-driven additions (base -> new, each recorded as a named row):**
+> - `ICommand` -> `RoutedCommand` + `CommandManager` (REUSES the existing S246 `vaml::ICommand` —
+>   NEVER a parallel interface, NEVER a bridge; see the 11n-2 DECISION record).
+> - `InputGesture` -> `KeyGesture` / `MouseGesture`.
+> - `InputBinding`(ICommandSource) -> `KeyBinding` / `MouseBinding`.
+> - `Visual3D`(DependencyObject, NOT Visual) -> `Viewport3D`(FrameworkElement, IAddChild) +
+>   `Model3D`(Animatable) + `Geometry3D`(Animatable).
+> - `BindingBase` -> `Binding` / `MultiBinding` / `PriorityBinding`.
+> - `BindingExpressionBase` -> `BindingExpression` (implements the S240/S242 `vaml::BindingExpression`).
+> - `FrameworkTemplate` -> `ItemsPanelTemplate`.
+> - `CollectionView : DispatcherObject, ICollectionView, INotifyPropertyChanged`.
+>
+> Row states: these anchors are the 11n step surface — flipped DONE as each 11n step delivers
+> its REAL surface (11n-1 AutomationProperties, 11n-2 ICommand spine, 11n-3 FrameworkTemplate,
+> 11n-4 reactive spine, 11n-5 3D, 11n-6 Adorner/VisualTreeHelper); PLANNED until then, never
+> silent. ZERO MINIMAL REAL + ZERO invented names (WPF-real type names verified against
+> `E:\GitRepos\wpf`).
 
+## 11n anchor inventory (DONE — first-class DAG rows, re-applied verbatim)
+
+> **11n-7 DAG CLOSE.** These anchor rows are the full 11n delta consolidated into the AGENDA table (the DAG-anchor inventory). Each row flips from the 11n-0 DAG-EXT cluster note to a REAL DONE row as its 11n body step shipped: 11n-1 (AutomationProperties), 11n-2 (ICommand spine: ICommandSource/ Freezable/RoutedCommand/CommandManager/InputGesture/InputBinding), 11n-3 (FrameworkTemplate — and ItemsPanelTemplate, which is ALREADY a DONE generated row re-based onto FrameworkTemplate, so it is intentionally NOT duplicated here), 11n-4 (reactive spine: BindingBase/BindingExpressionBase/ MarkupExtension/IWeakEventListener/ICollectionView/INotifyPropertyChanged/INotifyCollectionChanged/ + the Binding/MultiBinding/PriorityBinding/BindingExpression + CollectionView additions), 11n-5 (3D: Visual3D/Viewport3D/Model3D/Geometry3D).
+
+| Type | Inheritance (DAG) | Vaml tri-state | Own DPs | Routed events |
+|------|-------------------|----------------|---------|---------------|
+| `ICommand` | ICommand | DONE | — | CanExecuteChanged |
+| `ICommandSource` | ICommandSource | DONE | Command, CommandParameter, CommandTarget | — |
+| `Freezable` | Freezable → DependencyObject | DONE | — | — |
+| `Animatable` | Animatable → Freezable | DONE | — | — |
+| `BindingBase` | BindingBase → MarkupExtension | DONE | — | — |
+| `BindingExpressionBase` | BindingExpressionBase → Freezable | DONE | — | — |
+| `MarkupExtension` | MarkupExtension | DONE | — | — |
+| `FrameworkTemplate` | FrameworkTemplate → DependencyObject | DONE | — | — |
+| `DispatcherObject` | DispatcherObject | DONE | — | — |
+| `IWeakEventListener` | IWeakEventListener | DONE | — | — |
+| `ICollectionView` | ICollectionView | DONE | — | — |
+| `INotifyPropertyChanged` | INotifyPropertyChanged | DONE | — | PropertyChanged |
+| `INotifyCollectionChanged` | INotifyCollectionChanged | DONE | — | CollectionChanged |
+| `RoutedCommand` | RoutedCommand → ICommand | DONE | Name, OwnerType | CanExecuteChanged |
+| `CommandManager` | CommandManager | DONE | — | RequerySuggested |
+| `InputGesture` | InputGesture | DONE | — | — |
+| `KeyGesture` | KeyGesture → InputGesture | DONE | Key, Modifiers | — |
+| `MouseGesture` | MouseGesture → InputGesture | DONE | MouseAction, Modifiers | — |
+| `InputBinding` | InputBinding → Freezable, ICommandSource | DONE | Command, CommandParameter, CommandTarget | — |
+| `KeyBinding` | KeyBinding → InputBinding | DONE | Gesture | — |
+| `MouseBinding` | MouseBinding → InputBinding | DONE | Gesture | — |
+| `Visual3D` | Visual3D → DependencyObject | DONE | — | — |
+| `Viewport3D` | Viewport3D → FrameworkElement | DONE | Camera, Children | — |
+| `Model3D` | Model3D → Animatable | DONE | — | — |
+| `Geometry3D` | Geometry3D → Animatable | DONE | — | — |
+| `Binding` | Binding → BindingBase | DONE | Path, Mode, Converter, Source, FallbackValue | — |
+| `MultiBinding` | MultiBinding → BindingBase | DONE | Bindings, Mode, Converter | — |
+| `PriorityBinding` | PriorityBinding → BindingBase | DONE | Bindings | — |
+| `BindingExpression` | BindingExpression → BindingExpressionBase | DONE | — | — |
+| `CollectionView` | CollectionView → DispatcherObject, ICollectionView, INotifyPropertyChanged | DONE | — | — |
+
+> **11n-7 continuation:** the 3D anchors (Visual3D/Viewport3D/Model3D/Geometry3D) are the 11n-5 3D surface (DONE); the Adorner/VisualTreeHelper anchors are the 11n-6 surface (DONE). MultiBinding/ PriorityBinding live multi-source evaluation beyond the mechanism binding is recorded forward (not silent); AdornerHitTest + adorner input routing is the named forward refinement. No silent gaps.

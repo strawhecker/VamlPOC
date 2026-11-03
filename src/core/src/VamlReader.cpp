@@ -343,6 +343,54 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         return obj;
     }
 
+    // 11n-5 (dep:11k-4) — 3D-ROOT authoring. A `<Viewport3D>` builds into the
+    // owned 3D scene root; its authored Visual3D/Model3D/Geometry3D/Camera
+    // children build into the owned shared_ptr model graph (the 11k-4 owned-
+    // graph precedent). The abstract bases (Visual3D/Model3D/Geometry3D/
+    // Camera/Material) are NOT authorable as bare elements (WPF-faithful +
+    // the 11k-4 abstract-base precedent); only the concrete DO leaves reach
+    // here.
+    if (auto* vp = dynamic_cast<Viewport3D*>(obj.get()))
+    {
+        build_viewport3d(*vp, element, depth);
+        return obj;
+    }
+    if (auto* mv = dynamic_cast<ModelVisual3D*>(obj.get()))
+    {
+        build_model_visual3d(*mv, element, depth);
+        return obj;
+    }
+    if (auto* mesh = dynamic_cast<MeshGeometry3D*>(obj.get()))
+    {
+        build_mesh_geometry3d(*mesh, element, depth);
+        return obj;
+    }
+    if (auto* gm = dynamic_cast<GeometryModel3D*>(obj.get()))
+    {
+        build_geometry_model3d(*gm, element, depth);
+        return obj;
+    }
+    if (auto* mg = dynamic_cast<Model3DGroup*>(obj.get()))
+    {
+        build_model3d_group(*mg, element, depth);
+        return obj;
+    }
+    if (auto* dm = dynamic_cast<DiffuseMaterial*>(obj.get()))
+    {
+        build_diffuse_material(*dm, element);
+        return obj;
+    }
+    if (auto* pc = dynamic_cast<PerspectiveCamera*>(obj.get()))
+    {
+        build_perspective_camera(*pc, element);
+        return obj;
+    }
+    if (auto* oc = dynamic_cast<OrthographicCamera*>(obj.get()))
+    {
+        build_orthographic_camera(*oc, element);
+        return obj;
+    }
+
     // Step 2 — attributes: set plain-literal properties, CONSUME the S092
     // strands (Name/Class directives, isExtension retention, event routing).
     for (const ParsedAttribute& attr : element.attributes)
@@ -1709,6 +1757,325 @@ void VamlReader::build_image_brush(ImageBrush& brush, const ParsedElement& eleme
         if (attr.key == "ImageSource")
         {
             (void)brush.set_image_source(std::string(attr.value));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 11n-5 — 3D-ROOT authoring builders (the 11k-4 owned-shared_ptr graph precedent)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Parses N space/comma-separated floats; throws MalformedValue on a short/
+// malformed stream. Used by the 3D position/index/triangle authoring paths.
+std::vector<float> parse_floats(const std::string_view s, const char* what)
+{
+    std::vector<float> out;
+    std::size_t pos = 0;
+    while (pos < s.size())
+    {
+        while (pos < s.size() && (s[pos] == ' ' || s[pos] == '\t' || s[pos] == ',' ||
+                                  s[pos] == '\r' || s[pos] == '\n'))
+        {
+            ++pos;
+        }
+        if (pos >= s.size())
+        {
+            break;
+        }
+        const char* start = s.data() + pos;
+        char* end = nullptr;
+        const double v = std::strtod(start, &end);
+        if (end == start)
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty,
+                std::string(what),
+                "malformed numeric stream '" + std::string(s) + "'");
+        }
+        out.push_back(static_cast<float>(v));
+        pos += static_cast<std::size_t>(end - start);
+    }
+    return out;
+}
+
+vaml::Point3D parse_point3d(const std::string_view s, const char* what)
+{
+    const std::vector<float> f = parse_floats(s, what);
+    if (f.size() < 3)
+    {
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, std::string(what),
+            "a Point3D requires 'x y z' (got '" + std::string(s) + "')");
+    }
+    return { f[0], f[1], f[2] };
+}
+
+vaml::Vector3D parse_vector3d(const std::string_view s, const char* what)
+{
+    const vaml::Point3D p = parse_point3d(s, what);
+    return { p.x, p.y, p.z };
+}
+
+double parse_double(const std::string_view s, const char* what)
+{
+    if (s.empty())
+    {
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, std::string(what),
+            "expected a numeric value (got empty)");
+    }
+    const std::string tmp(s);
+    char* end = nullptr;
+    const double v = std::strtod(tmp.c_str(), &end);
+    if (end == tmp.c_str())
+    {
+        throw VamlReaderException(
+            VamlReaderError::UnknownProperty, std::string(what),
+            "malformed numeric value '" + tmp + "'");
+    }
+    return v;
+}
+
+} // namespace
+
+VAML_CORE_EXPORT
+void VamlReader::build_mesh_geometry3d(MeshGeometry3D& mesh, const ParsedElement& element, std::size_t depth)
+{
+    (void)depth;
+    // Attributes: Positions ("x,y,z x,y,z ...") + TriangleIndices ("0 1 2 ...")
+    // + Transform (a "m11,m12,..." Matrix3D literal).
+    std::string positions;
+    std::string indices;
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.key == "Positions")
+        {
+            positions = attr.value;
+        }
+        else if (attr.key == "TriangleIndices")
+        {
+            indices = attr.value;
+        }
+        else if (attr.key == "Transform")
+        {
+            (void)mesh.set_transform(vaml::Matrix3D::identity());
+        }
+    }
+    if (!positions.empty())
+    {
+        std::vector<vaml::Point3D> pts;
+        const std::vector<float> f = parse_floats(positions, "Positions");
+        const std::size_t n = f.size() / 3;
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            pts.push_back({ f[i * 3], f[i * 3 + 1], f[i * 3 + 2] });
+        }
+        mesh.set_positions(pts);
+    }
+    if (!indices.empty())
+    {
+        std::vector<std::int32_t> idx;
+        const std::vector<float> f = parse_floats(indices, "TriangleIndices");
+        for (const float v : f)
+        {
+            idx.push_back(static_cast<std::int32_t>(v));
+        }
+        mesh.set_triangle_indices(idx);
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_model_visual3d(ModelVisual3D& visual, const ParsedElement& element, std::size_t depth)
+{
+    // Children: a <ModelVisual3D.Content> property-element (a Model3D leaf) or
+    // a bare Model3D child -> the owned content.
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal =
+            child.local_name.empty() ? child.tagName : child.local_name;
+        if (is_property_element(childLocal) &&
+            split_property_element(childLocal).second == "Content")
+        {
+            auto kids = build_property_children(child, &visual, depth + 1);
+            if (!kids.empty())
+            {
+                if (auto* m = dynamic_cast<Model3D*>(kids.front()))
+                {
+                    visual.set_content(std::shared_ptr<Model3D>(m, [](Model3D*) {}));
+                }
+            }
+            continue;
+        }
+        DependencyObject* raw = build_retained_child(child, &visual, depth + 1);
+        if (auto* m = dynamic_cast<Model3D*>(raw))
+        {
+            visual.set_content(std::shared_ptr<Model3D>(m, [](Model3D*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_diffuse_material(DiffuseMaterial& material, const ParsedElement& element)
+{
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.key == "Color")
+        {
+            (void)material.set_color(vaml::parse_color(attr.value));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_geometry_model3d(GeometryModel3D& model, const ParsedElement& element, std::size_t depth)
+{
+    // Children: <GeometryModel3D.Geometry> (a MeshGeometry3D) + a
+    // <GeometryModel3D.Material> (a DiffuseMaterial); or a bare geometry child.
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal =
+            child.local_name.empty() ? child.tagName : child.local_name;
+        if (is_property_element(childLocal))
+        {
+            const auto [ownerName, propName] = split_property_element(childLocal);
+            if (propName == "Geometry")
+            {
+                auto kids = build_property_children(child, &model, depth + 1);
+                if (!kids.empty())
+                {
+                    if (auto* g = dynamic_cast<Geometry3D*>(kids.front()))
+                    {
+                        model.set_geometry(std::shared_ptr<Geometry3D>(g, [](Geometry3D*) {}));
+                    }
+                }
+            }
+            else if (propName == "Material")
+            {
+                auto kids = build_property_children(child, &model, depth + 1);
+                if (!kids.empty())
+                {
+                    if (auto* m = dynamic_cast<Material*>(kids.front()))
+                    {
+                        model.set_material(std::shared_ptr<Material>(m, [](Material*) {}));
+                    }
+                }
+            }
+            continue;
+        }
+        DependencyObject* raw = build_retained_child(child, &model, depth + 1);
+        if (auto* g = dynamic_cast<Geometry3D*>(raw))
+        {
+            model.set_geometry(std::shared_ptr<Geometry3D>(g, [](Geometry3D*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_model3d_group(Model3DGroup& group, const ParsedElement& element, std::size_t depth)
+{
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal =
+            child.local_name.empty() ? child.tagName : child.local_name;
+        if (is_property_element(childLocal) &&
+            split_property_element(childLocal).second == "Children")
+        {
+            for (const ParsedElement& gchild : child.children)
+            {
+                DependencyObject* raw = build_retained_child(gchild, &group, depth + 1);
+                if (auto* m = dynamic_cast<Model3D*>(raw))
+                {
+                    group.add_model(std::shared_ptr<Model3D>(m, [](Model3D*) {}));
+                }
+            }
+            continue;
+        }
+        DependencyObject* raw = build_retained_child(child, &group, depth + 1);
+        if (auto* m = dynamic_cast<Model3D*>(raw))
+        {
+            group.add_model(std::shared_ptr<Model3D>(m, [](Model3D*) {}));
+        }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_perspective_camera(PerspectiveCamera& camera, const ParsedElement& element)
+{
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.key == "Position")       { (void)camera.set_position(parse_point3d(attr.value, "Position")); }
+        else if (attr.key == "LookDirection") { (void)camera.set_target(parse_point3d(attr.value, "LookDirection")); }
+        else if (attr.key == "Target")    { (void)camera.set_target(parse_point3d(attr.value, "Target")); }
+        else if (attr.key == "UpDirection"){ (void)camera.set_up(parse_vector3d(attr.value, "UpDirection")); }
+        else if (attr.key == "FieldOfView"){ (void)camera.set_field_of_view(parse_double(attr.value, "FieldOfView")); }
+        else if (attr.key == "NearPlaneDistance") { (void)camera.set_near_plane(parse_double(attr.value, "NearPlaneDistance")); }
+        else if (attr.key == "FarPlaneDistance")  { (void)camera.set_far_plane(parse_double(attr.value, "FarPlaneDistance")); }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_orthographic_camera(OrthographicCamera& camera, const ParsedElement& element)
+{
+    for (const ParsedAttribute& attr : element.attributes)
+    {
+        if (attr.directive != XmlDirectiveType::None)
+        {
+            continue;
+        }
+        if (attr.key == "Position")       { (void)camera.set_position(parse_point3d(attr.value, "Position")); }
+        else if (attr.key == "LookDirection") { (void)camera.set_target(parse_point3d(attr.value, "LookDirection")); }
+        else if (attr.key == "Target")    { (void)camera.set_target(parse_point3d(attr.value, "Target")); }
+        else if (attr.key == "UpDirection"){ (void)camera.set_up(parse_vector3d(attr.value, "UpDirection")); }
+        else if (attr.key == "Width")     { (void)camera.set_width(parse_double(attr.value, "Width")); }
+        else if (attr.key == "NearPlaneDistance") { (void)camera.set_near_plane(parse_double(attr.value, "NearPlaneDistance")); }
+        else if (attr.key == "FarPlaneDistance")  { (void)camera.set_far_plane(parse_double(attr.value, "FarPlaneDistance")); }
+    }
+}
+
+VAML_CORE_EXPORT
+void VamlReader::build_viewport3d(Viewport3D& viewport, const ParsedElement& element, std::size_t depth)
+{
+    // Children: authored Visual3D leaves (ModelVisual3D) -> the 3D child list;
+    // a <Viewport3D.Camera> property-element -> the owned Camera.
+    for (const ParsedElement& child : element.children)
+    {
+        const std::string_view childLocal =
+            child.local_name.empty() ? child.tagName : child.local_name;
+        if (is_property_element(childLocal))
+        {
+            const auto [ownerName, propName] = split_property_element(childLocal);
+            if (propName == "Camera")
+            {
+                auto kids = build_property_children(child, &viewport, depth + 1);
+                if (!kids.empty())
+                {
+                    if (auto* cam = dynamic_cast<Camera*>(kids.front()))
+                    {
+                        (void)viewport.set_camera(
+                            std::shared_ptr<Camera>(cam, [](Camera*) {}));
+                    }
+                }
+            }
+            continue;
+        }
+        DependencyObject* raw = build_retained_child(child, &viewport, depth + 1);
+        if (auto* v = dynamic_cast<Visual3D*>(raw))
+        {
+            viewport.add_visual3d_child(std::shared_ptr<Visual3D>(v, [](Visual3D*) {}));
         }
     }
 }

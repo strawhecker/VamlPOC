@@ -2584,6 +2584,12 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 ---
 
 ## 11n-0 — DAG UNCOVER + UPDATE
+[**DONE — implementit 11n:** `gap_dp_daggen.py` re-ran (282 rows, exactly-one-state); the manual-add
+note-blocks re-applied via the documented S503a GEN-LOSSY escape (now `_dag_s11n0.py`: the 12k-5 trigger
+family, the 11f behaviors/DataTemplate family, and the NEW 11n-0 DAG-EXT cluster — the binding/input/
+observable/3D/visual anchors + their uncover-driven additions, each a named forward-resolvable DAG row,
+ZERO MINIMAL REAL + ZERO invented names). `docs/DAG_controls.md` live + complete; the anchor cluster flips
+DONE as each 11n body step delivers its REAL surface.]
 Before the body steps (and again at wrap), walk each addition's WPF base-class / implemented-interface
 anchors from `E:\GitRepos\wpf` and record every anchor the DAG must carry, using uncovered bases/interfaces
 to find OTHERS WE WERE MISSING. Confirmed anchors to unify under:
@@ -2608,6 +2614,20 @@ Update the DAG doc so it is up to date + complete.
 ---
 
 ## 11n-1 — AUTOMATIONPROPERTIES
+[**DONE — implementit 11n; both CI lanes green from first principles:** `src/core/include/vaml/core/
+AutomationProperties.h` + `src/core/src/AutomationProperties.cpp` (the PresentationCore static
+attached-property class — REAL permanent surface, NOT MINIMAL REAL; reuses the existing
+DependencyProperty/PropertyId/SetResult machinery, NO new base). Registers the five documented head
+attached DPs under owner "AutomationProperties" via the S043 attached-aware path: Name/AutomationId/
+HelpText/ItemStatus (String, default "") + IsOffscreenBehavior (Int32, default Default=0, validate-gated
+0/1/2 = the WPF OffscreenBehavior enum — ZERO invented names). Typed statics + a public
+`ensure_automation_properties_registered()` seam (Meyers-static, idempotent). Tests
+`AutomationProperties_s11n1_test.cpp` (3 cases/27 assertions, fluent Shouldly): String DP round-trip +
+real-change NO_CHANGE discipline, IsOffscreenBehavior default/accept/reject-unchanged, and a CORPUS-DOC
+authoring all five on a UIElement → resolves through the S091 dotted-key reader + reads back.
+`build/verify_s11n1.cmd` = two-lane gate. windows-msvc (msvc-debug, serial build to avoid MSVC
+heap-exhaustion on parallel PCH) + ubuntu-clang (VM, clang-debug) BOTH green; full suites no-regression.
+ADR-018 zero locks.]
 PresentationCore static attached-property class; reuses the existing DependencyProperty/PropertyId machinery.
 Register `AutomationProperties.Name / .AutomationId / .HelpText / .ItemStatus / .IsOffscreenBehavior` (etc.)
 as attached DPs; a corpus doc authoring them on a UIElement resolves + reads back. No new base.
@@ -2616,6 +2636,19 @@ Test `AutomationProperties_s11n1_test.cpp`.
 ---
 
 ## 11n-2 — THE ICOMMAND SPINE
+[**DONE — implementit 11n; BOTH CI lanes green from first principles:** PER DECISION-1 ONE
+`vaml::ICommand` (the S246 family) — `RoutedCommand : ICommand` (raises a routed command event, no
+delegate; Name/OwnerType/can-execute + CanExecuteChanged token events), `CommandManager` (the routed-
+command table RegisterCommand/FindCommand, idempotent + the RequerySuggested hub), `InputGesture ->
+KeyGesture/MouseGesture` (WPF ModifierKeys/MouseActions ints, ZERO invented names),
+`InputBinding(Freezable, ICommandSource) -> KeyBinding/MouseBinding` (the Freezable freeze-immutability
+invariant), and the ButtonBase controls upgraded to `ICommandSource` — Button/RepeatButton/MenuItem get
+Command (`vaml::ICommand*` via the UntypedPtr DP, the real command object) + CommandParameter +
+CommandTarget, executing the CanExecute-gated Command on raise_click (WPF ButtonBase.OnClick / MenuItem.
+OnClick). `Freezable` base introduced (the 11n-5 Animatable base + immutable-content base, DAG
+anchor). Tests `ICommand_s11n2_test.cpp` (spine suite) + `Freezable_s11n2_test.cpp` (frozen write-
+refusal, isolated TU). `build/verify_s11n2.cmd` = two-lane gate. windows-msvc full suite EXIT=0
+no-regression; ubuntu-clang full suite 1229 pass / exit 0. ADR-018 ZERO locks.]
 Self-contained PresentationCore. `ICommand` (interface: Execute/CanExecute/CanExecuteChanged);
 `RoutedCommand : ICommand`; `CommandManager` (static connect/disconnect + the routed-command table);
 `InputGesture` (abstract) -> `KeyGesture`/`MouseGesture`; `InputBinding : Freezable, ICommandSource` ->
@@ -2648,6 +2681,17 @@ Test `ICommand_s11n2_test.cpp`.
 ---
 
 ## 11n-3 — FRAMEWORKTEMPLATE + ITEMSPANELTEMPLATE
+[**DONE — implementit 11n; BOTH CI lanes green from first principles:** introduced the `FrameworkTemplate`
+base (`vaml/core/FrameworkTemplate.*`) — the WPF-faithful shared template base, an 11n-3 DAG anchor.
+`ControlTemplate` (S364) + `DataTemplate` (S500) RE-BASED onto it (target_type carried on ONE inherited
+slot; DataTemplate.DataType now maps onto the inherited target_type()). `ItemsPanelTemplate` — the
+ItemsControl.ItemsPanel panel recipe — REUSED the pre-existing Scaffolding type (re-based
+`ItemsPanelTemplate : FrameworkTemplate`, NO duplicate type — the reconciliation avoided a parallel
+duplicate that collided at link time; `set_panel_root`/`load_items_panel` seam preserved intact).
+The new `ItemsPanelTemplate.*` files are re-export shims only. Tests `FrameworkTemplate_s11n3_test.cpp`
+(ControlTemplate/DataTemplate/ItemsPanelTemplate IS-A FrameworkTemplate + DataType-to-target_type
+mapping + no-regression). `build/verify_s11n3.cmd` = two-lane gate. windows-msvc full suite EXIT=0
+no-regression; ubuntu-clang full suite 1233 pass / exit 0. ADR-018 ZERO locks.]
 Rides existing Style/ResourceDictionary. Unify the `FrameworkTemplate` base under ControlTemplate/DataTemplate;
 add `ItemsPanelTemplate` (e.g. VirtualizingStackPanel recipe) so `ItemsControl.ItemsPanel` resolves.
 Test `FrameworkTemplate_s11n3_test.cpp`.
@@ -2715,18 +2759,66 @@ The reactive spine (the substantial observable-collection infrastructure VAML la
 Test `BindingBase_s11n4_test.cpp` (reactive: mutate the ObservableCollection -> the bound ItemsControl
 reflects the change live).
 
+> **11n-4 MAIN SURFACE — DELIVERED (both CI lanes GREEN).** Built per DECISION-2 (ADR-018 renegotiated,
+> human-gated): the reactive spine's main surface is REAL and permanent (ZERO MINIMAL REAL):
+>   - `INotifyPropertyChanged` (formal interface; `ObservableObject` derives from it — DAG anchor flips DONE).
+>   - `DispatcherObject` (affinity-thread base: check_access/verify_affinity, PURE READ, zero locks).
+>   - `ICollectionView` + `CollectionView : DispatcherObject, ICollectionView, INotifyPropertyChanged,
+>     IWeakEventListener` — the live collection read model (Count/Contains/GetItemAt/IndexOf + current-item
+>     navigation + Refresh), subscribed to the source WEAKLY (weak_ptr trampoline, weak-lifetime contract).
+>   - DECISION-2 change-log/drain OWned IN-LIBRARY here (NO work deferred to 11z): two deques (filling_/
+>     draining_), default `!AllowsCrossThreadChanges` = ZERO locks (fill==drain sync on the affinity
+>     thread; CrossThreadChangeRejected = the WPF NotSupportedException boundary throw-guard), opt-in
+>     `AllowsCrossThreadChanges` = ONE permitted fill->drain swap mutex (WPF _changeLogLock; draining
+>     runs OUTSIDE the lock) + `drain_one_pass()` budget-drain with re-queue (the app-pulled harvest the
+>     11z seam calls).
+>   - `ItemsControl` — incremental per-item container add/remove on CollectionChanged (event-subscription,
+>     NOT polled), detach-on-destroy (S245).
+>   - Tests: `BindingBase_s11n4_test.cpp` RETAINS the recipes + ADDS the reactive-live section (mutate the
+>     ObservableCollection -> the bound ItemsControl reflects the change live); NEW `CollectionView_s11n4_test.cpp`
+>     + `ItemsControl_s11n4_test.cpp`; gate `build/verify_s11n4.cmd` (windows-msvc + ubuntu-clang, both GREEN).
+>   - The 11n-4 roadmap note (the human-locking note) stays a STANDING entry (DECISION-2 is the signed-off
+>     verdict). The DRIVER-OWNED items recorded but NOT this step (explicit, not silent): the 11z harvest
+>     API surface (S543_1 / S540 IUiExecutor seam) — 11n-4 ships `drain_one_pass()`, 11z wraps it; 11n-5/6/7.
+
 ---
 
 ## 11n-5 — 3D (Viewport3D / Model3D / Visual3D / Geometry3D)
-`Visual3D : DependencyObject, IVisual3DContainer` (NOT a Visual); `Viewport3D : FrameworkElement, IAddChild`
-(hosts Model3D content); `Model3D : Animatable`; `Geometry3D : Animatable`. A `Viewport3D` is an isolatable
-FrameworkElement; Model3D/Geometry3D content + camera/projection are authored. Rendered through the headless
-software rasterizer (BOTH lanes) + the GPU path ([both-apps, not CI]).
+[**DONE — implementit 11n; BOTH CI lanes green from first principles (build/verify_s11n5.cmd):**
+`Visual3D : DependencyObject, IVisual3DContainer` (NOT a Visual), `Viewport3D : FrameworkElement, IAddChild`
+(hosts Model3D content + camera/projection; isolatable FrameworkElement), `Model3D : Animatable`,
+`Geometry3D : Animatable` — the 3D surface (WPF-verified, ZERO invented names). Rendered through the
+headless SOFTWARE rasterizer `vaml::vulkan::media3d` (pure CPU geometry->tile, headless + no GPU runtime)
+on BOTH CI lanes + the GPU path ([both-apps, not CI] live lane, recorded not silent). The 11n-0 DAG-EXT
+`Visual3D`/`Viewport3D`/`Model3D`/`Geometry3D` anchors flip DONE (the 11n-7 anchor inventory). Element-count
+gate 100 -> 108 (test/unit/ElementFactoryRegistry_test.cpp asserts ShouldBe(108u)); ZERO MINIMAL REAL +
+ZERO stubs (grep-audit in verify_s11n5.cmd); ADR-018 ZERO locks. Test `Viewport3D_s11n5_test.cpp`
+(headless geometry->tile, no GPU) on BOTH lanes.]
+WPF-faithful 3D surface: `Visual3D : DependencyObject, IVisual3DContainer` (NOT a Visual);
+`Viewport3D : FrameworkElement, IAddChild` (hosts Model3D content); `Model3D : Animatable`; `Geometry3D :
+Animatable`. A `Viewport3D` is an isolatable FrameworkElement; Model3D/Geometry3D content + camera/
+projection are authored. Rendered through the headless software rasterizer (BOTH lanes) + the GPU path
+([both-apps, not CI]).
 Test `Viewport3D_s11n5_test.cpp` (headless geometry->tile, no GPU).
 
 ---
 
 ## 11n-6 — ADORNER + VISUALTREEHELPER — done LAST
+[**DONE — implementit 11n; BOTH CI lanes green from first principles (build/verify_s11n6.cmd):**
+`VisualTreeHelper` (GetChildrenCount/GetChild/GetParent over the REAL S121 tree, borrowed/const +
+GetDescendantBounds = the S124 final_rect union) + `Adorner : UIElement` (AdornedElement non-owning +
+measure-to-adorned-size default + GetDesiredTransform passthrough + IsClipEnabled DP default false) +
+`AdornerLayer` (Add/Add(z)/Remove/GetAdorners/HasAdorners/AdornerCount/Update, keyed by the ADORNED
+element, WPF z-order default attach-order stable-sorted, NON-OWNING borrowed references) +
+`AdornerDecorator : Decorator` (owns a synthesized AdornerLayer + the static GetAdornerLayer ancestor
+walk). CPU side on BOTH lanes (`VisualTreeHelper_s11n6_test.cpp`, 10 cases); the adorner RENDER
+(`encode_adorner_tree` in the vaml-vulkan UiSceneEncoder feeding the existing S206 batcher + the
+GetDesiredTransform fold) is the GPU/[both-apps, not CI] lane, recorded not silent. The 11n-0 DAG-EXT
+harness anchors this step stands on (the visual-tree/model family) are whole + flip DONE (11n-7 anchor
+inventory).
+ZERO MINIMAL REAL + ZERO stubs (grep-audit in verify_s11n6.cmd); ADR-011 held (core data + measure;
+the second-pass emission in the vulkan lane); ADR-018 ZERO locks. AdornerHitTest + adorner input routing
+= the named forward refinement (recorded not silent).]
 Forces a real visual-tree model that collides with the ADR-011 classifier/encode architecture — deliberately
 its own step. TESTING SPLIT (per directive): unit-test WITHOUT GPU everything CPU-side (visual-tree walk,
 `VisualTreeHelper.GetParent/GetChildrenCount/GetChild`, AdornerLayer attach/detach, hit-test data) in the
@@ -2736,6 +2828,41 @@ Test `VisualTreeHelper_s11n6_test.cpp`.
 ---
 
 ## 11n-7 — ROADMAP WRAP + DAG CLOSE
+[**DONE — implementit 11n (the absolute-final docs/ops wrap; dep:11n-6, all body steps GREEN — no build
+at the wrap itself beyond the already-green 11n-5/6 lanes):**
+- **FINAL DAG UPDATE** — re-ran the base `gap_dp_daggen.py` regen (282 rows, exactly-one-state) then the
+  DAG-RE-GEN NORM re-apply via `_dag_s11n0.py` (the S503a GEN-LOSSY escape: the 12k-5 trigger family,
+  the 11f behaviors/DataTemplate family, the 11n-0 DAG-EXT cluster note — all re-applied verbatim).
+- **DAG-ANCHOR INVENTORY** — the 11n-0 uncovered anchors are now FIRST-CLASS DONE table rows
+  (the wrap's `## 11n anchor inventory` section): ICommand/ICommandSource/Freezable/Animatable/
+  BindingBase/BindingExpressionBase/MarkupExtension/FrameworkTemplate/DispatcherObject/IWeakEventListener/
+  ICollectionView/INotifyPropertyChanged/INotifyCollectionChanged + RoutedCommand/CommandManager/
+  InputGesture/KeyGesture/MouseGesture/InputBinding/KeyBinding/MouseBinding/Visual3D/Viewport3D/Model3D/
+  Geometry3D/Binding/MultiBinding/PriorityBinding/BindingExpression/CollectionView. ItemsPanelTemplate is
+  intentionally NOT duplicated (already a DONE generated row re-based onto FrameworkTemplate). Every anchor
+  in EXACTLY ONE tri-state (DONE) — closure-under-ancestry + nothing hidden held.
+- **FULL 11n DELTA recorded** — 11n-5 and 11n-6 marked DONE above with their delivered surface; 11n-7
+  marked DONE; the 11n-0..11n-4 lines were already DONE. The consolidated `SPRINT 11n — SURVIVOR` block
+  is in progress.md (the full sprint digest + checkpoint advance). The 11n-4 ROADMAP NOTE (the
+  human-locking / ADR-018 renegotiation note) stays a STANDING entry (verbatim, untrimmed).
+- **COVERAGE-MATRIX CONSOLIDATED** — `docs/RENDER_SURFACE.md` gained the Sprint 11m tail matrix rows
+  (S550-S558: Path/Polygon/Polyline/Track/TickBar/TreeView/TreeViewItem/DatePicker family/Ink/MediaElement/
+  document+frame — the coverage gap the 11m SURVIVOR recorded, closed at wrap) + the 11n surface section
+  (the 3D `vaml::vulkan::media3d` headless rasterizer + the 11n-6 adorner `encode_adorner_tree` second-pass
+  — non-`classify_merge_element` drawable surfaces, made visible + searchable); the
+  `render_surface_check.py` validator's canonical inventory extended with the 11m arms -> **conformance OK
+  (60 classifier arms, 66 catalog rows)**. NO new classifier arm / material / matrix row introduced by 11n
+  itself (the 3D + adorner surfaces render via dedicated non-classifier seams).
+- **NO SILENT GAPS** — NO-GAP accounting recorded: ZERO MINIMAL REAL + ZERO invented names (grep-audits in
+  verify_s11n5/6.cmd) + ZERO stubs; the deferred-not-silent ledger (S179) unchanged; the 3D GPU path
+  ([both apps, not CI] live lane), the adorner render + AdornerHitTest (forward refinement), and
+  MultiBinding/PriorityBinding live multi-source evaluation (beyond the mechanism binding) all recorded
+  forward, never silent.
+- **ADR-018 re-affirmed** — sprint-wide ZERO new locks, with the 11n-4 signed-off ONE permitted opt-in
+  fill→drain swap mutex (the human-gated exception) recorded as the standing verdict.
+- **CHECKPOINT ADVANCED** — last completed = **11n** (11n-0..11n-7), next = the next not-done step per the
+  dependency chain (S11h/S520 IMPORT/INJECT, then S540+/Sprint 11z).
+- **session-context.md** updated per the standing directive.]
 Final DAG update with the uncovered anchors; the full 11n delta recorded in roadmap + progress SURVIVOR;
 coverage-matrix + DAG-anchor inventory consolidated; no silent gaps. The roadmap 11n-4 note (the
 human-locking note) is a standing entry in the roadmap.

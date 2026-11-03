@@ -336,6 +336,52 @@ add_executable(vaml-core-tests
     # flips CanExecute + a subscribed handler observes via NotifyCanExecuteChanged).
     # Pure value-domain — registers no property names. ADR-018 zero locks.
     RelayCommand_test.cpp
+    # 11n-1 — AUTOMATIONPROPERTIES (vaml::core): the PresentationCore static
+    # attached-property class (Name/AutomationId/HelpText/ItemStatus/
+    # IsOffscreenBehavior), reusing the existing DependencyProperty/PropertyId/
+    # SetResult machinery (NO new base). Typed static round-trip + real-change
+    # discipline + validate gate + corpus-doc authoring on a UIElement.
+    AutomationProperties_s11n1_test.cpp
+    # 11n-2 — THE ICOMMAND SPINE (vaml::core): RoutedCommand : ICommand
+    # (DECISION-1: ONE interface, no bridge) + CommandManager (table +
+    # RequerySuggested) + InputGesture->KeyGesture/MouseGesture +
+    # InputBinding(Freezable,ICommandSource)->KeyBinding/MouseBinding +
+    # Button/RepeatButton/MenuItem upgraded to ICommandSource (real ICommand*
+    # Command DP executing on raise_click, CanExecute-gated).
+    ICommand_s11n2_test.cpp
+    # 11n-2 — Freezable invariant (isolated, lightweight TU so the MSVC PCH
+    # heap does not exhaust when editing the heavy Element-context test).
+    Freezable_s11n2_test.cpp
+    # 11n-3 — FRAMEWORKTEMPLATE + ITEMSPANELTEMPLATE (vaml::core): unify the
+    # FrameworkTemplate base under ControlTemplate + DataTemplate (target-type
+    # on ONE shared slot; DataTemplate.DataType maps to it) + add
+    # ItemsPanelTemplate (the panel recipe ItemsControl.ItemsPanel resolves).
+    FrameworkTemplate_s11n3_test.cpp
+    # 11n-4 (foundation) — the ObservableCollection notification spine: a
+    # VAML-native ObservableCollection raises PropertyChanged(Count/Item[]) +
+    # CollectionChanged in WPF order on every mutation (Add/Insert/Remove/
+    # RemoveAt/Clear/SetAt/Move) with the token + real-change discipline.
+    ObservableCollection_s11n4_test.cpp
+    # 11n-4 (main, step 1) — the BindingBase recipe family: MarkupExtension
+    # base + BindingBase -> Binding/MultiBinding/PriorityBinding. REUSES the
+    # S240-S245 BindingExpression engine (make_spec carries the input).
+    BindingBase_s11n4_test.cpp
+    # 11n-4 (main, step 2) — the IWeakEventListener weak-lifetime contract:
+    # a subscribed listener receives ReceiveWeakEvent; a COLLECTED listener is
+    # dropped (the weak bridge holds no strong reference — the source can be
+    # collected while the binding lives; no leak, no dangling call).
+    IWeakEventListener_s11n4_test.cpp
+    # 11n-4 (main, step 3) — the CollectionView live read model: DispatcherObject
+    # affinity + ICollectionView read/navigation + INotifyPropertyChanged(Count) +
+    # the DECISION-2 change-log (default sync fill==drain, zero locks) + the
+    # opt-in cross-thread budget-drain via drain_one_pass() with re-queue; the
+    # weak-lifetime subscription (a collected view is dropped, no leak).
+    CollectionView_s11n4_test.cpp
+    # 11n-4 (main, step 4) — the ItemsControl reactive host: incremental per-item
+    # container add/remove on the bound ObservableCollection's CollectionChanged
+    # (mutate -> the bound ItemsControl reflects the change live); weak/detach-on-
+    # destroy lifetime (a destroyed ItemsControl no longer reacts).
+    ItemsControl_s11n4_test.cpp
     # S247_1 (dep:S247) — Bindable-property convenience layer (vaml/mvvm):
     # PROPERTY_BINDABLE(type, Name) + the vaml::mvvm::set_property free template
     # over the S240/S241 core. Verifies the macro's typed backing field + getter/
@@ -539,6 +585,15 @@ add_executable(vaml-core-tests
     # S325 (dep:S324) — keyboard focus + routed key events (bubble): the
     # Focusable DP, FocusManager tab-order + RaiseKeyRouted.
     S325_Focus_test.cpp
+    # 11n-6 (dep:S121/S124/S550/S323) — ADORNER + VISUALTREEHELPER, CPU side
+    # (the standard BOTH-LANE headless suite; the step's GPU/[both apps, not CI]
+    # lane — encode_adorner_tree in the vulkan encoder — is NOT a ctest here).
+    # VisualTreeHelper.GetParent/GetChildrenCount/GetChild over real S121 trees +
+    # GetDescendantBounds (the S124 final_rect union) + the Adorner
+    # measure-to-adorned-size + GetDesiredTransform default + the AdornerLayer
+    # Add/Remove/Update/GetAdorners/GetAdornerLayer(static walk) attach/detach
+    # + z-order + the AdornerDecorator host. ZERO MINIMAL REAL.
+    VisualTreeHelper_s11n6_test.cpp
     # S326/S327 (Dispatcher/Task/async) are DEFERRED to Sprint 11a (the
     # multithreaded-UI construction) — NOT tested in Sprint 8 (single-threaded).
     # NO S326/S327 test TUs are present in this target.
@@ -921,6 +976,13 @@ add_executable(vaml-vulkan-tests
     # textured-quad material). Pure + headless (no live device atlas; the upload
     # is the [both-apps, not CI] path, mirrors S400_1).
     11k4_vectorResources_test.cpp
+    # 11n-5 (dep:11n-2/11k-4) — the 3D SURFACE + the HEADLESS SOFTWARE
+    # RASTERIZER (vaml::vulkan::media3d): value/projection spine + the
+    # Animatable:Freezable base + the authored object model round-trip + the
+    # corpus-shaped Viewport3D load + the HEADLINE geometry->tile raster proof +
+    # degenerate (empty->ok=false) cases. Pure + headless (no GPU; the DEVICE
+    # upload + a real 3D GPU pipeline are the [both-apps, not CI] lane).
+    Viewport3D_s11n5_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-vulkan-tests)

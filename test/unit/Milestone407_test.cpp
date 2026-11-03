@@ -118,7 +118,7 @@ TEST_CASE("S407: the S10 controls are registered as concrete built-in types")
     // ItemContainerTemplate/GridView/GridViewRowPresenter/
     // GridViewHeaderRowPresenter/GridViewColumnHeader/VirtualizingStackPanel/
     // SelectiveScrollingGrid) = 78.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(100u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(108u));
     SHOULD(ShouldlyIntegral(g.is_registered("UserControl")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("Application")).ShouldBe(true));
     SHOULD(ShouldlyIntegral(g.is_registered("ResourceDictionary")).ShouldBe(true));

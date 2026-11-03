@@ -57,6 +57,7 @@
 // through the same thread's binding engine); cross-thread marshalling is
 // S326/S211 territory, not this type's.
 
+#include "vaml/core/INotifyPropertyChanged.h" // the formal interface (11n-4)
 #include "vaml/core/PropertyId.h"       // PropertyId
 #include "vaml/core/PropertyPath.h"     // PropertyRead, PropertyReader, PropertySegment
 #include "vaml/core/Value.h"            // Value
@@ -71,37 +72,37 @@
 
 namespace vaml {
 
-// The INotifyPropertyChanged-analogue: a lightweight observable value holder.
-class VAML_CORE_EXPORT ObservableObject
+// A lightweight observable value holder — the INotifyPropertyChanged impl.
+class VAML_CORE_EXPORT ObservableObject : public INotifyPropertyChanged
 {
 public:
     ObservableObject() = default;
-    virtual ~ObservableObject() = default;
+    ~ObservableObject() override = default;
 
     ObservableObject(const ObservableObject&) = delete;
     ObservableObject& operator=(const ObservableObject&) = delete;
     ObservableObject(ObservableObject&&) noexcept = default;
     ObservableObject& operator=(ObservableObject&&) noexcept = default;
 
-    // --- Typed PropertyChanged signal (INotifyPropertyChanged-analogue) ----
-    using PropertyChangedHandler = std::function<void(PropertyId, const Value&, const Value&)>;
-    using PropertyChangedToken   = std::size_t;
+    // --- INotifyPropertyChanged (11n-4, the formal contract) ---------------
+    using PropertyChangedHandler = INotifyPropertyChanged::PropertyChangedHandler;
+    using PropertyChangedToken   = INotifyPropertyChanged::PropertyChangedToken;
 
     // Registers a BROADCAST handler: fires (id, old, new) for EVERY property
     // change, in registration order relative to all other handlers. Returns a
     // removal token. The WPF-style single-event analogue (subscriber filters
     // by id).
-    [[nodiscard]] PropertyChangedToken add_property_changed(PropertyChangedHandler handler);
+    [[nodiscard]] PropertyChangedToken add_property_changed(PropertyChangedHandler handler) override;
 
     // Registers a PER-PROPERTY handler: fires ONLY for the given property
     // (auto-filtered), in registration order with all other handlers. The
     // shape the S242+ binding engine subscribes with.
-    [[nodiscard]] PropertyChangedToken add_property_changed(PropertyId id, PropertyChangedHandler handler);
+    [[nodiscard]] PropertyChangedToken add_property_changed(PropertyId id, PropertyChangedHandler handler) override;
 
     // Removes the handler identified by `token` (broadcast or per-property —
     // the same list). No-op for an unknown/expired token. O(n) removal
     // preserves the registration order of what remains; a re-add appends.
-    void remove_property_changed(PropertyChangedToken token);
+    void remove_property_changed(PropertyChangedToken token) override;
 
     // --- Lightweight typed store (name -> Value) ---------------------------
     // Set fires the PropertyChanged signal ONLY on a REAL change (old != new
