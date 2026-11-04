@@ -59,7 +59,7 @@ resolves the vertical-slice/placeholder to full fidelity.
 | XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |
 |---|---|---|---|---|
 | `TextBlock` (S400) | `dynamic_cast<TextBlock>` | `Text` (SDF glyph-quad, one representative glyph) | **VERTICAL-SLICE** (single glyph/headless; no live device atlas) | `S409_1` (full multi-glyph SDF atlas render + generic renderer) |
-| `Label` (S480) | `dynamic_cast<Label>` | `Solid` (fill box tinted by `Foreground`; glyphs defactor to the S400 Text path) | **VERTICAL-SLICE** | `S409_1` (real glyphs) |
+| `Label` (S480) | `dynamic_cast<Label>` | `Solid` (**neutral alpha-1.0 backdrop box** — S593: the invented `0.85f` is GONE, and the box is NOT tinted by `Foreground` per WPF; the content/glyph uses the resolved `Foreground` alpha via the S400 path; `Opacity` folds once) | **VERTICAL-SLICE** | `S409_1` (real glyphs) |
 
 ### Image / icon
 | XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |
@@ -102,10 +102,11 @@ resolves the vertical-slice/placeholder to full fidelity.
 ### Ordered-panel family
 | XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |
 |---|---|---|---|---|
-| `StackPanel` | (base `UIElement` fallback) | `Solid` (fill, alpha by `effective_opacity`) | **VERTICAL-SLICE** | `S409_1`-style render |
-| `Grid` | (base `UIElement` fallback) | `Solid` | **VERTICAL-SLICE** | `S409_1`-style render |
-| `WrapPanel` | (base `UIElement` fallback) | `Solid` | **VERTICAL-SLICE** | `S409_1`-style render |
-| `Canvas` | (base `UIElement` fallback) | `Solid` | **VERTICAL-SLICE** | `S409_1`-style render |
+| `StackPanel` | (base `UIElement` fallback) | `Solid` (fill from the resolved `Background` color alpha when authored, else the neutral fill at alpha 1.0; **`Opacity` folds EXACTLY ONCE** via the encoder — the S593 single-fold fix removes the opacity² double-count) | **VERTICAL-SLICE** | `S409_1`-style render |
+| `Grid` | (base `UIElement` fallback) | `Solid` (same S593 alpha single-fold; authored `Background` alpha carried through) | **VERTICAL-SLICE** | `S409_1`-style render |
+| `WrapPanel` | (base `UIElement` fallback) | `Solid` (same S593 alpha single-fold) | **VERTICAL-SLICE** | `S409_1`-style render |
+| `Canvas` | (base `UIElement` fallback) | `Solid` (same S593 alpha single-fold) | **VERTICAL-SLICE** | `S409_1`-style render |
+| `Window` (S440) | (base `UIElement` fallback) | `Solid` (fill from the resolved `Background` color alpha when authored — the S593 single-fold; a `Window{AllowsTransparency=True}` composites clear alpha 0 via S592 `decide_clear`) | **VERTICAL-SLICE** | `S409_1`-style render |
 
 ### Containers, menu, popup (Sprint 11e, S490–S495)
 | XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |
@@ -170,11 +171,26 @@ resolves the vertical-slice/placeholder to full fidelity.
 | **`Window`** | (base `UIElement` fallback) | `Solid` (window fill) | **VERTICAL-SLICE** | `S409_1`-style render |
 
 > **Note on `Window`.** `Window` has no dedicated arm — it renders via the base
-> `UIElement` Solid fallback. `Window.AllowsTransparency` is **not** rendered
-> (unsupported). This is a **GAP-adjacent / VERTICAL-SLICE** entry: a splash whose
-> whole design relies on transparency will render its panels/Labels/Image as solid
-> boxes, not as the intended transparent composition. See the blank-splash
-> diagnosis and the RENDER_SURFACE adoption (governance commit) context.
+> `UIElement` Solid fallback. **Known drift (recorded, not silent — the anti-lazy
+> posture):** WPF itself handles **100% of transparency** natively on every visual
+> that participates in the render tree — Window chrome, panel `Background`, each
+> element's `Opacity`, alpha brushes, everything. The ONLY WPF conditions that are
+> not handled by WPF's own render path are a narrow set that rely on a **secondary
+> COM object** to complete the transparency — and we do NOT defer, special-case, or
+> sidestep that. Those conditions are not individually important; what is important
+> is the contract: **VAML transparently handles 100% of the transparency WPF exposes,
+> composited through the SAME pipeline to Vulkan, exactly like any other XAML → Vulkan
+> render surface.** The currently-rendered solid-box behavior below is therefore a
+> transient vertical-slice artifact of the WIP renderer, NOT a designed limitation —
+> it is closed by **Sprint 11o (S590–S596, token S595 viewer-growth)**, which makes
+> `AllowsTransparency` + per-element alpha real, end-to-end, on every platform the
+> swapchain/compositor can support (fail-fast probe at S590; premultiplied final
+> surface at S591; per-window clear + background composition at S592; element alpha
+> at S593; OS-window transparency at S594; live-consumed `AllowsTransparency` +
+> viewer proof at S595). Any remaining per-machine constraint (e.g. a swapchain that
+> rejects composite-alpha) is documented at the S590 probe as an honest capability
+> result with a clean opaque fallback — never silent, never a deferral. See the
+> blank-splash diagnosis and the RENDER_SURFACE adoption (governance commit) context.
 
 ---
 
@@ -356,3 +372,8 @@ S242 pipeline emits `ConverterFailed` and, when a fallback is bound, applies it
 > AdornerHitTest lanes are [both apps, not CI], exercised live on the NVIDIA box, never
 > CI gates (recorded not silent).
 
+ 
+---  
+## Alpha compositing (S593)  
+  
+> **S593 alpha model (recorded, not silent):** every classifier arm's alpha flows (1) the straight-alpha blend for its own material (Solid/Image already emit alpha; Border/Label/Text pass alpha through), (2) content-alpha * Opacity coverage multiplier (exactly ONCE, folded by the S208 encoder via `visual.item.a *= effective_opacity` - the S593 single-fold fix removed the base-arm opacity^2 double-count), (3) into the premultiplied final surface (S591) / transparent clear (S592). The base `UIElement` fallback reads the resolved `Background` Color alpha (authored) or neutral alpha 1.0; `Label` keeps a neutral alpha-1.0 backdrop with `Foreground` on the glyph/content (WPF-faithful - no invented constant, no foreground-tinted box). RENDER_SURFACE validator stays `OK` (no new classifier arm introduced by S593; semantics-only edits). 

@@ -27,6 +27,10 @@
 #include <functional>
 #include <memory>
 
+#ifndef VAML_VULKAN_EXPORT
+#  define VAML_VULKAN_EXPORT
+#endif
+
 namespace vaml::vulkan {
 
 // The S160 "resize + input callback stub surface": the concrete, kept callback
@@ -75,6 +79,45 @@ void dispatch_mouse_button(WindowCallbacks& cb, int button, int action, int mods
 void dispatch_scroll(WindowCallbacks& cb, double xoffset, double yoffset);
 void dispatch_drop(WindowCallbacks& cb, int count, const char* const* paths);
 
+// S594 (dep:S593) — OS-WINDOW TRANSPARENCY (per-platform, WPF-SOURCE-VALIDATED).
+// The PURE decision seam: maps the feature-on flag to the GLFW window-hint set
+// that makes the OS window per-pixel-transparent. Windows = DWM per-pixel
+// (strictly the GLFW `GLFW_TRANSPARENT_FRAMEBUFFER` + `GLFW_ALPHA_BITS 8`
+// hints — GLFW's Win32 implementation realizes per-pixel transparency via
+// DwmEnableBlurBehindWindow, the WPF `ApplicationManagedLayer` per-pixel model
+// mirrored here — NEVER the `WS_EX_LAYERED` constant-alpha color-key path that
+// is WPF's forbidden `SystemManagedLayer`).
+//
+// This header stays GLFW-include-free (the S160 Vulkan-surface-agnostic intent);
+// the Windows-side POC/test pins the hint tokens to the real `<GLFW/glfw3.h>`
+// macros. NO-GAP: the `AllowsTransparency` -> `Config.transparentFramebuffer`
+// wiring (the LIVE consumed surface) lands at S595.
+constexpr int kMaxTransparencyHints = 2;
+
+struct WindowTransparencyHint
+{
+    int hint  = 0;
+    int value = 0;
+};
+
+struct WindowTransparencyHints
+{
+    int count = 0;
+    WindowTransparencyHint entries[kMaxTransparencyHints]{};
+
+    [[nodiscard]] bool empty() const noexcept { return count == 0; }
+};
+
+// Returns the GLFW window-hint set for the OS-window transparency feature (the
+// S594 decision surface, headless-testable):
+//   * featureOn == true  -> count 2: {GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE} +
+//                          {GLFW_ALPHA_BITS, 8} (per-pixel DWM transparency).
+//   * featureOn == false -> count 0 (empty; an opaque window — the ROADMAP
+//                          NON-conditional rule: non-splash windows stay opaque).
+// The header is GLFW-include-free; a consumer/Windows test pins the tokens to
+// the real GLFW macros (S594's PlatformWindow_test.cpp asserts against them).
+VAML_VULKAN_EXPORT WindowTransparencyHints window_transparency_hints(bool featureOn) noexcept;
+
 // A real GLFW-backed platform window (S160). Win32 on Windows, X11 on Linux.
 class PlatformWindow
 {
@@ -84,6 +127,12 @@ public:
         const char* title  = "VAML";
         int         width  = 800;
         int         height = 600;
+        // S594 — OS-window transparency gate. Default FALSE (non-splash windows
+        // stay OPAQUE — the ROADMAP NON-conditional rule). When TRUE, create()
+        // applies `window_transparency_hints(true)` (GLFW_TRANSPARENT_FRAMEBUFFER
+        // + GLFW_ALPHA_BITS 8) so the OS window is per-pixel-transparent.
+        // The `AllowsTransparency` -> this flag wiring is S595 (NO-GAP).
+        bool transparentFramebuffer = false;
     };
 
     // Creates the window + registers GLFW callbacks wired into `callbacks`.

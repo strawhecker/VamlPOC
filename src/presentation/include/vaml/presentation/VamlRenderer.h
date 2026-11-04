@@ -62,6 +62,7 @@
 #include <vaml/vulkan/ui/MarshalledScene.h>     // MarshalledScene (the postbox)
 
 #include <vaml/core/UIElement.h>                // vaml::UIElement (the core visual tree)
+#include <vaml/core/Color.h>                    // S592: vaml::Color (the resolved Window.Background)
 #include <vaml/core/Transform.h>                // S208: vaml::Matrix2D (the rendered-view pan/zoom type)
 
 #include <cstdint>
@@ -78,6 +79,34 @@ namespace vaml::presentation {
 // ---------------------------------------------------------------------------
 // PURE DECISION SEAMS (headless-testable; no Vulkan runtime required)
 // ---------------------------------------------------------------------------
+
+// S592 (dep:S591) — PER-WINDOW CLEAR ALPHA + BACKGROUND COMPOSITION. The clear
+// (render-pass clear color) is DERIVED from the resolved `Window.Background` +
+// `AllowsTransparency`, mirroring WPF `HwndTarget.SetBackgroundColor` faithfully
+// (a 2-branch PURE rule, no invented color, no host constant):
+//   1. allowsTransparency == true  -> ClearValue{0,0,0,0} (clear alpha 0; the
+//      compositor shows through). WPF forces Colors.Transparent for per-pixel
+//      mode regardless of Window.Background (the S590 risk gate).
+//   2. allowsTransparency == false && resolvedBackground != nullptr -> the
+//      resolved Background color, alpha 1.0.
+//   3. allowsTransparency == false && resolvedBackground == nullptr -> alpha-0
+//      clear (WPF paints nothing when Window.Background is its DP-default null;
+//      no grey fabricated). An opaque window with no authored Background + an
+//      empty/transparent tree shows through until a Background is authored.
+namespace clear {
+
+// The decided clear color (straight RGBA floats, render-pass clearValue input).
+struct ClearValue
+{
+    float r = 0.0f, g = 0.0f, b = 0.0f, a = 0.0f;
+};
+
+// The 2-branch WPF mirror (see above). `resolvedBackground` is the resolved
+// `Window.Background` Color (nullptr = no authored background). Pure + headless.
+VAML_PRESENTATION_EXPORT
+ClearValue decide_clear(bool allowsTransparency, const vaml::Color* resolvedBackground) noexcept;
+
+} // namespace clear
 
 // The vertical-slice classifier seam: maps a core UIElement to its ElementVisual
 // (material + draw). Default = `classify_merge_element` (below). Replaced in place
@@ -166,7 +195,12 @@ struct VamlRendererDeviceOptions
     // The S173 presenter declaration (width/height/sampleCount/userData/callbacks).
     // The `draw` member is IGNORED/filled by the host's internally-wired DrawBody.
     PresenterOptions                   presenter{};
-    // The S166 clear color the host's DrawBody uses when beginning the render pass.
+    // S592 — the hard S166 clear color is SUPERSEDED by the decided clear. The
+    // host's record_draw now derives the clear from the resolved Window.Background
+    // + AllowsTransparency via clear::decide_clear (the WPF mirror); these fields
+    // are RETAINED for backward source compatibility but are NO LONGER the
+    // effective clear source (recorded not silent). Hosts that set clearR/G/B/A
+    // no longer affect the rendered clear.
     float clearR = 0.18f, clearG = 0.22f, clearB = 0.26f, clearA = 1.0f;
 };
 
@@ -308,6 +342,10 @@ private:
     std::unique_ptr<vaml::vulkan::ui::SceneRenderer> sceneRenderer_;
     std::unique_ptr<vaml::presentation::Presenter>  presenter_;
     VkRenderPass      renderPass_ = VK_NULL_HANDLE;
+    // S592 — the hard clear_[4] is SUPERSEDED by the decided clear (record_draw
+    // derives the clear from Window.Background + AllowsTransparency). Retained
+    // as the pre-S592 fallback for a non-Window root; no longer the effective
+    // clear source for a Window root.
     float             clear_[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 };
 

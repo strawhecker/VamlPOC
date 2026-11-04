@@ -125,9 +125,13 @@
     <ClInclude Include="app_shell_binding.h" />   <!-- S443: the app-shell ↔ MainViewModel wiring seam -->
     <ClInclude Include="app_shell_compiled.h" />  <!-- S444: the compiled app-shell load seam (file + embedded) -->
     <ClInclude Include="viewer_growth_11k.h" />   <!-- 11k-6: the VIEWER-GROWTH(11k) ADR-021 consumer seam (TextBlock + 11k-2 controls + vector resource + EventTrigger sample) -->
+    <ClInclude Include="viewer_transparency.h" /> <!-- S595: the LIVE AllowsTransparency consumer seam (S592 clear + S594 OS-hint threading) -->
+    <ClInclude Include="viewer_growth_s595a.h" /> <!-- S595a: the IsHitTestVisible overlay/click-pass-through viewer-growth seam -->
   </ItemGroup>
   <ItemGroup>
     <None Include="sample.corpus.xaml" />   <!-- 11k-6: the corpus-shaped VIEWER-GROWTH sample (TextBlock + 11k-2 controls + vector + EventTrigger) -->
+    <None Include="sample.transparent.vaml" /> <!-- S595: the SplashWindow-shaped transparent viewer-growth sample -->
+    <None Include="sample.s595a.xaml" /> <!-- S595a: the ScreenCaptureOverlay-shaped IsHitTestVisible overlay sample -->
   </ItemGroup>
   <ItemGroup>
     <!--

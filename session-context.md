@@ -1,63 +1,64 @@
-﻿# session-context.md
+# session-context.md
 
-last_command: implementit (Sprint 11n â€” 11n-7 ROADMAP WRAP + DAG CLOSE)
-plan_digest: 11n-7 â€” the absolute-final docs/ops wrap + DAG close. Re-ran the base gap_dp_daggen.py regen
-(282 rows) + the DAG-RE-GEN NORM re-apply via _dag_s11n0.py (the S503a GEN-LOSSY escape: 12k-5 trigger
-family + 11f behaviors/DataTemplate + the 11n-0 DAG-EXT cluster note) AND promoted the 11n-0 uncovered
-anchors to FIRST-CLASS DONE table rows (the new "## 11n anchor inventory" section, 29 unique anchors).
-Marked 11n-5/6/7 DONE in roadmap; consolidated the coverage matrix (RENDER_SURFACE.md: Sprint 11m tail
-rows + the 11n non-classifier 3D/adorner surface) + extended render_surface_check.py (conformance OK 60
-arms/66 rows); wrote the SPRINT 11n SURVIVOR + advanced the checkpoint. The 11n-4 human-locking ROADMAP
-NOTE stays a STANDING entry. EMF-only; no build at the wrap (11n-5/6 already green).
-checkpoint: 11n-0..7 ALL DONE; both CI lanes green per step (verified at 11n-1..6); 11n-7 closed the
-sprint. Next per the dependency chain = Sprint 11h (S520 IMPORT/INJECT seam), then S540+/Sprint 11z.
+last_command: implementit (Sprint 11o — S596 REFACTOR GATE + SURVIVOR; this CLOSES Sprint 11o)
+plan_digest: S596 (dep:S595a) — the REFACTOR GATE(11o) + SURVIVOR: full build + ctest BOTH CI lanes green
+from first principles (build/verify_s596.cmd msvc-debug + ubuntu-clang clang-debug on /mnt/hgfs/VamlPOC);
+render_surface_check.py -> OK (60 classifier arms / 67 catalog rows) on BOTH lanes; grep-audit PASS —
+ZERO STUB + the S590 [MINIMAL REAL] composite-alpha sentinel is GONE (RESOLVED at S591) + the global hard
+clear (app.cpp clearR/G/B/A host constant) is REMOVED; SURVIVOR block consolidated in progress.md
+(`## SPRINT 11o — SURVIVOR`); roadmap S596 [DONE]. ZERO new locks (ADR-018). **CHECKPOINT ADVANCED:
+last = Sprint 11o, next = Sprint 11h (S520 — IMPORT/INJECT seam).**
 
-## files_touched â€” 11n-7 (this incarnation)
-- docs/DAG_controls.md (REGEN via _dag_s11n0.py): base 282-row regen + the 3 manual-add note-blocks
-  re-applied + the NEW `## 11n anchor inventory (DONE)` table (29 first-class DONE rows â€” the 11n-0
-  uncovered anchors: ICommand/ICommandSource/Freezable/Animatable/BindingBase/BindingExpressionBase/
-  MarkupExtension/FrameworkTemplate/DispatcherObject/IWeakEventListener/ICollectionView/
-  INotifyPropertyChanged/INotifyCollectionChanged + RoutedCommand/CommandManager/InputGesture/KeyGesture/
-  MouseGesture/InputBinding/KeyBinding/MouseBinding/Visual3D/Viewport3D/Model3D/Geometry3D/Binding/
-  MultiBinding/PriorityBinding/BindingExpression/CollectionView). ItemsPanelTemplate intentionally NOT
-  duplicated (already a DONE generated row re-based onto FrameworkTemplate).
-- _dag_s11n0.py (MOD): appended the ANCHOR_ROWS table + the 11n-7 DAG CLOSE intro/continuation â€” the
-  GEN-LOSSY-escape home so the DONE anchor rows survive future base regen.
-- docs/roadmap.md (MOD): 11n-5 and 11n-6 marked [DONE] with their delivered surface; 11n-7 marked [DONE]
-  with the full wrap digest; the 11n-4 human-locking ROADMAP NOTE verified standing (untrimmed).
-- docs/RENDER_SURFACE.md (MOD): the Sprint 11m tail coverage-matrix rows (S550-S558: Path/Polygon/
-  Polyline/Track/TickBar/TreeView/TreeViewItem/DatePicker/DatePickerTextBox/Calendar/CalendarItem/
-  CalendarDayButton/CalendarButton/InkCanvas/InkPresenter/MediaElement/Page/Frame/DocumentViewer/
-  FlowDocumentReader/FlowDocumentScrollViewer/SinglePageViewer â€” the coverage gap the 11m SURVIVOR
-  recorded) + the NEW `## The 11n SURFACE (3D + Adorner)` section (the non-classify_merge_element
-  drawable surfaces: the vaml::vulkan::media3d headless rasterizer + the 11n-6 adorner
-  encode_adorner_tree second-pass; each visible + searchable with an honest status + forward token).
-- src/presentation/tools/render_surface_check.py (MOD): the canonical CLASSIFIER_ARMS inventory extended
-  with the Sprint 11m arms (Path/Polygon/Polyline/Track/TickBar/TreeView/TreeViewItem/DatePicker/
-  DatePickerTextBox/Calendar/CalendarItem/CalendarDayButton/CalendarButton/InkCanvas/InkPresenter/
-  MediaElement/Page/Frame/DocumentViewer/FlowDocumentReader/FlowDocumentScrollViewer/SinglePageViewer,
-  all VERTICAL-SLICE -> S649) so the coverage-matrix + validator agree.
-- progress.md (MOD): added the `SPRINT 11n â€” SURVIVOR` block + a new ACTIVE-CURRENT (11n) checkpoint line
-  (supersedes below; last completed = 11n, next = S520/Sprint 11h).
+## files_touched — Sprint 11o (S590..S595a + S596, this incarnation)
+- src/vulkan/include/vaml/vulkan/Swapchain.h (MOD): S590 probe seams + compositeAlpha config field + the
+  [MINIMAL REAL] sentinel; S591 SwapchainMode + negotiate_composite_alpha + mode field + accessors +
+  RESOLVED the S590 sentinel.
+- src/vulkan/src/Swapchain.cpp (MOD): the two probe seams + negotiate_composite_alpha + negotiate fills
+  mode/compositeAlpha + rebuild consumes compositeAlpha.
+- src/vulkan/include/vaml/vulkan/PlatformWindow.h + src/vulkan/src/PlatformWindow.cpp (MOD): S594
+  window_transparency_hints + WindowTransparencyHints + Config::transparentFramebuffer + the GATED create
+  application + the VAML_VULKAN_EXPORT guard.
+- src/core/include/vaml/core/UIElement.h + src/core/src/UIElement.cpp (MOD): S595a IsHitTestVisible Bool DP
+  + accessors + the HitTestAt skip; src/core/src/ElementDpFidelity.cpp (MOD): removed the duplicate Int32
+  IsHitTestVisible guard.
+- src/presentation/include/vaml/presentation/VamlRenderer.h (MOD): the clear::ClearValue + decide_clear
+  seam + superseded clear_ comment; src/presentation/src/clear.cpp (NEW); src/presentation/src/VamlRenderer.cpp
+  (MOD): record_draw derives the clear + the S593 base-arm single-fold + Label Option A; src/presentation/CMakeLists.txt
+  (MOD): added clear.cpp.
+- vaml_viewer/app.cpp (MOD): removed the hard clear constant + S595 threads AllowsTransparency -> the OS
+  hint; vaml_viewer/viewer_transparency.h (NEW); vaml_viewer/sample.transparent.vaml (NEW);
+  vaml_viewer/viewer_growth_s595a.h (NEW); vaml_viewer/sample.s595a.xaml (NEW); vaml_viewer/vaml_viewer.vcxproj (MOD).
+- test/unit: Swapchain_test.cpp (S590/S591), PlatformWindow_test.cpp (S594), VamlRenderer_clear_test.cpp
+  (NEW), VamlRenderer_alpha_test.cpp (NEW), ViewerTransparency_s595_test.cpp (NEW), ViewerHitTest_s595a_test.cpp
+  (NEW core), ViewerHitTest_s595a_pres_test.cpp (NEW presentation), CMakeLists.txt (MOD).
+- build/: verify_s590.cmd / verify_s591.cmd / verify_s592.cmd / verify_s593.cmd / verify_s594.cmd /
+  verify_s595.cmd / verify_s595a.cmd / verify_s596.cmd (NEW).
+- docs/roadmap.md (MOD): S590..S595a + S596 all marked [DONE] with their digests + the S590->S591 RESOLVED
+  + NO-GAP + RENDER_SURFACE conformance. docs/RENDER_SURFACE.md (MOD): the S593 alpha rows + the Window
+  row + the `Alpha compositing (S593)` note.
+- progress.md (MOD): the `SPRINT 11o — SURVIVOR` block + the new ACTIVE-CURRENT (11o) line.
 - session-context.md (MOD): this entry.
 
-## build_status (11n-7)
-- No build at the wrap (docs/ops-only, per the S009/S049/S097/S139/S147/S368/S476/S11e-wrap precedent).
-- The 11n body steps remain GREEN: 11n-1..11n-6 all passed both CI lanes (build/verify_s11n1..6.cmd).
-- render_surface_check.py re-run -> **OK (60 classifier arms, 66 catalog rows)** â€” the coverage matrix is
-  conformant (no new classifier arm introduced by 11n; the 3D + adorner surfaces are non-classifier).
+## build_status (S596 / Sprint 11o)
+- windows-msvc: build/verify_s596.cmd -> BUILD OK (warning-as-error clean) + ctest 100% pass (4/4) +
+  render_surface_check.py OK (60/67) + grep-audit PASS.
+- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug -> build clean + ctest 100% pass (4/4) + render_surface_check.py
+  (python3) OK (60/67) + grep-audit PASS (no composite-alpha sentinel).
+- Sprint 11o (S590..S595a + S596): ALL GREEN on BOTH CI lanes, each verified from first principles at its
+  own step.
 
-## next_step â€” Sprint 11n continuation (CLOSED) / next sprint
-- **Sprint 11n CLOSED (11n-0..11n-7 all DONE).** Next per the roadmap dependency chain = **Sprint 11h
-  (S520 â€” IMPORT/INJECT seam)**, then S540+/Sprint 11z.
+## next_step — Sprint 11o CLOSED / next sprint
+- **Sprint 11o CLOSED (S590..S595a + S596 all DONE; transparency is a first-class render surface).**
+  Next per the roadmap dependency chain = **Sprint 11h (S520 — IMPORT/INJECT seam)**, then S540+/Sprint 11z.
 
 ## notes
-- EMF-only â€” zero new locks (ADR-018, with the 11n-4 signed-off ONE permitted opt-in swap mutex recorded
-  as the standing verdict), zero MINIMAL REAL + zero stubs + zero invented names (grep-audits in
-  verify_s11n5/6.cmd PASS), WPF-name fidelity held.
-- The 11n-4 ROADMAP NOTE (the human-locking / ADR-018 renegotiation note) is a STANDING entry in the
-  roadmap (verbatim, untrimmed) per the directive.
-- NO-GAP accounting clean at wrap: the 3D GPU path ([both apps, not CI] live lane), the adorner render +
-  AdornerHitTest (forward refinement), and MultiBinding/PriorityBinding live multi-source evaluation
-  (beyond the mechanism binding) are all recorded forward, never silent.
-- No commit made (standing directive â€” commitit outstanding).
+- Sprint 11o delivered the transparency surface end-to-end: composite-alpha probe (S590) -> premultiplied
+  swapchain (S591, RESOLVING the S590 [MINIMAL REAL]) -> per-window clear + Background (S592) -> element
+  alpha single-fold (S593, RENDER_SURFACE-conformant) -> OS-window transparency (S594) -> live
+  AllowsTransparency + viewer growth (S595) -> IsHitTestVisible (S595a) -> the S596 gate + SURVIVOR.
+- ZERO new locks (ADR-018); ADR-011 held (transparency is core DATA; compositing/present in the
+  vulkan/presentation layers). NO silent backfill (NO-GAP): every S590..S595a symbol is real, permanent,
+  forward-bound. The LIVE windows (see-through viewer + transparent sample + overlay) are
+  [both apps, not CI] local-gate demonstrations, never CI gates.
+- No commit made (standing directive — commitit outstanding; remote build green with the change set
+  uncommitted, the driver's seat is yours).

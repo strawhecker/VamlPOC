@@ -129,6 +129,17 @@ void register_uielement_properties()
         "Focusable", ValueType::Int32, "UIElement",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
 
+    // IsHitTestVisible (S595a / dep:S595): WPF-faithful UIElement.IsHitTestVisible.
+    // Bool, default TRUE, NOT inherited (per-element input hit-test transparency).
+    // DECOUPLED from Visibility: an element with this false still RENDERS but does
+    // NOT intercept input (click pass-through / transparent overlay chrome). The
+    // HitTestAt skip is in UIElement::HitTestAt (const). Bool payload so the corpus
+    // authoring `IsHitTestVisible="true"/"false"` converts via the Bool converter
+    // (the AllowsTransparency/Topmost precedent, Element.cpp). ZERO new locks.
+    (void)DependencyProperty::Register(
+        "IsHitTestVisible", ValueType::Bool, "UIElement",
+        PropertyMetadata::WithDefault(Value::Bool(true), PropertyFlags::None));
+
     // Tag (11j-8, GAP CLOSE, dep:S036) — the WPF FrameworkElement.Tag analogue.
     // An OBJECT-SLOT DP on the element base so `Tag="..."` / `<X.Tag>...`
     // resolve everywhere S043-attached-style. WPF Tag is `object`.
@@ -386,6 +397,22 @@ VAML_CORE_EXPORT
 bool UIElement::focusable() const
 {
     return Get(PropertyId::of("Focusable")).get<std::int32_t>() != 0;
+}
+
+// S595a — IsHitTestVisible (Bool DP, default true, NOT inherited). Mirrors the
+// set_focusable/focusable pattern; the Bool payload (Value::Bool) is the
+// AllowsTransparency/Topmost precedent so the typed accessors + the standard
+// Set/Get path on PropertyId("IsHitTestVisible") agree.
+VAML_CORE_EXPORT
+SetResult UIElement::set_is_hit_test_visible(bool value)
+{
+    return Set(PropertyId::of("IsHitTestVisible"), Value::Bool(value));
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_hit_test_visible() const
+{
+    return Get(PropertyId::of("IsHitTestVisible")).get<bool>();
 }
 
 VAML_CORE_EXPORT
@@ -1014,7 +1041,10 @@ const UIElement* UIElement::HitTestAt(float x, float y) const
     }
 
     // Test children TOPMOST-first (REVERSE index order — the LAST child is on
-    // top/z). The deepest hit child (recursive) wins.
+    // top/z). The deepest hit child (recursive) wins. This descent runs
+    // REGARDLESS of THIS element's IsHitTestVisible — the property is NOT
+    // inherited (the S595a contract), so a non-hit-test-visible parent still lets
+    // its children evaluate their OWN flag (WPF-faithful).
     for (std::size_t i = children_.size(); i-- > 0;)
     {
         const UIElement* hit = children_[i]->HitTestAt(x, y);
@@ -1023,8 +1053,19 @@ const UIElement* UIElement::HitTestAt(float x, float y) const
             return hit;
         }
     }
-    // No child was hit -> this element is the hit (it contains the point and is
-    // hit-testable).
+
+    // S595a: DECOUPLED input hit-test transparency. An element with
+    // IsHitTestVisible == false still renders but does NOT intercept input (the
+    // same skip axis WPF uses for Visibility, independent of it). It is NOT
+    // inherited: only gates whether THIS element is returned (it does NOT block
+    // the children descent above). The pure tree-walk read; the non-const
+    // delegating overload is untouched. ZERO locks.
+    if (!is_hit_test_visible())
+    {
+        return nullptr;
+    }
+    // No child was hit + this element is hit-test-visible -> this element is the
+    // hit (it contains the point and is hit-testable).
     return this;
 }
 

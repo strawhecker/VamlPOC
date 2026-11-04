@@ -154,6 +154,34 @@ bool should_recreate_swapchain(VkResult result) noexcept
     return result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR;
 }
 
+// S590 — the composite-alpha capability probe (see Swapchain.h for the risk
+// gate). Reads the supported-set mask the surface reports (`caps` carries it in
+// hand — no new loader entry points). Pure + headless.
+VkCompositeAlphaFlagsKHR
+supported_composite_alpha_mask(VkSurfaceCapabilitiesKHR caps) noexcept
+{
+    return caps.supportedCompositeAlpha;
+}
+
+bool composite_alpha_supported(VkCompositeAlphaFlagsKHR mask,
+                               VkCompositeAlphaFlagBitsKHR flag) noexcept
+{
+    return (mask & static_cast<VkCompositeAlphaFlagsKHR>(flag)) != 0;
+}
+
+// S591 — the transparent-capable swapchain MODE decision. Premultiplied iff
+// PRE_MULTIPLIED is in the surface's supported mask; else Opaque (the S590
+// fail-fast fallback — a swapchain ALWAYS stays valid). Capability-driven +
+// format-independent. `format` is carried for signature stability (unused).
+SwapchainMode
+negotiate_composite_alpha(VkFormat format, VkCompositeAlphaFlagsKHR supportedMask) noexcept
+{
+    (void)format;  // capability-driven — the surface-format layer prefers alpha-bearing formats already
+    if (composite_alpha_supported(supportedMask, VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR))
+        return SwapchainMode::Premultiplied;
+    return SwapchainMode::Opaque;
+}
+
 namespace {
 
 // Probes the physical device's support for a depth format via
@@ -222,6 +250,20 @@ Swapchain::negotiate(const VulkanLoader& loader,
     cfg.presentMode   = choose_present_mode(modes);
     cfg.extent        = choose_extent(caps, framebufferWidth, framebufferHeight);
     cfg.imageCount    = negotiate_image_count(caps, desiredImageCount);
+
+    // S590/S591 — composite-alpha capability probe + the transparent-capable
+    // MODE decision (the risk gate). The S591 seam `negotiate_composite_alpha`
+    // resolves the mode from the surface's supported mask: Premultiplied iff
+    // PRE_MULTIPLIED is supported (per-pixel window transparency ACHIEVABLE on
+    // this machine); else Opaque — the S590 fail-fast fallback that keeps the
+    // swapchain ALWAYS valid (NEVER a reason to skip the pipeline). The
+    // compositeAlpha flag is locked to the mode (Premultiplied -> PRE_MULTIPLIED,
+    // Opaque -> OPAQUE — the S590 fallback contract).
+    const VkCompositeAlphaFlagsKHR mask = supported_composite_alpha_mask(caps);
+    cfg.mode = negotiate_composite_alpha(cfg.surfaceFormat.format, mask);
+    cfg.compositeAlpha =
+        (cfg.mode == SwapchainMode::Premultiplied) ? VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR
+                                                    : VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
     // Depth: probe the candidates on this physical device, keep the first
     // supported (std::nullopt = skip the depth image when none is supported).
@@ -324,7 +366,10 @@ bool Swapchain::rebuild(const SwapchainConfig& cfg, VkSwapchainKHR oldSwapchain)
     sci.imageArrayLayers = 1;
     sci.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     sci.preTransform     = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    sci.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    // S590 — the negotiated composite-alpha (from the capability mask; default
+    // OPAQUE). S591 consumes the same config field for the PRE_MULTIPLIED final
+    // surface — ONE code path serves both modes via cfg.compositeAlpha.
+    sci.compositeAlpha   = cfg.compositeAlpha;
     sci.presentMode      = cfg.presentMode;
     sci.clipped          = VK_TRUE;
     // The S167_1 two-generation model builds Gen N+1 while Gen N is still the

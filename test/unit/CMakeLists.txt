@@ -579,6 +579,14 @@ add_executable(vaml-core-tests
     # S323 (dep:S322) — hit-testing (deepest/topmost/z/clip/visibility) + the
     # InputMarshaller (input -> routed events; the S160 resolution point).
     S323_Input_test.cpp
+    # S595a (dep:S595) — `UIElement.IsHitTestVisible` (core Rail 1): the REAL Bool
+    # DP (default true, NOT inherited) + the HitTestAt skip (an element with
+    # IsHitTestVisible=false still renders but does NOT intercept input — the WPF
+    # UIElement.IsHitTestVisible/HitTestCore model, decoupled from Visibility).
+    # Default true, typed round-trip + Set/Get parity, the headline (Visible +
+    # false -> skips for hit-test while still RENDERED), the Visibility decoupling,
+    # the corpus-shaped Bool authoring, + the NOT-inherited contract.
+    ViewerHitTest_s595a_test.cpp
     # S324 (dep:S323) — a click hit-tests a real element and raises a bubbling
     # routed event with the correct source: the formal end-to-end gate.
     S324_ClickFlow_test.cpp
@@ -1248,6 +1256,41 @@ add_executable(vaml-presentation-tests
     # zero-leak on BOTH compilers is the ASan/LSan lane (verify_s446_asan.cmd)
     # running THIS suite under ASan.
     AppShellChurn_test.cpp
+    # S592 (dep:S591) — PER-WINDOW CLEAR ALPHA + BACKGROUND COMPOSITION (headless
+    # Rail 1): the PURE `clear::decide_clear(allowsTransparency, resolvedBackground)`
+    # seam (the 2-branch WPF HwndTarget.SetBackgroundColor mirror) + the REAL Window
+    # tree read path (AllowsTransparency Bool + Background Color DP resolution ->
+    # the decided clear). Transparent -> alpha 0; opaque+Background -> the color at
+    # alpha 1.0; opaque no-Background -> alpha 0 (WPF null-Background mirror);
+    # non-Window root -> alpha 0, no crash.
+    VamlRenderer_clear_test.cpp
+    # S593 (dep:S592) — ELEMENT ALPHA COMPOSITION (headless Rail 1): the alpha
+    # single-fold fix (the classifier does NOT fold effective_opacity — the encoder
+    # folds it ONCE) + the Label Option A realignment (neutral alpha-1.0 backdrop,
+    # Foreground on the glyph/content). Proves the base panel's item.a == bg.a ×
+    # Opacity (SINGLE fold, the old opacity^2 regression tripwire), the
+    # Background=Transparent -> 0 case, the Text/Image alpha pass-through, and the
+    # Label neutral backdrop + single Opacity multiplier.
+    VamlRenderer_alpha_test.cpp
+    # S595 (dep:S594) — `Window.AllowsTransparency` BECOMES LIVE CONSUMED SURFACE +
+    # VIEWER-GROWTH. Headless Rail 1 through the REAL viewer seam (vaml_viewer/
+    # viewer_transparency.h, ADR-021): the SplashWindow-shaped transparent sample
+    # loads + resolves AllowsTransparency=true; its clear decision (S592) is alpha 0
+    # (see-through); its OS-window hint (S594) is featureOn + the per-pixel DWM hints;
+    # a half-alpha panel keeps partial alpha through the S593 single-fold. Links
+    # vaml-presentation (PUBLIC-links vaml-vulkan so the S594 seam + GLFW macros
+    # resolve) + the vaml_viewer include path.
+    ViewerTransparency_s595_test.cpp
+    # S595a (dep:S595) — VIEWER-GROWTH: `IsHitTestVisible` renders the
+    # ScreenCaptureOverlay-shaped click-pass-through surface. Headless Rail 1
+    # through the REAL viewer seam (vaml_viewer/viewer_growth_s595a.h, ADR-021):
+    # LOAD (overlay loads + finalizes; the DimLayer reads is_hit_test_visible()
+    # == false) + RENDER-PLAN (the S212 encoder emits the overlay items — still
+    # RENDERED while non-hit-test-visible) + the PASS-THROUGH/CAPTURE toggle
+    # (idle -> HitTestAt returns the underlying element; active -> the overlay
+    # captures). The LIVE window display is [both apps, not CI] RAIL 3. (The
+    # CORE surface TU of the same name lives in vaml-core-tests.)
+    ViewerHitTest_s595a_pres_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)

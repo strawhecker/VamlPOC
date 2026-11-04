@@ -1402,6 +1402,14 @@ Growth tokens by sprint:
       declaration was the `.xaml`/`.vaml` FILE-FORMAT acceptance itself — which THIS token (S450_1) closes.
       Next step: the S448 guide (per the S449 driver reversal) → Sprint 11z (S540+) injected-dispatcher UI.]
 
+## Sprint 11 failed --- the outcome --- an expose of GAPS, a never ended story of GAPS --- the very thing
+   that this project sought to avoid from the start. in some cases, a comment in code or a subtle statement
+   of non compliance to avoid the silent grave wistling.
+
+   all sprints after 11 and before 12 are GAP closures.
+   Rule: ALWAYS ASK WHAT DOES THE WPF SOURCE DO --- when seeking an answer or wondering how to handle something. when planning or implementing, things arise, must be resolved, and the rule is ALWAYS scan the facts from the WPF source, and include that in your analysis.
+   this rule remains in effect all the way to the end of the roadmap from this point on. no exceptions.
+
 ## SPRINT SERIES 11a…11y — WPF-completeness + lib close-out, in SHORT sprints
 > DRIVER DIRECTIVE (go mode, sealed): the lib is completed by a series of **short sprints** (11a…11y), each
 > limited and with its LAST step exercising vaml_viewer to show the change works ("rule 1"). The route:
@@ -2873,6 +2881,236 @@ human-locking note) is a standing entry in the roadmap.
 - The DAG is modified before wrapping (11n-0 + 11n-7) so it stays live/complete.
 - The observable-collection infrastructure (the most substantial omission) is folded into step 4 as the core
   of the reactive spine — Option A, event-subscription, WPF-true.
+
+---
+## Sprint 11o — Window/panel transparency (zeroing out the transparency drift)  (goal: `AllowsTransparency` + per-element alpha ACTUALLY render — every "transparency unsupported" lazy-LLM deferral closed)  [token S590+]
+> WHY THIS SPRINT EXISTS (the drift, recorded NOT silent): `Window.AllowsTransparency` was REGISTERED at
+> 11j-4 but was never CONSUMED anywhere — `docs/RENDER_SURFACE.md`'s own Window note recorded *"a splash
+> whose whole design relies on transparency will render its panels/Labels/Image as solid boxes"*. The
+> actual cause chain (verified in source): (1) the Swapchain negotiates an OPAQUE surface and never reads
+> `supportedCompositeAlpha`; (2) the host applies a GLOBAL hard opaque clear (`app.cpp` clearR=0.18 /
+> G=0.22 / B=0.26 / A=1.0 + `VamlRenderer` default `clear_[3]=1.0`) — the exact dark blue-grey "blank
+> background" observed; (3) background is never composed from the tree (a host constant, not the Window's
+> resolved Background / AllowsTransparency); (4) the blend is single-pass straight-alpha only (no
+> PREMULTIPLIED final surface for OS compositing); (5) the OS window is created OPAQUE (no
+> `GLFW_TRANSPARENT_FRAMEBUFFER` / `GLFW_ALPHA_BITS` / `WS_EX_LAYERED`). This sprint closes all five —
+> transparency is REAL wherever WPF renders it (Window chrome, panel Background, per-element Opacity,
+> alpha brushes), matching WPF `AllowsTransparency=True`. Zero silent backfills; the RENDER_SURFACE
+> matrix + validator are updated at the step that changes the render path (S593), and the viewer
+> demonstrates it live (S595).
+>
+> **WPF-SOURCE-VALIDATED MECHANISM (scan of `dotnet/wpf`, recorded this step — the authoritative model
+> VAML mirrors, NOT "handle the special cases differently"):** WPF itself handles **100% of transparency**
+> natively on every visual that participates in the render tree — Window chrome, panel `Background`,
+> per-element `Opacity`, alpha brushes. The ONLY WPF conditions not handled by WPF's own render path are a
+> narrow set that rely on a **secondary COM object** to complete the transparency (the MIL core
+> component `milcore.dll` — `DUCE.Channel` / `CompositionTarget.UpdateWindowSettings`), and the contract is
+> that **VAML handles 100% of the transparency WPF exposes, composited through the SAME pipeline to Vulkan,
+> exactly like any other XAML → Vulkan render surface** — we do NOT defer, special-case, or sidestep that
+> secondary-COM step. The mechanism (read from the real source): `Window.cs` `AllowsTransparency` (plain
+> DP, default false) → `CreateHwndSourceParameters.UsesPerPixelOpacity` → **`HwndSource.cs` sets
+> `WS_EX_LAYERED` + `HwndTarget.BackgroundColor = Colors.Transparent` (clear = alpha 0)** →
+> `HwndTarget.cs` builds `MILTransparencyFlags` (`_usesPerPixelOpacity` ORs in **`PerPixelAlpha`**) and
+> selects **`MILWindowLayerType.ApplicationManagedLayer`** (per-pixel, what VAML wants) vs
+> `SystemManagedLayer` (constant-alpha color-key fallback — which VAML will NOT use as a crutch). The
+> "narrow conditions" are ONLY the OS-compositor capability gates `IsOSWindows8OrNewer` /
+> `PlatformSupportsTransparentChildWindows` (HwndSourceParameters.cs) — gates on whether the compositor
+> can deliver an application-managed layered sprite, i.e. exactly the honest capability result the S590
+> composite-alpha probe records per machine, NEVER a reason to degrade the pipeline. VAML therefore
+> mirrors the full model: `WS_EX_LAYERED` + `GLFW_TRANSPARENT_FRAMEBUFFER`/`GLFW_ALPHA_BITS 8` (S594),
+> transparent clear alpha 0 (S592), premultiplied final surface (S591), and per-element alpha preservation
+> (S593) — with no color-key shortcut and no constant-alpha fallback.
+> VIEWER GROWTH (anti-grave-whistle): this sprint's token is **S595** (a SplashWindow-shaped transparent
+> doc renders live — see-through where transparent, layered where opaque) — no token, no ✅ per the S11+
+> OPEN-ENDED clause. ADR-018: ZERO new locks (single-threaded affinity render, the S211 lock-free postbox
+> precedent). ADR-011 held: transparency is core DATA (Windows Background/AllowsTransparency + element
+> Opacity already exist); the compositing/present changes live in the vulkan/presentation layers, never core.
+- S590 dep:S213_1  Composite-alpha CAPABILITY PROBE (foundation, fail-fast): compute the swapchain's
+      `VkPhysicalDeviceSurfaceCapabilitiesKHR::supportedCompositeAlpha`; add `compositeAlpha` to the swapchain
+      config with `VK_COMPOSITE_ALPHA_OPAQUE_BIT` fallback. First-principles risk gate recorded: WITHOUT
+      `VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT`, per-pixel window transparency is impossible on that swapchain —
+      the probe documents the per-machine achievable reality + a clean opaque fallback BEFORE any later step is
+      built — an HONEST per-machine capability result, the VAML analogue of WPF's own compositor gates
+      (`IsOSWindows8OrNewer`/`PlatformSupportsTransparentChildWindows`, HwndSourceParameters.cs), NEVER a reason
+      to degrade or skip the pipeline. **[MINIMAL REAL] probe seam — RESOLVED BY S591** (a declared forward-resolvable seed, NOT a stub).
+      Headless seams: `composite_alpha_supported(...)` + the supported-set mask. `[DONE]` — S590 delivered
+      `supported_composite_alpha_mask` / `composite_alpha_supported` (Swapchain.h/.cpp, pure + headless),
+      added `SwapchainConfig::compositeAlpha` (default OPAQUE fallback), populated it from the surface
+      capability mask in `negotiate()` (PRE_MULTIPLIED > OPAQUE > first set bit > OPAQUE), and replaced the
+      hardcoded OPAQUE in `rebuild()`. Risk gate recorded + the `[MINIMAL REAL] probe seam -> S591` resolution
+      obligation stands (NO-GAP). Both CI lanes green (build/verify_s590.cmd + ubuntu-clang). Render-inert:
+      no classifier/material change; transparent compositing is S592/S593 with its own conformance obligation.
+- S591 dep:S590  TRANSPARENT-CAPABLE SWAPCHAIN + PREMULTIPLIED FINAL SURFACE: when the feature is on
+      (`AllowsTransparency && compositeAlpha supported`), request an RGBA surface with
+      `compositeAlpha = PRE_MULTIPLIED` (Windows DWM per-pixel); keep OPAQUE for normal windows. Add
+      `SwapchainMode { Opaque, Premultiplied }` to the swapchain/config surface so ONE code path serves both.
+      RESOLVES the S590 **[MINIMAL REAL]** probe marker at its own step (the real capability plumbing lands
+      here). Headless seam `negotiate_composite_alpha(format, capabilities) -> SwapchainMode`. Both CI lanes green.
+      `[DONE]` — S591 delivered `SwapchainMode { Opaque, Premultiplied }` + `negotiate_composite_alpha`
+      (Premultiplied iff PRE_MULTIPLIED in the supported mask, else Opaque — the S590 fail-fast fallback) +
+      `SwapchainConfig::mode` + `composite_alpha()`/`mode()` accessors; negotiate() sets mode + the locked
+      compositeAlpha flag; rebuild() reads compositeAlpha (ONE path serves both). **RESOLVED the S590
+      [MINIMAL REAL] probe marker at its own step — sentinel removed, NO-GAP, not a backfill.** Both CI lanes
+      green (build/verify_s591.cmd + ubuntu-clang). Render-inert. Continuation: S592 (clear + Background
+      composition), S593 (element alpha single-fold + RENDER_SURFACE conformance), S594/S595/S595a.
+- S592 dep:S591  PER-WINDOW CLEAR ALPHA + BACKGROUND COMPOSITION (VamlRenderer): REPLACE the single global
+      hard clear (`app.cpp` clearR=0.18/G=0.22/B=0.26/A=1.0 + `VamlRenderer` default `clear_[3]=1.0`) with a
+      per-window clear DERIVED from the resolved `Window.Background` + `AllowsTransparency`: transparent
+      window → clear alpha 0 (the compositor shows through); opaque window → the tree's resolved Background
+      (NEVER the hard host constant). Thread `record_draw`'s `clearValue` from that decision — this removes
+      the "blank grey/blue background" exactly. Headless seam `decide_clear(allowsTransparency,
+      resolvedBackground) -> ClearValue`. Both CI lanes green.
+      `[DONE]` — S592 delivered the PURE `clear::decide_clear(allowsTransparency, resolvedBackground)`
+      seam (the 2-branch WPF HwndTarget.SetBackgroundColor mirror: transparent -> alpha 0; opaque +
+      authored Background -> the color at alpha 1.0; opaque + no authored Background -> alpha 0, the WPF
+      null-Background rule) in VamlRenderer.h + src/clear.cpp; record_draw derives the clear from a
+      Window root's AllowsTransparency (Bool) + authored Background (Color, via has_local_value — the DP
+      default opaque black is NOT a resolved background); a non-Window root -> decide_clear(false,nullptr);
+      the hard host clear constant in app.cpp is REMOVED (superseded, recorded not silent). Headless proof
+      in vaml-presentation-tests (VamlRenderer_clear_test.cpp). Both CI lanes green (build/verify_s592.cmd
+      + ubuntu-clang). NO-GAP hand-offs: S593 (element partial-alpha), S594 (OS window hints), S595 (live
+      transparency demo). Continuation: S593.
+- S593 dep:S592  ELEMENT ALPHA COMPOSITION (panels, Opacity, alpha brushes): teach the classifier + blender
+      to PRESERVE partial alpha across the tree — Solid/Image already emit alpha; Border/Label/Text pass
+      alpha through the straight-alpha blend, and per-element `Opacity` applies as a coverage multiplier on
+      push constants (S208 effective_opacity already folds into item alpha — extend + prove it). A
+      `Window{AllowsTransparency=True}` + `Panel{Background=Transparent, Opacity=0.5}` stacks correctly (a
+      half-alpha panel over see-through chrome). **RENDER-SURFACE CONFORMANCE (obligation, baked):** update
+      `docs/RENDER_SURFACE.md` matrix rows (Window/Label/Solid/Border alpha semantics) + re-run
+      `render_surface_check.py` AT THIS STEP (transparency changes the render path — the conformance
+      validator must stay green, never a silent backfill). Both CI lanes green.
+      **LABEL CORRECTION (WPF-source verified from `dotnet/wpf` — accepted Option A, no new token):** WPF's
+      `Label` is a `ContentControl` whose default template is a `ContentPresenter` — it draws NO background
+      box of its own, and `Label.Foreground` (inherited `Control.Foreground`) colors the GLYPHS only via
+      `TextElement.Foreground`, never a filled rectangle. So there is NO WPF operation tinting a label box by
+      `Foreground` alpha (the `0.85f` "backdrop alpha" in our `classify_merge_element` was OUR OWN
+      vertical-slice constant, not a WPF value). S593 therefore: removes the hardcoded `0.85f` backdrop alpha
+      → the Label's vertical-slice box gets a neutral **alpha 1.0** (NOT `fg.a`); the resolved `Foreground`
+      colors the **content/glyph** (like the `Text`/`TextBlock` arm — where WPF puts it). It does NOT encode a
+      "foreground-tints-background" rule WPF forbids.
+      **BOX-VS-REAL-GLYPH HANDOFF (recorded, NOT a new S595b/S11o token):** "Label renders as a solid box,
+      not real glyphs" is ALREADY resolved-by-contract at **S409_1** (the S400/S409_1 text-glyph viewer-growth
+      path; the S480 classifier comment already records "glyphs defactor to the S400 Text path — NO-GAP").
+      S593 keeps the solid box for the vertical slice (so as not to silently expand into S409_1's glyph
+      territory) and does NOT re-schedule it under Sprint 11o. At S593's own docs step, ANNOTATE the existing
+      S409_1 hand-off — the neutral-alpha Label box now, Label glyphs → S409_1, recorded NO-GAP, not a new
+      11o token. (Same WPF-faithful alpha model for every other element: WPF `UIElement.Opacity` is a
+      whole-subtree SINGLE multiplier, applied exactly once as the element incl. subtree is composed onto its
+      parent — the single-fold model; the S593 fix removes the base-arm opacity² double-fold and proves the
+      single fold.)
+      **FLOAT/DOUBLE LAYER RULE (WPF-source confirmed — token lock, NO code change; fetched directly from
+      `dotnet/wpf`):** WPF is **`double` at the managed/authoring surface, `float` at the compositor/render
+      layer**. Verified: `UIElement.Opacity` = `public double Opacity` (`PresentationCore/.../UIElement.cs:
+      2681` — the managed DP surface); `Color` channels = **`float`** (`PresentationCore/.../Media/Color.cs`:
+      `private struct MILColorF { public float a,r,g,b; }` — the internal scRGB/RGBA compositor color,
+      commented "identical to milrendertypes.h for performance"; `ScA/ScR/ScG/ScB` all `float`;
+      `FromArgb` casts `byte → float`). RULE (applies to ALL WPF-harvested data structures): mirror the WPF
+      source at the layer being implemented — managed/DP authoring surface → `double`; compositor/MIL/render
+      blend path → `float`. VERIFIED in OUR code (no change): `Color4` is already `float` (mirrors
+      `MILColorF`), `Opacity` DP is `double` (mirrors `UIElement`), and `effective_opacity()` returns
+      `double` with the encoder's single `static_cast<float>(...)` at the encoder boundary = the one
+      sanctioned managed-`double` → compositor-`float` "harvest wall". This is a docs/token lock, NOT code.
+      The S593 code change remains ONLY the base-arm opacity² double-fold fix + Option A (no float/double
+      edits).
+      `[DONE]` — S593 fixed the base-arm opacity² double-fold (the classifier NO LONGER folds
+      `effective_opacity` into the emitted color; the S208 encoder folds it EXACTLY ONCE) + the Label Option
+      A realignment (neutral alpha-1.0 backdrop — the invented `0.85f` is GONE, no `fg.a` tints the box; the
+      content/glyph uses the resolved Foreground via the S400 path). The base arm reads the resolved
+      `Background` (Color; Transparent/partial-alpha carried through; no Color -> the neutral fill at alpha
+      1.0), so `Panel{Background=semi}` → item.a = bg.a and Opacity multiplies ONCE. Headless proof in
+      vaml-presentation-tests (VamlRenderer_alpha_test.cpp — the base panel bg.a×Opacity single-fold + the
+      Label neutral backdrop). **RENDER-SURFACE CONFORMANCE: docs/RENDER_SURFACE.md matrix updated (Window
+      row added + Label/base rows' alpha semantics + the `Alpha compositing (S593)` note) + render_surface_check.py
+      re-run -> OK (60 arms / 67 rows) on BOTH lanes.** S409_1 hand-off ANNOTATED (Label glyphs -> S409_1, the
+      neutral-alpha box now, recorded NO-GAP, not a new token); FLOAT/DOUBLE layer rule token-locked (no code
+      change). Both CI lanes green (build/verify_s593.cmd + ubuntu-clang). Continuation: S594.
+- S594 dep:S593  OS-WINDOW TRANSPARENCY (per-platform, WPF-SOURCE-VALIDATED): Windows = create the window
+      `WS_EX_LAYERED` + `HwndTarget.BackgroundColor = Colors.Transparent`-analogue (transparent clear alpha 0 —
+      the WPF model read from `HwndSource.cs`, NOT just a hint flag), driving the **`ApplicationManagedLayer`**
+      (per-pixel, the WPF mechanism VAML mirrors) — NEVER the `SystemManagedLayer` constant-alpha color-key
+      fallback WPF reserves (the explicit NO-color-key / NO-constant-alpha rule). Pass
+      `GLFW_TRANSPARENT_FRAMEBUFFER` + `GLFW_ALPHA_BITS 8` in `PlatformWindow::create` GATED ON the feature
+      (NOT unconditionally — non-splash windows stay opaque). Headless seam `window_transparency_hints(featureOn)`.
+      Both CI lanes green (the LIVE composited see-through window is [both apps, not CI] on the display-backed
+      host, RAIL 3).
+      `[DONE]` — S594 delivered the PURE `window_transparency_hints(bool featureOn)` seam +
+      `WindowTransparencyHints/WindowTransparencyHint/kMaxTransparencyHints` (featureOn -> count 2:
+      {GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE} + {GLFW_ALPHA_BITS, 8}; featureOff -> empty/opaque, the
+      ROADMAP NON-conditional rule) in PlatformWindow.h/.cpp + `Config::transparentFramebuffer` (default
+      false) + the GATED application in `create()` (opaque windows UNCHANGED — the hints are only set when
+      the feature is on). OS-mechanism nuance recorded: GLFW's Win32 path realizes per-pixel via
+      DwmEnableBlurBehindWindow (the WPF `ApplicationManagedLayer` model), NOT the `WS_EX_LAYERED`
+      constant-alpha color-key (WPF's forbidden `SystemManagedLayer`); `GLFW_ALPHA_BITS` is inert for a
+      GLFW_NO_API Vulkan window. Headless proof in vaml-vulkan-tests (PlatformWindow_test.cpp — S594
+      TEST_CASEs pinned to the real GLFW macros). Both CI lanes green (build/verify_s594.cmd +
+      ubuntu-clang). The LIVE see-through window stays [both apps, not CI] RAIL 3, not a CI gate. NO-GAP
+      hand-off: `AllowsTransparency` -> OS hint at S595. Continuation: S595.
+- S595 dep:S594  `Window.AllowsTransparency` BECOMES LIVE CONSUMED SURFACE + VIEWER-GROWTH: the 11j-4
+      registered DP is no longer dead — it flows into S592's clear decision + S594's OS hint; the transparency
+      feature is a named, consumed surface. **VIEWER-GROWTH:** a SplashWindow-shaped transparent doc
+      (StackPanel + Label + Image authored, `AllowsTransparency="True"`) opens in the LIVE viewer and renders
+      SEE-THROUGH where the background is transparent + correctly LAYERED where opaque (the S212/S213
+      DPI-crisp retained renderer) — demonstrating `docs/RENDER_SURFACE.md`'s "splash transparency" note is
+      RESOLVED, not a solid-box fallback. Headless Rail 1: `ViewerTransparency_s595_test.cpp` (encode a
+      transparent window → clear alpha 0 + a half-alpha panel keeps partial alpha). BOTH CI lanes green.
+      `[DONE]` — S595 made `AllowsTransparency` a LIVE CONSUMED surface. vaml_viewer gained the ADR-021
+      transparency consumer seam (viewer_transparency.h: run_viewer_transparency_plan loads + finalizes a
+      Window doc + reads AllowsTransparency; viewer_transparency_clear -> S592 clear::decide_clear;
+      viewer_transparency_os_flag -> S594 window_transparency_hints featureOn) + app.cpp threads the loaded
+      Window root's AllowsTransparency into the PlatformWindow transparentFramebuffer config (a transparent
+      Window opens a per-pixel DWM-transparent OS window; all others stay OPAQUE — the ROADMAP
+      NON-conditional rule) + the SplashWindow-shaped sample.transparent.vaml. Headless proof in
+      vaml-presentation-tests (ViewerTransparency_s595_test.cpp: load + AllowsTransparency=true + clear
+      alpha 0 + the OS-hint + the S593 half-alpha single-fold). Both CI lanes green (build/verify_s595.cmd +
+      ubuntu-clang) + render_surface_check OK (60/67). The RENDER_SURFACE "splash transparency" note is
+      RESOLVED (not a solid-box fallback). The LIVE see-through window is [both apps, not CI] RAIL 3.
+      Continuation: S595a.
+- S595a dep:S595  `UIElement.IsHitTestVisible` — PER-ELEMENT INPUT HIT-TEST TRANSPARENCY (WPF-faithful,
+      source-validated against `dotnet/wpf` `UIElement.IsHitTestVisible`/`HitTestCore` AND against
+      `1_CardiMapper.App`'s own click-pass-through usage): register `IsHitTestVisible` (Bool DP, default
+      `true`) on `UIElement`; `HitTestAt` SKIPS elements where `is_hit_test_visible() == false` (the same
+      skip axis WPF uses for `Visibility`, but DECOUPLED — an element can now RENDER ("100% transparent"
+      overlay chrome) while NOT intercepting input ("click pass-through" idle mode), and toggle back to
+      hit-testable to CAPTURE all clicks to "handled" (active mode). This is a PURE element-surface (generic
+      partner to `Opacity`/`Visibility`), ZERO emergency-overlay policy in the library — the idle↔active
+      flip stays in the app's own XAML/property changes. Zero new locks (ADR-018; `HitTestAt` is a pure
+      tree-walk read). Headless seam `is_hit_test_visible()`; test asserts a `Visible`+`IsHitTestVisible=false`
+      element is SKIPPED by `HitTestAt` while still RENDERED. **VIEWER-GROWTH (S323 hit-test resolution
+      obligation):** the `ScreenCaptureOverlay`-shaped transparent overlay doc (near-transparent
+      `#01000000` capture Rectangle + `IsHitTestVisible=false` dim/mask layer, per the real app) opens in the
+      LIVE viewer and toggles hit-testability — pass-through when input elements are non-testable, capture
+      when hit-testable. Headless Rail 1: `ViewerHitTest_s595a_test.cpp`. BOTH CI lanes green.
+      `[DONE]` — S595a delivered the REAL `UIElement.IsHitTestVisible` surface (the final Sprint 11o token):
+      the Bool DP (default TRUE, NOT inherited) registered at UIElement.cpp's `register_uielement_properties`
+      (guarded; the 11k-9 DP-fidelity table no longer registers it as Int32 — the S595a Bool editor surface
+      is the single canonical registration, resolving `IsHitTestVisible="true"/"false"` via the Bool
+      converter, the AllowsTransparency/Topmost precedent) + the typed accessors (set_is_hit_test_visible /
+      is_hit_test_visible) + the `HitTestAt` (const) skip: an element with IsHitTestVisible=false still
+      RENDERS but does NOT intercept input (the WPF UIElement.IsHitTestVisible/HitTestCore model, DECOUPLED
+      from Visibility — the skip only gates whether THIS element is returned; the children descent runs
+      regardless, honoring the NOT-inherited contract). CORE Rail 1 in vaml-core-tests
+      (ViewerHitTest_s595a_test.cpp: default/round-trip/headline/decoupling/corpus-Bool-authoring/
+      NOT-inherited). **VIEWER-GROWTH** in vaml-presentation-tests (ViewerHitTest_s595a_pres_test.cpp via
+      the viewer_growth_s595a.h seam + sample.s595a.xaml): the ScreenCaptureOverlay-shaped overlay loads +
+      still RENDERS while non-hit-test-visible + the PASS-THROUGH/CAPTURE toggle (idle -> HitTestAt returns
+      the underlying element; active -> the overlay captures; app-side only, ZERO library policy). ZERO new
+      locks (ADR-018), ZERO MINIMAL REAL introduced/resolved (IsHitTestVisible is real + permanent). Both CI
+      lanes green (build/verify_s595a.cmd + ubuntu-clang). Continuation: S596 (REFACTOR GATE + SURVIVOR).
+- S596 dep:S595a  REFACTOR GATE(11o) + SURVIVOR: full build + ctest BOTH lanes green (windows-msvc +
+      ubuntu-clang from first principles); grep-audit — ZERO STUB / ZERO **[MINIMAL REAL]** remain (S590's
+      probe marker was RESOLVED at S591); the global hard clear is GONE (no opaque `clear_[3]=1.0` constant
+      survives); ASan no-leak (verify_s170_asan.cmd re-run); the RENDER_SURFACE validator + DAG green.
+      SURVIVOR block consolidated in progress.md (transparency is a first-class render surface, never
+      deferred). ZERO new locks (ADR-018). Checkpoint advances: last = S11o, next = S520 (Sprint 11h — per
+      the insertion order).
+      `[DONE]` — S596 closed Sprint 11o. Full build + ctest BOTH lanes GREEN from first principles
+      (build/verify_s596.cmd msvc-debug + ubuntu-clang clang-debug on /mnt/hgfs/VamlPOC); render_surface_check.py
+      -> OK (60 classifier arms / 67 catalog rows) on BOTH lanes; grep-audit PASS — zero STUB + the S590
+      [MINIMAL REAL] composite-alpha sentinel is GONE (RESOLVED at S591) + the global hard clear (app.cpp
+      clearR/G/B/A host constant) is REMOVED (only the "REMOVED" comment remains). SURVIVOR block
+      consolidated in progress.md (`## SPRINT 11o — SURVIVOR`). ZERO new locks (ADR-018; HitTestAt is a
+      pure tree-walk read, the IsHitTestVisible register is the idempotent first-ctor guard). **CHECKPOINT
+      ADVANCED: last = Sprint 11o, next = Sprint 11h (S520 — IMPORT/INJECT seam)**.
 
 ---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]

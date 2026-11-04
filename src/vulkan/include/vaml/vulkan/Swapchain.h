@@ -125,6 +125,56 @@ VAML_VULKAN_EXPORT const std::vector<VkFormat>& depth_format_candidates();
 // every other result return false. Pure + headless-testable (no runtime).
 VAML_VULKAN_EXPORT bool should_recreate_swapchain(VkResult result) noexcept;
 
+// S590 (dep:S213_1) — composite-alpha CAPABILITY PROBE. Per-machine risk gate
+// (first-principles, recorded): WITHOUT `VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT`
+// in the surface's supported set, per-pixel window transparency is IMPOSSIBLE
+// on that swapchain. The probe therefore documents the per-machine ACHIEVABLE
+// reality + a clean OPAQUE fallback BEFORE any transparency step is built — it
+// is an HONEST capability result (the VAML analogue of WPF's compositor gates
+// `IsOSWindows8OrNewer`/`PlatformSupportsTransparentChildWindows`), NEVER a
+// reason to degrade or skip the pipeline. The probe reads capability data
+// `negotiate()` already holds in hand (`VkSurfaceCapabilitiesKHR caps` is the
+// struct that carries `supportedCompositeAlpha`) — no new VkLoader entry points.
+//
+// S591 RESOLVES the S590 [MINIMAL REAL] probe marker at its own step (NO-GAP):
+// the probe seam is the forward-resolvable seed into the real capability
+// plumbing — `negotiate_composite_alpha` (below) consumes it for the decision.
+// The [MINIMAL REAL] sentinel tag is REMOVED per its resolution contract.
+//
+// Returns the supported-set MASK from `caps` (a bitwise OR of
+// `VkCompositeAlphaFlagBitsKHR`), verbatim (incl. a zero mask). Pure + headless.
+VAML_VULKAN_EXPORT VkCompositeAlphaFlagsKHR
+supported_composite_alpha_mask(VkSurfaceCapabilitiesKHR caps) noexcept;
+
+// True iff `flag` is present in `mask` (a supported-set membership test for the
+// S590 probe + the S591 negotiation). Pure + headless.
+VAML_VULKAN_EXPORT bool composite_alpha_supported(VkCompositeAlphaFlagsKHR mask,
+                                                  VkCompositeAlphaFlagBitsKHR flag) noexcept;
+
+// S591 (dep:S590) — the transparent-capable swapchain MODE. ONE code path
+// serves both OPAQUE (normal windows) and PREMULTIPLIED (Windows DWM per-pixel
+// transparency when the feature is on + the capability is supported). The
+// PREMULTIPLIED semantics are produced at present time / final-surface time.
+enum class SwapchainMode : std::uint8_t
+{
+    Opaque       = 0, // normal opaque window (the default)
+    Premultiplied = 1, // pre-multiplied final surface (per-pixel window transparency)
+};
+
+// The S591 pure decision seam: returns `Premultiplied` iff
+// `VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR` is present in `supportedMask`;
+// otherwise (absent / empty / malformed) returns `Opaque` — the fail-fast
+// fallback that keeps the swapchain ALWAYS valid (per the S590 risk gate: a
+// swapchain missing PRE_MULTIPLIED cannot do per-pixel transparency, so it is
+// OPAQUE, never a reason to skip the pipeline). The decision is capability-
+// driven (FORMAT-INDEPENDENT — it reads the supported-composite-alpha mask of
+// the surface, not the pixel format). `format` is carried for signature
+// stability / future format-aware refinement (currently unused — the surface-
+// format layer already prefers alpha-bearing 8-bit formats, so an RGBA surface
+// needs no format swap). Pure + headless.
+VAML_VULKAN_EXPORT SwapchainMode
+negotiate_composite_alpha(VkFormat format, VkCompositeAlphaFlagsKHR supportedMask) noexcept;
+
 // ---------------------------------------------------------------------------
 // Real swapchain owner (RAII)
 // ---------------------------------------------------------------------------
@@ -138,6 +188,14 @@ struct SwapchainConfig
     VkExtent2D         extent         = { 0, 0 };
     std::uint32_t      imageCount     = 0;
     std::optional<VkFormat> depthFormat = std::nullopt;  // std::nullopt => no depth image (unsupported)
+    // S590/S591 — the negotiated composite-alpha mode. `compositeAlpha` defaults
+    // OPAQUE (the S590 fallback contract) + `mode` defaults Opaque, so a default
+    // surface is UNCHANGED. When the feature is on AND the capability is
+    // supported (S591), negotiate() sets mode=Premultiplied +
+    // compositeAlpha=PRE_MULTIPLIED; rebuild() reads compositeAlpha — ONE code
+    // path serves both modes.
+    VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    SwapchainMode                 mode         = SwapchainMode::Opaque;
 
     [[nodiscard]] std::uint32_t surface_bytes_per_pixel() const noexcept
     {
@@ -216,6 +274,11 @@ public:
     [[nodiscard]] VkImage                 depth_image()    const noexcept { return depthImage_; }
     [[nodiscard]] VkImageView             depth_image_view() const noexcept { return depthImageView_; }
     [[nodiscard]] VkDeviceMemory          depth_memory()   const noexcept { return depthMemory_; }
+
+    // S591 — the negotiated composite-alpha mode + flag (from config_; the
+    // accessors expose the S590/S591 decision surface headlessly).
+    [[nodiscard]] VkCompositeAlphaFlagBitsKHR composite_alpha() const noexcept { return config_.compositeAlpha; }
+    [[nodiscard]] SwapchainMode               mode()           const noexcept { return config_.mode; }
 
     [[nodiscard]] const SwapchainConfig& config() const noexcept { return config_; }
 

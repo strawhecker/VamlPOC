@@ -288,11 +288,23 @@ ViewerApp::create_impl(const ViewerAppConfig& config,
                 app->on_scroll_zoom(app->cursorX_, app->cursorY_, yoffset);
             };
 
-        app->window_ = vaml::vulkan::PlatformWindow::create(
-            { config.title.c_str(),
-              static_cast<int>(config.width),
-              static_cast<int>(config.height) },
-            std::move(winCallbacks));
+        // S595 (dep:S594) — `Window.AllowsTransparency` is a LIVE CONSUMED surface:
+        // the loaded Window root's AllowsTransparency (Bool, owner "Window") gates
+        // the OS-window transparency hint (S594) — a transparent Window opens a
+        // per-pixel DWM-transparent OS window; every OTHER window stays OPAQUE (the
+        // ROADMAP NON-conditional rule). `uiRoot` is the loaded UIElement root; a
+        // Window root's authored AllowsTransparency flows into the config's
+        // `transparentFramebuffer` flag (the S594 seam applies the hints in create()).
+        vaml::vulkan::PlatformWindow::Config winConfig;
+        winConfig.title  = config.title.c_str();
+        winConfig.width  = static_cast<int>(config.width);
+        winConfig.height = static_cast<int>(config.height);
+        if (const auto* winRoot = dynamic_cast<const vaml::Window*>(uiRoot))
+        {
+            winConfig.transparentFramebuffer =
+                winRoot->Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
+        }
+        app->window_ = vaml::vulkan::PlatformWindow::create(winConfig, std::move(winCallbacks));
         if (!app->window_)
             return nullptr;
 
@@ -446,7 +458,11 @@ ViewerApp::create_impl(const ViewerAppConfig& config,
         hostOpts.presenter.width       = config.width;
         hostOpts.presenter.height      = config.height;
         hostOpts.presenter.sampleCount = VK_SAMPLE_COUNT_1_BIT;
-        hostOpts.clearR = 0.18f; hostOpts.clearG = 0.22f; hostOpts.clearB = 0.26f; hostOpts.clearA = 1.0f;
+        // S592 — the hard host clear constant (clearR/G/B/A) is REMOVED: the
+        // per-window clear is now DERIVED from the resolved Window.Background +
+        // AllowsTransparency (clear::decide_clear, the WPF mirror). The
+        // clear* fields default opaque-black; record_draw supersedes them.
+        (void)0;
 
         app->renderer_ = vaml::presentation::VamlRenderer::create_device(hostOpts);
         if (!app->renderer_)

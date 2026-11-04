@@ -28,6 +28,43 @@
 
 using namespace vaml::vulkan;
 
+// ===========================================================================
+// S594 (dep:S593) — OS-WINDOW TRANSPARENCY hint decision (headless).
+// `window_transparency_hints(featureOn)` returns the GLFW window-hint set
+// pinned to the REAL <GLFW/glfw3.h> macros (the TU includes glfw3.h), without a
+// live window/display. Feature ON -> the transparency + alpha-bits hints;
+// feature OFF -> empty (opaque, the ROADMAP NON-conditional rule).
+// ===========================================================================
+
+TEST_CASE("S594 window_transparency_hints(true) -> count 2, pinned to the real GLFW macros")
+{
+    const WindowTransparencyHints h = window_transparency_hints(true);
+    CHECK(h.count == 2);
+    CHECK(h.empty() == false);
+    CHECK(h.entries[0].hint == GLFW_TRANSPARENT_FRAMEBUFFER);
+    CHECK(h.entries[0].value == GLFW_TRUE);
+    CHECK(h.entries[1].hint == GLFW_ALPHA_BITS);
+    CHECK(h.entries[1].value == 8);
+}
+
+TEST_CASE("S594 window_transparency_hints(false) -> empty (opaque, NON-conditional)")
+{
+    const WindowTransparencyHints h = window_transparency_hints(false);
+    CHECK(h.count == 0);
+    CHECK(h.empty() == true);
+}
+
+TEST_CASE("S594 kMaxTransparencyHints bounds honored (at most 2 entries)")
+{
+    static_assert(kMaxTransparencyHints == 2, "the hint set is bounded to 2");
+    const WindowTransparencyHints on = window_transparency_hints(true);
+    CHECK(on.count <= kMaxTransparencyHints);
+    const WindowTransparencyHints off = window_transparency_hints(false);
+    CHECK(off.count <= kMaxTransparencyHints);
+    CHECK(off.entries[0].hint == 0);  // zero-initialized entries
+    CHECK(off.entries[1].hint == 0);
+}
+
 TEST_CASE("S160 WindowCallbacks default-constructs empty (no-op safe)")
 {
     WindowCallbacks cb;  // all std::function are empty

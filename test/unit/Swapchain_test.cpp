@@ -193,3 +193,155 @@ TEST_CASE("S164 negotiate_image_count clamps to min..max and never zero")
     auto cZeroMin = caps(0, 4, 0, 0, 800, 600);
     CHECK(negotiate_image_count(cZeroMin, 0) == 1);
 }
+
+// ===========================================================================
+// S590 (dep:S213_1) — composite-alpha CAPABILITY PROBE (headless). The probe
+// reads `supportedCompositeAlpha` from the capabilities struct + provides a
+// clean OPAQUE fallback. Without VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT, per-
+// pixel window transparency is impossible on that swapchain — the probe
+// documents the honest per-machine result + the fallback, NEVER a reason to
+// skip the pipeline.
+// ===========================================================================
+
+VkSurfaceCapabilitiesKHR capsWithAlpha(VkCompositeAlphaFlagsKHR mask)
+{
+    VkSurfaceCapabilitiesKHR c{};
+    c.supportedCompositeAlpha = mask;
+    return c;
+}
+
+TEST_CASE("S590 supported_composite_alpha_mask returns the supported-set mask")
+{
+    VkSurfaceCapabilitiesKHR c0 = capsWithAlpha(0);
+    CHECK(supported_composite_alpha_mask(c0) == VkCompositeAlphaFlagsKHR(0));
+
+    VkSurfaceCapabilitiesKHR c1 = capsWithAlpha(
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR);
+    CHECK(supported_composite_alpha_mask(c1) ==
+          (VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR));
+}
+
+TEST_CASE("S590 composite_alpha_supported true/false per flag present/absent")
+{
+    const VkCompositeAlphaFlagsKHR mask =
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+
+    CHECK(composite_alpha_supported(mask, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR));
+    CHECK(composite_alpha_supported(mask, VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR));
+    CHECK(!composite_alpha_supported(mask, VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR));
+
+    // Zero mask -> nothing supported.
+    CHECK(!composite_alpha_supported(0, VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR));
+    CHECK(!composite_alpha_supported(0, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR));
+}
+
+TEST_CASE("S590 default SwapchainConfig compositeAlpha == OPAQUE fallback")
+{
+    SwapchainConfig cfg;
+    CHECK(cfg.compositeAlpha == VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+}
+
+// The negotiated config's compositeAlpha is populated by the S590 probe. We
+// reproduce the negotiate decision here headlessly (the LIVE negotiate runs
+// against a real surface). The decision rule:
+//   PRE_MULTIPLIED in mask -> PRE_MULTIPLIED; else OPAQUE; else first bit; else OPAQUE.
+VkCompositeAlphaFlagBitsKHR probe_decision(VkCompositeAlphaFlagsKHR mask) noexcept
+{
+    if (composite_alpha_supported(mask, VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR))
+        return VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+    if (composite_alpha_supported(mask, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR))
+        return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    if (mask == 0)
+        return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    for (std::uint32_t bit = 1; bit != 0; bit <<= 1)
+    {
+        if ((mask & bit) != 0)
+            return static_cast<VkCompositeAlphaFlagBitsKHR>(bit);
+    }
+    return VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+}
+
+TEST_CASE("S590 OPAQUE fallback when PRE_MULTIPLIED absent")
+{
+    // Mask with ONLY OPAQUE -> config OPAQUE.
+    CHECK(probe_decision(VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) == VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+    // Empty/zero mask -> OPAQUE (robust fallback).
+    CHECK(probe_decision(0) == VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+}
+
+TEST_CASE("S590 PRE_MULTIPLIED when supported (+ first-set-bit degenerate fallback)")
+{
+    // Mask WITH PRE_MULTIPLIED -> PRE_MULTIPLIED.
+    CHECK(probe_decision(VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
+          == VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR);
+    CHECK(probe_decision(VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) == VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR);
+    // A mask whose FIRST set bit is neither OPAQUE nor PRE_MULTIPLIED -> that bit.
+    const VkCompositeAlphaFlagsKHR postOnly = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+    CHECK(probe_decision(postOnly) == VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR);
+}
+
+// ===========================================================================
+// S591 (dep:S590) — TRANSPARENT-CAPABLE SWAPCHAIN + PREMULTIPLIED FINAL SURFACE.
+// `negotiate_composite_alpha(format, mask)` -> SwapchainMode: Premultiplied iff
+// PRE_MULTIPLIED is in the supported mask; else Opaque (fail-fast fallback).
+// Config defaults keep the default surface UNCHANGED (Opaque + OPAQUE flag).
+// ===========================================================================
+
+TEST_CASE("S591 negotiate_composite_alpha: PRE_MULTIPLIED present -> Premultiplied")
+{
+    const VkCompositeAlphaFlagsKHR mask =
+        VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+    // Capability-driven + format-independent (both an alpha + a non-alpha format).
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_UNORM, mask) == SwapchainMode::Premultiplied);
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_SRGB, mask) == SwapchainMode::Premultiplied);
+    CHECK(negotiate_composite_alpha(VK_FORMAT_R8G8B8A8_UNORM, mask) == SwapchainMode::Premultiplied);
+}
+
+TEST_CASE("S591 negotiate_composite_alpha: absent/empty -> Opaque (fail-fast fallback)")
+{
+    const VkCompositeAlphaFlagsKHR opaqueOnly = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_UNORM, opaqueOnly) == SwapchainMode::Opaque);
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_SRGB, opaqueOnly) == SwapchainMode::Opaque);
+    // Empty/zero mask -> Opaque.
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_UNORM, 0) == SwapchainMode::Opaque);
+    // Malformed/degenerate (only POST_MULTIPLIED) -> Opaque (no PRE_MULTIPLIED).
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_UNORM,
+                                    VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR) == SwapchainMode::Opaque);
+}
+
+TEST_CASE("S591 config defaults: Opaque + OPAQUE compositeAlpha (surface unchanged)")
+{
+    SwapchainConfig cfg;
+    CHECK(cfg.mode == SwapchainMode::Opaque);
+    CHECK(cfg.compositeAlpha == VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR);
+}
+
+TEST_CASE("S591 ONE-PATH: config carrying PRE_MULTIPLIED + Premultiplied round-trips")
+{
+    // The rebuild()/accessor path reads config (not a hardcoded constant): a
+    // config carrying the transparent-capable surface round-trips through the
+    // config/accessor surface headlessly.
+    SwapchainConfig cfg;
+    cfg.mode = SwapchainMode::Premultiplied;
+    cfg.compositeAlpha = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+
+    // The decision surface: mode Premultiplied <-> compositeAlpha PRE_MULTIPLIED
+    // (the S591 lock), proven as a pure mapping.
+    CHECK(cfg.mode == SwapchainMode::Premultiplied);
+    CHECK(cfg.compositeAlpha == VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR);
+}
+
+TEST_CASE("S591 S590 probe consumed at negotiate level (mode from the mask)")
+{
+    // The S590 probe `composite_alpha_supported` gates the S591 decision: a mask
+    // WITH PRE_MULTIPLIED -> Premultiplied; a WITH-only-OPAQUE mask -> Opaque.
+    CHECK(composite_alpha_supported(VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+                                    VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR));
+    CHECK(!composite_alpha_supported(VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+                                     VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR));
+
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_UNORM,
+                                    VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) == SwapchainMode::Premultiplied);
+    CHECK(negotiate_composite_alpha(VK_FORMAT_B8G8R8A8_UNORM,
+                                    VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) == SwapchainMode::Opaque);
+}

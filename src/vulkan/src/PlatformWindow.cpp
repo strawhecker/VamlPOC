@@ -63,6 +63,27 @@ std::atomic<int> g_glfwWindowCount{0};
 
 namespace vaml::vulkan {
 
+// S594 — the OS-window transparency hint decision (see PlatformWindow.h for the
+// WPF-source model + the NON-conditional opaque rule). The seam RETURNING the
+// hint set (glfwWindowHint is applied in create(), gated on
+// config.transparentFramebuffer). The tokens are the real GLFW macros (the
+// TU includes glfw3.h); the pure decision is headless-testable against them.
+WindowTransparencyHints window_transparency_hints(bool featureOn) noexcept
+{
+    WindowTransparencyHints h;
+    if (!featureOn)
+        return h;  // count 0 -> empty (an opaque window, the NON-conditional rule)
+
+    // Feature ON: per-pixel OS transparency (Windows = DWM per-pixel via GLFW's
+    // GLFW_TRANSPARENT_FRAMEBUFFER) + an 8-bit alpha channel. `GLFW_ALPHA_BITS` is
+    // inert for a GLFW_NO_API Vulkan window (an OpenGL pixel-format hint) — passed
+    // per the roadmap, the effect recorded not silent (see PlatformWindow.h).
+    h.count = 2;
+    h.entries[0] = { GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE };
+    h.entries[1] = { GLFW_ALPHA_BITS, 8 };
+    return h;
+}
+
 // ---- S160 testable dispatch seams (free functions) -------------------------
 
 void dispatch_resize(WindowCallbacks& cb, int width, int height)
@@ -199,6 +220,18 @@ std::unique_ptr<PlatformWindow> PlatformWindow::create(Config config, WindowCall
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);  // Vulkan host, no GL context
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+
+    // S594 — OS-WINDOW TRANSPARENCY: apply the seam result GATED on
+    // config.transparentFramebuffer (default FALSE — non-splash windows stay
+    // OPAQUE, the ROADMAP NON-conditional rule). Feature ON adds the
+    // GLFW_TRANSPARENT_FRAMEBUFFER + GLFW_ALPHA_BITS hints; feature OFF leaves
+    // them UNSET (opaque, unchanged).
+    if (config.transparentFramebuffer)
+    {
+        const WindowTransparencyHints th = window_transparency_hints(true);
+        for (int i = 0; i < th.count; ++i)
+            glfwWindowHint(th.entries[i].hint, th.entries[i].value);
+    }
 
     auto self = std::unique_ptr<PlatformWindow>(new PlatformWindow());
     self->impl_              = std::make_unique<Impl>();

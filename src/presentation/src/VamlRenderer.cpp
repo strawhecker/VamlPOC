@@ -359,18 +359,23 @@ classify_merge_element(const vaml::UIElement& element) noexcept
 
     //  * S480 Label — the text content box (Solid; the glyphs defactor to the
     //    S400 Text path — recorded NO-GAP not silent).
+    //    S593 Option A (WPF-source validated): the vertical-slice BACKDROP box gets a
+    //    NEUTRAL alpha 1.0, NOT the invented 0.85f constant and NOT fg.a — Label is a
+    //    ContentControl whose default template draws no background box of its own,
+    //    and Foreground colors the CONTENT/glyph only, never a filled rectangle
+    //    (WPF forbids a "foreground-tints-background" rule). The content/glyph
+    //    coloring (like the Text arm) uses the resolved Foreground alpha; the box is
+    //    the honest vertical-slice default. The encoder's single effective_opacity
+    //    fold (S593) reduces the box's alpha from 1.0.
     if (auto* label = dynamic_cast<const vaml::Label*>(&element))
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        const vaml::Color fg = vaml::resolve_foreground_color(element, label->foreground());
+        (void)vaml::resolve_foreground_color(element, label->foreground());  // resolved for the glyph/content (S400 path)
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
-            vaml::vulkan::ui::Color4{ static_cast<float>(fg.r) / 255.0f,
-                                      static_cast<float>(fg.g) / 255.0f,
-                                      static_cast<float>(fg.b) / 255.0f,
-                                      0.85f });
+            vaml::vulkan::ui::Color4{ 0.75f, 0.78f, 0.82f, 1.0f });  // NEUTRAL backdrop, alpha 1.0
         (void)label;
         return v;
     }
@@ -891,17 +896,39 @@ classify_merge_element(const vaml::UIElement& element) noexcept
 
     // Non-Text: every REAL UIElement (today the real layout panels
     // StackPanel/Grid/WrapPanel/Canvas, plus any non-Text base) contributes a
-    // SOLID fill at its ARRANGED final_rect, alpha-tinted by its S208 effective
-    // opacity. A DependencyObject-only control seed (Button/TextBox etc., not yet
-    // re-based) is not a UIElement and gets None here (skipped by the encoder;
-    // its own sprint re-bases it). Kept-and-extended, replaced in place by real
-    // control materials at S400/S364 — never a core virtual (ADR-011).
+    // SOLID fill at its ARRANGED final_rect.
+    //
+    // S593 (dep:S592) — ELEMENT ALPHA: the base arm does NOT fold `effective_opacity`
+    // into the emitted color. UiSceneEncoder.cpp already does `visual.item.a *=
+    // effective_opacity(element)` exactly ONCE (the single-fold site), so folding
+    // it here too would render the base arm at opacity-squared (the S593 bug: the
+    // base UIElement fallback ended with `a = effective_opacity(element)` AND the
+    // encoder multiplies it in again). Instead the base arm:
+    //   * reads the element's RESOLVED Background (the shared Color DP, guarded to
+    //     a Color value) — Background=Transparent (alpha 0) or any partial-alpha
+    //     brush carries its straight-alpha color through;
+    //   * when no Color Background resolves, keeps the neutral fill {0.75,0.80,0.90}
+    //     at alpha 1.0;
+    //   * the encoder folds effective_opacity EXACTLY ONCE (unchanged) — so
+    //     Panel{Background=Transparent} -> item.a 0, Panel{Background=<semi>} ->
+    //     item.a = bg.a, and Opacity multiplies it once (a semi-alpha bg ×
+    //     Opacity=0.5 -> bg.a × 0.5).
+    // Default Opacity=1 + no Background -> alpha 1 identical to today (no regression).
     vaml::vulkan::ui::ElementVisual v;
     v.kind = vaml::vulkan::ui::MaterialKind::Solid;
     const vaml::Rect r = element.final_rect();
-    const float a = static_cast<float>(vaml::vulkan::ui::effective_opacity(element));
-    v.item  = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
-                                           vaml::vulkan::ui::Color4{ 0.75f, 0.80f, 0.90f, a });
+    vaml::Color bg{ 191, 204, 229, 255 };  // the neutral 0.75/0.80/0.90 fill, alpha 1.0
+    const vaml::Value bv = element.Get(vaml::PropertyId::of("Background"));
+    if (bv.type() == vaml::ValueType::Color)
+    {
+        bg = bv.get<vaml::Color>();
+    }
+    v.item = vaml::vulkan::ui::solid_rect(
+        r.x, r.y, r.width, r.height,
+        vaml::vulkan::ui::Color4{ static_cast<float>(bg.r) / 255.0f,
+                                  static_cast<float>(bg.g) / 255.0f,
+                                  static_cast<float>(bg.b) / 255.0f,
+                                  static_cast<float>(bg.a) / 255.0f });
     return v;
 }
 
@@ -1087,7 +1114,40 @@ bool VamlRenderer::record_draw(vaml::presentation::Presenter& self,
         return false;
 
     const VkExtent2D extent = self.extent();
-    const float clearColor[4] = { clear_[0], clear_[1], clear_[2], clear_[3] };
+
+    // S592 — PER-WINDOW CLEAR ALPHA + BACKGROUND COMPOSITION: the clear is DERIVED
+    // from the resolved Window.Background + AllowsTransparency (the WPF
+    // HwndTarget.SetBackgroundColor mirror) via the PURE clear::decide_clear
+    // seam — NOT the (now-superseded) hard clear_[4]/host constant.
+    //   * Window root: read AllowsTransparency (Bool, owner "Window") +
+    //     Background (shared Color DP) and call decide_clear.
+    //   * Non-Window root: decide_clear(false, nullptr) = alpha 0, no crash.
+    clear::ClearValue decided{ 0.0f, 0.0f, 0.0f, 0.0f };
+    if (const auto* windowRoot = dynamic_cast<const vaml::Window*>(root_))
+    {
+        const bool allows = windowRoot->Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
+        // The WPF null-Background mirror: a Window.Background is "resolved" only
+        // when AUTHORED (a local value) — the shared "Background" Color DP's
+        // default opaque black is NOT a resolved background (WPF Window.Background
+        // defaults null). `has_local_value` detects the authored-local case; an
+        // inherited/template value is beyond this horizontal slice (recorded NO-GAP).
+        const bool authored =
+            windowRoot->has_local_value(vaml::PropertyId::of("Background")) &&
+            windowRoot->Get(vaml::PropertyId::of("Background")).type() == vaml::ValueType::Color;
+        vaml::Color bgColor{ 0, 0, 0, 0 };
+        const vaml::Color* resolved = nullptr;
+        if (authored)
+        {
+            bgColor = windowRoot->Get(vaml::PropertyId::of("Background")).get<vaml::Color>();
+            resolved = &bgColor;
+        }
+        decided = clear::decide_clear(allows, resolved);
+    }
+    else
+    {
+        decided = clear::decide_clear(false, nullptr);  // non-Window root -> WPF null-Background rule (alpha 0)
+    }
+    const float clearColor[4] = { decided.r, decided.g, decided.b, decided.a };
     const auto clear = vaml::vulkan::describe_clear_value(clearColor);
     const auto rpBegin = vaml::vulkan::build_render_pass_begin(
         renderPass_, fb->framebuffer(), extent, clear,

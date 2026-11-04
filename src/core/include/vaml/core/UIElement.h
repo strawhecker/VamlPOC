@@ -296,6 +296,17 @@ public:
     [[nodiscard]] SetResult set_focusable(bool value);
     [[nodiscard]] bool focusable() const;
 
+    // --- IsHitTestVisible (REAL DP; S595a) -------------------------------
+    // Bool, default TRUE, NOT inherited. PER-ELEMENT input hit-test
+    // transparency: when FALSE the element STILL RENDERS but HitTestAt SKIPS it
+    // (the same skip axis WPF uses for Visibility, but DECOUPLED — an element
+    // can render "100% transparent" overlay chrome while passing clicks through,
+    // and toggle to hit-testable to CAPTURE clicks/"handled"). Exposed both via
+    // the typed accessor and Set/Get on PropertyId("IsHitTestVisible") (Bool —
+    // the AllowsTransparency/Topmost precedent). ZERO new locks (ADR-018).
+    [[nodiscard]] SetResult set_is_hit_test_visible(bool value);
+    [[nodiscard]] bool is_hit_test_visible() const;
+
     // --- Opacity (REAL DP; inherited, validated [0,1]) ------------------
     // Default 1.0. Inherited (cascades to descendants) + bounded [0,1]
     // (out-of-range Set is REJECTED, store unchanged). A parent's opacity

@@ -30,6 +30,10 @@ vaml_add_library(presentation
     # consumes dpi_render_plan in record_draw to call the S206 SceneRenderer's
     # 3-arg record with the derived uiScale (the set_frame_size uiScale consumer).
     src/dpi.cpp
+    # S592 (dep:S591): PER-WINDOW CLEAR ALPHA + BACKGROUND COMPOSITION — the PURE
+    # clear-decision seam (the 2-branch WPF HwndTarget.SetBackgroundColor mirror).
+    # `clear::decide_clear(allowsTransparency, resolvedBackground) -> ClearValue`.
+    src/clear.cpp
     src/version.cpp
 )
 

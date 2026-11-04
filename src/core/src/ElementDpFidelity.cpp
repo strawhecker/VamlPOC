@@ -90,9 +90,13 @@ void run_dp_fidelity_closure()
     dp_register_guard("SnapsToDevicePixels", ValueType::Int32,  "UIElement",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
-    dp_register_guard("IsHitTestVisible",    ValueType::Int32,  "UIElement",
-        std::move(PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None))
-            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    // IsHitTestVisible is NOW a REAL UIElement-owned Bool DP registered at S595a
+    // (UIElement.cpp, guarded + ValueType::Bool) — it is REMOVED from the fidelity
+    // table so the S595a editor surface (Bool, default true, NOT inherited) owns
+    // the single canonical registration (a Bool matches the AllowsTransparency/
+    // Topmost precedent; the audited authoring `IsHitTestVisible="true"/"false"`
+    // resolves through the Bool converter). It stays AUTHORED-resolvable (the 11k-9
+    // closure intent) via that real registration.
     dp_register_guard("IsManipulationEnabled", ValueType::Int32, "UIElement",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));

@@ -1,0 +1,17 @@
+<!-- S595 (Sprint 11o) — VIEWER-GROWTH transparent sample.
+     A SplashWindow-shaped transparent doc: a Window root with
+     AllowsTransparency="True" + a StackPanel (transparent Background) + a Label
+     + an Image. In the LIVE viewer this renders SEE-THROUGH where transparent
+     (clear alpha 0 -> the compositor shows through, S592) + correctly LAYERED
+     where opaque (S212/S213 DPI-crisp retained renderer, S593 element alpha).
+     Resolves docs/RENDER_SURFACE.md's "splash transparency" note (the prior
+     solid-box fallback). -->
+<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        AllowsTransparency="True"
+        Width="420" Height="240">
+  <StackPanel Background="Transparent">
+    <Label Foreground="#FFFFFF" Content="SplashWindow — VAML transparent"/>
+    <Label Foreground="#FFFFFF" Content="See-through (clear alpha 0) where transparent"/>
+    <Image Source=""/>
+  </StackPanel>
+</Window>

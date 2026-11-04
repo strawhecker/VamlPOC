@@ -1,0 +1,13 @@
+<!-- S595a (Sprint 11o) — VIEWER-GROWTH overlay sample.
+     The ScreenCaptureOverlay-shaped transparent overlay: a near-transparent
+     CAPTURE rectangle the user interacts with + a DimLayer (a dim/mask layer)
+     that is IsHitTestVisible="false" so it does NOT intercept input (click
+     pass-through). The app-side IDEAL<->active toggle flips the capture
+     rectangle's IsHitTestVisible to capture clicks ("handled") — a plain
+     property change, NEVER library policy. -->
+<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root">
+  <StackPanel>
+    <StackPanel x:Name="CaptureRect" Width="120" Height="90"/>
+    <StackPanel x:Name="DimLayer" Width="120" Height="40" IsHitTestVisible="false"/>
+  </StackPanel>
+</Window>
