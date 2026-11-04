@@ -602,6 +602,17 @@ add_executable(vaml-core-tests
     # Add/Remove/Update/GetAdorners/GetAdornerLayer(static walk) attach/detach
     # + z-order + the AdornerDecorator host. ZERO MINIMAL REAL.
     VisualTreeHelper_s11n6_test.cpp
+    # 11k-A (dep:S11n6/11k_12/S554) — STICKYNOTE + CAF ANNOTATION ENGINE, core:
+    # the plain CAF model (Annotation/AnnotationResource/AnnotationService +
+    # IAttachedAnnotation + the StickyNoteTokens token<->name authority) + the
+    # StickyNote control (DP surface + the SNC<->annotation bridge + the
+    # anchored-element binding) + the content-host abstraction
+    # (StickyNoteContentControl abstract base + StickyNoteRichTextBox (Text) +
+    # StickyNoteInkCanvas (Ink) behind Save/Load/IsEmpty/Type + the MaxBufferSize
+    # guard) + the S-kA-4 adorner integration (GetDesiredTransform composes the
+    # PositionTransform onto the offered transform; AdornerHitTest RESOLVES the
+    # 11n-6 forward token; StickyKeepOnPage page-boundary clamp). ZERO MINIMAL REAL.
+    StickyNote_s11ka_test.cpp
     # S600 (11p dep:S596) — VALUE/TYPE-AWARE CONVERSION root A1: the literal
     # converter now binds to the DP's DECLARED enum domain (EnumDomainRegistry;
     # WPF-true ordinals + symbolic DP defaults; cross-domain wrong name ->
@@ -1250,6 +1261,15 @@ add_executable(vaml-presentation-tests
     # viewer_growth_11k.h (ADR-021) + links vaml-presentation (which PUBLIC-links
     # vaml-vulkan, so the vaml::vulkan::vector raster seam + UiScene are provable).
     ViewerGrowth11k_test.cpp
+    # 11k-A (S-kA-5, dep:S-kA-1..4 + 11n-6 + 11k_12/S554) — VIEWER-GROWTH
+    # (StickyNote): the ADR-021 consumer seam viewer_growth_s11ka.h runs the
+    # exact code the live viewer uses to render an ADORNER-ANCHORED StickyNote
+    # PREVIEW above a rendered element + exercises the CAF store headlessly.
+    # Compiles the seam + links vaml-presentation (which PUBLIC-links vaml-vulkan,
+    # so the S212 encode_visual_slice render-plan + UiScene are provable).
+    # [both-apps, not CI]: the LIVE WINDOW display of the anchored StickyNote
+    # preview stays the on-machine local gate (recorded NO-GAP).
+    ViewerGrowthS11ka_test.cpp
     # S11c (S470–S473) — the DockPanel + selection controls (RadioButton/
     # ComboBox/ListBox/ListView) materials at the vertical-slice boundary:
     # classify_merge_element -> MaterialKind::Solid for each (DockPanel fill /

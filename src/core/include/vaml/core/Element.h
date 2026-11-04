@@ -38,6 +38,7 @@
 #include "vaml/core/ICommand.h"      // S246 — the ONE command interface (Button : ICommandSource)
 #include "vaml/core/ICommandSource.h"// 11n-2 — the command-invoking touchpoint anchor
 #include "vaml/core/Value.h"         // Value — the command-parameter domain
+#include "vaml/core/StickyNote.h"    // 11k-A — the StickyNote annotation control (+ CAF engine)
 
 #include <cstdint>
 #include <memory>

@@ -8378,6 +8378,14 @@ void register_builtin_elements()
     // UIElements you place in a visual tree). Built-in count 50 -> 51 (the only
     // new ELEMENT; the flow content model is not a factory element).
     registry.register_element("RichTextBox",   [] { return std::make_unique<RichTextBox>(); });   // 51
+    // --- 11k-A (S-kA-2) — the StickyNote ANNOTATION control. A REAL re-based
+    // UIElement (the WPF-faithful annotation facade) registered as a built-in
+    // so a corpus/authoring doc can produce it. Built-in count 51 -> 52. The
+    // CAF engine (Annotation/AnnotationResource/AnnotationService) is NOT a
+    // factory element (plain data — the S556 precedent); the content-host
+    // abstraction (StickyNoteContentControl) is NOT a factory element (abstract
+    // — the 11k-4 precedent). ZERO MINIMAL REAL.
+    registry.register_element("StickyNote",    [] { return std::make_unique<StickyNote>(); });    // 52
     // --- S550 (dep:S554... S550)→ Sprint 11m — the derived-base + scaffolding
     // surface (item-container/header/presenter/panel + collection-value types
     // the closed controls' selector behavior and the DAG's closure-under-ancestry

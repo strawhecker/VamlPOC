@@ -1,69 +1,76 @@
 # session-context.md
 
-last_command: implementit (Sprint 11p — S600..S605, the lib value/type correctness stream A; this CLOSES Sprint 11p)
-plan_digest: Sprint 11p (dep:S596) — GAP-CLOSE the ~5% GENUINE vaml-core *correctness* defects the WPF-corpus audit
-surfaced: **S600** VALUE/TYPE-AWARE CONVERSION root A1 (per-DP EnumDomainRegistry replacing the S440 cross-cut
-enum_name_to_int32; WPF-true ordinal re-pointing + SYMBOLIC DP defaults); **S601** GEOMETRIC/UNIT root A2 (GridLength
-first-class converter + Grid track units); **S602** COLOR FIDELITY root A3 (#RGB/#ARGB shorthand); **S603** BRUSH
-property-element AUTHORING ORDER root A4 (GeometryDrawing .Pen/.Brush; bare <GradientStop> ContentProperty);
-**S604** STRUCTURED-ERROR taxonomy tightening A5; **S605** REFACTOR GATE + SURVIVOR. Both CI lanes green per step
-from first principles (build/verify_s600..s605.cmd msvc-debug + ubuntu-clang clang-debug on /mnt/hgfs/VamlPOC —
-all 4/4). SURVIVOR block added to progress.md. Roadmap S600..S605 marked [DONE]. ZERO new locks (ADR-018).
-**CHECKPOINT ADVANCED: last = Sprint 11p, next = Sprint 11q (S620 — viewer seed-binding injection, stream B).**
+last_command: implementit (11k-A — STICKYNOTE + CAF ANNOTATION ENGINE, S-kA-1..S-kA-5; self-contained dependency-group closure)
+plan_digest: 11k-A (dep:11n-6 adorner + 11k_12 RichTextBox/FlowDocument + S554 InkCanvas) — make the WPF
+PresentationFramework\MS\Internal\Controls\StickyNote\ annotation component REAL in VAML, correctly understood
+as an ANNOTATION-ANCHOR component (not an authored control). **S-kA-1** CAF ENGINE (Annotation / AnnotationResource
+MetaData|TextData|InkData / AnnotationService AddAttached|RemoveAttached|ModifyAttached + the reentrancy guard +
+duplicate-refused / IAttachedAnnotation / StickyNoteTokens — the WPF SNCAnnotation XmlToken set); **S-kA-2**
+StickyNote : UIElement,IAttachedAnnotation (IsExpanded/Author READ-ONLY/StickyNoteType {Text,Ink}/note Width-Height/
+ZOrder/PositionTransform S208 + the SNC<->annotation bridge; built-in factory #52, count 108->109); **S-kA-3**
+StickyNoteContentControl abstract base + StickyNoteRichTextBox (Text) + StickyNoteInkCanvas (Ink) behind
+Save/Load/Clear/IsEmpty/Type + MaxBufferSize; **S-kA-4** StickyNoteAdorner : Adorner (GetDesiredTransform composes
+the PositionTransform) + AdornerHitTest RESOLVES the 11n-6 forward refinement + StickyKeepOnPage (WPF GetOffsets);
+**S-kA-5** viewer-growth seam viewer_growth_s11ka.h (CAF-store + anchored-preview + render-plan, headless Rail 1;
+live window = [both-apps, not CI] gate, in-viewer editing out — preview-only). Both CI lanes green per step from first
+principles (build/verify_s11ka.cmd msvc-debug + ubuntu-clang clang-debug on /mnt/hgfs/VamlPOC). Roadmap marked [DONE].
+ZERO MINIMAL REAL (grep-audit) + ZERO new locks (ADR-018) + ADR-011 held.
+**CHECKPOINT: last completed = 11k-A, next = S11h/S520 (per the standing 11n-7 chain; 11k-A is a self-contained closure).**
 
-## files_touched — Sprint 11p (S600..S605, this incarnation)
-- src/core/include/vaml/core/EnumDomainRegistry.h (NEW) + src/core/src/EnumDomainRegistry.cpp (NEW): the per-DP
-  enum-domain table (DP canonical name -> WPF-true ordinal members, WPF Enum.Parse semantics) + register_builtin_enum_domains()
-  + the shared convert_int32_for_dp (both readers call it; S288 parity). S600 A1.
-- src/core/src/VamlReader.cpp (MOD): convertLiteral routes Int32 -> convert_int32_for_dp; converterNameFor gains
-  ValueType::GridLength; ensure_startup_registrations registers the enum domains; S603 authoring fixes
-  (LinearGradientBrush bare <GradientStop> + .GradientStops; GeometryDrawing .Geometry/.Pen/.Brush).
-- src/core/src/ValueConverter.cpp (MOD): Int32 registry converter now NUMERIC-ONLY (the S440 enum_name_to_int32
-  cross-cut map REMOVED — no behavior-guess survives); GridLength converter registered.
-- src/core/include/vaml/core/LayoutSlot.h (MOD): re-pointed HorizontalAlignment/VerticalAlignment to WPF-true.
-- src/core/include/vaml/core/Element.h (MOD): re-pointed Orientation to WPF-true.
-- src/core/src/UIElement.cpp (MOD): Horizontal/VerticalAlignment defaults now SYMBOLIC (::Stretch=3).
-- src/core/src/Element.cpp (MOD): Orientation default symbolic (::Vertical=1); WrapDirection default symbolic (::Horizontal=0).
-- src/core/src/Color.cpp (MOD): parse_color accepts #RGB (3-digit) + #ARGB (4-digit, ALPHA-FIRST) shorthand.
-- src/core/include/vaml/core/Color.h (MOD): doc updated for the shorthand forms.
-- src/tools/src/VBamlReader.cpp (MOD): convertLiterals routes Int32 -> convert_int32_for_dp; converterNameFor gains
-  ValueType::GridLength (S288 parity).
-- src/tools/src/Vamlc.cpp (MOD): register_builtin_enum_domains() in compile().
-- src/core/CMakeLists.txt (MOD): + EnumDomainRegistry.cpp.
-- test/unit/CMakeLists.txt (MOD): + ValueTypeAware_s600_test.cpp, GeometricValue_s601_test.cpp,
-  ColorFidelity_s602_test.cpp, BrushAuthoring_s603_test.cpp, StructuredError_s604_test.cpp.
-- test/unit/: the five new S600..S604 test TUs (above).
-- test/unit/LayoutSlot_test.cpp / StackPanel_test.cpp / WrapPanel_test.cpp / ValueConverterRegistry_test.cpp (MOD):
-  expectation updates for the WPF-true re-pointing + the S602 #RGB shorthand (the S090 "3-digit not supported"
-  expectation resolved).
-- build/: verify_s600.cmd / verify_s601.cmd / verify_s602.cmd / verify_s603.cmd / verify_s604.cmd / verify_s605.cmd (NEW).
-- docs/roadmap.md (MOD): S600..S605 marked [DONE] with their digests.
-- progress.md (MOD): the new 11p ACTIVE-CURRENT checkpoint line + the `SPRINT 11p — SURVIVOR` block.
+## files_touched — 11k-A (this incarnation)
+- src/core/include/vaml/core/StickyNote.h (NEW) + src/core/src/StickyNote.cpp (NEW): the CAF ANNOTATION ENGINE
+  (Annotation/AnnotationResource/AnnotationService/IAttachedAnnotation/StickyNoteTokens) + the StickyNote control
+  (the WPF StickyNoteControl DP surface + the SNC<->annotation bridge + the framework-element MeasureOverride).
+  S-kA-1/2.
+- src/core/include/vaml/core/StickyNoteContentControl.h (NEW) + src/core/src/StickyNoteContentControl.cpp (NEW):
+  the content-host abstraction (StickyNoteContentControl abstract base + StickyNoteRichTextBox (Text) +
+  StickyNoteInkCanvas (Ink) behind Save/Load/Clear/IsEmpty/Type + MaxBufferSize). S-kA-3.
+- src/core/include/vaml/core/StickyNoteAdorner.h (NEW) + src/core/src/StickyNoteAdorner.cpp (NEW): the S-kA-4
+  adorner integration (StickyNoteAdorner : Adorner + GetDesiredTransform + AdornerHitTest RESOLVES the 11n-6
+  forward refinement + StickyKeepOnPage page-boundary clamp).
+- src/core/include/vaml/core/Element.h (MOD): + #include StickyNote.h.
+- src/core/src/Element.cpp (MOD): register_element("StickyNote", ...) — built-in #52; count 108->109.
+- src/core/CMakeLists.txt (MOD): + StickyNote.cpp / StickyNoteContentControl.cpp / StickyNoteAdorner.cpp.
+- vaml_viewer/viewer_growth_s11ka.h (NEW): the ADR-021 viewer-growth seam (run_viewer_growth_s11ka_plan +
+  viewer_growth_s11ka_render_plan). S-kA-5.
+- test/unit/CMakeLists.txt (MOD): + StickyNote_s11ka_test.cpp (core-tests) + ViewerGrowthS11ka_test.cpp
+  (presentation-tests).
+- test/unit/StickyNote_s11ka_test.cpp (NEW): 9 TEST_CASEs / 82 assertions (CAF engine + token authority +
+  service add/remove/modify + reentrancy + duplicate-refused; DP surface + SNC bridge; content-host Text/Ink +
+  MaxBufferSize; GetDesiredTransform + AdornerHitTest + StickyKeepOnPage).
+- test/unit/ViewerGrowthS11ka_test.cpp (NEW): 2 TEST_CASEs / 12 assertions (CAF-store + anchored preview +
+  render-plan).
+- test/unit/ElementFactoryRegistry_test.cpp / BrushAuthoring_s460_test.cpp / Milestone407_test.cpp (MOD):
+  built-in element count 108->109.
+- build/verify_s11ka.cmd (NEW): the two-lane CI gate (windows-msvc + ubuntu-clang) + the MINIMAL REAL grep-audit.
+- docs/roadmap.md (MOD): 11k-A marked [DONE] with its full digest + the return note (honest WHY).
+- progress.md (MOD): the new 11k-A ACTIVE-CURRENT checkpoint line + the `SPRINT 11k-A — SURVIVOR` block.
 - session-context.md (MOD): this entry.
 
-## build_status (S605 / Sprint 11p — re-verified from first principles)
-- windows-msvc: build/verify_s605.cmd -> BUILD OK (warning-as-error clean) + ctest 100% pass (4/4) + all grep-audits
-  PASS (ZERO STUB / ZERO [MINIMAL REAL] in the new EnumDomainRegistry surface; enum_name_to_int32 GONE; enum domains
-  registered for both readers).
-- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug -> build clean (warnings==0) + ctest 100% pass (4/4).
-- Sprint 11p (S600..S605): ALL GREEN on BOTH CI lanes, each verified from first principles at its own step
-  (verify_s600/s601/s602/s603/s604/s605.cmd on windows; clang-debug on the Linux VM).
+## build_status (11k-A — re-verified from first principles)
+- windows-msvc: build/verify_s11ka.cmd -> BUILD OK (warning-as-error clean) + ctest 100% pass + the 11k-A
+  tests run green (9+2 cases, 94 assertions) + the MINIMAL REAL grep-audit PASS (zero [MINIMAL REAL]).
+- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug -> build clean (warnings==0) + ctest 100% pass (UBUNTU-GREEN).
+- 11k-A: ALL GREEN on BOTH CI lanes, verified from first principles (verify_s11ka.cmd on windows;
+  clang-debug on the Linux VM).
 
-## next_step — Sprint 11p CLOSED / next sprint
-- **Sprint 11p CLOSED (S600..S605 all DONE; the lib correctness stream A delivered).**
-  Next per the roadmap = **Sprint 11q (S620 — vaml_view VIEWER seed-binding injection, stream B)**, then Sprint 11h
-  (S520 IMPORT/INJECT seam) / S540+ (Sprint 11z).
+## next_step — 11k-A CLOSED / next sprint
+- **11k-A CLOSED (S-kA-1..S-kA-5 all DONE; the WPF StickyNote annotation component delivered, both CI lanes green).**
+  Next per the roadmap chain = **S11h (S520 IMPORT/INJECT seam)** / Sprint 11q (S620) / S540+ (Sprint 11z) — the
+  standing 11n-7 checkpoint. 11k-A is a self-contained dependency-group closure, not the chain's next step.
 
 ## notes
-- Sprint 11p authored MINIMAL REAL-free, real permanent surface: the EnumDomainRegistry + convert_int32_for_dp (shared
-  by both readers) delivers the A1 type-aware conversion; S601/S602/S603/S604 close the geometric/unit, color-fidelity,
-  brush-authoring, and structured-error correctness gaps. NO behavior-guess conversion survives (the S440 cross-cut map
-  is gone; every enum domain rides the DP's OWN registered bound type). FontWeight stays OUT of the enum-domain (a
-  struct with its own WPF converter) — recorded forward, NOT silent.
-- The WPF-fidelity decision record (Option B: WPF-true ordinals + symbolic DP defaults) was HUMAN-ACCEPTED mid-sprint;
-  the earlier hedged Option A (name-map-only) was rejected in favor of full WPF alignment after the WPF DP-init source
-  was verified. Grounded in E:\GitRepos\wpf throughout.
-- ZERO new locks (ADR-018); ADR-011 held (all new surface is core DATA / core value conversion). NO silent backfill
-  (NO-GAP): the S090 "3-digit NOT supported" expectation update is a documented consequence of the S602 resolution.
-- No commit made (standing directive — commitit outstanding; remote build green with the Sprint 11p change set
-  uncommitted, the driver's seat is yours).
+- 11k-A authored MINIMAL REAL-free, real permanent surface (grep-audit in verify_s11ka.cmd): the CAF annotation
+  engine + the StickyNote control + the content-host abstraction + the adorner integration + the viewer-growth seam.
+  CONFORMANCE-PINNED to the three real WPF StickyNote sources (StickyNoteAnnotations.cs + StickyNoteContentControl.cs
+  + StickyNoteHelper.cs, read at plan time — S11f/11k rule). The StickyNote is honestly NOT an authored control: it is
+  an ANNOTATION-ANCHOR component (CAF store + adorner-anchored overlay), so it earns the CAF engine + a preview
+  (headless Rail 1), with the note chrome composed over the existing adorner/ink/flow-doc/editor controls.
+- ZERO new locks (ADR-018): the SNC<->annotation reentrancy guard is a bool RAII (the WPF LockHelper Flag), never an
+  OS lock. ADR-011 held (all new core surface is DATA + measure; the note render itself is the 11n-6 adorner second-pass,
+  not a new classifier arm). The 11n-6 AdornerHitTest forward refinement is RESOLVED at S-kA-4 (its own step, NO-GAP).
+- NO silent backfill (NO-GAP): the S-kA-5 LIVE window display of the anchored StickyNote preview + in-viewer note
+  editing stay recorded ([both-apps, not CI] + preview-only), never silent; the base64-XAML/ISF round-trip arm is
+  recorded as the bounded S-kA-3 content-serialization surface, never an invented Xml parser.
+- No commit made (standing directive — commitit outstanding; remote build green with the 11k-A change set uncommitted,
+  the driver's seat is yours).

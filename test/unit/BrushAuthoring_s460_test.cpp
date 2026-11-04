@@ -191,7 +191,7 @@ TEST_CASE("S460: the element registry now includes LinearGradientBrush + Gradien
     // GridViewRowPresenter/GridViewHeaderRowPresenter/GridViewColumnHeader/
     // VirtualizingStackPanel/SelectiveScrollingGrid). Count bumps authored at
     // the step, never silent.
-    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(108u));
+    SHOULD(ShouldlyIntegral(g.size()).ShouldBe(109u));
 }
 
 // ---------------------------------------------------------------------------

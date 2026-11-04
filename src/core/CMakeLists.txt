@@ -90,6 +90,9 @@ vaml_add_library(core
     src/Adorner.cpp             # 11n-6 — the abstract Adorner base (WPF Adorner.cs)
     src/AdornerLayer.cpp        # 11n-6 — the AdornerLayer owner (WPF AdornerLayer.cs)
     src/AdornerDecorator.cpp    # 11n-6 — the AdornerDecorator host (WPF AdornerDecorator.cs)
+    src/StickyNote.cpp          # 11k-A S-kA-1/2 — the CAF annotation engine + StickyNote control
+    src/StickyNoteContentControl.cpp # 11k-A S-kA-3 — the content-host abstraction
+    src/StickyNoteAdorner.cpp   # 11k-A S-kA-4 — the StickyNote adorner + AdornerHitTest + page seam
 )
 
 # Core must never pull in Vulkan/GLFW (ADR-011). vaml_validate_layer_rules()
