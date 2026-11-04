@@ -39,11 +39,20 @@ last = Sprint 11o, next = Sprint 11h (S520 — IMPORT/INJECT seam).**
 - progress.md (MOD): the `SPRINT 11o — SURVIVOR` block + the new ACTIVE-CURRENT (11o) line.
 - session-context.md (MOD): this entry.
 
-## build_status (S596 / Sprint 11o)
+## build_status (S596 / Sprint 11o — re-verified from first principles)
 - windows-msvc: build/verify_s596.cmd -> BUILD OK (warning-as-error clean) + ctest 100% pass (4/4) +
-  render_surface_check.py OK (60/67) + grep-audit PASS.
-- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug -> build clean + ctest 100% pass (4/4) + render_surface_check.py
-  (python3) OK (60/67) + grep-audit PASS (no composite-alpha sentinel).
+  render_surface_check.py OK (60/67) + the two grep-audits PASS (no composite-alpha MINIMAL REAL sentinel;
+  the hard host clear constant is gone, only the "REMOVED" comment remains).
+- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug -> build clean (warnings==0) + ctest 100% pass (4/4) +
+  render_surface_check.py (python3) OK (60/67) + grep-audits PASS (0 composite-alpha sentinels; no hard
+  clear code in app.cpp).
+- ASan no-leak (build/verify_s170_asan.cmd re-run from first principles): windows-msvc msvc-asan full suite
+  ZERO ASan errors (4/4); ubuntu-clang clang-asan + LSan ZERO LEAKS (4/4) — after a SCOPED TOOLING FIX:
+  verify_s170_asan.cmd was missing the `LSAN_OPTIONS=suppressions=build/lsan_suppressions.supp` that
+  verify_s446_asan.cmd already applies for the known upstream GLFW-X11 process-lifetime init singleton
+  (_glfwConnectX11 / XOpenDisplay). The suppression is scoped ONLY to those GLFW-X11 init symbols — NO
+  VAML-owned allocation is suppressed. This is NOT a VAML regression; it is the same documented singleton
+  S446 suppresses.
 - Sprint 11o (S590..S595a + S596): ALL GREEN on BOTH CI lanes, each verified from first principles at its
   own step.
 
@@ -60,5 +69,9 @@ last = Sprint 11o, next = Sprint 11h (S520 — IMPORT/INJECT seam).**
   vulkan/presentation layers). NO silent backfill (NO-GAP): every S590..S595a symbol is real, permanent,
   forward-bound. The LIVE windows (see-through viewer + transparent sample + overlay) are
   [both apps, not CI] local-gate demonstrations, never CI gates.
+- S596 GATE RE-VERIFIED THIS SESSION from first principles (not assumed): both CI lanes built + ctest'd
+  fresh, the render_surface validator + both grep-audits run, and ASan/LSan re-run green. The ONLY change
+  authored was the SCOPED tooling fix to build/verify_s170_asan.cmd (add the GLFW-X11 init suppression
+  for its VM lane) — a verify-script gap, not product code, and not a broadened suppression.
 - No commit made (standing directive — commitit outstanding; remote build green with the change set
   uncommitted, the driver's seat is yours).
