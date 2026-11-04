@@ -182,14 +182,19 @@ TEST_CASE("S122: Margin — default 0; set/get roundtrip")
 TEST_CASE("S122: HorizontalAlignment/VerticalAlignment — default Stretch; set/get roundtrip")
 {
     UIElement el;
-    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(0));
-    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(0));
+    // S11p (WPF-fidelity re-pointing): the enums are now WPF-true
+    // (FrameworkElement.cs — HorizontalAlignment { Left=0, Center=1, Right=2,
+    // Stretch=3 }; VerticalAlignment { Top=0, Center=1, Bottom=2, Stretch=3 }),
+    // and the DP defaults are SYMBOLIC (Stretch, not a bare 0). Default:
+    // horizontal_alignment()==Stretch(3), vertical_alignment()==Stretch(3).
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(3));
 
     SHOULD(ShouldlyString(el.set_horizontal_alignment(HorizontalAlignment::Center)).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(2));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(1));
 
     SHOULD(ShouldlyString(el.set_vertical_alignment(VerticalAlignment::Bottom)).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(3));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(2));
 }
 
 TEST_CASE("S122: layout DPs resolve on a plain DependencyObject too (S043 attached-aware)")
@@ -223,7 +228,8 @@ TEST_CASE("S122: layout DP wrong-tag write throws ValueTypeMismatch")
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
         (void)el.Set(vaml::PropertyId::of("HorizontalAlignment"), Value::Double(1.0));
     }));
-    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(0));
+    // Store unchanged = the SYMBOLIC default Stretch=3 (S11p re-pointing).
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));
 }
 
 // --- Slots -------------------------------------------------------------------

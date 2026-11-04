@@ -33,19 +33,24 @@ struct Color
     [[nodiscard]] constexpr bool operator==(const Color&) const noexcept = default;
 };
 
-// S089 (+ 11j-3): parses a color from a string. Accepted forms:
+// S089 + 11j-3 + S602: parses a color from a string. Accepted forms:
+//   - "#RGB"      (3 nibbles, R,G,B each `v*16+v`; alpha 255; S602 shorthand)
+//   - "#ARGB"     (4 nibbles, A,FIRST then R,G,B each `v*16+v`; S602 shorthand)
 //   - "#RRGGBB"   (3 bytes; alpha defaults to 255 = opaque)
 //   - "#AARRGGBB" (4 bytes; alpha honored)
 //   - the leading '#' is OPTIONAL (accepted either way)
 //   - a WPF NAMED COLOR (case-insensitive; 11j-3): "Transparent" (fully-
 //     transparent black), "AliceBlue", "Black", "Red", … the full WPF set.
 // Hex digits are case-insensitive; 6 digits map to R,G,B in that order, 8
-// digits to A,R,G,B (WPF-compatible argb). A malformed literal (wrong length,
-// a non-hex digit / unknown identifier with no '#' prefix, or empty) throws
-// ValueConversionException with kind() MalformedValue and type name "Color".
-// A "#"-prefixed literal is NEVER a name (rejected as malformed). The scRGB /
-// named-brush (SystemColors.…) forms are out of scope for parse_color
-// (recorded NO-GAP, not silent).
+// digits to A,R,G,B (WPF-compatible argb). The 3/4-digit shorthand follows WPF
+// `ColorConverter` (Parsers.ParseHexColor): each nibble expands to a byte and
+// the 4-digit form is **#ARGB (alpha first)** — NOT #RGBA (verified against
+// the WPF source this sprint; the earlier #RGBA assumption was corrected).
+// A malformed literal (wrong length, a non-hex digit / unknown identifier with
+// no '#' prefix, or empty) throws ValueConversionException with kind()
+// MalformedValue and type name "Color". A "#"-prefixed literal is NEVER a name
+// (rejected as malformed). The scRGB / named-brush (SystemColors.…) forms are
+// out of scope for parse_color (recorded NO-GAP, not silent).
 VAML_CORE_EXPORT Color parse_color(std::string_view literal);
 
 } // namespace vaml

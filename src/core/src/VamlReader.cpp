@@ -12,6 +12,7 @@
 #include "vaml/core/Brush.h"                   // S460: GradientStopHost + LinearGradientBrush
 #include "vaml/core/Color.h"                   // 11k-3: parse_color (value-type element)
 #include "vaml/core/DependencyProperty.h"      // DependencyProperty
+#include "vaml/core/EnumDomainRegistry.h"      // S600: per-DP enum-domain table
 #include "vaml/core/Element.h"                 // register_builtin_elements
 #include "vaml/core/ElementResolver.h"         // resolve_element + exception
 #include "vaml/core/GridLength.h"              // 11j-9: GridLength (grid definition authoring) + 11k-3 parse_grid_length
@@ -185,6 +186,7 @@ namespace {
         case ValueType::Color:     return "Color";
         case ValueType::Thickness: return "Thickness";
         case ValueType::Double:    return "Double";   // S440: FontSize / Slider.* / Canvas.* route through the Double converter
+        case ValueType::GridLength: return "GridLength"; // S601: Grid track / grid-length DPs ("Auto"/"1*"/"42")
         default:                   return "";
     }
 }
@@ -201,6 +203,7 @@ void ensure_startup_registrations()
     {
         register_builtin_elements();
         register_builtin_converters();
+        register_builtin_enum_domains();   // S600: per-DP enum-domain table (A1)
         done = true;
     }
 }
@@ -228,6 +231,20 @@ Value VamlReader::convertLiteral(const DependencyProperty& dp,
     if (bound == ValueType::String)
     {
         return Value::String(std::string(literal)); // value PAST the parser holds owned data
+    }
+
+    // S600 (dep:S596) root A1 — TYPE-AWARE enum conversion. An Int32-typed DP
+    // that DECLARES an enum domain (via EnumDomainRegistry) converts its literal
+    // through that DP's OWN name->ordinal table (WPF Enum.Parse semantics): a
+    // name resolves ONLY against the DP's declared members, and a name not in
+    // the domain fails with MalformedValue (never a silent cross-cut guess).
+    // A numeric literal is always valid on any Int32 DP (tried first). A DP
+    // with NO registered domain keeps the numeric-only path — it does NOT enter
+    // the old S440 cross-cut `enum_name_to_int32` behavior map.
+    if (bound == ValueType::Int32)
+    {
+        // S600 (A1): TYPE-AWARE enum conversion shared with the S7 reader.
+        return vaml::convert_int32_for_dp(dp, literal);
     }
 
     const std::string_view typeName = converterNameFor(bound);
@@ -1342,35 +1359,55 @@ void VamlReader::build_linear_gradient(LinearGradientBrush& brush, const ParsedE
         }
     }
 
-    // --- Children: the <LinearGradientBrush.GradientStops> property-element. ---
+    // --- Children: GradientStops (WPF [ContentProperty("GradientStops")]).
+    // S603 (root A4): WPF `GradientBrush` declares `[ContentProperty("GradientStops")]`
+    // (GradientBrush.cs:24), so BOTH authoring forms are legal WPF:
+    //   (a) a BARE `<GradientStop>` child directly under the brush — folded into
+    //       the stops list (the content-property form, the WPF-primary shape),
+    //   (b) the `<LinearGradientBrush.GradientStops>` property-element whose own
+    //       children are the GradientStops.
+    // Both converge on the SAME ordered stop vector.
+    auto fold_stop = [&](const ParsedElement& stopEl)
+    {
+        const std::string_view stopLocal = stopEl.local_name.empty() ? stopEl.tagName
+                                                                     : stopEl.local_name;
+        if (stopLocal != "GradientStop")
+        {
+            throw VamlReaderException(
+                VamlReaderError::UnknownProperty, std::string(stopLocal),
+                "a <LinearGradientBrush> GradientStops may only contain "
+                "<GradientStop> children (got '" + std::string(stopLocal) + "')");
+        }
+        GradientStopHost stopHost;
+        build_gradient_stop(stopHost, stopEl);
+        brush.add_stop(GradientStop{ stopHost.color(), stopHost.offset() });
+    };
+
     for (const ParsedElement& child : element.children)
     {
         const std::string_view childLocal = child.local_name.empty() ? child.tagName
                                                                      : child.local_name;
-        if (childLocal != "LinearGradientBrush.GradientStops")
+        if (is_property_element(childLocal))
         {
-            throw VamlReaderException(
-                VamlReaderError::UnknownProperty, std::string(childLocal),
-                "a <LinearGradientBrush> may only contain a "
-                "<LinearGradientBrush.GradientStops> property-element (got '" +
-                    std::string(childLocal) + "')");
-        }
-        // Each authored child must be a <GradientStop>; build + fold its
-        // Color/Offset into the brush's ordered stop vector.
-        for (const ParsedElement& stopEl : child.children)
-        {
-            const std::string_view stopLocal = stopEl.local_name.empty() ? stopEl.tagName
-                                                                         : stopEl.local_name;
-            if (stopLocal != "GradientStop")
+            // Property-element form: <LinearGradientBrush.GradientStops>.
+            if (split_property_element(childLocal).second != "GradientStops")
             {
                 throw VamlReaderException(
-                    VamlReaderError::UnknownProperty, std::string(stopLocal),
-                    "a <LinearGradientBrush.GradientStops> may only contain "
-                    "<GradientStop> children (got '" + std::string(stopLocal) + "')");
+                    VamlReaderError::UnknownProperty, std::string(childLocal),
+                    "a <LinearGradientBrush> may only contain "
+                    "<LinearGradientBrush.GradientStops> or bare <GradientStop> "
+                    "children (got '" + std::string(childLocal) + "')");
             }
-            GradientStopHost stopHost;
-            build_gradient_stop(stopHost, stopEl);
-            brush.add_stop(GradientStop{ stopHost.color(), stopHost.offset() });
+            for (const ParsedElement& stopEl : child.children)
+            {
+                fold_stop(stopEl);
+            }
+        }
+        else
+        {
+            // Bare <GradientStop> content-property form (WPF GradientStops
+            // ContentProperty — the audit's "got 'GradientStop'" rejection).
+            fold_stop(child);
         }
     }
 }
@@ -1588,7 +1625,16 @@ void VamlReader::build_geometry_drawing(GeometryDrawing& drawing, const ParsedEl
             (void)drawing.set_pen_thickness(v.get<double>());
         }
     }
-    // <GeometryDrawing.Geometry> property-element -> the owned authored Geometry.
+    // <GeometryDrawing.Geometry>/<GeometryDrawing.Pen>/<GeometryDrawing.Brush>
+    // property-elements. S603 (root A4): WPF `GeometryDrawing` (Drawing.cs +
+    // Generated/GeometryDrawing.cs) has NO `[ContentProperty]`; its settable
+    // children are the THREE owned property-elements `.Geometry`, `.Pen`, `.Brush`
+    // (DependencyProperties). The audit-failed "may only contain .Geometry (got
+    // 'GeometryDrawing.Pen')" rejection is the defect — the parser now accepts
+    // all three. VAML's GeometryDrawing stores Pen/Brush as SCALAR BrushIds
+    // (set_pen/set_brush), so a `.Pen`/`.Brush` property-element carries the id
+    // as its INLINE CONTENT (e.g. `<GeometryDrawing.Pen>5</...>`), mirroring
+    // the attribute form's parse_int32; `.Geometry` carries an owned Geometry child.
     for (const ParsedElement& child : element.children)
     {
         const std::string_view childLocal = child.local_name.empty() ? child.tagName
@@ -1596,12 +1642,36 @@ void VamlReader::build_geometry_drawing(GeometryDrawing& drawing, const ParsedEl
         if (is_property_element(childLocal))
         {
             const auto [ownerName, propName] = split_property_element(childLocal);
+            if (propName == "Pen" || propName == "Brush")
+            {
+                // Scalar id property-element: the authored id rides the element's
+                // inline CONTENT (vaml's scalar BrushId/pen-id model). A
+                // non-numeric content is an authoring error (fail loud).
+                std::int32_t id = 0;
+                if (!parse_int32(child.content, id))
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(propName),
+                        "<GeometryDrawing." + std::string(propName) +
+                            "> must carry a numeric id as its inline content");
+                }
+                if (propName == "Pen")
+                {
+                    (void)drawing.set_pen(id);
+                }
+                else
+                {
+                    (void)drawing.set_brush(id);
+                }
+                continue;
+            }
             if (propName != "Geometry")
             {
                 throw VamlReaderException(
                     VamlReaderError::UnknownProperty, std::string(childLocal),
-                    "a <GeometryDrawing> may only contain a <GeometryDrawing.Geometry> "
-                    "property-element (got '" + std::string(childLocal) + "')");
+                    "a <GeometryDrawing> may only contain <GeometryDrawing.Geometry>, "
+                    "<GeometryDrawing.Pen>, or <GeometryDrawing.Brush> "
+                    "property-elements (got '" + std::string(childLocal) + "')");
             }
             auto kids = build_property_children(child, &drawing, depth);
             if (!kids.empty())

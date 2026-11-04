@@ -259,103 +259,38 @@ Value convert_bool(std::string_view s)
 }
 
 // ---------------------------------------------------------------------------
-// The common VAML ENUM-NAME map for the Int32 value path (S440, dep:S089).
+// S600 (dep:S596) — the Int32 VALUE-PATH converter is now NUMERIC-ONLY.
 //
-// Background: the S1 value path has no scalar enum tag — enums (Orientation,
-// Visibility, Horizontal/VerticalAlignment, FontWeight, stretch) RIDE the
-// Int32 payload (see Element.h / UIElement.h "rides the Int32 value path").
-// Markup literally authors `Orientation="Horizontal"` (WPF-faithful — XAML
-// accepts the enum NAME for an enum-typed property). The Int32 converter is
-// SHARED by every Int32-typed DP, so it must accept BOTH a numeric literal and
-// the common enum names (the S440 app-shell is the first live document to
-// author these from markup).
+// S440/S11j-4 previously carried the common ENUM-NAME map here (enum_name_to_int32).
+// S11p (S600, root A1) REMOVES that cross-cut behavior-guess entirely: an
+// Int32-typed DP's enum names are now resolved EXCLUSIVELY through the per-DP
+// enum-domain table (EnumDomainRegistry::convert_int32_for_dp, keyed by the DP's
+// DECLARED bound domain — WPF Enum.Parse semantics, see EnumDomainRegistry.h).
 //
-// The map is the exact integer value of each named enum member the built-in
-// control surface exposes (values confirmed from Element.h / UIElement.h /
-// LayoutSlot.h):
-//   Orientation            : Vertical=0, Horizontal=1
-//   Visibility             : Visible=0, Hidden=1, Collapsed=2
-//   HorizontalAlignment    : Stretch=0, Left=1, Center=2, Right=3
-//   VerticalAlignment      : Stretch=0, Top=1, Center=2, Bottom=3
-//   FontWeight (S206)      : Normal=0, Bold=1
-//   WrapDirection (S134)   : reuses Orientation (Vertical=0, Horizontal=1)
-//   IconStretch (S400_1)   : None=0, Fill=1, Uniform=2, UniformToFill=3
-//
-// 11j-4 (Window DPs, dep:S440) — the Window-OWNER enum names. These ride the
-// Int32 value path as the S440 doc requires, so the SHARED Int32 converter must
-// ALSO map them for corpus authoring (`WindowStartupLocation="CenterScreen"`,
-// `WindowStyle="None"`, `ResizeMode="NoResize"`, …). The enum values are the
-// WPF-faithful WindowStartupLocation {Manual/CenterScreen/CenterOwner},
-// WindowStyle {None/SingleBorderWindow/ThreeDBorderWindow/ToolWindow},
-// ResizeMode {NoResize/CanMinimize/CanResize/CanResizeWithGrip}.
-//
-// NOTE (shared-converter scope, recorded): this is deliberately the CROSS-CUT
-// enum-name surface (the names any Int32-typed VAML property sensibly takes),
-// NOT a per-DP whitelist — a DP-specific enum-name mapping belongs at that DP's
-// own conversion step (recorded NO-GAP, not silent). An unknown NAME still falls
-// through to MalformedValue (never a silent 0 — "Horizontal" must not quietly
-// become 0 if someone typos a future enum). Numeric literals are ALWAYS valid
-// for the Int32 path and are tried first, so a numeric value is unambiguous.
-[[nodiscard]] int enum_name_to_int32(std::string_view name) noexcept
-{
-    if (iequals(name, "Horizontal") || iequals(name, "Vertical"))       // Orientation / WrapDirection
-    {
-        return iequals(name, "Horizontal") ? 1 : 0;
-    }
-    if (iequals(name, "Visible"))      { return 0; }  // Visibility
-    if (iequals(name, "Hidden"))       { return 1; }
-    if (iequals(name, "Collapsed"))    { return 2; }
-    if (iequals(name, "Stretch"))      { return 0; }  // Horizontal/VerticalAlignment (+ IconStretch None/Stretch col)
-    if (iequals(name, "Left"))         { return 1; }  // HorizontalAlignment
-    if (iequals(name, "Top"))          { return 1; }  // VerticalAlignment
-    if (iequals(name, "Center"))       { return 2; }  // both alignments
-    if (iequals(name, "Right"))        { return 3; }  // HorizontalAlignment
-    if (iequals(name, "Bottom"))       { return 3; }  // VerticalAlignment
-    if (iequals(name, "Normal"))       { return 0; }  // FontWeight / IconStretch None=0
-    if (iequals(name, "Bold"))         { return 1; }  // FontWeight
-    if (iequals(name, "None"))         { return 0; }  // IconStretch / WindowStyle
-    if (iequals(name, "Fill"))         { return 1; }  // IconStretch
-    if (iequals(name, "Uniform"))      { return 2; }  // IconStretch
-    if (iequals(name, "UniformToFill")){ return 3; }  // IconStretch
-    // --- 11j-4 Window enum names (WindowStartupLocation/WindowStyle/ResizeMode).
-    if (iequals(name, "Manual"))            { return 0; } // WindowStartupLocation
-    if (iequals(name, "CenterScreen"))      { return 1; } // WindowStartupLocation
-    if (iequals(name, "CenterOwner"))       { return 2; } // WindowStartupLocation
-    if (iequals(name, "SingleBorderWindow")){ return 1; } // WindowStyle
-    if (iequals(name, "ThreeDBorderWindow")){ return 2; } // WindowStyle
-    if (iequals(name, "ToolWindow"))        { return 3; } // WindowStyle
-    if (iequals(name, "NoResize"))          { return 0; } // ResizeMode
-    if (iequals(name, "CanMinimize"))       { return 1; } // ResizeMode
-    if (iequals(name, "CanResize"))         { return 2; } // ResizeMode
-    if (iequals(name, "CanResizeWithGrip")) { return 3; } // ResizeMode
-    // 11j-5 — the shared Control base DP did not add new enum NAMES (its Int32
-    // DPs resolve the alignment names already mapped above).
-    return -1; // not in the common enum-name surface -> falls through to MalformedValue
-}
-
-// The Int32 VALUE-PATH converter: a numeric literal (strict int) OR a common
-// enum name (enum_name_to_int32). Any other literal -> MalformedValue.
+// Rationale (NO-GAP: no behavior-guess conversion survives): the shared map
+// could not distinguish `Dock` (Left=0) from `HorizontalAlignment` (Left=1) and
+// mis-resolved `DockPanel.Dock="Left"` to 1 (=Top). The registry-level "Int32"
+// converter has NO DP context, so it must NOT guess enum names — doing so would
+// reintroduce the very wrong-typed class A1 exists to kill. The readers now
+// route Int32 literals through convert_int32_for_dp BEFORE reaching this
+// registry converter, so this path serves only: (a) numeric Int32 DPs and
+// (b) the try_infer_type recognizer (which needs numeric-only semantics — an
+// enum name is not a type-inferable numeral).
 Value convert_int32_value(std::string_view s)
 {
     if (s.empty())
     {
         throw_malformed("Int32", s);
     }
-    // Numeric literals are unambiguous and always valid for the Int32 path.
+    // Numeric literals are the ONLY valid registry-level Int32 input now.
+    // (Enum names require a DP's declared domain — they never resolve here.)
     int value = 0;
     auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), value);
     if (ec == std::errc() && ptr == (s.data() + s.size()))
     {
         return Value::Int32(static_cast<std::int32_t>(value));
     }
-    // Not a number — try the common VAML enum-name surface (WPF-faithful:
-    // `Orientation="Horizontal"`). Unknown name -> MalformedValue (never 0).
-    const int named = enum_name_to_int32(s);
-    if (named < 0)
-    {
-        throw_malformed("Int32", s);
-    }
-    return Value::Int32(named);
+    throw_malformed("Int32", s);
 }
 
 } // namespace
@@ -394,6 +329,16 @@ void register_builtin_converters()
 
     registry.register_converter("Thickness", [](std::string_view s) -> Value {
         return Value::Thickness(vaml::parse_thickness(s));
+    });
+
+    // S601 (dep:S600) root A2 — GEOMETRIC/UNIT value type. GridLength becomes a
+    // FIRST-CLASS registered converter (routes to the 11k-3 parse_grid_length:
+    // "Auto"/"1*"/"42" with the correct GridUnitType), so a GridLength-bound DP
+    // converts through the SAME ValueConverterRegistry authority as every other
+    // value type — and try_infer_type/`<GridLength>` value-element share it.
+    // WPF-faithful: GridLengthConverter.FromString (Auto / value±unit / Star).
+    registry.register_converter("GridLength", [](std::string_view s) -> Value {
+        return Value::GridLength(vaml::parse_grid_length(s));
     });
 
     registry.register_converter("Color", [](std::string_view s) -> Value {

@@ -31,6 +31,7 @@
 #include "vaml/core/ParsedElement.h"       // parse_vaml
 #include "vaml/core/XmlScanner.h"          // XmlScanException (map to ParseFailed)
 #include "vaml/core/ValueConverter.h"      // register_builtin_converters
+#include "vaml/core/EnumDomainRegistry.h"  // S600: register_builtin_enum_domains
 
 #include <algorithm>
 #include <cstddef>
@@ -273,6 +274,7 @@ CompiledProgram compile(std::string_view source)
     // Startup registration (idempotent): the S2 type + value tables.
     vaml::register_builtin_elements();
     vaml::register_builtin_converters();
+    vaml::register_builtin_enum_domains();   // S600: per-DP enum-domain table (A1)
 
     // Parse the source. The S2 scanner/parser throw their structured
     // exceptions (XmlScanException / XmlParseException) on malformed VAML;

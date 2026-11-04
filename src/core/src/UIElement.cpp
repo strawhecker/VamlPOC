@@ -92,15 +92,28 @@ void register_uielement_properties()
                 return is_transform_valid(v.get<vaml::Matrix2D>());
             }));
 
-    // HorizontalAlignment / VerticalAlignment: default Stretch(0), NOT
-    // inherited, stored via the Int32 value path (enum rides Int32, the same
-    // convention as Visibility in S120).
+    // HorizontalAlignment / VerticalAlignment: default Stretch, NOT inherited,
+    // stored via the Int32 value path (enum rides Int32, the same convention as
+    // Visibility in S120).
+    //
+    // S11p (WPF-fidelity re-pointing): the default is now expressed SYMBOLICALLY
+    // (HorizontalAlignment::Stretch / VerticalAlignment::Stretch = 3) instead of
+    // a bare Int32(0). WPF inits these DPs with a named default
+    // (`new FrameworkPropertyMetadata(HorizontalAlignment.Stretch, ...)`,
+    // FrameworkElement.cs:3744) — never a bare 0. vaml's old `Int32(0)` was the
+    // invented coupling that only "meant Stretch" because the enum happened to
+    // have Stretch=0; now that the enums are WPF-true (Stretch=3), a bare 0 would
+    // silently mean Left/Top. Symbolic defaults remove that coupling.
     (void)DependencyProperty::Register(
         "HorizontalAlignment", ValueType::Int32, "UIElement",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+        PropertyMetadata::WithDefault(
+            Value::Int32(static_cast<std::int32_t>(HorizontalAlignment::Stretch)),
+            PropertyFlags::None));
     (void)DependencyProperty::Register(
         "VerticalAlignment", ValueType::Int32, "UIElement",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+        PropertyMetadata::WithDefault(
+            Value::Int32(static_cast<std::int32_t>(VerticalAlignment::Stretch)),
+            PropertyFlags::None));
 
     // Width / Height (WPF-style layout DPs, added for the .xaml-acceptance /
     // WPF source import line). WPF-faithful semantics: an EXPLICIT explicit

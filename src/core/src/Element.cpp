@@ -61,7 +61,9 @@ void register_stackpanel_properties()
 {
     (void)DependencyProperty::Register(
         "Orientation", ValueType::Int32, "StackPanel",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+        PropertyMetadata::WithDefault(
+            Value::Int32(static_cast<std::int32_t>(Orientation::Vertical)),
+            PropertyFlags::None));
 }
 
 // Runs register_stackpanel_properties() at most once (first StackPanel ctor).
@@ -114,15 +116,23 @@ void ensure_grid_properties_registered()
 // per process (Meyers-static guard; a second call is a no-op — mirrors
 // UIElement's self-registration). WrapDirection is GLOBALLY registered so it
 // resolves on any DependencyObject via S043 attached-aware resolution, and
-// defaults to Horizontal (1), NOT inherited (a panel's wrap direction is its
-// own). The property NAME is "WrapDirection" (owner "WrapPanel") — StackPanel
+// defaults to Horizontal, NOT inherited (a panel's wrap direction is its own).
+// The property NAME is "WrapDirection" (owner "WrapPanel") — StackPanel
 // already owns "Orientation" in the global registry, so reusing that name
 // under a different owner would be ambiguous to the S091 dotted-key reader.
+//
+// S11p (WPF-fidelity re-pointing): the default is SYMBOLIC (Orientation::Horizontal
+// = 0) — the bare Value::Int32(1) was the invented coupling that only "meant
+// Horizontal" while the enum had Horizontal=1. With the enum now WPF-true
+// (Orientation { Horizontal=0, Vertical=1 }), Int32(1) would silently mean
+// Vertical. Same WPF model as StackPanel's Orientation default (symbolic).
 void register_wrappanel_properties()
 {
     (void)DependencyProperty::Register(
         "WrapDirection", ValueType::Int32, "WrapPanel",
-        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+        PropertyMetadata::WithDefault(
+            Value::Int32(static_cast<std::int32_t>(Orientation::Horizontal)),
+            PropertyFlags::None));
 }
 
 // Runs register_wrappanel_properties() at most once (first WrapPanel ctor).

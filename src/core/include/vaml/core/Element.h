@@ -178,10 +178,16 @@ private:
 // NO-GAP hand-off (recorded, not silent): S130 (dep:S129) is the dedicated
 // exhaustive DesiredSize + stretch-correctness test suite; S131 (Grid) adopts
 // this panel Measure/Arrange pattern.
+// S11p (WPF-fidelity re-pointing): ORDINALS NOW MATCH WPF (Orientation.cs:
+// `Orientation { Horizontal=0, Vertical=1 }`). Previously vaml had it REVERSED
+// (Vertical=0, Horizontal=1). All consumers compare by NAME
+// (`orientation() == Orientation::Horizontal`), so re-pointing only changes the
+// numeric slots; the StackPanel/WrapPanel Orientation DP default is expressed
+// SYMBOLICALLY (Orientation::Vertical), never a bare 0.
 enum class Orientation : std::uint8_t
 {
-    Vertical   = 0, // children stack top-to-bottom (default)
-    Horizontal = 1, // children stack left-to-right
+    Horizontal = 0, // children stack left-to-right
+    Vertical   = 1, // children stack top-to-bottom (default)
 };
 
 class VAML_CORE_EXPORT StackPanel final : public UIElement

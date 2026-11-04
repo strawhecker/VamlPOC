@@ -26,6 +26,7 @@
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/Value.h"
 #include "vaml/core/ValueConversionError.h"
+#include "vaml/core/EnumDomainRegistry.h"   // S600: shared TYPE-AWARE int32 enum conversion (A1)
 #include "vaml/core/ValueConverter.h"
 
 #include <algorithm> // std::find (event-name scan)
@@ -77,6 +78,7 @@ namespace {
         case ValueType::Color:     return "Color";
         case ValueType::Thickness: return "Thickness";
         case ValueType::Double:    return "Double";   // S444: FontSize / Slider.* route through the Double converter
+        case ValueType::GridLength: return "GridLength"; // S601: grid-track / grid-length DPs (S288 parity with S2)
         default:                   return "";
     }
 }
@@ -96,6 +98,12 @@ namespace {
     if (bound == ValueType::String)
     {
         return Value::String(std::string(literal));
+    }
+    if (bound == ValueType::Int32)
+    {
+        // S600 (A1): TYPE-AWARE enum conversion — shared with the S2 reader so
+        // the S288 parity contract holds exactly (same per-DP enum-domain table).
+        return vaml::convert_int32_for_dp(dp, literal);
     }
     const std::string_view typeName = converterNameFor(bound);
     if (typeName.empty())

@@ -28,6 +28,7 @@ vaml_add_library(core
     src/UIElement.cpp
     src/VamlReader.cpp
     src/ValueConverter.cpp
+    src/EnumDomainRegistry.cpp    # S600 — per-DP enum-domain table (replaces the S440 cross-cut enum_name_to_int32)
     src/Color.cpp
     src/Thickness.cpp
     src/GridLength.cpp    # 11k-3 — parse_grid_length (hoisted public; value-type element)

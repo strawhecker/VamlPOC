@@ -3110,13 +3110,56 @@ human-locking note) is a standing entry in the roadmap.
       clearR/G/B/A host constant) is REMOVED (only the "REMOVED" comment remains). SURVIVOR block
       consolidated in progress.md (`## SPRINT 11o — SURVIVOR`). ZERO new locks (ADR-018; HitTestAt is a
       pure tree-walk read, the IsHitTestVisible register is the idempotent first-ctor guard). **CHECKPOINT
-      ADVANCED: last = Sprint 11o, next = Sprint 11h (S520 — IMPORT/INJECT seam)**.
+      ADVANCED: last = Sprint 11o, next = Sprint 11p (S600 — GAP-CLOSE lib correctness stream A; 11h follows 11q per the re-sequenced insertion order)**.
+
+---
+## Sprint 11p — GAP-CLOSE: lib value/type correctness stream A  (goal: close the genuine vaml-core defect classes the WPF-corpus audit surfaced — bound-type-aware value conversion, color fidelity, geometric value types — NOT the coverage gaps)  [token S600+]
+> STREAM SCOPE (A): only GENUINE vaml-core *correctness* defects — the ~5% class the 11j/11k/11m load-surface closures leave standing. Excluded by design: unknown-element/unknown-DP **coverage** gaps (those are 11j/11k/11m territory), and custom clr-namespace foreign types — with the framework-vs-third-party split codified by the **FOREIGN-TYPE ACCESS MODEL** under Sprint 11h (in-the-box FRAMEWORK foreign types → the lib's S087 built-in table, Label-equivalent + AUTOMATIC; THIRD-PARTY NuGet toolkits → the S520 11h resolver seam, never in the lib, never an app conversion). Placed BEFORE 11h so the corpus-audit gaps close before the 3rd-party seam consumes a clean base.
+- S600 dep:S596  VALUE/TYPE-AWARE CONVERSION root A1: the "cannot convert 'X' to Int32 (MalformedValue)" cluster. WPF enums/units ride the S030 `ValueType::Int32` bucket but the shared Int32 literal converter resolves by BEHAVIOR (name-map), not by the property's DECLARED WPF type — so `Height="Auto"` (GridLength), `TextWrapping="Wrap"`, `StretchDirection="Both"`, `ResizeMode` Window-enum, `TextAlignment`, etc. mis-convert. REAL fix: the converter consults the DP's declared value type (bind conversion to the registered bound type, per the S039 DP registry), producing the correct structured error (UnknownType/MalformedValue) instead of a wrong-typed Int32. Test: every WPF enum/unit from the corpus-converter audit round-trips. **— [DONE @S600, 11p]**
+- S601 dep:S600  GEOMETRIC/UNIT value types root A2: `GridLength` (S131 value type) parsed from literal `"Auto"`/`"1*"`/`"42"` with correct unit; `TextWrapping`, `StretchDirection`, Window/`ResizeMode` enums as typed values. WPF-real value domains vaml-core models as raw Int32 today — bind them to the DP's declared type (NO-GAP: each rides its own registered bound type, never a silent behavior guess). **— [DONE @S601, 11p]**
+- S602 dep:S601  COLOR FIDELITY root A3: 3-digit shorthand `#RGB` (WPF `ColorConverter` accepts `#RGB`; vaml's `parse_color` S089/11j-3 accepts only `#AARRGGBB`/`#RRGGBB`) + named-color completeness (e.g. `#AAA` failed as MalformedValue). REAL fix in `parse_color`: expand to `#RGB`/`#RGBA` + the full WPF named set. Test: the `#AAA` case + corpus color literals. **— [DONE @S602, 11p; #ARGB is alpha-FIRST, corrected vs source]**
+- S603 dep:S602  BRUSH property-element AUTHORING ORDER root A4: "a <GeometryDrawing> may only contain a <GeometryDrawing.Geometry> property-element (got 'GeometryDrawing.Pen')" + "a <LinearGradientBrush> may only contain a <LinearGradientBrush.GradientStops> property-element (got 'GradientStop')" + `GradientStop` children sit inside `.GradientStops`. REAL grammar fix in the S366 authoring parser so property-element ORDER/content rules match WPF (GeometryDrawing allows Pen/Brush/Geometry property-elements; LinearGradientBrush children are GradientStops under GradientStops). Test: corpus brush/geometry docs load. **— [DONE @S603, 11p; GeometryDrawing .Pen/.Brush + bare <GradientStop> ContentProperty form]**
+- S604 dep:S603  STRUCTURED-ERROR taxonomy tightening A5: genuine MalformedValue/UnknownType cases fire the RIGHT structured exception (per S048 discipline), never a message catch-all. Where the audit exposed an unordered/mis-ordered property-element producing a wrong vague error, emit the precise authoring error. **— [DONE @S604, 11p]**
+- S605 dep:S604  REFACTOR GATE(11p) + SURVIVOR: full build + ctest BOTH lanes green; grep-audit — zero STUB / zero silent backfill in the A-class fixes; every fix bound to the DP's declared type (no behavior-guess conversion survives). SURVIVOR block in progress.md. ZERO new locks (ADR-018). Checkpoint: last = S11p, next = S620 (Sprint 11q). **— [DONE @S605, 11p — the REFACTOR GATE + SURVIVOR]**
+
+---
+## Sprint 11q — vaml_view VIEWER seed-binding injection, stream B  (goal: vaml_view (NOT the lib) injects a placeholder/seed data-context so bound-but-data-empty .xaml renders with visible layout instead of black/transparent)  [token S620+]
+> STREAM SCOPE (B): vaml_view-side ONLY. The lib already loads+lays out the static tree correctly; the viewer owns the data source and today only binds a single hardwired `ViewerDemoViewModel.Dim` → `Opacity` (S256/`viewer_binding.h`). Result: `{Binding ...}`-backed text/brushes resolve to nothing → the "clean" files render black/transparent. This sprint injects a SEED/placeholder context so layout is INSPECTABLE (the S440–S449 viewer-app-shell runway). Deliberately placed after 11p (the lib correctness base) and before 11h.
+- S620 dep:S605  VIEWER SEED CONTEXT root B1: vaml_view gains a placeholder `DataContext` provider that binds any `{Binding Name}`/`{Binding ...}` to a deterministic seed (e.g. the property name as text) so bound elements render visible placeholder content. VIEWER-ONLY — zero lib change (the lib's binding engine is untouched).
+- S621 dep:S620  PLACEHOLDER BRUSH/VALUE seeding root B2: background/foreground/brush-bound values resolve to a visible default (not transparent) so the retained render path shows layout structure. Seed derived from the property path, deterministic and reproducible.
+- S622 dep:S621  VIEWER-GROWTH(11q) + GATE: the seed-context is exercised on the previously-black corpus files (Splash/OverlayWindow/ShadowLocationIndicator/SignalDisplayView/ReadingControl/etc.) — they must render with discernible layout. Full build + ctest BOTH lanes green (viewer-side; lib suite unchanged green). SURVIVOR block in progress.md. ZERO new locks (ADR-018). Checkpoint: last = S11q, next = S520 (Sprint 11h).
 
 ---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
 > HARD GOAL 3 (sealed): to close out the lib we implement a means of importing 3rd-party libs and/or DLLs.
 > Likely ONE sprint. We pick something we can put in a lib and INJECT, and the last step vaml_viewer shows the
 > 3rd-party works.
+>
+> **FOREIGN-TYPE ACCESS MODEL (RECORDED DECISION — the "translation, not conversion" contract, resolved against
+> the WPF source at plan review).** This is NOT a new sprint and NOT app-side conversion — VAML is a *reader*:
+> it consumes the exact `clr-namespace:...;assembly=...` markup every in-box WPF app references, unchanged. The
+> user's `.xaml` is NEVER edited to a "VAML format" — `clr-namespace` is already tokenized at S082 into
+> `ClrNamespaceReference{clrNamespace, assembly}`; only the *resolution* of that reference is at issue, and it
+> splits on whether the foreign type is platform-fixed or user-chosen:
+> - **TIER 3a — IN-THE-BOX FRAMEWORK foreign types (LABEL-EQUIVALENT, in the LIB):** in-box reference-type
+>   surface — `PresentationFramework.Aero2/AeroLite` (`SystemDropShadowChrome`), `System.Runtime`/`mscorlib`
+>   primitives (`system:String.Empty`, `<system:Double>`, `<sys:Boolean>`), the `Microsoft.Windows.Themes`
+>   types — is **platform-frozen, present in every WPF app, and NOT a NuGet choice**. It is the *same class as
+>   `Label`*, which the lib already hardcodes as first-class. Therefore tier 3a lives in **vaml-core's S087
+>   built-in registration table**, resolved **AUTOMATICALLY** — the same code path as `Label`, zero app action,
+>   zero registration, zero install. This is the "access for free" path.
+> - **TIER 2 — the RESOLVER SEAM (S520/11h), and TIER 3b — THIRD-PARTY toolkits (a plugin, NOT the lib):**
+>   NuGet-package types (`DotNetProjects.Input.Toolkit` AutoCompleteBox, `MaterialDesignThemes.Wpf`) are
+>   **unbounded + drifting + consumer-chosen** — the lib must NOT hardcode them (Label is platform-frozen; a
+>   NuGet package is not). They resolve through the S520 `vaml::inject` seam: the app's `.xaml` STILL never
+>   changes; only a deployment-side pluggable resolver (a plugin/new-repo mapping, registered into the seam)
+>   supplies the type mapping. The 11h import/inject seam IS the access path; third-party is never in the lib,
+>   never an app-side conversion.
+> **ACCESS PATHS SUMMARY (authoritative):** in-box foreign types → automatic via the S087 built-in table
+> (Label-equivalent, XAML never edited); third-party toolkits → the S520 resolver seam + a plugin (XAML still
+> never edited). **No 11h "format" leaks into the app's files** — 11h is a resolver contract on VAML's side of
+> the boundary, which is precisely the "not app, it's translation" principle. A separate GitHub repo / plugin
+> data earns its keep ONLY for tier 3b (third-party vendors), gated behind the tier-2 seam.
 - S520 dep:S512  IMPORT/INJECT seam: a `vaml::inject` surface that presents a foreign widget as a VAML
       element — a host-injected native control/layer (a nullable handle + a data bridge + a draw-step hook)
       WITHOUT VAML owning the foreign type. Single-executable discipline: the injection is a seam the app

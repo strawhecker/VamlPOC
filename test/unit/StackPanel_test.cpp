@@ -123,14 +123,15 @@ TEST_CASE("S129: Orientation resolves globally on a plain DependencyObject (S043
     // The Orientation DP is registered globally (owner "StackPanel"), so a
     // plain DependencyObject — which never locally registers it — reads/writes
     // it through the S043 attached-aware path.
+    // S11p re-pointing: Orientation { Horizontal=0, Vertical=1 } (Orientation.cs).
     DependencyObject plain;
-    (void)plain.Set(PropertyId::of("Orientation"), vaml::Value::Int32(1)); // Horizontal
+    (void)plain.Set(PropertyId::of("Orientation"), vaml::Value::Int32(0)); // Horizontal
     SHOULD(ShouldlyString(plain.Get(PropertyId::of("Orientation")))
-               .ShouldBe(vaml::Value::Int32(0 + 1)));
-    // Default (no set yet) is Vertical(0).
+               .ShouldBe(vaml::Value::Int32(0)));
+    // Default (no set yet) is Vertical (Orientation::Vertical=1), SYMBOLIC.
     DependencyObject fresh;
     SHOULD(ShouldlyString(fresh.Get(PropertyId::of("Orientation")))
-               .ShouldBe(vaml::Value::Int32(0)));
+               .ShouldBe(vaml::Value::Int32(1)));
 }
 
 // --- Vertical stacking ------------------------------------------------------

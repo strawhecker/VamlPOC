@@ -20,21 +20,32 @@ namespace vaml {
 
 // WPF-faithful horizontal alignment, stored on the HorizontalAlignment DP via
 // the Int32 value path (the enum rides Int32, same pattern as Visibility).
+//
+// S11p (WPF-fidelity re-pointing) — ORDINALS NOW MATCH the WPF source exactly
+// (FrameworkElement.cs: `HorizontalAlignment { Left=0, Center=1, Right=2,
+// Stretch=3 }`). Previously vaml had `Stretch=0` (an invented re-ordering that
+// tied the DP default's bare Int32(0) to Stretch — the S11p drift we removed).
+// All consumers compare by NAME (`hAlign == HorizontalAlignment::Stretch`), so
+// re-pointing only changes the numeric slots; the DP default is now expressed
+// SYMBOLICALLY (HorizontalAlignment::Stretch), never as a bare 0.
 enum class HorizontalAlignment : std::uint8_t
 {
-    Stretch = 0, // child fills the available slot (default)
-    Left    = 1, // child sits at the left; width = desired (clamped)
-    Center  = 2, // child centered; width = desired (clamped)
-    Right   = 3, // child sits at the right; width = desired (clamped)
+    Left    = 0, // child sits at the left; width = desired (clamped)
+    Center  = 1, // child centered; width = desired (clamped)
+    Right   = 2, // child sits at the right; width = desired (clamped)
+    Stretch = 3, // child fills the available slot (default)
 };
 
 // WPF-faithful vertical alignment (same Int32-value-path convention).
+// S11p re-pointing: ORDINALS NOW MATCH WPF (FrameworkElement.cs: `VerticalAlignment
+// { Top=0, Center=1, Bottom=2, Stretch=3 }`). Default expressed symbolically
+// (VerticalAlignment::Stretch), never a bare 0.
 enum class VerticalAlignment : std::uint8_t
 {
-    Stretch = 0, // child fills the available slot (default)
-    Top     = 1, // child sits at the top; height = desired (clamped)
-    Center  = 2, // child centered; height = desired (clamped)
-    Bottom  = 3, // child sits at the bottom; height = desired (clamped)
+    Top     = 0, // child sits at the top; height = desired (clamped)
+    Center  = 1, // child centered; height = desired (clamped)
+    Bottom  = 2, // child sits at the bottom; height = desired (clamped)
+    Stretch = 3, // child fills the available slot (default)
 };
 
 // The arrange slot a parent allocates to a child, AFTER margins (WPF-faithful:

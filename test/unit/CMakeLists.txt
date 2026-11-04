@@ -602,6 +602,30 @@ add_executable(vaml-core-tests
     # Add/Remove/Update/GetAdorners/GetAdornerLayer(static walk) attach/detach
     # + z-order + the AdornerDecorator host. ZERO MINIMAL REAL.
     VisualTreeHelper_s11n6_test.cpp
+    # S600 (11p dep:S596) — VALUE/TYPE-AWARE CONVERSION root A1: the literal
+    # converter now binds to the DP's DECLARED enum domain (EnumDomainRegistry;
+    # WPF-true ordinals + symbolic DP defaults; cross-domain wrong name ->
+    # MalformedValue; the Dock="Left"->0 A1 wrong-typed fix). Shared by both
+    # readers (S2 + S7 parity).
+    ValueTypeAware_s600_test.cpp
+    # S601 (11p dep:S600) — GEOMETRIC/UNIT VALUE TYPES root A2: GridLength as a
+    # first-class registered converter (parse_grid_length: Auto/Star/Pixel) +
+    # the Grid track authoring units + typed enum values.
+    GeometricValue_s601_test.cpp
+    # S602 (11p dep:S601) — COLOR FIDELITY root A3: parse_color accepts the WPF
+    # `#RGB` (3-digit) and `#ARGB` (4-digit, ALPHA-FIRST) shorthand (WPF
+    # ParseHexColor), plus the 6/8-digit + named forms unchanged.
+    ColorFidelity_s602_test.cpp
+    # S603 (11p dep:S602) — BRUSH property-element AUTHORING ORDER root A4:
+    # GeometryDrawing accepts .Geometry/.Pen/.Brush (WPF: no ContentProperty);
+    # LinearGradientBrush accepts BOTH bare <GradientStop> (WPF GradientStops
+    # ContentProperty) and the `.GradientStops` property-element.
+    BrushAuthoring_s603_test.cpp
+    # S604 (11p dep:S603) — STRUCTURED-ERROR taxonomy tightening root A5: the
+    # A-class failure arms fire the precise structured exception (MalformedValue/
+    # UnknownProperty) naming type + literal + the offending fragment, never a
+    # message catch-all.
+    StructuredError_s604_test.cpp
     # S326/S327 (Dispatcher/Task/async) are DEFERRED to Sprint 11a (the
     # multithreaded-UI construction) — NOT tested in Sprint 8 (single-threaded).
     # NO S326/S327 test TUs are present in this target.

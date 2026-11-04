@@ -260,14 +260,15 @@ Color parse_color(std::string_view literal)
     }
 
     const std::size_t digits = literal.size() - start;
-    // A hex color is ALWAYS 6 or 8 digits (with or without '#'); ONLY a
-    // non-hex-form literal can be a named color. 11j-3: if the length is not a
-    // hex form, fall through to the named-color table BEFORE rejecting —
-    // `Transparent`, `AliceBlue`, `#FF0000` all reach a Color, while an
-    // unknown identifier still throws MalformedValue (the S089 contract, never
-    // a silent color). A "#"-prefixed literal is NEVER a name (names never
-    // start with '#').
-    if (digits != 6 && digits != 8)
+    // A hex color is 3, 4, 6, or 8 digits (with or without '#'); ONLY a
+    // non-hex-form literal can be a named color. S602 (dep:S601, root A3):
+    // adds the WPF shorthand forms `#RGB` (3) and `#ARGB` (4), which WPF's
+    // ColorConverter/Parsers.ParseHexColor accepts — the 11j-3 set was
+    // 6/8-digit only. On a non-hex-form length, fall through to the named-color
+    // table BEFORE rejecting (`Transparent`, `AliceBlue`, `#FF0000`, `#AAA` all
+    // reach a Color); an unknown identifier still throws MalformedValue. A
+    // "#"-prefixed literal is NEVER a name (names never start with '#').
+    if (digits != 3 && digits != 4 && digits != 6 && digits != 8)
     {
         if (start == 0)
         {
@@ -280,13 +281,15 @@ Color parse_color(std::string_view literal)
     }
 
     // Accumulate each byte as exactly two hex nibbles (first nibble high).
+    // For the 3/4-digit shorthand, EACH nibble expands to a byte via `v*16+v`
+    // (WPF ParseHexColor: `#RGB`/`#ARGB` nibble-expansion).
     std::uint8_t rgba[4] = {0, 0, 0, 0};
     for (std::size_t i = 0; i < digits; ++i)
     {
         const int hi = hexNibble(literal[start + i]);
         if (hi < 0)
         {
-            // A 6/8-length literal that is NOT a valid hex digit is neither a
+            // A hex-length literal that is NOT a valid hex digit is neither a
             // valid hex color nor a hex form — 11j-3: try the named-color
             // table (a bare identifier like "Red") before rejecting. A
             // "#"-prefixed literal is never a name (reject).
@@ -299,9 +302,28 @@ Color parse_color(std::string_view literal)
             }
             throw_bad_color(literal);
         }
-        rgba[i / 2] = static_cast<std::uint8_t>((rgba[i / 2] << 4) | static_cast<std::uint8_t>(hi));
+        if (digits <= 4)
+        {
+            // Shorthand: this nibble is a whole byte (`v*16+v`).
+            rgba[i] = static_cast<std::uint8_t>((hi << 4) | hi);
+        }
+        else
+        {
+            rgba[i / 2] = static_cast<std::uint8_t>((rgba[i / 2] << 4) | static_cast<std::uint8_t>(hi));
+        }
     }
 
+    if (digits == 3)
+    {
+        // "#RGB" -> R,G,B nibble-expanded; alpha defaults to fully opaque.
+        return Color{rgba[0], rgba[1], rgba[2], 255};
+    }
+    if (digits == 4)
+    {
+        // "#ARGB" -> A,R,G,B in that order (WPF ParseHexColor: alpha FIRST),
+        // each nibble-expanded.
+        return Color{rgba[1], rgba[2], rgba[3], rgba[0]};
+    }
     if (digits == 6)
     {
         // "#RRGGBB" -> RGB; alpha defaults to fully opaque.
