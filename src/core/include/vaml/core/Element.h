@@ -399,10 +399,11 @@ protected:
 //
 // WPF-FAITHFUL ALGORITHM (S470):
 //   * ATTACHED `DockPanel.Dock` DP — Int32 path (enum Dock { Left=0, Top=1,
-//     Right=2, Bottom=3, Fill=4 }), owner "DockPanel", globally registered via
+//     Right=2, Bottom=3 }), owner "DockPanel", globally registered via
 //     the S043 attached-aware machinery. `DockPanel::set_dock/get_dock` typed
-//     statics store the dock on ANY DependencyObject (a child). DEFAULT = FILL
-//     (a child with no explicit Dock lands in the Fill slot) — WPF-faithful.
+//     statics store the dock on ANY DependencyObject (a child). DEFAULT = Left (0)
+//     — WPF's `DockPanel.Dock` default is Dock.Left; the Fill-slot behavior is the
+//     positional LAST-child rule below (LastChildFill, not a Dock value).
 //     This RESOLVES the S462-recorded NO-GAP ("DockPanel.Dock float is S470")
 //     at its own step.
 //   * MeasureOverride: children are offered UNBOUNDED on both axes (the S123
@@ -427,7 +428,8 @@ public:
     // --- ATTACHED DockPanel.Dock (REAL DP, S470) --------------------------
     // The child's dock edge. The key is owned by DockPanel but the value is
     // stored on any DependencyObject (the S043 attached-aware path). Default
-    // Fill (a child with no explicit Dock is the last-child fill). Typed statics:
+    // Left (0) — WPF's DockPanel.Dock default; the Fill-slot is the positional
+    // last-child rule, not a Dock value. Typed statics:
     [[nodiscard]] static SetResult set_dock(DependencyObject& obj, std::int32_t value);
     [[nodiscard]] static std::int32_t dock(const DependencyObject& obj);
 
@@ -441,13 +443,17 @@ protected:
 };
 
 // The Dock edge enum (S470). Carried as Int32 via the DockPanel.Dock DP path.
+// WPF-faithful: `Dock` is exactly { Left=0, Top=1, Right=2, Bottom=3 } (WPF
+// Dock.cs) — there is NO `Fill` member. The "last child fills the remaining
+// interior" behavior comes from the separate `DockPanel.LastChildFill` bool
+// (default true; registered in ElementDpFidelity.cpp), NOT from a Dock value —
+// the S470 algorithm keys the fill on position (`isLast`), never on a value.
 enum class Dock : std::uint8_t
 {
     Left   = 0,
     Top    = 1,
     Right  = 2,
     Bottom = 3,
-    Fill   = 4,
 };
 
 // TextBlock — REAL control (S400). 11k-1 (dep:S400) RETIRES the invented `Text`

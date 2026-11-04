@@ -368,17 +368,18 @@ void ensure_button_properties_registered()
 }
 
 // Registers the DockPanel attached Dock DP (S470) into the global table exactly
-// once per process (Meyers-static guard). The Dock edge is Int32 (enum Dock {0..4}),
-// owner "DockPanel", DEFAULT Fill (4) — WPF-faithful (a child with no explicit
-// dock is the last-child fill). GLOBALLY registered under owner "DockPanel" so it
+// once per process (Meyers-static guard). The Dock edge is Int32 (enum Dock {0..3}),
+// owner "DockPanel", DEFAULT Left (0) — WPF-faithful (WPF's DockPanel.Dock default
+// is Dock.Left; the last-child Fill-slot is the positional rule + LastChildFill,
+// never a Dock value). GLOBALLY registered under owner "DockPanel" so it
 // resolves on ANY DependencyObject via the S043 attached-aware path (a child's
 // dock is stored on the child).
 void register_dockpanel_properties()
 {
     (void)DependencyProperty::Register(
         "DockPanel.Dock", ValueType::Int32, "DockPanel",
-        std::move(PropertyMetadata::WithDefault(Value::Int32(4), PropertyFlags::None))
-            .with_validate([](const Value& v) { const int x = v.get<int>(); return x >= 0 && x <= 4; }));
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) { const int x = v.get<int>(); return x >= 0 && x <= 3; }));
 }
 
 // Runs register_dockpanel_properties() at most once (first DockPanel ctor).
@@ -2816,7 +2817,6 @@ Size DockPanel::MeasureOverride(const Size& available) const
             case Dock::Bottom:
                 height += child->desired_size().height;
                 break;
-            case Dock::Fill:
             default:
                 break;
             }
@@ -2891,10 +2891,8 @@ void DockPanel::ArrangeOverride(const Rect& finalSlot)
             }
             bottom -= child->desired_size().height;
             break;
-        case Dock::Fill:
         default:
-            // A non-last Fill child consumes no edge (fills the current slot,
-            // overlapping — the last child still owns the interior).
+            // Unreachable with the WPF-faithful Dock values; defensive.
             if (child->is_arrange_dirty())
             {
                 child->Arrange(slot);

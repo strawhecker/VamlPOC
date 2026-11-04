@@ -234,14 +234,16 @@ void register_builtin_enum_domains()
             {"Visible", 0}, {"Hidden", 1}, {"Collapsed", 2},
         }));
 
-    // Dock { Left=0, Top=1, Right=2, Bottom=3, Fill=4 } (WPF Dock.cs) — REAL A1 fix:
+    // Dock { Left=0, Top=1, Right=2, Bottom=3 } (WPF Dock.cs) — REAL A1 fix:
     // `DockPanel.Dock="Left"` previously resolved to 1 (=Top) via the shared
     // Left=1 map. The DP's canonical registry name is the DOTTED "DockPanel.Dock"
     // (Element.cpp:379), which is exactly what convert_int32_for_dp sees via
     // dp.property_id().name() — so the domain is keyed by that dotted name.
+    // NO `Fill` member: WPF's Dock enum has exactly Left/Top/Right/Bottom; the
+    // LAST-child fill is the positional rule + LastChildFill bool, never a value.
     registry.register_domain("DockPanel.Dock",
         make_domain("Dock", {
-            {"Left", 0}, {"Top", 1}, {"Right", 2}, {"Bottom", 3}, {"Fill", 4},
+            {"Left", 0}, {"Top", 1}, {"Right", 2}, {"Bottom", 3},
         }));
 
     // IconStretch { None=0, Fill=1, Uniform=2, UniformToFill=3 } (matches WPF Stretch)

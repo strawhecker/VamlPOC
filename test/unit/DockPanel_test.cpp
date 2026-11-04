@@ -2,8 +2,8 @@
 // layout container (StackPanel/Grid/WrapPanel/Canvas are already REAL). Re-based
 // onto UIElement and delivers the WPF-faithful dock-stacking algorithm:
 //
-//   1. ATTACHED `DockPanel.Dock` DP (Int32 path, enum Dock {0..4}, owner
-//      "DockPanel", default Fill) resolves on ANY DependencyObject via the S043
+//   1. ATTACHED `DockPanel.Dock` DP (Int32 path, enum Dock {0..3}, owner
+//      "DockPanel", default Left) resolves on ANY DependencyObject via the S043
 //      attached-aware path — this RESOLVES the S462-recorded NO-GAP
 //      ("DockPanel.Dock float is S470") at its own step.
 //   2. MeasureOrder: children offered unbounded (S123 natural), accumulating the
@@ -59,10 +59,10 @@ private:
 } // namespace
 
 // ---------------------------------------------------------------------------
-// 1. Attached Dock DP: default Fill + set/read on a plain DependencyObject
+// 1. Attached Dock DP: default Left(0) + set/read on a plain DependencyObject
 // ---------------------------------------------------------------------------
 
-TEST_CASE("S470: DockPanel.Dock attached DP — default Fill, set/read on any object")
+TEST_CASE("S470: DockPanel.Dock attached DP — default Left, set/read on any object")
 {
     // Constructing a DockPanel registers the attached DP globally (the S470
     // self-registration). A plain UIElement child (not even a DockPanel) then
@@ -70,8 +70,9 @@ TEST_CASE("S470: DockPanel.Dock attached DP — default Fill, set/read on any ob
     DockPanel reg;
     (void)reg;
     UIElement child;
-    // Default is Fill (4) — a child with no explicit dock is the Fill slot.
-    SHOULD(ShouldlyIntegral(DockPanel::dock(child)).ShouldBe(4));
+    // Default is Left (0) — WPF's DockPanel.Dock default is Dock.Left; the
+    // last-child Fill-slot is the positional rule, NOT a Dock value.
+    SHOULD(ShouldlyIntegral(DockPanel::dock(child)).ShouldBe(0));
 
     // Set/read on the plain object (the attached-aware path).
     (void)DockPanel::set_dock(child, static_cast<std::int32_t>(Dock::Left));
@@ -103,7 +104,7 @@ TEST_CASE("S470: dock order placement — Left/Top + last-child Fill")
 
     (void)DockPanel::set_dock(*left, static_cast<std::int32_t>(Dock::Left));
     (void)DockPanel::set_dock(*top,  static_cast<std::int32_t>(Dock::Top));
-    (void)DockPanel::set_dock(*fill, static_cast<std::int32_t>(Dock::Fill)); // default
+    (void)DockPanel::set_dock(*fill, static_cast<std::int32_t>(Dock::Left)); // default
 
     panel.Measure(vaml::Size{ 100.0f, 100.0f });
     panel.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
@@ -146,7 +147,7 @@ TEST_CASE("S470: dock order — Right and Bottom dock against their edges")
 
     (void)DockPanel::set_dock(*right, static_cast<std::int32_t>(Dock::Right));
     (void)DockPanel::set_dock(*bottom, static_cast<std::int32_t>(Dock::Bottom));
-    (void)DockPanel::set_dock(*fill, static_cast<std::int32_t>(Dock::Fill));
+    (void)DockPanel::set_dock(*fill, static_cast<std::int32_t>(Dock::Left));
 
     panel.Measure(vaml::Size{ 100.0f, 100.0f });
     panel.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
@@ -185,7 +186,7 @@ TEST_CASE("S470: DesiredSize sums the consumed dock tracks")
     DockLeaf* fill = panel.create_child<DockLeaf>(vaml::Size{ 10.0f, 10.0f });
     (void)DockPanel::set_dock(*left, static_cast<std::int32_t>(Dock::Left));
     (void)DockPanel::set_dock(*top, static_cast<std::int32_t>(Dock::Top));
-    (void)DockPanel::set_dock(*fill, static_cast<std::int32_t>(Dock::Fill));
+    (void)DockPanel::set_dock(*fill, static_cast<std::int32_t>(Dock::Left));
 
     panel.Measure(vaml::Size{ 100.0f, 100.0f });
     SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(30.0f));

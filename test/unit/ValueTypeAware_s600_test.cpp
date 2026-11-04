@@ -119,7 +119,7 @@ TEST_CASE("S600: enum domain registry carries WPF-true ordinals for the audited 
 
     const auto* dock = EnumDomainRegistry::global().try_find("DockPanel.Dock");
     REQUIRE(dock != nullptr);
-    REQUIRE(dock->count == 5);
+    REQUIRE(dock->count == 4);
 
     const auto* hAlign = EnumDomainRegistry::global().try_find("HorizontalAlignment");
     REQUIRE(hAlign != nullptr);
