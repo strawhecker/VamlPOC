@@ -3145,7 +3145,7 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 - S621 dep:S620  PLACEHOLDER BRUSH/VALUE seeding root B2: background/foreground/brush-bound values resolve to a visible default (not transparent) so the retained render path shows layout structure. Seed derived from the property path, deterministic and reproducible. **[DONE — S11q S621 root B2: same seam upgraded TYPE-AWARE on the TARGET DP's declared bound type (metadata().boundType() — TryGet(ext.key)): Color-typed Background -> a deterministic OPAQUE non-black color (FNV-name-hash -> saturated hue, alpha 1.0); BrushId-typed Foreground/Fill/BorderBrush -> a NON-ZERO id (never the transparent/black 0); Double Opacity -> 1.0 (fully visible) + non-zero lengths; Int32/Int64/Thickness/GridLength -> non-zero defaults. seed_value_for_type + seed_typed_bindings + seed_name_hash/seed_visible_color. Same doc -> same seed (reproducible). VIEWER-ONLY zero lib change. run_viewer_seed_plan lands the visible fill + full Opacity on the retained-render path. Test ViewerSeedBrush_s621_test.cpp (vaml-core). BOTH CI LANES green (verify_s11q620.cmd + clang-debug). ZERO new locks; ZERO MINIMAL REAL.]**
 - S622 dep:S621  VIEWER-GROWTH(11q) + GATE: the seed-context is exercised on the previously-black corpus files (Splash/OverlayWindow/ShadowLocationIndicator/SignalDisplayView/ReadingControl/etc.) — they must render with discernible layout. Full build + ctest BOTH lanes green (viewer-side; lib suite unchanged green). SURVIVOR block in progress.md. ZERO new locks (ADR-018). Checkpoint: last = S11q, next = S520 (Sprint 11h). **[DONE — S11q S622 VIEWER-GROWTH + GATE: the seed-context is exercised on an IN-REPO doc (sample.seed.vaml) reproducing the EXACT failure class of the previously-black external corpus files (bound-but-DATA-EMPTY {Binding} text + background/foreground, NO VM) — vaml_viewer/viewer_growth_s11q.h (ADR-021 seam: run_viewer_growth_s11q_plan = load -> SEED -> BindExtensions -> finalize + viewer_growth_s11q_render_plan = the S212 encode_visual_slice) + the S222_1 reload path now injects the seed (bind_and_render -> run_viewer_seed_plan seedEnabled=true). The seeded doc renders NON-DEGENERATE items (visible placeholder text + opaque Background fill) — the DISCERNIBLE-LAYOUT proof. FULL build + ctest BOTH CI LANES green from first principles: windows-msvc (build/verify_s11q622.cmd msvc-debug warning-as-error clean + ctest 4/4) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug warnings==0 + ctest 4/4). SURVIVOR block in progress.md. ZERO new locks (ADR-018). ZERO MINIMAL REAL (permanent kept-and-extended ADR-021 viewer seams; the S440–S449 app-shell runway is the named forward consumer). Checkpoint: last = S11q, next = S520 (Sprint 11h).]**
 
-## Sprint 11r — UI-compliance test queue (every UI-affecting surface as a step; each step ends with CONFIRMED content shown on the UI)  [token S640+]
+## Sprint 11r — UI-compliance test QUEUE (one DEDICATED tester project/exe; each step = ONE UI-affecting surface, flattened one-per-step; each step ends with CONFIRMED content shown on the UI)  [token S640+]
 > **WHY THIS SPRINT EXISTS (a direct corrective to the Sprint-11 outcome — written into the roadmap, not a
 > silent apology):** the recurring failure across 20+ gap sprints was that UI work kept landing with NO visible
 > proof — "text isn't on the screen", "splash renders black", "vector logo doesn't draw". That is the exact
@@ -3154,6 +3154,16 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 > forward, EVERY step that touches the UI MUST end with **confirmed content actually shown on the UI**,
 > verified by a **UI-compliance scanner** — not by "it builds and ctest is green". This is the
 > `ALWAYS-SEE-IT-ON-SCREEN` contract, baked in.
+>
+> **A DEDICATED TESTER PROJECT / EXE (driver Q — the answer is YES).** The run → scan → compare loop is NOT
+> bolted onto the viewer and NOT a unit-test exe. It is its OWN long-lived project — `vaml_ui_tester/`
+> (Windows `vaml_ui_tester.vcxproj` + `vaml_ui_tester-linux/` CMake, mirroring the viewer's structure) — a
+> dedicated executable whose ONLY job is: take an authored `.xaml` argument, render it through the REAL
+> retained render path (offscreen/windowed), SCAN the rendered UI for compliance, COMPARE to the expected
+> outcome declared in that `.xaml`, and exit 0=PASS / 1=FAIL / 2=SKIP (the standalone process boundary a
+> script drives, exactly like the S177/S446 real-WSI gates). It consumes ONLY the public surface (ADR-021).
+> It is the driver's stated "one app with many xaml files, or a script at input to load and confirm what is
+> expected" — the script is a thin loop over `vaml_ui_tester <file.xaml>` per queued file.
 >
 > **THE SCANNER (the novel, central mechanism — the "how do we know the UI is right?" answer).** Unit tests
 > cannot prove pixels the way a display does. Sprint 11r introduces a **reproducible void that the UI must
@@ -3166,39 +3176,43 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 > fidelity, that is one authoritative path (S.Deferred-PNG); otherwise the scanner scrapes structured
 > compliance data (draw items, element rects, colors). The driver picked the scan approach as the
 > authoritative one and explicitly authorized flexible comparison ("you do you best. we can always change it
-> later.").
+> later."). The scanner lives in the dedicated tester project (S641), NOT the viewer.
 >
-> **SPRINT MECHANISM (the "one app, many files / script input" model).** This is the reverse of 11q's
-> "adjust to unknown bindings in unknown contexts": 11r is **known bindings to known types**, deterministic.
-> One test app renders N authored `.xaml` files; a script loads each, renders it, scans the display for
-> compliance, compares to the declared expected outcome, and reports per-step PASS/FAIL. It could be one app
-> with many `.xaml` files or a script that loads + confirms each. Each step Ships THREE things: (1) an
+> **SPRINT MECHANISM (KNOWN-KNOWN, deterministic — the reverse of 11q).** This is NOT 11q's "adjust to
+> unknown bindings in unknown contexts"; 11r is **known bindings to known types**, deterministic. The tester
+> renders N authored `.xaml` files (one per queued surface); the script loads each via the tester, scans,
+> compares to the declared outcome, and reports per-step PASS/FAIL. Each step ships THREE things: (1) an
 > authored `.xaml` that ALSO declares its expected outcome, (2) the component/surface it exercises, (3) the
 > scanner assertion that proves the content is actually on the UI. Every step ends **green on both CI lanes
 > AND the content confirmed on-screen via the scanner** (the anti-grave-whistle / anti-black-screen gate).
 >
+> **ONE CONTROL = ONE STEP (the corrected structure — flattened, NOT bundled).** The prior draft BUNDLED
+> several controls per step (S644–S651 as groups) — that is rejected. This sprint is **one UI-affecting
+> surface per step**, the authoritative WPF-real control set (Element.h / the 11k-7 audit), ordered
+> base-building-block → higher-level exactly as the driver ordered. If there are N surfaces, there are N+
+> authored `.xaml` files / N+ steps. The list is NOT limited to controls (driver directive): panels, brushes,
+> shapes, text glyphs, AND the recently-added adorner + StickyNote surfaces each get their own step.
+>
 > **GOVERNING RULES (codified, like 11k's fidelity contract):**
-> - **ALWAYS-SEE-IT-ON-SCREEN:** a sprint that touches a renderable surface is NOT DONE until the content is
+> - **ALWAYS-SEE-IT-ON-SCREEN:** a step that touches a renderable surface is NOT DONE until the content is
 >   CONFIRMED on the UI (scanner PASS + both CI lanes green). No token, no ✅, no black-screen, no "it
 >   builds" as a substitute for on-screen proof.
+> - **DEDICATED TESTER:** the run → scan → compare loop lives in `vaml_ui_tester/` (its own exe), NEVER an
+>   afterthought bolted onto the viewer or a unit test.
 > - **KNOWN-KNOWN (not 11q):** bindings are KNOWN property paths to KNOWN VM types — no seed-guessing, no
 >   placeholder text. The data context is a real, typed VM; the binding is two-way where WPF is two-way.
 > - **THE SCANNER IS THE ORACLE:** the `.xaml` declares its expected outcome; the scanner scraps + compares;
 >   a mismatch is a FAIL with a structured report (coordinate + pixel detail), never a silent accept.
-> - **THE LIST IS NOT LIMITED TO CONTROLS** (driver directive): it includes every UI-affecting surface —
->   panels, brushes, shapes, text glyphs, AND the recently-added adorner + StickyNote surfaces — ordered
->   base-building-block → higher-level, exactly as the driver ordered ("start with a full list ... then order
->   2+ from base building blocks up to higher level stuff").
 > - **RENDER-SURFACE CONFORMANCE:** any step that introduces/changes a renderable surface updates
 >   `docs/RENDER_SURFACE.md` + re-runs the validator at that step (never silent, NO-GAP).
 > - **ZERO new locks (ADR-018), ZERO MINIMAL REAL, ZERO invented names** (all WPF-real per the 11k-7 audit).
 >
 > **VIEWER GROWTH (anti-grave-whistle):** this sprint's growth is intrinsic — every step's scanner CONFIRMS
-> content in the live/retained render path (the viewer's generic renderer or the scanner's offscreen
-> reproduction). No token = no ✅.
-> STATUS: **ONGOING** — S640 (Image + Source) is the first step (the driver's explicit #1), then the scanner
-> (S641), then bindings + data context (S642), then the run→scan→compare script (S643), then the ordered
-> control queue (S644+). Each step flips DONE here with "BOTH CI LANES GREEN + scanner/on-screen CONFIRMED".
+> content in the live/retained render path (the tester's offscreen reproduction shares the S212
+> `encode_visual_slice` code path with the viewer's generic renderer). No token = no ✅.
+> STATUS: **ONGOING** — S640 (Image + Source) first (the driver's #1), S641 the scanner, S642 known-type
+> bindings + data context, S643 the run → scan → compare script, then the ONE-SURFACE-PER-STEP queue
+> (S644+). Each flips DONE here with "BOTH CI LANES GREEN + scanner/on-screen CONFIRMED".
 >
 > - S640 dep:S622  **IMAGE + SOURCE — the driver's explicit FIRST step** (the exact thing that keeps failing
 >      transparent/black in the live viewer): author `<Image Source="..."/>` so a rasterized asset (PNG SVG)
@@ -3207,48 +3221,229 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      by bare name; the current only-registration is dotted `Image.Source`, so `Source="..."` threw
 >      `unknown property 'Source'`). The scanner confirms the authored image is visibly on the UI (its rect +
 >      non-default pixels at that location). XAML + component (the Image→atlas→quad draw) + scanner assertion;
->      both CI lanes green + on-screen confirmed. [Driver: "the first is Image + source."]
-> - S641 dep:S640  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on): the
->      pull/render/scan/compare loop. Renders an authored `.xaml` through the REAL retained render path, then
->      SCRAPES the rendered UI for compliance — producing a structured outcome (element/draw-item presence,
->      coordinates, pixel/color information at specific locations) — then COMPARES to the expected outcome
->      declared in that `.xaml`. Telescope: a `ScanReport` (pixel/element grid samples) + a
->      `compliance_compare(actualScan, expectedDecl) -> PASS/FAIL(per-datum detail)` + a headless seam that
->      needs no live window. ZERO new locks. PNG bit-match (S.Deferred-PNG) stays the upgrade path when
->      fidelity allows; the structured scan is authoritative now.
+>      both CI lanes green + on-screen confirmed. [Driver: "the first is Image + source."] Also bootstrap the
+>      `vaml_ui_tester/` project skeleton here (scaffold only — its power lands at S641).
+> - S641 dep:S640  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
+>      dedicated tester): the pull/render/scan/compare loop. Renders an authored `.xaml` through the REAL
+>      retained render path, then SCRAPES the rendered UI for compliance — producing a structured outcome
+>      (element/draw-item presence, coordinates, pixel/color information at specific locations) — then
+>      COMPARES to the expected outcome declared in that `.xaml`. Telescope: a `ScanReport` (pixel/element
+>      grid samples) + a `compliance_compare(actualScan, expectedDecl) -> PASS/FAIL(per-datum detail)` + a
+>      headless seam that needs no live window. ZERO new locks. PNG bit-match (S.Deferred-PNG) stays the
+>      upgrade path when fidelity allows; the structured scan is authoritative now.
 > - S642 dep:S641  **KNOWN-TYPE BINDINGS + DATA CONTEXT** (known bindings to known types — the 11r spine,
 >      NOT 11q): a per-step typed VM (real `ObservableObject` + `PROPERTY_BINDABLE`) is set as the reader's
 >      `DataContext`; `{Binding Path}` resolves known paths to known types, one-way live where WPF is one-way,
 >      two-way where WPF is two-way. The scanner confirms the BOUND value is what appears on the UI (not a
 >      seed placeholder). Multi-path + two-way included per type.
-> - S643 dep:S642  **RUN → SCAN → COMPARE SCRIPT** (the one app / many files / script-input driver): a CLI
->      that loads an authored `.xaml`, renders it, scans the display, compares to the declared outcome, and
->      reports per-step PASS/FAIL + the outcome file (coordinates + pixel info). The enumeration entry that
->      ties S640–S642 together for every control in the queue.
-> - S644 dep:S643  **BAREBONE RENDER QUEUE, base→high — step 1 of the ordered list: TEXT GLYPHS** (`TextBlock`
->      real glyphs via the S409_1/S400 SDF path — the standing "text not on screen" defect closure). The
->      scanner confirms authored text is READABLE on the UI (glyph pixels present at the text rect), not a
->      nominal full-atlas quad. [Base building block: text underlies every control.]
-> - S645 dep:S644  Base building block — **BRUSHES/COLOR**: background/foreground/fill resolve + render at
->      the right color + rect (opaque + partial alpha via the S11o transparency surface). Scanner: pixel color
->      at a declared point.
-> - S646 dep:S645  Base building block — **PANELS / LAYOUT** (Grid/StackPanel/DockPanel/Canvas/WrapPanel):
->      the scanner confirms each panel's declared child layout coordinates (elements land where layout says).
-> - S647 dep:S646  **SHAPES + BORDER** (Rectangle/Ellipse/Line/Border): drawn geometry at declared rects.
-> - S648 dep:S647  **ICON** (the S483/S400_1/S202_1 asset control): authored `IconKey`/`Source` renders the
->      rasterized asset visibly. (Pairs with S640 on the asset path.)
-> - S649 dep:S648  **BUTTONS / INPUT CONTROLS**: Button (click → command → visible state change), TextBox
->      (two-way), CheckBox, RadioButton, Slider, ProgressBar, PasswordBox, ScrollViewer — each confirmed with
->      an interaction the scanner can observe (state change on the UI).
-> - S650 dep:S649  **SELECTION + CONTAINER CONTROLS**: ComboBox, ListBox/ListView (+ DataTemplate items),
->      TabControl, Expander, GroupBox, Menu/MenuItem/ContextMenu, ToolTip/Popup, GridSplitter, DataGrid —
->      each renders + (where applicable) selection state confirmed.
-> - S651 dep:S650  **RECENTLY-ADDED SURFACES (driver: "not limited to controls")**: **StickyNote** (11k-A,
->      the adorner-anchored annotation note) + **Adorner/AdornerLayer** (11n-6) — the scanner confirms the
->      adorner / anchored sticky note is VISIBLE at its declared location + hit-testable (S595a overlay
->      pass-through/capture).
-> - S652 dep:S651  **FULL QUEUE GATE + SURVIVOR(11r)**: run → scan → compare passes for EVERY queued surface
->      in one consolidated run; both CI lanes green; RENDER_SURFACE.md + the validator green; grep-audit
+> - S643 dep:S642  **RUN → SCAN → COMPARE SCRIPT** (the driver / script-input loop over the tester): a CLI
+>      wrapper + a `build/run_ui_queue.*` script that loads each authored `.xaml`, runs `vaml_ui_tester` on it,
+>      scans the display, compares to the declared outcome, and reports per-step PASS/FAIL + the outcome file
+>      (coordinates + pixel info). The enumeration entry that ties S640–S642 together for every queued surface.
+>
+> ---
+> ### THE ONE-SURFACE-PER-STEP QUEUE (S644+ — base building block → higher, ONE per step)
+> Each step: authored `.xaml` (declaring its expected outcome) + the surface's component + the scanner
+> assertion proving the content is on the UI; both CI lanes green + scanner/on-screen CONFIRMED. The set is
+> the WPF-real control surface (Element.h, 11k-7 audit) — panels, brushes, shapes, text glyphs, input,
+> selection/container, and the recently-added adorner + StickyNote surfaces, exactly as the driver ordered.
+>
+> **EXHAUSTIVE-XAML-INSTANCES (codified — the "how many times must a control appear" answer):** every step
+> from S644 to S684 carries a `[11r EXHAUSTIVE: S### <surface> ×N xaml instances]` token. N = THE NUMBER OF
+> AUTHORED `.xaml` FILES that surface must appear as to cover every SETTINGS-VARIATION that changes the
+> RENDERED OUTCOME — derived from the vaml unit-test counts + the WPF source (each test case / DP axis that
+> yields a distinct rendered state = at least one instance). Every instance is rendered through the
+> dedicated tester (S640/S641), SCANNED (coordinates + pixel info), and COMPARED to the expected outcome
+> declared in that `.xaml`. NO-LAZY-LLM: no surface ships a single "happy path" instance while its
+> settings-variation outcomes go un-scanned; one instance = one runner invocation shown on the UI + scanned.
+>
+> text / glyphs (the base — every control renders on top of the text/brush/panel foundation):
+> - S644 dep:S643  **TextBlock** — real glyphs via the S400/S409_1 SDF path; the scanner confirms authored text
+>      is READABLE at the text rect (not a nominal full-atlas quad).
+>      **[11r EXHAUSTIVE: S644 TextBlock ×6 xaml instances]** (cover every render-outcome axis the S400
+>      Text_test/TextGlyphPlan + TextBlock_s11k1 prove — one instance each, each scanned for readable glyph
+>      pixels at its text rect): (1) short inline text; (2) word-wrap at a fixed Width; (3) a single long word
+>      overflowing to its own line; (4) a font-size variant (28px); (5) a multi-line block; (6) a foreground-
+>      colored glyph (the S400 resolve_foreground_color path). No lazy single-instance happy path.
+> - S645 dep:S644  **Brush/color render** — background/foreground/fill resolve + render at the right color +
+>      rect (opaque + partial-alpha via the S11o transparency surface); scanner: pixel color at a declared point.
+>      **[11r EXHAUSTIVE: S645 Brush/color ×7 xaml instances]** (the NamedColor/S603/S593-alpha axes — one per
+>      rendered outcome, each scanned for pixel color at a declared point): (1) opaque `#AARRGGBB` fill; (2)
+>      partial-alpha `#80RRGGBB` background; (3) transparent background; (4) a named-color literal; (5) default
+>      (no authored background); (6) per-element Opacity=0.5 single-fold; (7) a gradient (S465
+>      representative-color).
+> panels / layout (each its own step — elements land where layout says):
+> - S646 dep:S645  **StackPanel**
+>      **[11r EXHAUSTIVE: S646 StackPanel ×4 xaml instances]** (the S129/S130 suite axes — one per distinct
+>      rendered outcome, each scanned: children at expected stacked final_rects): (1) vertical stack
+>      (top-to-bottom); (2) horizontal stack (left-to-right); (3) last-child-stretch (a default-Stretch last
+>      child fills the leftover track); (4) a non-Stretch last child DOES NOT over-fill (content-height kept).
+> - S647 dep:S646  **Grid**
+>      **[11r EXHAUSTIVE: S647 Grid ×4 xaml instances]** (the S131/S132/S133 axes): (1) a fixed 2x2 grid —
+>      children at cell origins; (2) Absolute+Auto+Star tracks mixed 2:1; (3) a ColumnSpan/RowSpan child in a
+>      merged cell; (4) a Stretch child filling its star cell. Each scanned: children land at expected cell
+>      rects.
+> - S648 dep:S647  **Canvas**
+>      **[11r EXHAUSTIVE: S648 Canvas ×3 xaml instances]** (the S136/S137 axes): (1) children at explicit
+>      Left/Top absolute origins; (2) a negative Left/Top honored; (3) an un-set axis (NaN) collapsing to the
+>      origin. Scanned: each child at its absolute rect.
+> - S649 dep:S648  **DockPanel**
+>      **[11r EXHAUSTIVE: S649 DockPanel ×2 xaml instances]** (the S470 axes — one per placement class): (1)
+>      Left/Top + last-child Fill; (2) Right/Bottom docked against their edges. Scanned: dock order + the fill
+>      child occupies the remainder.
+> - S650 dep:S649  **WrapPanel**
+>      **[11r EXHAUSTIVE: S650 WrapPanel ×3 xaml instances]** (the S134/S135 axes): (1) default-Horizontal —
+>      overflow wraps to a new row; (2) Vertical — wraps to a new column; (3) a child wider than the whole
+>      boundary gets its own row. Scanned: row/col break placement.
+> shapes / decorator (drawn geometry at declared rects):
+> - S651 dep:S650  **Border**
+>      **[11r EXHAUSTIVE: S651 Border ×2 xaml instances]** (the S481 axes): (1) a Border with thickness +
+>      border-brush drawn as a BorderRect at its rect; (2) a Border with CornerRadius (the S205 rounded-box).
+>      Scanned: the border band + the inner content slot rect.
+> - S652 dep:S651  **Rectangle**
+>      **[11r EXHAUSTIVE: S652 Rectangle ×2 xaml instances]** (the S482 axes): (1) a filled Rectangle at its
+>      box; (2) a stroked Rectangle (Stroke + StrokeThickness honored). Scanned: fill + stroke pixels at the
+>      declared rect.
+> - S653 dep:S652  **Ellipse**
+>      **[11r EXHAUSTIVE: S653 Ellipse ×1 xaml instance]** (the S482 axis — ellipse measures to its box +
+>      fills). Scanned: the ellipse fill at its bounding rect.
+> - S654 dep:S653  **Line**
+>      **[11r EXHAUSTIVE: S654 Line ×2 xaml instances]** (the S482 axis): (1) a diagonal Line honoring
+>      StrokeThickness; (2) a thick Line (StrokeThickness visibly widens the stroke). Scanned: the stroke
+>      pixels along the line.
+> - S655 dep:S654  **Path** (+ Polygon / Polyline authored)
+>      **[11r EXHAUSTIVE: S655 Path ×3 xaml instances]** (the S551 axes): (1) a Path with authored inline Data
+>      geometry + a FillRule; (2) a Polygon with an authored Points list; (3) a Polyline with an authored
+>      Points list. Scanned: the drawn geometry's ink at its rect.
+> asset/display leafs:
+> - S656 dep:S655  **Icon** (the S400_1/S202_1 asset control; pairs with S640 on the asset path)
+>      **[11r EXHAUSTIVE: S656 Icon ×3 xaml instances]** (the S400_1/S202_1/S205_1 axes — rasterized once into
+>      the atlas, drawn as a quad): (1) a Source asset at its layout rect; (2) an IconKey resolved through the
+>      ResourceDictionary; (3) a TintMode Monochrome icon (the S205_1 monochrome-tint path). Scanned: the
+>      authored asset's non-default pixels at its rect.
+> - S657 dep:S656  **Label**
+>      **[11r EXHAUSTIVE: S657 Label ×2 xaml instances]** (the S480 + S593-neutral axes): (1) a Label with
+>      Content text at its box (neutral alpha-1.0 backdrop + content/glyph foreground); (2) a Label with a
+>      FontSize variant + HorizontalContentAlignment. Scanned: the box + the text/glyph presence.
+> input controls (each confirmed with an interaction the scanner observes — a state change on the UI):
+> - S658 dep:S657  **Button**
+>      **[11r EXHAUSTIVE: S658 Button ×4 xaml instances]** (the S401 axes): (1) enabled + idle (Solid fill at
+>      arranged rect); (2) pressed (visual-state background swap); (3) hovered (visual-state background swap);
+>      (4) disabled (IsEnabled=false faded fill). Each interaction is scanned for the state's visible change.
+> - S659 dep:S658  **TextBox**
+>      **[11r EXHAUSTIVE: S659 TextBox ×3 xaml instances]** (the S402 axes): (1) single-line with typed text;
+>      (2) multi-line (AcceptsReturn wraps + grows); (3) a TwoWay Text edit writes back to a bound VM (visible
+>      when the VM value appears). Scanned: the edit field + text pixels.
+> - S660 dep:S659  **CheckBox**
+>      **[11r EXHAUSTIVE: S660 CheckBox ×2 xaml instances]** (the S404/S11c axes): (1) UNCHECKED — outline
+>      only; (2) CHECKED — filled (a filled vs outline difference the scanner observes on toggle). Scanned:
+>      the filled-vs-outline box.
+> - S661 dep:S660  **RadioButton**
+>      **[11r EXHAUSTIVE: S661 RadioButton ×3 xaml instances]** (the S471 axes): (1) unchecked; (2) checked
+>      (opaque fill); (3) two in one parent — checking one unchecks the sibling. Scanned: filled-vs-outline for
+>      each + the sibling toggle.
+> - S662 dep:S661  **Slider**
+>      **[11r EXHAUSTIVE: S662 Slider ×2 xaml instances]** (the S403 axes): (1) a track with a thumb at a
+>      Value; (2) Value clamped to [Min,Max] (a clamped thumb placement scanned). Scanned: the track box + the
+>      thumb at the ratio-derived position.
+> - S663 dep:S662  **PasswordBox**
+>      **[11r EXHAUSTIVE: S663 PasswordBox ×2 xaml instances]** (the S485 axes): (1) masked chars render (no
+>      plaintext leaks); (2) MaxLength clamps the insert. Scanned: the mask glyphs + the clamped length.
+> - S664 dep:S663  **ProgressBar**
+>      **[11r EXHAUSTIVE: S664 ProgressBar ×2 xaml instances]** (the S484 axes): (1) determinate fill fraction
+>      at Value/Min/Max; (2) an indeterminate bar. Scanned: the fill-fraction pixels.
+> - S665 dep:S664  **ScrollViewer**
+>      **[11r EXHAUSTIVE: S665 ScrollViewer ×2 xaml instances]** (the S405 axes): (1) scrolled content clipped
+>      to the viewport; (2) wheel/scrollbar scrolls (the ScrollChanged surface). Scanned: the clipped viewport +
+>      the scrolled offset.
+> - S666 dep:S665  **RepeatButton**
+>      **[11r EXHAUSTIVE: S666 RepeatButton ×1 xaml instance]** (the 11k-2 axis — a Solid fill at its rect +
+>      the shared Click on press). Scanned: the button fill + a fired click state.
+> - S667 dep:S666  **ScrollBar**
+>      **[11r EXHAUSTIVE: S667 ScrollBar ×2 xaml instances]** (the 11k-2/11k-8 axes): (1) a vertical scrollbar
+>      track + thumb at a Value; (2) the bare RangeBase Value/Min/Max resolves + the Scroll routed event fires
+>      on drag. Scanned: the track/thumb pixels.
+> selection / container controls (each renders + where applicable its selection state confirmed):
+> - S668 dep:S667  **ComboBox**
+>      **[11r EXHAUSTIVE: S668 ComboBox ×2 xaml instances]** (the S472 axes): (1) closed — the selection box;
+>      (2) drop-down OPEN — a selected item (is_open + select_item + the SelectedIndex/SelectionChanged
+>      surface). Scanned: closed box + the open drop-down + the selected row.
+> - S669 dep:S668  **ListBox**
+>      **[11r EXHAUSTIVE: S669 ListBox ×2 xaml instances]** (the S473 axes): (1) Items render as rows with a
+>      SelectionChanged; (2) a selected row (SelectedIndex default -1 then a selection). Scanned: the item rows
+>      + the selected row's state.
+> - S670 dep:S669  **ListView** (ItemTemplate items)
+>      **[11r EXHAUSTIVE: S670 ListView ×2 xaml instances]** (the S473/S500 axes): (1) Items via ItemsSource
+>      render; (2) an `ItemTemplate` (DataTemplate) renders authored per-item content. Scanned: the item rows +
+>      the templated per-item content.
+> - S671 dep:S670  **TreeView / TreeViewItem**
+>      **[11r EXHAUSTIVE: S671 TreeView ×2 xaml instances]** (the S552 axes): (1) a collapsed tree (root +
+>      children hidden); (2) an EXPANDED TreeViewItem (children visible + SelectedItem set). Scanned: the
+>      expanded/collapsed children + the selection state.
+> - S672 dep:S671  **TabControl / TabItem**
+>      **[11r EXHAUSTIVE: S672 TabControl ×2 xaml instances]** (the S490 axes — each tab renders its own
+>      content): (1) tab 0 selected (content A visible); (2) tab 1 selected (content B visible + the swap on
+>      SelectionChanged). Scanned: the selected tab's content.
+> - S673 dep:S672  **Expander**
+>      **[11r EXHAUSTIVE: S673 Expander ×2 xaml instances]** (the S485 axes): (1) COLLAPSED (IsExpanded=false —
+>      content gated); (2) EXPANDED (IsExpanded=true — content visible). Scanned: content hidden vs visible.
+> - S674 dep:S673  **GroupBox**
+>      **[11r EXHAUSTIVE: S674 GroupBox ×1 xaml instance]** (the S485 axis — header + a single content slot).
+>      Scanned: the header + the content box.
+> - S675 dep:S674  **Menu / MenuItem / ContextMenu**
+>      **[11r EXHAUSTIVE: S675 Menu ×3 xaml instances]** (the S491 axes): (1) a top Menu with MenuItems;
+>      (2) a MenuItem raises Click + a checkable item toggles; (3) a ContextMenu opens. Scanned: the menu
+>      strip + the clicked/toggled/open state.
+> - S676 dep:S675  **ToolTip / Popup**
+>      **[11r EXHAUSTIVE: S676 ToolTip/Popup ×3 xaml instances]** (the S492 axes): (1) a deferred ToolTip show
+>      (Opened/Closed); (2) a Popup with IsOpen + placement + StaysOpen; (3) a Popup that closes on outside
+>      click. Scanned: the shown popup/tooltip at its placement.
+> - S677 dep:S676  **GridSplitter**
+>      **[11r EXHAUSTIVE: S677 GridSplitter ×1 xaml instance]** (the S493 axis — a drag resizes an adjacent
+>      Grid track). Scanned: the post-drag track extents.
+> - S678 dep:S677  **DataGrid**
+>      **[11r EXHAUSTIVE: S678 DataGrid ×2 xaml instances]** (the S494/11k-9 axes — ItemsSource + the typed
+>      column set): (1) rows from ItemsSource render; (2) a row selected + a cell edits (selection state
+>      confirmed). Scanned: the grid rows + the selected/edited cell.
+> - S679 dep:S678  **Calendar / DatePicker**
+>      **[11r EXHAUSTIVE: S679 Calendar/DatePicker ×2 xaml instances]** (the S553 axes — the real date
+>      surface + SelectedDates/DateChanged): (1) a Calendar with a SelectedDate; (2) a DatePicker with a
+>      selected + today-highlighted date + the dropdown. Scanned: the highlighted/selected date.
+> media / document / frame:
+> - S680 dep:S679  **MediaElement / InkCanvas / InkPresenter**
+>      **[11r EXHAUSTIVE: S680 Media/Ink ×2 xaml instances]** (the S554 axes): (1) an InkCanvas with an
+>      authored stroke (the Strokes surface renders + hit-testable); (2) a MediaElement with Source/Volume/Muted
+>      + the Media* surface (renders its box). Scanned: the ink strokes / the media box.
+> - S681 dep:S680  **Page / Frame / DocumentViewer / RichTextBox**
+>      **[11r EXHAUSTIVE: S681 Document/Frame ×3 xaml instances]** (the S555/11k_12 axes): (1) a Frame
+>      navigates a Page (the StartupUri/ContentControl source surface); (2) a DocumentViewer/Page renders its
+>      content; (3) a RichTextBox hosts a FlowDocument (paragraphs/runs render). Scanned: the navigated page +
+>      the document content.
+> media / document / frame:
+> - S680 dep:S679  **MediaElement / InkCanvas / InkPresenter**
+> - S681 dep:S680  **Page / Frame / DocumentViewer / RichTextBox**
+> recently-added surfaces (driver: "not limited to controls"):
+> - S682 dep:S681  **Adorner / AdornerLayer** (11n-6) — the scanner confirms the adorner is VISIBLE at its
+>      declared location.
+>      **[11r EXHAUSTIVE: S682 Adorner ×2 xaml instances]** (the 11n-6 axes): (1) an AdornerLayer hosts an
+>      Adorner above an adorned element (visible at its declared location); (2) the adorner layer's attach /
+>      z-order + the GetDesiredTransform placement. Each scanned: the adorner's pixels at its declared
+>      location (the S212 encode_adorner_tree second-pass).
+> - S683 dep:S682  **StickyNote** (11k-A) — the adorner-anchored annotation note VISIBLE + hit-testable at its
+>      declared location.
+>      **[11r EXHAUSTIVE: S683 StickyNote ×2 xaml instances]** (the 11k-A axes): (1) an anchored note VISIBLE
+>      at its declared location (the CAF AddAttached -> ApplyAnnotation -> adorner-host + keep-on-page);
+>      (2) the note HIT-TESTABLE where it renders (AdornerHitTest). Each scanned: the note's visible pixels +
+>      its hit-test result at the declared location.
+> - S684 dep:S683  **Window** (the root/shell — AllowsTransparency + Background + clear composition, the S11o
+>      surface) + **UserControl** root.
+>      **[11r EXHAUSTIVE: S684 Window/UserControl ×3 xaml instances]** (the S440/S11o/11j-1 axes): (1) a
+>      Window with an authored Background + content (clear derived from the tree — the S592 rule);
+>      (2) a window with `AllowsTransparency="True"` (clear alpha 0 + a partially-alpha panel renders layered,
+>      the S11o surface); (3) a `UserControl` root hosting its content (the 11j-1 single-content container).
+>      Each scanned: the composed window/usercontrol at the declared rect + the clear/alpha outcome.
+> - S685 dep:S684  **FULL QUEUE GATE + SURVIVOR(11r)**: run → scan → compare passes for EVERY queued surface in
+>      one consolidated script run; both CI lanes green; RENDER_SURFACE.md + the validator green; grep-audit
 >      ZERO MINIMAL REAL / ZERO stubs; SURVIVOR block in progress.md (every step's on-screen proof recorded).
 >      Checkpoint advances: last = 11r, next = S520 (Sprint 11h).
 
