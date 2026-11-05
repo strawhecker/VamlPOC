@@ -2,22 +2,40 @@
 
 # session-context.md
 
-last_command: implementit (Sprint 11q — S620 SEED CONTEXT B1 + S621 BRUSH/VALUE B2 + S622 VIEWER-GROWTH; vaml_view SEED-BINDING INJECTION stream B — COMPLETE)
-plan_digest: Sprint 11q stream B (S620 dep:S605 / S621 dep:S620 / S622 dep:S621) — vaml_view (NOT the lib)
-injects a SEED/placeholder data-context so bound-but-data-empty .xaml renders visible layout instead of
-black/transparent. **S620** (DONE): viewer_seed_context.h — a plain ObservableObject seed whose single-segment
-{Binding} leaf paths seed the property NAME AS TEXT, injected BEFORE BindExtensions. **S621** (DONE): the seed
-upgraded TYPE-AWARE on the target DP's declared bound type (Color-typed Background -> opaque non-black;
-BrushId -> NON-ZERO id; Double Opacity -> 1.0; Int32/Int64/Thickness/GridLength -> non-zero defaults,
-deterministic via an FNV name hash). **S622** (DONE): the IN-REPO sample.seed.vaml reproduces the EXACT
-previously-black corpus failure class and renders NON-DEGENERATE items (visible placeholder text + opaque
-fill) via viewer_growth_s11q.h + the S212 render-plan; the S222_1 reload injects the seed. VIEWER-ONLY —
-the lib's binding engine UNTOUCHED; set_data_context/deferred_extensions/parse_markup_binding/
-ObservableObject::Set consumed. ZERO new locks (ADR-018); ZERO MINIMAL REAL (permanent ADR-021 viewer seams;
-the S440–S449 app-shell runway is the named forward consumer). BOTH CI LANES green per step.
-**CHECKPOINT: last completed = S11q (S620..S622), next = S520 (Sprint 11h — the 3rd-party IMPORT/INJECT seam).**
+last_command: implementit (S600 A1 A1 catalog closure — HorizontalContentAlignment / VerticalContentAlignment enum domains)
+plan_digest: Close the S600 (root A1) enum-domain gap surfaced by the real external SplashWindow.xaml:
+`HorizontalContentAlignment="Center"` / `VerticalContentAlignment="Center"` threw MalformedValue on the
+Int32 Control-base content-alignment DPs (no registered enum domain). Fix = add both WPF-true enum domains
+to EnumDomainRegistry (HorizontalContentAlignment {Left=0,Center=1,Right=2,Stretch=3} +
+VerticalContentAlignment {Top=0,Center=1,Bottom=2,Stretch=3}, keyed by the bare DP names), extended
+ValueTypeAware_s600_test.cpp (registry ordinals + a Button markup-load reading both back as 1), annotated
+roadmap S600. The fail-loud cross-domain path is untouched. BOTH CI LANES green from first principles.
+**THIS SESSION: S600 A1 A1 CATALOG CLOSURE DONE (HorizontalContentAlignment/VerticalContentAlignment enum domains).**
 
-## files_touched — Sprint 11q (this incarnation)
+## files_touched — S600 A1 A1 catalog closure (this session)
+- src/core/src/EnumDomainRegistry.cpp (MOD): register_builtin_enum_domains() + the two Control content-
+  alignment domains — `HorizontalContentAlignment {Left=0,Center=1,Right=2,Stretch=3}` +
+  `VerticalContentAlignment {Top=0,Center=1,Bottom=2,Stretch=3}` (WPF Control.cs types them as
+  HorizontalAlignment/VerticalAlignment; keyed by the bare DP names convert_int32_for_dp sees via
+  property_id().name()).
+- src/core/include/vaml/core/EnumDomainRegistry.h (MOD): audited-domain list doc comment + the two new domains.
+- test/unit/ValueTypeAware_s600_test.cpp (MOD): registry ordinal assertions (count==4, Center==1) for both +
+  a Button markup-load TEST_CASE reading both content-alignment DPs back as 1 (A1 A1 closure).
+- docs/roadmap.md (MOD): S600 entry annotated A1 A1 CATALOG CLOSURE (not-silent record).
+- session-context.md (MOD): this entry.
+
+## build_status (S600 A1 A1 closure — re-verified from first principles)
+- windows-msvc: build/verify_s600.cmd -> BUILD OK (warning-as-error clean) + ctest 4/4 PASS + all 4 grep-audits
+  AUDIT-OK. (Note: the real viewer's SplashWindow corpus-load path was reproduced as a Button markup-load —
+  the Control content-alignment DPs are shared; the standalone-Label `Content="Splash"` attribute is a
+  SEPARATE pre-existing UnknownType (global bare `Content` UntypedPtr DP), unrelated to this enum closure.)
+- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug -> build clean (warnings==0) + ctest 4/4 PASS (UBUNTU-GREEN).
+- S600 A1 A1 closure: ALL GREEN on BOTH CI lanes, verified from first principles (verify_s600.cmd on
+  windows; clang-debug on the Linux VM).
+
+## next_step — S600 A1 A1 closure complete
+- **S600 A1 A1 catalog closure COMPLETE.** Next per the roadmap chain = **S520 (Sprint 11h — the 3rd-party
+  IMPORT/INJECT seam)**, the standing re-sequenced insertion order.
 - vaml_viewer/viewer_seed_context.h (NEW): the S620+S621 SEED-CONTEXT seam (SeedRenderAction +
   viewer_seed_render_action + ViewerSeedPlanResult + seed_string_bindings (B1) + seed_name_hash/
   seed_visible_color/seed_value_for_type/seed_typed_bindings (B2) + run_viewer_seed_plan). Header-only

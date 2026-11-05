@@ -26,6 +26,8 @@
 //   Orientation       { Horizontal=0, Vertical=1 }           (Orientation.cs)
 //   HorizontalAlignment { Left=0, Center=1, Right=2, Stretch=3 } (FrameworkElement.cs:28)
 //   VerticalAlignment   { Top=0, Center=1, Bottom=2, Stretch=3 } (FrameworkElement.cs:57)
+//   HorizontalContentAlignment { Left=0, Center=1, Right=2, Stretch=3 } (Control.cs -> HorizontalAlignment, FrameworkElement.cs:28)
+//   VerticalContentAlignment   { Top=0, Center=1, Bottom=2, Stretch=3 } (Control.cs -> VerticalAlignment, FrameworkElement.cs:57)
 //   Visibility        { Visible=0, Hidden=1, Collapsed=2 }   (UIElement.cs)
 //   Dock              { Left=0, Top=1, Right=2, Bottom=3 } (WPF Dock.cs)
 //   IconStretch       { None=0, Fill=1, Uniform=2, UniformToFill=3 } (matches WPF Stretch)

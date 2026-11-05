@@ -89,6 +89,39 @@ TEST_CASE("S600: audited enum DPs convert WPF-true ordinals from markup")
     REQUIRE(read_int(*textBlock, "TextTrimming") == 1);
 }
 
+// ---------------------------------------------------------------------------
+// 1b. Control content-alignment DPs (A1 A1 catalog closure): the real external
+//     SplashWindow.xaml authors HorizontalContentAlignment="Center" /
+//     VerticalContentAlignment="Center", which previously threw MalformedValue
+//     on these Int32 DPs (no registered enum domain). Now both resolve to 1.
+// ---------------------------------------------------------------------------
+TEST_CASE("S600: Control content-alignment DPs resolve Center from markup (A1 A1 closure)")
+{
+    // The exact external SplashWindow.xaml value surface: the content-alignment
+    // DPs authored by their bare Control-base names. Button is a Control that
+    // carries the shared Control base bundle (owner "Control" — the bare DP
+    // names), so it resolves the same DPs the SplashWindow's Labels use. No
+    // `Content` is authored — the GLOBAL bare-name `Content` DP (owner
+    // "Window", UntypedPtr type) has no value converter, so `Content="..."`
+    // would be UnknownType (unrelated to this enum closure).
+    const std::string xaml = R"(
+<Button xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+)";
+    VamlReader reader;
+    auto root = reader.Load(xaml);
+    REQUIRE(root != nullptr);
+
+    // WPF ordinals: HorizontalContentAlignment { Left=0, Center=1, Right=2,
+    // Stretch=3 } (Control.cs -> HorizontalAlignment); VerticalContentAlignment
+    // { Top=0, Center=1, Bottom=2, Stretch=3 } (Control.cs -> VerticalAlignment).
+    // Center == 1 in both.
+    auto* button = dynamic_cast<UIElement*>(root.get());
+    REQUIRE(button != nullptr);
+    REQUIRE(read_int(*button, "HorizontalContentAlignment") == 1);
+    REQUIRE(read_int(*button, "VerticalContentAlignment") == 1);
+}
+
 TEST_CASE("S600: enum domain registry carries WPF-true ordinals for the audited set")
 {
     // The registry is the authoritative declaration table; assert the WPF-true
@@ -128,6 +161,21 @@ TEST_CASE("S600: enum domain registry carries WPF-true ordinals for the audited 
     const auto* vAlign = EnumDomainRegistry::global().try_find("VerticalAlignment");
     REQUIRE(vAlign != nullptr);
     REQUIRE(vAlign->count == 4);
+
+    // A1 A1 catalog closure: the Control content-alignment DPs are Int32 with a
+    // declared enum domain (added THIS step). WPF Control.cs types them as
+    // HorizontalAlignment/VerticalAlignment, so they share those members.
+    const auto* hcAlign = EnumDomainRegistry::global().try_find("HorizontalContentAlignment");
+    REQUIRE(hcAlign != nullptr);
+    REQUIRE(hcAlign->count == 4);
+    // Center == member index 1 (the real SplashWindow form).
+    REQUIRE(hcAlign->memberValues[1] == 1);
+
+    const auto* vcAlign = EnumDomainRegistry::global().try_find("VerticalContentAlignment");
+    REQUIRE(vcAlign != nullptr);
+    REQUIRE(vcAlign->count == 4);
+    // Center == member index 1 (the real SplashWindow form).
+    REQUIRE(vcAlign->memberValues[1] == 1);
 }
 
 // ---------------------------------------------------------------------------

@@ -228,6 +228,31 @@ void register_builtin_enum_domains()
             {"Top", 0}, {"Center", 1}, {"Bottom", 2}, {"Stretch", 3},
         }));
 
+    // HorizontalContentAlignment { Left=0, Center=1, Right=2, Stretch=3 } — the
+    // Control-base content-alignment DP. WPF Control.cs declares
+    // HorizontalContentAlignment as HorizontalAlignment
+    // (System.Windows.Controls.Control), so its members are the SAME set+ordinals
+    // as HorizontalAlignment (FrameworkElement.cs:28). The Control DP is
+    // registered by its BARE name (Element.cpp:1159, owner "Control"), which is
+    // exactly what convert_int32_for_dp sees via dp.property_id().name() — so the
+    // domain is keyed by that bare name. A1 A1: SplashWindow's real
+    // `HorizontalContentAlignment="Center"` previously threw MalformedValue.
+    registry.register_domain("HorizontalContentAlignment",
+        make_domain("HorizontalContentAlignment", {
+            {"Left", 0}, {"Center", 1}, {"Right", 2}, {"Stretch", 3},
+        }));
+
+    // VerticalContentAlignment { Top=0, Center=1, Bottom=2, Stretch=3 } — the
+    // Control-base content-alignment DP. WPF Control.cs declares
+    // VerticalContentAlignment as VerticalAlignment, so its members are the SAME
+    // set+ordinals as VerticalAlignment (FrameworkElement.cs:57). Keyed by the
+    // bare DP name (Element.cpp:1163, owner "Control"). A1 A1: SplashWindow's
+    // real `VerticalContentAlignment="Center"` previously threw MalformedValue.
+    registry.register_domain("VerticalContentAlignment",
+        make_domain("VerticalContentAlignment", {
+            {"Top", 0}, {"Center", 1}, {"Bottom", 2}, {"Stretch", 3},
+        }));
+
     // Visibility { Visible=0, Hidden=1, Collapsed=2 } (UIElement.cs)
     registry.register_domain("Visibility",
         make_domain("Visibility", {
