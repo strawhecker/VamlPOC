@@ -3145,6 +3145,113 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 - S621 dep:S620  PLACEHOLDER BRUSH/VALUE seeding root B2: background/foreground/brush-bound values resolve to a visible default (not transparent) so the retained render path shows layout structure. Seed derived from the property path, deterministic and reproducible. **[DONE — S11q S621 root B2: same seam upgraded TYPE-AWARE on the TARGET DP's declared bound type (metadata().boundType() — TryGet(ext.key)): Color-typed Background -> a deterministic OPAQUE non-black color (FNV-name-hash -> saturated hue, alpha 1.0); BrushId-typed Foreground/Fill/BorderBrush -> a NON-ZERO id (never the transparent/black 0); Double Opacity -> 1.0 (fully visible) + non-zero lengths; Int32/Int64/Thickness/GridLength -> non-zero defaults. seed_value_for_type + seed_typed_bindings + seed_name_hash/seed_visible_color. Same doc -> same seed (reproducible). VIEWER-ONLY zero lib change. run_viewer_seed_plan lands the visible fill + full Opacity on the retained-render path. Test ViewerSeedBrush_s621_test.cpp (vaml-core). BOTH CI LANES green (verify_s11q620.cmd + clang-debug). ZERO new locks; ZERO MINIMAL REAL.]**
 - S622 dep:S621  VIEWER-GROWTH(11q) + GATE: the seed-context is exercised on the previously-black corpus files (Splash/OverlayWindow/ShadowLocationIndicator/SignalDisplayView/ReadingControl/etc.) — they must render with discernible layout. Full build + ctest BOTH lanes green (viewer-side; lib suite unchanged green). SURVIVOR block in progress.md. ZERO new locks (ADR-018). Checkpoint: last = S11q, next = S520 (Sprint 11h). **[DONE — S11q S622 VIEWER-GROWTH + GATE: the seed-context is exercised on an IN-REPO doc (sample.seed.vaml) reproducing the EXACT failure class of the previously-black external corpus files (bound-but-DATA-EMPTY {Binding} text + background/foreground, NO VM) — vaml_viewer/viewer_growth_s11q.h (ADR-021 seam: run_viewer_growth_s11q_plan = load -> SEED -> BindExtensions -> finalize + viewer_growth_s11q_render_plan = the S212 encode_visual_slice) + the S222_1 reload path now injects the seed (bind_and_render -> run_viewer_seed_plan seedEnabled=true). The seeded doc renders NON-DEGENERATE items (visible placeholder text + opaque Background fill) — the DISCERNIBLE-LAYOUT proof. FULL build + ctest BOTH CI LANES green from first principles: windows-msvc (build/verify_s11q622.cmd msvc-debug warning-as-error clean + ctest 4/4) + ubuntu-clang (/mnt/hgfs/VamlPOC clang-debug warnings==0 + ctest 4/4). SURVIVOR block in progress.md. ZERO new locks (ADR-018). ZERO MINIMAL REAL (permanent kept-and-extended ADR-021 viewer seams; the S440–S449 app-shell runway is the named forward consumer). Checkpoint: last = S11q, next = S520 (Sprint 11h).]**
 
+## Sprint 11r — UI-compliance test queue (every UI-affecting surface as a step; each step ends with CONFIRMED content shown on the UI)  [token S640+]
+> **WHY THIS SPRINT EXISTS (a direct corrective to the Sprint-11 outcome — written into the roadmap, not a
+> silent apology):** the recurring failure across 20+ gap sprints was that UI work kept landing with NO visible
+> proof — "text isn't on the screen", "splash renders black", "vector logo doesn't draw". That is the exact
+> mistake identified at the very first roadmap conversation ("you argued waiting until sprint 11 to see
+> anything on the screen") and it recurred. Sprint 11r ends that pattern structurally: from this sprint
+> forward, EVERY step that touches the UI MUST end with **confirmed content actually shown on the UI**,
+> verified by a **UI-compliance scanner** — not by "it builds and ctest is green". This is the
+> `ALWAYS-SEE-IT-ON-SCREEN` contract, baked in.
+>
+> **THE SCANNER (the novel, central mechanism — the "how do we know the UI is right?" answer).** Unit tests
+> cannot prove pixels the way a display does. Sprint 11r introduces a **reproducible void that the UI must
+> fill**: a scanner that (a) renders the authored `.xaml` through the REAL retained render path (offscreen /
+> windowed), (b) **scrapes the rendered UI for compliance** against the desired outcome declared in the same
+> `.xaml` (coordinates + pixel information / element presence / draw-item counts + positions), and (c)
+> **compares to the expected** result, PASS/FAIL. Per the driver's standing guidance: "you must include a
+> scanner capability to scrape the UI for information that is compliant. the outcome file could be
+> coordinates with pixel information." Where a **pixel-exact PNG comparison** is achievable at high enough
+> fidelity, that is one authoritative path (S.Deferred-PNG); otherwise the scanner scrapes structured
+> compliance data (draw items, element rects, colors). The driver picked the scan approach as the
+> authoritative one and explicitly authorized flexible comparison ("you do you best. we can always change it
+> later.").
+>
+> **SPRINT MECHANISM (the "one app, many files / script input" model).** This is the reverse of 11q's
+> "adjust to unknown bindings in unknown contexts": 11r is **known bindings to known types**, deterministic.
+> One test app renders N authored `.xaml` files; a script loads each, renders it, scans the display for
+> compliance, compares to the declared expected outcome, and reports per-step PASS/FAIL. It could be one app
+> with many `.xaml` files or a script that loads + confirms each. Each step Ships THREE things: (1) an
+> authored `.xaml` that ALSO declares its expected outcome, (2) the component/surface it exercises, (3) the
+> scanner assertion that proves the content is actually on the UI. Every step ends **green on both CI lanes
+> AND the content confirmed on-screen via the scanner** (the anti-grave-whistle / anti-black-screen gate).
+>
+> **GOVERNING RULES (codified, like 11k's fidelity contract):**
+> - **ALWAYS-SEE-IT-ON-SCREEN:** a sprint that touches a renderable surface is NOT DONE until the content is
+>   CONFIRMED on the UI (scanner PASS + both CI lanes green). No token, no ✅, no black-screen, no "it
+>   builds" as a substitute for on-screen proof.
+> - **KNOWN-KNOWN (not 11q):** bindings are KNOWN property paths to KNOWN VM types — no seed-guessing, no
+>   placeholder text. The data context is a real, typed VM; the binding is two-way where WPF is two-way.
+> - **THE SCANNER IS THE ORACLE:** the `.xaml` declares its expected outcome; the scanner scraps + compares;
+>   a mismatch is a FAIL with a structured report (coordinate + pixel detail), never a silent accept.
+> - **THE LIST IS NOT LIMITED TO CONTROLS** (driver directive): it includes every UI-affecting surface —
+>   panels, brushes, shapes, text glyphs, AND the recently-added adorner + StickyNote surfaces — ordered
+>   base-building-block → higher-level, exactly as the driver ordered ("start with a full list ... then order
+>   2+ from base building blocks up to higher level stuff").
+> - **RENDER-SURFACE CONFORMANCE:** any step that introduces/changes a renderable surface updates
+>   `docs/RENDER_SURFACE.md` + re-runs the validator at that step (never silent, NO-GAP).
+> - **ZERO new locks (ADR-018), ZERO MINIMAL REAL, ZERO invented names** (all WPF-real per the 11k-7 audit).
+>
+> **VIEWER GROWTH (anti-grave-whistle):** this sprint's growth is intrinsic — every step's scanner CONFIRMS
+> content in the live/retained render path (the viewer's generic renderer or the scanner's offscreen
+> reproduction). No token = no ✅.
+> STATUS: **ONGOING** — S640 (Image + Source) is the first step (the driver's explicit #1), then the scanner
+> (S641), then bindings + data context (S642), then the run→scan→compare script (S643), then the ordered
+> control queue (S644+). Each step flips DONE here with "BOTH CI LANES GREEN + scanner/on-screen CONFIRMED".
+>
+> - S640 dep:S622  **IMAGE + SOURCE — the driver's explicit FIRST step** (the exact thing that keeps failing
+>      transparent/black in the live viewer): author `<Image Source="..."/>` so a rasterized asset (PNG SVG)
+>      is loaded through the S483/S202_1 icon-asset pipeline, placed at its layout rect, and its quad ACTUALLY
+>      drawn on the rendered surface. Register the BARE `Source` DP (the reader resolves a bare attribute key
+>      by bare name; the current only-registration is dotted `Image.Source`, so `Source="..."` threw
+>      `unknown property 'Source'`). The scanner confirms the authored image is visibly on the UI (its rect +
+>      non-default pixels at that location). XAML + component (the Image→atlas→quad draw) + scanner assertion;
+>      both CI lanes green + on-screen confirmed. [Driver: "the first is Image + source."]
+> - S641 dep:S640  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on): the
+>      pull/render/scan/compare loop. Renders an authored `.xaml` through the REAL retained render path, then
+>      SCRAPES the rendered UI for compliance — producing a structured outcome (element/draw-item presence,
+>      coordinates, pixel/color information at specific locations) — then COMPARES to the expected outcome
+>      declared in that `.xaml`. Telescope: a `ScanReport` (pixel/element grid samples) + a
+>      `compliance_compare(actualScan, expectedDecl) -> PASS/FAIL(per-datum detail)` + a headless seam that
+>      needs no live window. ZERO new locks. PNG bit-match (S.Deferred-PNG) stays the upgrade path when
+>      fidelity allows; the structured scan is authoritative now.
+> - S642 dep:S641  **KNOWN-TYPE BINDINGS + DATA CONTEXT** (known bindings to known types — the 11r spine,
+>      NOT 11q): a per-step typed VM (real `ObservableObject` + `PROPERTY_BINDABLE`) is set as the reader's
+>      `DataContext`; `{Binding Path}` resolves known paths to known types, one-way live where WPF is one-way,
+>      two-way where WPF is two-way. The scanner confirms the BOUND value is what appears on the UI (not a
+>      seed placeholder). Multi-path + two-way included per type.
+> - S643 dep:S642  **RUN → SCAN → COMPARE SCRIPT** (the one app / many files / script-input driver): a CLI
+>      that loads an authored `.xaml`, renders it, scans the display, compares to the declared outcome, and
+>      reports per-step PASS/FAIL + the outcome file (coordinates + pixel info). The enumeration entry that
+>      ties S640–S642 together for every control in the queue.
+> - S644 dep:S643  **BAREBONE RENDER QUEUE, base→high — step 1 of the ordered list: TEXT GLYPHS** (`TextBlock`
+>      real glyphs via the S409_1/S400 SDF path — the standing "text not on screen" defect closure). The
+>      scanner confirms authored text is READABLE on the UI (glyph pixels present at the text rect), not a
+>      nominal full-atlas quad. [Base building block: text underlies every control.]
+> - S645 dep:S644  Base building block — **BRUSHES/COLOR**: background/foreground/fill resolve + render at
+>      the right color + rect (opaque + partial alpha via the S11o transparency surface). Scanner: pixel color
+>      at a declared point.
+> - S646 dep:S645  Base building block — **PANELS / LAYOUT** (Grid/StackPanel/DockPanel/Canvas/WrapPanel):
+>      the scanner confirms each panel's declared child layout coordinates (elements land where layout says).
+> - S647 dep:S646  **SHAPES + BORDER** (Rectangle/Ellipse/Line/Border): drawn geometry at declared rects.
+> - S648 dep:S647  **ICON** (the S483/S400_1/S202_1 asset control): authored `IconKey`/`Source` renders the
+>      rasterized asset visibly. (Pairs with S640 on the asset path.)
+> - S649 dep:S648  **BUTTONS / INPUT CONTROLS**: Button (click → command → visible state change), TextBox
+>      (two-way), CheckBox, RadioButton, Slider, ProgressBar, PasswordBox, ScrollViewer — each confirmed with
+>      an interaction the scanner can observe (state change on the UI).
+> - S650 dep:S649  **SELECTION + CONTAINER CONTROLS**: ComboBox, ListBox/ListView (+ DataTemplate items),
+>      TabControl, Expander, GroupBox, Menu/MenuItem/ContextMenu, ToolTip/Popup, GridSplitter, DataGrid —
+>      each renders + (where applicable) selection state confirmed.
+> - S651 dep:S650  **RECENTLY-ADDED SURFACES (driver: "not limited to controls")**: **StickyNote** (11k-A,
+>      the adorner-anchored annotation note) + **Adorner/AdornerLayer** (11n-6) — the scanner confirms the
+>      adorner / anchored sticky note is VISIBLE at its declared location + hit-testable (S595a overlay
+>      pass-through/capture).
+> - S652 dep:S651  **FULL QUEUE GATE + SURVIVOR(11r)**: run → scan → compare passes for EVERY queued surface
+>      in one consolidated run; both CI lanes green; RENDER_SURFACE.md + the validator green; grep-audit
+>      ZERO MINIMAL REAL / ZERO stubs; SURVIVOR block in progress.md (every step's on-screen proof recorded).
+>      Checkpoint advances: last = 11r, next = S520 (Sprint 11h).
+
 ---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
 > HARD GOAL 3 (sealed): to close out the lib we implement a means of importing 3rd-party libs and/or DLLs.
