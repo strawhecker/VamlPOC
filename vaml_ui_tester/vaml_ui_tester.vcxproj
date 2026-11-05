@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{9D3B7A2F-8C41-4E6A-B2D0-1C5E6F3A8B10}</ProjectGuid>
+    <RootNamespace>vaml_ui_tester</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <!--
+    vaml_ui_tester (Windows) — the DEDICATED Sprint 11r UI-compliance tester.
+    CONSUMER-APP PATTERN (ADR-021): includes ONLY the PUBLIC include roots, never
+    an internal header under src/<lib>/src. Compiles its main.cpp + the SHARED
+    load_file.cpp seam (single source of truth, from vaml_viewer/).
+      * vaml-core public include root   : $(ProjectDir)..\src\core\include
+      * vaml-vulkan public include root : $(ProjectDir)..\src\vulkan\include
+      * vaml-presentation include root  : $(ProjectDir)..\src\presentation\include
+      * vaml-tools public include root  : $(ProjectDir)..\src\tools\include
+      * vendored Vulkan + GLFW headers  : $(ProjectDir)..\third_party\deps\{vulkan-headers,glfw}\include
+      * the shared vaml_viewer seam dir  : $(ProjectDir)..\vaml_viewer (load_file.h + app.h)
+    Links (x64 only, matching the repo's msvc-debug build):
+      * vaml-presentation.lib + vaml-vulkan.lib + vaml-tools.lib + vaml-core.lib
+        (the msvc-debug static libs; /MTd to match — avoids LNK2038 mismatch)
+    S640 scaffold: takes a `.xaml` argv, loads it through the REAL path (the
+    BARE Source DP resolution), exits 0/1/2. The scanner's pull/render/scan/
+    compare power is S641.
+  -->
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;$(ProjectDir)..\src\presentation\include;$(ProjectDir)..\src\tools\include;$(ProjectDir)..\vaml_viewer;$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\presentation\vaml-presentation.lib;$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\tools\vaml-tools.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\src\core\include;$(ProjectDir)..\src\vulkan\include;$(ProjectDir)..\src\presentation\include;$(ProjectDir)..\src\tools\include;$(ProjectDir)..\vaml_viewer;$(ProjectDir)..\third_party\deps\vulkan-headers\include;$(ProjectDir)..\third_party\deps\glfw\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(ProjectDir)..\build\msvc-debug\src\presentation\vaml-presentation.lib;$(ProjectDir)..\build\msvc-debug\src\vulkan\vaml-vulkan.lib;$(ProjectDir)..\build\msvc-debug\src\tools\vaml-tools.lib;$(ProjectDir)..\build\msvc-debug\src\core\vaml-core.lib;$(ProjectDir)..\build\msvc-debug\glfw\src\glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="..\vaml_viewer\load_file.cpp" />  <!-- S221: the shared file->tree seam (single source of truth) -->
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\vaml_viewer\load_file.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="sample.image.xaml" />  <!-- S640: the authored IMAGE + SOURCE sample + declared expected outcome -->
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

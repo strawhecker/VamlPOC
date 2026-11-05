@@ -95,6 +95,13 @@ vaml_add_library(vulkan
     # cached icon provider, with the deliberate fallback glyph + structured
     # diagnostic for an unresolved asset (ADR-015 NO-GAP). Pure + headless.
     src/icon/IconGlyphPlan.cpp
+    # S640 (dep:S622) — Sprint 11r's IMAGE + SOURCE first step: the RENDER-side
+    # Image seam (the S400_1 PreserveQuad path specialized for the Image control,
+    # which rides the S483/S202_1 icon-asset pipeline). Turns the Image control's
+    # DP-driven inputs (bare Source + IconKey + Stretch) into the S206 draw item
+    # via the S213_1 best-fit + the cached provider, with the deliberate fallback
+    # glyph + structured diagnostic for an unresolved asset (ADR-015 NO-GAP).
+    src/icon/ImageGlyphPlan.cpp
     # 11k-4 (dep:11k-3/S460) — the VECTOR RENDER seam: rasterizes an authored
     # core Drawing/Geometry into S202 atlas-tile RGBA8 bytes + emits the S206
     # textured-quad DrawItem (the "drawn via the S202 atlas mesh"). Pure +

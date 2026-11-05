@@ -1036,6 +1036,15 @@ add_executable(vaml-vulkan-tests
     # the S205_1 Monochrome tint path + the DELIBERATE fallback glyph + the
     # structured diagnostic (ADR-015 NO-silent). Pure + headless.
     IconGlyphPlan_test.cpp
+    # S640 (dep:S622) — Sprint 11r IMAGE + SOURCE (the driver's FIRST step): the
+    # BARE Source DP surface (the S640 headline — pre-S640 only dotted
+    # "Image.Source" was registered, so authored `Source="..."` threw
+    # `unknown property 'Source'`) + the ImageGlyphPlan render seam (the
+    # S400_1 PreserveQuad path for the Image control, which rides the
+    # S483/S202_1 icon-asset pipeline): the S213_1 best-fit full-color quad +
+    # the DELIBERATE fallback glyph + the structured diagnostic (ADR-015
+    # NO-silent), the degenerate-box no-crash. Pure + headless.
+    ImageGlyphPlan_test.cpp
     # 11k-4 (dep:11k-3/S453/S460) — BRUSHES + VECTOR-DRAWING RESOURCES (the
     # corpus's largest omitted volume — the Icons/*.xaml family): the authored
     # Geometry/Drawing/brush resource authoring round-trip via x:Key + the
@@ -1373,6 +1382,17 @@ add_executable(vaml-presentation-tests
     # (ADR-018) + the SURVIVOR gate. [both-apps, not CI]: the LIVE window display
     # stays the on-machine local gate (recorded NO-GAP).
     ViewerGrowthS11q_test.cpp
+    # S640 (dep:S622) — Sprint 11r IMAGE + SOURCE (the driver's explicit FIRST
+    # step — the exact thing that keeps failing transparent/black in the live
+    # viewer): an authored `<Image Source="..."/>` loads through the REAL
+    # retained VamlReader (the BARE `Source` DP resolution — no more
+    # `unknown property 'Source'`), reaches the S121 tree + the S212 render
+    # slice, and the S640 Image->atlas->quad render seam (build_image_draw_item)
+    # emits a NON-degenerate full-color image quad at the image's box. Compiles
+    # the ADR-021 seam viewer_growth_s640.h. [both-apps, not CI]: the LIVE window
+    # + the S209 texture-binding stay the on-machine gate; the S641 scanner
+    # confirms the image's rect + non-default pixels (recorded NO-GAP).
+    ViewerImage_s640_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)

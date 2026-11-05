@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  sample.splash.combined.xaml — SELF-CONTAINED re-combination of the user's three
+  CardiMapper sources, with NO bindings and NO {StaticResource} dependencies, so the
+  vaml_viewer can load + render it directly.
+
+  Combined from:
+    1) ...\1_CardiMapper.App\Views\SplashWindow.xaml          (the Window shell)
+    2) ...\1_CardiMapper.App\Views\Overlay\SplashUserControl.xaml (the grey StackPanel + text)
+    3) ...\Enterprise\CardiMapper.Resources\Icons\AccupulseLogoSplash.xaml (the vector logo)
+
+  Substitutions made (theme lookups -> literal values):
+    - PrimaryBrush.Gray800  -> #FF424242  (the grey background you see in the live app)
+    - PrimaryBrush.Gray100  -> #FFF5F5F5  (the near-white text — see NOTE)
+    - AppFontFamily         -> Tahoma
+    - {Binding Name}        -> the S11q SEED binding on TextBlock.Text (the viewer's
+                               bound DP; seed shows the property NAME as placeholder text)
+    - {Binding Version}     -> the S11q SEED binding on TextBlock.Text (same seed)
+
+  RENDER-TRANSLATION NOTES (vaml_viewer constraints, verified empirically):
+    - The viewer's Background DP accepts a #RRGGBBAA literal (converter exists);
+      the Foreground/Fill DP is BrushId (an int id) with NO #RRGGBBAA literal
+      converter (parse error "no value converter registered ... UnknownType").
+      => the window/panel GREY background IS set; the near-white text Foreground
+         is OMITTED so the doc parses (the text renders with its default brush).
+    - FontFamily="Tahoma" + FontSize DO parse and render.
+    - The vector AccupulseLogoSplash was moved OUT of the view into standalone
+      SVG asset files (assets/face-blowing-a-kiss-{36,64}.svg) and is referenced
+      by Source — the Image control's direct byte-asset DP. The viewer's asset
+      pipeline (S202_1 nanosvg raster -> atlas -> quad) renders the rasterized
+      logo; the grey box + the two lines of title text are the splash layout.
+
+  Self-contained: no StaticResource, no bindings, no untranslatable vector drawing.
+-->
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Width="772"
+    Height="661"
+    Background="#FF424242">
+    <StackPanel Background="#FF424242">
+        <TextBlock
+            FontFamily="Tahoma"
+            FontSize="34"
+            Margin="0,190,0,0"
+            HorizontalAlignment="Center">
+            Binding Name
+        </TextBlock>
+        <TextBlock
+            Text="Binding Version"
+            FontFamily="Tahoma"
+            FontSize="18"
+            Margin="0,24,0,0"
+            HorizontalAlignment="Center"/>
+        <!-- AccupulseLogoSplash (vector DrawingImage) omitted — see NOTE above. -->
+        <Image Source="assets/face-blowing-a-kiss-36.svg" Width="201" Height="201" HorizontalAlignment="Center"/>
+        <Image Source="assets/face-blowing-a-kiss-64.svg" Width="201" Height="201" HorizontalAlignment="Center"/>
+    
+</StackPanel>
+</Window>

@@ -30,9 +30,13 @@
 #include <vaml/assert/Shouldly.h>
 
 #include "vaml/core/Element.h"            // register_builtin_elements
+#include "vaml/core/ValueConverter.h"      // register_builtin_converters (the compiled-open S7 reader's converter table)
 #include "vaml/core/UIElement.h"
 #include "vaml/vulkan/ui/UiScene.h"       // DrawItem / DrawItemKind
 #include "viewer_growth_s11q.h"           // S622 — the ADR-021 consumer seam
+
+#include "load_file.h"        // S221 seam — load_text (the REAL file->tree loader), under the splash-all-black FIX
+#include "compiled_open.h"    // the compiled-open seam (load_text's compiled sibling), under the FIX
 
 #include <string>
 #include <vector>
@@ -108,4 +112,93 @@ TEST_CASE("S622: the seeded sample renders NON-DEGENERATE items (discernible lay
     // the TextBlock placeholders emit their Text glyph draws (the visible text).
     SHOULD(ShouldlyIntegral(count_kind(items, vaml::vulkan::ui::DrawItemKind::SolidRect) >= 1 ? 1 : 0).ShouldBe(1));
     SHOULD(ShouldlyIntegral(count_kind(items, vaml::vulkan::ui::DrawItemKind::TextGlyph) >= 1 ? 1 : 0).ShouldBe(1));
+}
+
+// ---------------------------------------------------------------------------
+// 3. STATIC (non-seeded) doc — the splash-all-black FIX proof (plain open -> render)
+// ---------------------------------------------------------------------------
+// The user-facing bug scope is broader than the S11q SEED class: PLAIN static
+// (non-binding) docs — SplashWindow.xaml, sample.corpus.xaml, sample.s595a.xaml,
+// sample.tail.xaml, sample.xaml — ALL rendered black because the plain file->tree
+// seam (load_text / load_file) returned ONLY the root and NEVER concluded the
+// S440 hand-off (finalize_visual_tree): the local VamlReader was destroyed at
+// return, freeing every child it owned in retained_, so the renderer walked an
+// EMPTY S121 visual tree. The FIX: load_text + the scan path + the compiled-open
+// path now call finalize_visual_tree() BEFORE returning, so the plain-open root
+// OWNS its declared descendants and renders them.
+//
+// This is the "establish something SIMPLE renders on screen" gate: a minimal
+// STATIC doc with an OPAQUE fill + explicit Text, loaded through the REAL
+// load_text seam (no seed, no VM), must encode to NON-DEGENERATE DrawItems.
+
+namespace {
+
+// A minimal static doc: an opaque StackPanel fill + an explicit-text TextBlock.
+// No {Binding}, no VM — the plain-open failure class.
+const std::string kStaticSample =
+    "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
+    "Width=\"440\" Height=\"360\" Background=\"#FF2E7AFF\">"
+    "<TextBlock Text=\"HELLO\" FontSize=\"28\" Margin=\"8\"/>"
+    "</StackPanel>";
+
+} // namespace
+
+TEST_CASE("S11q-FIX: a STATIC doc loads via load_text with its children in the S121 tree")
+{
+    vaml::register_builtin_elements();
+    vaml::LoadResult r = vaml::load_text(kStaticSample);
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.ok)).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(r.root != nullptr ? 1 : 0).ShouldBe(1));
+    auto* uiRoot = dynamic_cast<UIElement*>(r.root.get());
+    SHOULD(ShouldlyIntegral(uiRoot != nullptr ? 1 : 0).ShouldBe(1));
+    // The S440 hand-off concluded: the StackPanel root now CARRIES its declared
+    // TextBlock child in the S121 visual tree (pre-FIX it carried ZERO children —
+    // every child was owned by the destroyed reader and never transferred).
+    SHOULD(ShouldlyIntegral(uiRoot->child_count() != 0 ? 1 : 0).ShouldBe(1));
+}
+
+TEST_CASE("S11q-FIX: the static doc RENDERS NON-DEGENERATE items via the render-plan")
+{
+    vaml::register_builtin_elements();
+    vaml::LoadResult r = vaml::load_text(kStaticSample);
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.ok)).ShouldBe(1));
+
+    std::vector<vaml::vulkan::ui::DrawItem> items;
+    const std::size_t visible =
+        viewer_growth_s11q_render_plan(r.root.get(), items, 440.0f, 360.0f);
+    // The static doc's opaque fill + explicit text emit NON-DEGENERATE items —
+    // the DISCERNIBLE-LAYOUT proof for the plain (non-seeded) open path.
+    SHOULD(ShouldlyIntegral(visible > 0u ? 1 : 0).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(count_kind(items, vaml::vulkan::ui::DrawItemKind::SolidRect) >= 1 ? 1 : 0).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(count_kind(items, vaml::vulkan::ui::DrawItemKind::TextGlyph) >= 1 ? 1 : 0).ShouldBe(1));
+}
+
+TEST_CASE("S11q-FIX: the COMPILED open concludes the S440 hand-off (plain compiled -> render)")
+{
+    // On a host where vamlcc is available, the compiled-open seam (load_compiled_bytes
+    // / load_compiled_file) must ALSO conclude the S440 hand-off so a compiled .vbaml
+    // renders its declared children (the same all-black root cause on the compiled path).
+    vaml::register_builtin_elements();
+    vaml::register_builtin_converters();
+
+    // Compile the static doc to bytes via the in-process vamlcc (the S293 seam).
+    std::vector<std::uint8_t> bytes = vaml::viewer::compile_to_vbaml(kStaticSample);
+    SHOULD(ShouldlyIntegral(bytes.empty() ? 0 : 1).ShouldBe(1));
+    vaml::viewer::CompiledOpenResult c = vaml::viewer::load_compiled_bytes(bytes);
+    SHOULD(ShouldlyIntegral(static_cast<int>(c.ok)).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(c.root != nullptr ? 1 : 0).ShouldBe(1));
+    auto* uiRoot = dynamic_cast<UIElement*>(c.root.get());
+    SHOULD(ShouldlyIntegral(uiRoot != nullptr ? 1 : 0).ShouldBe(1));
+
+    // The S440 hand-off on the retained S7 reader (the exact step the plain
+    // compiled-open path — ViewerApp::create_compiled — concludes): transfer the
+    // decoded children into the S121 visual tree. Pre-FIX the compiled root
+    // carried ZERO children (the S7 reader owned them in its retained set).
+    if (c.reader)
+    {
+        const std::size_t transferred = c.reader->finalize_visual_tree();
+        SHOULD(ShouldlyIntegral(transferred != 0 ? 1 : 0).ShouldBe(1));
+    }
+    // The compiled root now carries its declared child in the S121 visual tree.
+    SHOULD(ShouldlyIntegral(uiRoot->child_count() != 0 ? 1 : 0).ShouldBe(1));
 }

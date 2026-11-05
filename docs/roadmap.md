@@ -3210,9 +3210,9 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 > **VIEWER GROWTH (anti-grave-whistle):** this sprint's growth is intrinsic — every step's scanner CONFIRMS
 > content in the live/retained render path (the tester's offscreen reproduction shares the S212
 > `encode_visual_slice` code path with the viewer's generic renderer). No token = no ✅.
-> STATUS: **ONGOING** — S640 (Image + Source) first (the driver's #1), S641 the scanner, S642 known-type
-> bindings + data context, S643 the run → scan → compare script, then the ONE-SURFACE-PER-STEP queue
-> (S644+). Each flips DONE here with "BOTH CI LANES GREEN + scanner/on-screen CONFIRMED".
+> STATUS: **ONGOING** — S640 (Image + Source) DONE first (the driver's #1, 11r-FIRST), S641 the scanner,
+> S642 known-type bindings + data context, S643 the run → scan → compare script, then the ONE-SURFACE-PER-STEP
+> queue (S644+). Each flips DONE here with "BOTH CI LANES GREEN + scanner/on-screen CONFIRMED".
 >
 > - S640 dep:S622  **IMAGE + SOURCE — the driver's explicit FIRST step** (the exact thing that keeps failing
 >      transparent/black in the live viewer): author `<Image Source="..."/>` so a rasterized asset (PNG SVG)
@@ -3223,6 +3223,15 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      non-default pixels at that location). XAML + component (the Image→atlas→quad draw) + scanner assertion;
 >      both CI lanes green + on-screen confirmed. [Driver: "the first is Image + source."] Also bootstrap the
 >      `vaml_ui_tester/` project skeleton here (scaffold only — its power lands at S641).
+>      ✅ DONE (11r-FIRST) — BOTH CI LANES GREEN + the Image→atlas→quad proven headless. The BARE `Source` DP
+>      resolution (the S640 headline — no more `unknown property 'Source'`) + the ImageGlyphPlan render seam
+>      (build_image_draw_item: the full-color image quad via the S213_1 best-fit + the structured fallback +
+>      diagnostic) + the NO-GAP bare/dotted Source ALIAS (the pre-S640 S486 `Image.Source=` form now reads the
+>      same logical value, no regression) + the authored `sample.image.xaml` (declares its rect+non-default
+>      pixels) + the headless Edition: `ImageGlyphPlan_test.cpp` (vulkan) + `ViewerImage_s640_test.cpp`
+>      (presentation) + the `vaml_ui_tester/` + `vaml_ui_tester-linux/` project skeletons (scaffold only — the
+>      scanner is S641). The DEVICE IconAtlas upload + the S209 texture-binding of the atlas descriptor set +
+>      the REAL framebuffer-scale + the on-screen pixel scrape stay [both-apps, not CI] + S641 (recorded NO-GAP).
 > - S641 dep:S640  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
 >      dedicated tester): the pull/render/scan/compare loop. Renders an authored `.xaml` through the REAL
 >      retained render path, then SCRAPES the rendered UI for compliance — producing a structured outcome

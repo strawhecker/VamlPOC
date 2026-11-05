@@ -20,6 +20,8 @@
 #include <vaml/vulkan/QueueFamilySelection.h>
 #include <vaml/vulkan/Swapchain.h>
 #include <vaml/vulkan/ui/SceneRenderer.h>   // ui::SceneRenderer alias (S210)
+#include <vaml/vulkan/ui/TextGlyphPlan.h>   // S409_1: build_text_glyph_items (REAL per-glyph atlas text quads)
+#include <vaml/core/TextLayout.h>          // S409_1: text_layout_plan (the wrapped layout at render size)
 
 #include <chrono>
 #include <cmath>       // S224: std::exp (the wheel->zoom factor)
@@ -149,6 +151,18 @@ ViewerApp::create_compiled(const ViewerAppConfig& config, vaml::viewer::Compiled
     auto* uiRoot = dynamic_cast<vaml::UIElement*>(compiled.root.get());
     if (!uiRoot)
         return nullptr;
+
+    // S440 hand-off (plain compiled FIX — the splash-all-black root cause on
+    // the compiled-open viewer path): `load_compiled_file` yields the root but
+    // leaves its decoded children in the retained S7 reader's owned set. The
+    // viewer's compiled path must conclude the S440 finalize so the rendered
+    // tree carries its declared children (mirrors what the S444 app-shell
+    // seam does in its own finalize_compiled_app_shell). The reader is retained
+    // afterward, so the transferred subtree stays alive for the app's lifetime.
+    if (compiled.reader)
+    {
+        (void)compiled.reader->finalize_visual_tree();
+    }
 
     return create_impl(config, std::move(compiled.root), uiRoot, std::move(compiled.reader));
 }
@@ -469,6 +483,13 @@ ViewerApp::create_impl(const ViewerAppConfig& config,
         if (!app->renderer_)
             return nullptr;
 
+        // S409_1 — install the REAL ATLAS-AWARE VisualOf so TextBlocks render
+        // their FULL multi-glyph content through the REAL SDF atlas (per-glyph
+        // quads with per-glyph atlas UVs), instead of the vertical-slice default's
+        // single nominal full-atlas glyph (which was invisible on screen). Every
+        // other element delegates to the default classifier unchanged.
+        (void)app->install_atlas_visual_of();
+
         // ---- Attach the REAL core visual tree + frame size (the soup-to-nuts producer) ----
         // ADOPT the tree into the app (unique_ptr move preserves the object, so
         // `uiRoot` stays valid — the object does not move). The host BORROWS the
@@ -608,6 +629,85 @@ bool ViewerApp::bind_and_render(const std::string& text)
         renderer_->set_frame_size(static_cast<float>(cfg_.width), static_cast<float>(cfg_.height));
         (void)renderer_->invalidate();   // the whole S5 path re-runs on the seeded bound tree
     }
+    return true;
+}
+
+bool ViewerApp::install_atlas_visual_of()
+{
+    // S409_1 — the REAL ATLAS-AWARE classifier. Requires the SDF + font atlases
+    // (built in create_impl) ready. Falls back to the default classifier (via
+    // `default_visual_of()`) when the atlases aren't available — the current
+    // behaviour, never a crash.
+    if (!renderer_ || !atlas_ || !fontAtlas_ || !sdfAtlas_)
+        return false;
+    if (!sdfAtlas_->built() || !fontAtlas_->loaded())
+        return false;
+
+    const vaml::vulkan::quad::AtlasLayout layout = atlas_->layout();
+
+    // The atlas metrics provider for build_text_glyph_items: per codepoint, the
+    // TEXT layout + per-glyph atlas UVs are derived INDEPENDENTLY (the layout
+    // uses advance only — the FontAtlas advance; the UV/render datum uses the
+    // SDR slot). We build per-glyph quads via build_text_glyph_items, so the
+    // provider reads the FONT advance + the SDF slot (tile) for each codepoint.
+    const auto metrics = [this, layout](std::uint32_t cp) -> vaml::vulkan::ui::TextGlyphRender {
+        vaml::vulkan::ui::TextGlyphRender tr;
+        const vaml::vulkan::font::GlyphSlot fs = fontAtlas_->slot_for(cp);
+        if (!fs.hasCoverage || !vaml::vulkan::font::glyph_metrics_valid(fs.metrics))
+            return tr;   // unmapped -> no quad (still occupies its advance via layout)
+        tr.advance  = fs.metrics.advance;
+        tr.hasGlyph = sdfAtlas_->has_slot(cp);
+        if (tr.hasGlyph)
+        {
+            const vaml::vulkan::font::SdfGlyph sg = sdfAtlas_->slot_for(cp);
+            tr.tileIndex = sg.tileIndex;
+            tr.cellW     = static_cast<float>(layout.tileW);
+            tr.cellH     = static_cast<float>(layout.tileH);
+        }
+        return tr;
+    };
+
+    // The layout metrics provider for text_layout_plan (core): a real advance
+    // from the FontAtlas. A non-coverage glyph still occupies its advance.
+    const vaml::TextGlyphMetrics layoutMetrics =
+        [this](std::uint32_t cp) -> vaml::TextGlyphMetric {
+        const vaml::vulkan::font::GlyphSlot fs = fontAtlas_->slot_for(cp);
+        if (!fs.hasCoverage || !vaml::vulkan::font::glyph_metrics_valid(fs.metrics))
+            return vaml::TextGlyphMetric{ 0.0f, false };
+        return vaml::TextGlyphMetric{ fs.metrics.advance, true };
+    };
+
+    renderer_->set_visual_of(
+        [layoutMetrics, metrics, layout](const vaml::UIElement& e) -> vaml::vulkan::ui::ElementVisual {
+            // A REAL TextBlock renders its full multi-glyph content through the
+            // REAL SDF atlas. Every other element -> the default classifier.
+            const auto* text = dynamic_cast<const vaml::TextBlock*>(&e);
+            if (text == nullptr)
+                return vaml::presentation::classify_merge_element(e);
+
+            vaml::vulkan::ui::ElementVisual v = vaml::presentation::classify_merge_element(e);
+            v.kind = vaml::vulkan::ui::MaterialKind::Text;
+
+            const vaml::Rect r = e.final_rect();
+            const float fs = static_cast<float>(text->font_size());
+            if (r.width <= 0.0f || r.height <= 0.0f || fs <= 0.0f)
+                return v;   // no arranged box -> nothing to draw (default is degenerate)
+
+            // The wrapped layout at the Text's available width, using REAL atlas
+            // advances (the S400 measure/wrap rule at render size).
+            const vaml::TextLayoutPlan plan = vaml::text_layout_plan(
+                text->text(), fs, r.width, layoutMetrics);
+
+            // The resolved foreground color (WPF-faithful brush read).
+            const vaml::Color fg = vaml::resolve_foreground_color(e, text->foreground());
+
+            // Emit EVERY placed + renderable glyph as a per-glyph atlas quad.
+            std::vector<vaml::vulkan::ui::DrawItem> glyphs;
+            (void)vaml::vulkan::ui::build_text_glyph_items(
+                plan, r.y, layout, metrics, fg, glyphs);
+            v.glyphs = std::move(glyphs);
+            return v;
+        });
     return true;
 }
 

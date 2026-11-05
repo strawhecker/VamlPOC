@@ -65,6 +65,7 @@
 #include <vaml/vulkan/quad/TextureAtlas.h>     // quad::TextureAtlas (S202)
 #include <vaml/vulkan/font/FontAtlas.h>        // font::FontAtlas (S203)
 #include <vaml/vulkan/font/SdfAtlas.h>         // font::SdfAtlas (S204)
+#include <vaml/vulkan/ui/TextGlyphPlan.h>      // S409_1: build_text_glyph_items (REAL per-glyph atlas quads)
 #include <vaml/vulkan/ui/UiPipeline.h>         // ui::UiPipeline (S205)
 #include <vaml/vulkan/ui/UiScene.h>            // ui::UiScene::Spec (S206)
 #include <vaml/vulkan/ui/SceneRenderer.h>      // ui::SceneRenderer (S210)
@@ -376,6 +377,16 @@ private:
     // hooks after folding a delta/zoom. The host's record_draw composes it into the
     // plan mvp next present — redraw-only, no re-encode.
     void push_view_transform();
+
+    // S409_1 — installs the REAL ATLAS-AWARE VisualOf on the renderer: a TextBlock
+    // renders its FULL multi-glyph content through the REAL SDF atlas (per-glyph
+    // quads with per-glyph atlas UVs via build_text_glyph_items over sdfAtlas_ +
+    // fontAtlas_ + the exact-grid atlas layout), instead of the vertical-slice
+    // default's single nominal full-atlas glyph (which was invisible on screen).
+    // Every other element delegates to the default classifier (classify_merge_element)
+    // unchanged. Called once after renderer_ is created. Returns false when the
+    // atlases aren't ready (the default classifier then stays — no crash).
+    bool install_atlas_visual_of();
 };
 
 } // namespace vaml::viewer

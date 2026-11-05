@@ -5087,6 +5087,18 @@ namespace {
 
 void register_image_properties()
 {
+    // BARE `Source` so the corpus authoring `<Image Source="..."/>` RESOLVES:
+    // the XAML reader resolves a bare attribute key by its BARE name on ANY
+    // DependencyObject (the S043 shared-name precedent — Text/FontSize/etc.).
+    // The prior ONLY registration was the dotted "Image.Source", which a bare
+    // `Source=` attribute does not hit, so `Source="..."` threw `unknown property
+    // 'Source'`. The reader stores the value on the canonical bare name; the
+    // Image::set_source accessor (below) reads the same bare name. (Icon's and
+    // MediaElement's Source remain dotted owner-scoped — a bare `Source=...` on
+    // them still resolves to this shared bare name via S043, WPF-observable.)
+    (void)DependencyProperty::Register(
+        "Source", ValueType::String, "Image",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
         "Image.Source", ValueType::String, "Image",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
@@ -5121,12 +5133,32 @@ Image::Image()
 VAML_CORE_EXPORT
 SetResult Image::set_source(std::string value)
 {
-    return Set(PropertyId::of("Image.Source"), Value::String(std::move(value)));
+    // S640 NO-GAP alias: the BARE `Source` and the DOTTED `Image.Source` are
+    // the SAME logical property (WPF treats `Source` on an Image identically
+    // whether authored bare or owner-qualified). The store is keyed by EXACT
+    // name (bare != dotted store entry), so an accessor round-tripping only one
+    // name breaks the other authored form (the pre-S640 `Image.Source=` read
+    // broke when S640 flipped the accessor to the bare name). Write BOTH so no
+    // matter which form the reader resolved, `source()` reads it back.
+    const SetResult r = Set(PropertyId::of("Source"), Value::String(value));
+    (void)Set(PropertyId::of("Image.Source"), Value::String(std::move(value)));
+    return r;
 }
 VAML_CORE_EXPORT
 std::string Image::source() const
 {
-    return Get(PropertyId::of("Image.Source")).get<std::string>();
+    // Read the BARE first (the S640 canonical name), then fall back to the
+    // DOTTED (the S483/S486 authored form). Both forms resolve the same logical
+    // value — the S640 NO-GAP alias.
+    const vaml::Value bare = Get(PropertyId::of("Source"));
+    if (bare.isNull() || bare.get<std::string>().empty())
+    {
+        const vaml::Value dotted = Get(PropertyId::of("Image.Source"));
+        if (dotted.isNull() || dotted.get<std::string>().empty())
+            return std::string{};
+        return dotted.get<std::string>();
+    }
+    return bare.get<std::string>();
 }
 VAML_CORE_EXPORT
 SetResult Image::set_icon_key(std::string value)

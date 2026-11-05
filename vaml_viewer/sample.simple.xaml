@@ -1,0 +1,6 @@
+<!-- sample.simple.xaml — the "something SIMPLE renders" baseline (splash-all-black FIX proof). -->
+<!-- A minimal STATIC doc: an OPAQUE StackPanel fill + an explicit-text TextBlock. No {Binding}, no VM. -->
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            Width="440" Height="360" Background="#FF2E7AFF">
+  <TextBlock Text="HELLO SIMPLE" FontSize="28" Margin="8"/>
+</StackPanel>

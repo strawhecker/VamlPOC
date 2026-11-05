@@ -65,7 +65,7 @@ resolves the vertical-slice/placeholder to full fidelity.
 | XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |
 |---|---|---|---|---|
 | `Icon` (S400_1) | `dynamic_cast<Icon>` | `Monochrome` (fallback "broken icon" glyph) | **PLACEHOLDER** (no device IconAtlas headlessly) | `S209`/`S213_1`/`S409_1` (live atlas + best-fit quad) |
-| `Image` (S483) | `dynamic_cast<Image>` | `Monochrome` (fallback glyph) | **PLACEHOLDER** (no real texture headlessly) | `S209`/`S213_1`/`S409_1` (real texture quad) |
+| `Image` (S483) | `dynamic_cast<Image>` | `Monochrome` (fallback glyph) | **PLACEHOLDER** (no device IconAtlas headlessly) | **S640** (`ImageGlyphPlan` full-color best-fit quad; live device atlas + S209 texture-binding + REAL framebuffer-scale = [s640-live] + the S641 scanner confirms rect + non-default pixels) |
 
 ### Interactive controls
 | XAML concept | Classifier arm | Vulkan material | Status | NO-GAP token |

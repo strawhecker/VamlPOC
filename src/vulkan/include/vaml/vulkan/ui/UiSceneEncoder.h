@@ -106,7 +106,17 @@ enum class MaterialKind
 struct ElementVisual
 {
     MaterialKind kind = MaterialKind::None;
-    DrawItem     item{};   // meaningful only when kind != None
+    // The element's SINGLE DrawItem (the standing contract). Meaningful only
+    // when kind != None AND `glyphs` is empty. The S206/S207 single-item arms
+    // (Solid/Border/Monochrome + the default) fill this.
+    DrawItem     item{};
+    // S409_1 — MULTI-GLYPH text: when non-empty, this REPLACES `item` — the
+    // encoder appends EVERY entry (in order) instead of `item`. A real
+    // TextBlock (whose text renders as N SDF glyph quads, one per placed +
+    // renderable codepoint) fills this via the live atlas-aware classifier
+    // (build_text_glyph_items over the real SdfAtlas metrics). All existing
+    // single-item arms leave it EMPTY — fully backward compatible.
+    std::vector<DrawItem> glyphs{};
 };
 
 // The DEFAULT, forward-looking classifier: maps a core UIElement to its render

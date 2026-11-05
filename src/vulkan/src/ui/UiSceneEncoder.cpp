@@ -308,7 +308,34 @@ void encode_visual_tree(const vaml::UIElement& root,
         //   2. SkipCollapsed: Visibility::Collapsed -> not rendered (subtree walks)
         if (element.visibility() == vaml::Visibility::Collapsed)
             return;
-        //   3. SkipDegenerate: zero/negative extent -> no draw (subtree walks)
+
+        // S409_1 — MULTI-GLYPH text: a TextBlock whose visual carries a non-empty
+        // glyph list renders EVERY glyph quad (N glyphs = N DrawItems), replacing
+        // the single `item`. The degenerate-skip rule then applies PER GLYPH
+        // (a degenerate glyph is skipped; non-degenerate ones still draw). When
+        // the glyph list is empty we fall through to the single-item contract.
+        const bool multiGlyph = !visual.glyphs.empty();
+        if (multiGlyph)
+        {
+            // S208 Opacity: fold the element's effective opacity into EVERY glyph
+            // (a zero-opacity Text renders nothing). The S208 RenderTransform+Clip
+            // fold applies per glyph too (a transformed Text clips each quad to
+            // the S124 render slot). The S511 drop-shadow is emitted once behind
+            // the glyph block (the block's z-order host).
+            const float op = static_cast<float>(effective_opacity(element));
+            append_effect_draws(element.effect(), element, visual, out);
+            for (DrawItem& glyph : visual.glyphs)
+            {
+                glyph.a *= op;
+                apply_element_render_state(element, glyph);
+                if (ui_item_degenerate(glyph))
+                    continue;  // per-glyph skip rule
+                out.push_back(glyph);
+            }
+            return;
+        }
+
+        // Single-item degenerate-skip rule (unchanged contract).
         if (ui_item_degenerate(visual.item))
             return;
 

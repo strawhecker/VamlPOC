@@ -1,0 +1,30 @@
+<!--
+  vaml_ui_tester S640 sample — IMAGE + SOURCE (the driver's explicit FIRST step
+  for Sprint 11r). The exact thing that kept failing transparent/black in the
+  live viewer: an authored <Image Source="..."/> that must load through the
+  S483/S202_1 icon-asset pipeline, be placed at its layout rect, and have its
+  quad ACTUALLY drawn on the rendered surface.
+
+  BARE `Source` DP (the S640 headline): pre-S640 only the DOTTED "Image.Source"
+  DP was registered, so a BARE `Source="..."` attribute threw
+  `unknown property 'Source'`. S640 registers the BARE `Source` DP (the reader
+  resolves a bare attribute key by bare name), so `Source="..."` RESOLVES.
+
+  DECLARED EXPECTED OUTCOME (the S641 scanner's oracle — consumed by the
+  scanner at S641, declared here per the Sprint 11r contract):
+    - element      : Image (the first authored Image under ScanRoot)
+    - source       : assets/face-blowing-a-kiss-64.svg  (a REAL rasterized SVG asset)
+    - layout rect  : x=32, y=32, w=128, h=128  (the image's arranged box)
+    - outcome      : NON-DEFAULT pixels at that rect (the rasterized SVG quad is
+                     ACTUALLY drawn — an opaque non-black/non-transparent region,
+                     NOT the transparent/black the image kept failing as)
+  The scanner (S641) will render this doc through the REAL retained render path,
+  scrape the rect for compliance, and compare to this declared outcome.
+-->
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="ScanRoot" Width="440" Height="360" Background="#FF1C1C1C">
+
+  <Image Source="assets/face-blowing-a-kiss-64.svg"
+         Width="128" Height="128" Margin="32"/>
+
+</StackPanel>

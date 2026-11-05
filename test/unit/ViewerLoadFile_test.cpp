@@ -152,6 +152,38 @@ TEST_CASE("S221: load_text maps a structured PARSE error (never silent)")
     SHOULD(ShouldlyIntegral(r.detail.empty()).ShouldBe(0)); // NEVER silent
 }
 
+TEST_CASE("S11q-DEBUG: loaded tree carries its children in the S121 visual tree (splash-all-black FIX)")
+{
+    // Regression for the "splash all black" defect: the plain file->tree seam
+    // (load_text/load_file) returned ONLY the root — the reader (a local
+    // temporary) owned every child in its retained_ set and was destroyed at
+    // return WITHOUT calling finalize_visual_tree(). The renderer walked the
+    // root's S121 visual-children list, which was EMPTY, so a bound-but-static
+    // document (SplashWindow.xaml, sample.*, etc.) rendered an empty/black
+    // tree. This test pins the S440 hand-off: the loaded Window root must now
+    // OWN its declared descendants in the S121 visual tree.
+    registerS221Properties();
+    const LoadResult r = load_text(kGolden221);
+    REQUIRE(r.ok);
+    REQUIRE(r.root != nullptr);
+
+    auto* win = dynamic_cast<Window*>(r.root.get());
+    REQUIRE(win != nullptr);
+    // Window is a single-content element: its S121 child list holds the
+    // StackPanel content (transferred by finalize_visual_tree), NOT zero.
+    SHOULD(ShouldlyIntegral(win->child_count() != 0).ShouldBe(1));
+
+    // The nested content is reachable by walking the S121 tree (not freed, not
+    // lost) — the declared Button/TextBlock grandchildren survive the reader's
+    // destruction because the parent now owns the subtree.
+    if (win->child_count() != 0)
+    {
+        vaml::UIElement* panel = win->child_at(0);
+        REQUIRE(panel != nullptr);
+        SHOULD(ShouldlyIntegral(panel->child_count()).ShouldBe(2)); // Button + TextBlock
+    }
+}
+
 TEST_CASE("11d-DEBUG: Width=\"Auto\" resolves to the auto-size NaN sentinel end-to-end")
 {
     registerS221Properties();

@@ -150,3 +150,83 @@ roadmap S600. The fail-loud cross-domain path is untouched. BOTH CI LANES green 
   recorded as the bounded S-kA-3 content-serialization surface, never an invented Xml parser.
 - No commit made (standing directive — commitit outstanding; remote build green with the 11k-A change set uncommitted,
   the driver's seat is yours).
+
+---
+
+last_command: implementit (S640 — Sprint 11r IMAGE + SOURCE, the driver's explicit FIRST step + the vaml_ui_tester project bootstrap)
+plan_digest: Author `<Image Source="..."/>` so a rasterized asset (PNG/SVG) is loaded through the S483/S202_1
+icon-asset pipeline, placed at its layout rect, and its quad ACTUALLY drawn. Register the BARE `Source` DP (the
+S640 headline — the reader resolves a bare attribute key by bare name; the prior only-dotted `Image.Source`
+registration made `Source="..."` throw `unknown property 'Source'`). ALSO bootstrap the vaml_ui_tester/ project
+skeleton here (scaffold only — its power lands at S641). BOTH CI LANES green + the Image→atlas→quad proven headless.
+**THIS SESSION: S640 DONE — IMAGE + SOURCE (11r-FIRST) + vaml_ui_tester/ + vaml_ui_tester-linux/ scaffolds.**
+
+## files_touched — S640 (this session)
+- src/core/src/Element.cpp (MOD — the earlier uncommitted bare-Source working-tree change was already present;
+  this session fixed the S486 regression it introduced): the NO-GAP BARE/DOTTED Source ALIAS — Image::set_source
+  now writes BOTH "Source" + "Image.Source" and Image::source() reads bare-then-dotted, so the S640 bare
+  `Source="..."` form AND the pre-S640 S486 dotted `Image.Source="..."` form read the same logical value (the
+  store is keyed by exact name; bare != dotted entry).
+- src/vulkan/include/vaml/vulkan/icon/ImageGlyphPlan.h (NEW) + src/vulkan/src/icon/ImageGlyphPlan.cpp (NEW): the
+  S640 IMAGE→ATLAS→QUAD render seam — build_image_draw_item (the S400_1 PreserveQuad path for the Image control,
+  riding the S483/S202_1 icon-asset pipeline + the S213_1 best-fit): unresolved -> the deliberate fallback glyph +
+  a structured S250_1 diagnostic (NEVER silent); resolved -> the full-color opaque-white image quad at the box
+  (NO Monochrome tint for Image).
+- test/unit/ImageGlyphPlan_test.cpp (NEW, vaml-vulkan-tests): 5 S640 TEST_CASEs / 40 assertions (BARE Source DP
+  surface + registered built-in; fallback + diagnostic; resolved full-color quad via the S213_1 best-fit;
+  degenerate no-crash; S213_1 select + physical_n_for drive the image side).
+- vaml_viewer/viewer_growth_s640.h (NEW): the ADR-021 viewer-growth seam (run_viewer_growth_s640_plan = Load +
+  finalize; viewer_growth_s640_image_quad locates the authored Image + runs build_image_draw_item).
+- test/unit/ViewerImage_s640_test.cpp (NEW, vaml-presentation-tests): 4 S640 TEST_CASEs / 22 assertions (authored
+  `<Image Source=.../>` loads via the REAL retained reader — no unknown-property throw; the Image reaches the
+  S121 tree with a non-degenerate box; the render seam emits the NON-degenerate full-color quad; the classifier
+  carries the Image to the S212 render slice).
+- vaml_ui_tester/main.cpp (NEW) + vaml_ui_tester/vaml_ui_tester.vcxproj (NEW) + vaml_ui_tester/sample.image.xaml
+  (NEW, declares its expected rect + non-default pixels — the S641 scanner oracle) + vaml_ui_tester-linux/
+  CMakeLists.txt (NEW) + vaml_ui_tester-linux/src/main.cpp (NEW): the DEDICATED Sprint 11r tester project
+  SKELETON (scaffold only — takes a `.xaml` arg, loads through the REAL path, exit 0/1/2; the scanner's
+  pull/render/scan/compare power is S641).
+- src/vulkan/CMakeLists.txt (MOD): + src/icon/ImageGlyphPlan.cpp.
+- test/unit/CMakeLists.txt (MOD): + ImageGlyphPlan_test.cpp (vaml-vulkan-tests) + ViewerImage_s640_test.cpp
+  (vaml-presentation-tests).
+- build/verify_s640.cmd (NEW): the two-lane CI gate (windows-msvc + ubuntu-clang) + the MINIMAL REAL grep-audit +
+  the S640 new-files presence check.
+- vaml_viewer/app.cpp (MOD — an UNUSED lambda `[this]` capture in the S222_1 reload visual_of, a pre-existing
+  clang -Werror warning): removed the `this` capture so the ubuntu-clang lane builds warning-as-error clean.
+- docs/roadmap.md (MOD): S640 marked DONE (11r-FIRST) + the Sprint 11r STATUS line updated.
+- docs/RENDER_SURFACE.md (MOD): the Image row's NO-GAP token updated to S640 (the ImageGlyphPlan full-color
+  best-fit quad; the live device atlas + S209 texture-binding + REAL framebuffer-scale + the S641 scanner
+  rect+non-default-pixels confirmation stay [s640-live] + S641).
+- progress.md (MOD): the `SPRINT 11r — SURVIVOR` block appended.
+- session-context.md (MOD): this entry.
+
+## build_status (S640 — re-verified from first principles)
+- windows-msvc: build/verify_s640.cmd -> WS BUILD OK (warning-as-error clean) + ctest 4/4 PASS + the MINIMAL REAL
+  grep-audit AUDIT-OK.
+- ubuntu-clang: /mnt/hgfs/VamlPOC clang-debug -> build clean (warnings==0) + ctest 4/4 PASS (UBUNTU-GREEN).
+- S640: ALL GREEN on BOTH CI lanes (verify_s640.cmd on windows; clang-debug on the Linux VM; the ubuntu-clang
+  unused-`this`-capture warning fixed first). The 9 new S640 test cases (5 vulkan / 4 presentation, 62 assertions)
+  pass.
+
+## next_step — S640 complete
+- **S640 (Sprint 11r step 1 — IMAGE + SOURCE) COMPLETE, both CI lanes green.** Next per the roadmap chain = **S641
+  (THE UI-COMPLIANCE SCANNER — the root capability the whole sprint rides on, lives in the DEDICATED
+  vaml_ui_tester project, NOT the viewer): the pull/render/scan/compare loop; the S640 sample.image.xaml already
+  declares its expected outcome (rect + non-default pixels) as the S641 oracle.**
+
+## notes
+- S640 authored MINIMAL-REAL-free, real permanent surface (grep-audit in verify_s640.cmd): the ImageGlyphPlan
+  render seam + the viewer_growth_s640.h seam + the vaml_ui_tester mains are REAL kept-and-extended surface —
+  NOT stubs, NOT MINIMAL REAL.
+- The S640 NO-GAP BARE/DOTTED Source ALIAS is the honest WPF model: `Source` on an Image is the same logical
+  property whether authored bare or owner-qualified. The image store is keyed by exact name (bare != dotted), so
+  set_source writes both + source() reads bare-then-dotted. This FIXED an actual regression the earlier only-bare
+  uncommitted accessor introduced (the S486 authored `Image.Source="..."` read back empty).
+- ADR-018: ZERO new locks (ImageGlyphPlan is pure CPU; the device atlas upload is once-at-import). ADR-011 held
+  (the classifier arm is UNCHANGED — Image still classifies to Monochrome with the fallback glyph headlessly,
+  mirroring Icon; the real quad is the vulkan pure seam + the live [s640-live] atlas path).
+- NO silent backfill (NO-GAP): the DEVICE IconAtlas upload + the S209 texture-binding of the atlas descriptor set
+  + the REAL last_framebuffer_scale sampling + the on-screen pixel scrape stay [both-apps, not CI] + the S641
+  scanner (recorded, never silent).
+- No commit made (standing directive — commitit outstanding; remote build green with the S640 change set
+  uncommitted, the driver's seat is yours).

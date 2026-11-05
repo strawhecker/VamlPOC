@@ -101,6 +101,19 @@ LoadResult load_text(const std::string& text)
     {
         VamlReader reader;
         std::unique_ptr<DependencyObject> root = reader.Load(text);
+        // S440 hand-off (plain file-open FIX — the splash-all-black root cause):
+        // the loaded CHILDREN must be transferred into the S121 visual tree so
+        // the returned root OWNS + RENDERS its declared subtree. Previously the
+        // reader (a local temporary) owned every child in `retained_` and was
+        // destroyed at return, freeing the whole child subtree while never
+        // calling finalize_visual_tree() — so the renderer walked an EMPTY
+        // visual tree and the splash/layout rendered black. `finalize_visual_tree()`
+        // transfers ownership into the parent (bottom-up) so the returned root
+        // survives the reader's destruction and carries real children.
+        if (root != nullptr)
+        {
+            (void)reader.finalize_visual_tree();
+        }
         return {true, std::move(root), FileLoadError::None, {}, {}};
     }
     catch (...)
@@ -122,6 +135,10 @@ LoadResult load_scan_text(const std::string& text)
 
         if (root != nullptr && reader.issues().empty())
         {
+            // Same S440 hand-off as load_text: a clean scanned document's
+            // returned root must carry its children in the S121 visual tree so
+            // a later render walks the declared subtree (not an empty tree).
+            (void)reader.finalize_visual_tree();
             return {true, std::move(root), FileLoadError::None, {}, {}};
         }
         // Any collected issue (or a null root despite no issue) -> the document
