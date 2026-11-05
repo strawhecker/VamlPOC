@@ -1,0 +1,32 @@
+<!--
+  vaml_viewer Sprint 11q SEED sample — the previously-BLACK corpus failure class.
+  A bound-but-DATA-EMPTY document: text + background/foreground bound to
+  {Binding} with NO ViewModel installed (the viewer's generic reload path does
+  NOT populate a data context for arbitrary files). Before S620+S621 this
+  rendered BLACK/TRANSPARENT — every {Binding} resolved against a null data
+  context (Class B NotReadable), so the bound DPs stayed at their invisible
+  defaults.
+
+  With the S11q SEED-CONTEXT injection (viewer_seed_context.h, viewer-only, zero
+  lib change), the S620 text seed + the S621 type-aware brush/color seed make the
+  declared layout DISCERNIBLE: the {Binding}-backed Text renders the property
+  name as placeholder text, and the {Binding}-backed Background renders an OPAQUE
+  NON-BLACK visible fill (never transparent/black). This is the in-repo proof
+  that reproduces the exact failure class of the external corpus files
+  (Splash/OverlayWindow/ShadowLocationIndicator/SignalDisplayView/ReadingControl/
+  ...), which are IP-walled and NOT in this repository.
+
+  run_viewer_growth_s11q_plan (viewer_growth_s11q.h) runs THIS doc through the
+  exact code the LIVE viewer uses (Load -> SEED -> BindExtensions -> finalize ->
+  encode_visual_slice) and asserts the emitted render slice is NON-DEGENERATE
+  (discernible layout), headlessly.
+-->
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="SeedRoot" Width="440" Height="360" Margin="6"
+            Background="{Binding Bg}">
+
+  <TextBlock Text="{Binding Title}" FontSize="20" Margin="4"/>
+  <TextBlock Text="{Binding Subtitle}" FontSize="12" Opacity="{Binding Op}" Margin="4"/>
+  <Rectangle Fill="{Binding Fill}" Width="120" Height="60" Margin="4"/>
+
+</StackPanel>

@@ -258,13 +258,12 @@ private:
     // is destroyed AFTER the host that borrows it.
     std::unique_ptr<vaml::DependencyObject> root_;
 
-    // S256 — the retained VIEWER BINDING state: the app-constructed VM + the
-    // retained reader that keeps the S252 live bindings (reader-owned, per-Load)
-    // armed across the reload path. The reload binds via the S256 seam
-    // (run_viewer_binding_plan) so a VM change re-pushes the visible dim through
-    // the S243 live wire. The VM is the S250 app-owned pattern (NO DI); the app
-    // owns it, the reader borrows it.
-    std::shared_ptr<vaml::viewer::ViewerDemoViewModel> bindingVM_;
+    // S256/S11q — the retained VIEWER BINDING state: the data-context VM (the
+    // S256 ViewerDemoViewModel, or the S11q SEED ObservableObject for a generic
+    // bound-but-data-empty doc) + the retained reader that keeps the S252 live
+    // bindings (reader-owned, per-Load) armed across the reload path. The VM is
+    // the S250 app-owned pattern (NO DI); the app owns it, the reader borrows it.
+    std::shared_ptr<vaml::ObservableObject> bindingVM_;
     std::unique_ptr<vaml::VamlReader> bindingReader_;   // S256: retained reader (keeps the live bindings)
     // S440 — the retained APP-SHELL reader (the --app mode). Keeps the S120/S121
     // finalized visual tree + any S443 {Binding}/{Command} wiring armed across the
@@ -349,14 +348,14 @@ private:
     // re-invoked — NOT hand-built). Returns false if the new root is not a UIElement.
     bool apply_reload(std::unique_ptr<vaml::DependencyObject> newRoot);
 
-    // S256: loads + BINDS the source `text` through the S256 seam
-    // (run_viewer_binding_plan — the app-constructed VM + retained reader + the
-    // S252 BindExtensions markup resolution) and, on a clean bind, ADOPTS the bound
-    // tree (root_/bindingVM_/bindingReader_) + re-runs the whole S5 path (set_root +
-    // set_frame_size + invalidate). Returns false (last-good KEPT, reported) on a
-    // load/bind failure — never silent, never a blank window. This is the live
-    // "you SEE data binding appear in the window" path: the bound `{Binding Dim}`
-    // lands on the target Opacity DP, which the S208 encoder folds into the alpha.
+    // S256 + S11q: loads + BINDS the source `text` — for a doc WITHOUT a
+    // hand-authored VM the S11q SEED context (S620+S621, viewer_seed_context.h)
+    // is injected BEFORE BindExtensions so a bound-but-data-empty .xaml renders
+    // visible placeholder layout (not black/transparent); the S256 path is
+    // otherwise unchanged. On a clean bind it ADOPTS the bound tree
+    // (root_/bindingVM_/bindingReader_) + re-runs the whole S5 path (set_root +
+    // set_frame_size + invalidate). Returns false (last-good KEPT, reported) on
+    // a load/bind failure — never silent, never a blank window.
     bool bind_and_render(const std::string& text);
 
     // The SHARED stack-builder (S293 refactor): builds the whole Vulkan stack +

@@ -477,6 +477,31 @@ add_executable(vaml-core-tests
     # set_Dim re-pushes the bound Opacity). Registers no S256-unique DPs (binds
     # onto the REAL UIElement Opacity DP, S120). ADR-018 zero locks.
     ViewerBindingPlan_test.cpp
+    # S620 (dep:S605) — VIEWER SEED CONTEXT (Sprint 11q root B1): vaml_view
+    # injects a SEED/placeholder data-context (a plain ObservableObject whose
+    # properties derive deterministically from the authored single-segment
+    # {Binding} paths — the property name AS TEXT) BEFORE BindExtensions so a
+    # bound-but-data-empty .xaml renders visible placeholder content instead of
+    # black/transparent. Headless through vaml_viewer/viewer_seed_context.h
+    # (the S256 ADR-021 consumer precedent): the pure seed-render decision table,
+    # the seed function (single-segment -> name-as-text; multi-hop NOT seeded,
+    # recorded scope), the REAL plan runner (run_viewer_seed_plan) landing the
+    # seed TEXT on the target Text DP, the seed-disabled null-context control,
+    # + a load-failure reports structured detail (never silent). VIEWER-ONLY,
+    # zero lib change. ADR-018 zero locks.
+    ViewerSeedContext_s620_test.cpp
+    # S621 (dep:S620) — PLACEHOLDER BRUSH/VALUE SEEDING (Sprint 11q root B2): the
+    # S620 text-only seed is upgraded to be TYPE-AWARE on the TARGET DP's declared
+    # bound type, so a bound-but-data-empty doc whose {Binding} targets a
+    # BRUSH/OPACITY/COLOR DP renders VISIBLE (never transparent/black). Headless
+    # through vaml_viewer/viewer_seed_context.h (the S256 ADR-021 consumer
+    # precedent): the deterministic seed primitives (FNV name hash -> opaque
+    # saturated Color; non-zero BrushId; Opacity -> 1.0), seed_typed_bindings
+    # (Color-typed Background -> opaque non-black Color; BrushId-typed Foreground
+    # -> non-zero id), run_viewer_seed_plan landing the visible fill + full
+    # Opacity, + the deterministic same-doc-same-color re-run. VIEWER-ONLY, zero
+    # lib change. ADR-018 zero locks.
+    ViewerSeedBrush_s621_test.cpp
     # S329_1 (dep:S323) — VIEWER-GROWTH INTERACTIVE: a click on a rendered element
     # -> a routed ClickEvent (S320/S321) -> the markup handler (S322) -> the VM ->
     # the live binding repaints. Proves "input works in the live viewer" headlessly
@@ -1335,6 +1360,19 @@ add_executable(vaml-presentation-tests
     # captures). The LIVE window display is [both apps, not CI] RAIL 3. (The
     # CORE surface TU of the same name lives in vaml-core-tests.)
     ViewerHitTest_s595a_pres_test.cpp
+    # S622 (dep:S621) — VIEWER-GROWTH(11q): Sprint 11q's SEED-context (S620+S621)
+    # is exercised on an IN-REPO doc that reproduces the EXACT failure class of
+    # the previously-black external corpus files (Splash/OverlayWindow/
+    # ShadowLocationIndicator/SignalDisplayView/ReadingControl/…): bound-but-
+    # DATA-EMPTY text + background/foreground bound to {Binding} with NO VM.
+    # Compiles the S622 seam viewer_growth_s11q.h (ADR-021) + links
+    # vaml-presentation so the S212 encode_visual_slice render-plan is provable:
+    # the seeded doc loads + binds + finalizes, and the render slice emits
+    # NON-DEGENERATE DrawItems (visible placeholder text + opaque Background fill)
+    # — the DISCERNIBLE-LAYOUT proof. Closes Sprint 11q with ZERO new locks
+    # (ADR-018) + the SURVIVOR gate. [both-apps, not CI]: the LIVE window display
+    # stays the on-machine local gate (recorded NO-GAP).
+    ViewerGrowthS11q_test.cpp
 )
 
 vaml_apply_compiler_policy(vaml-presentation-tests)

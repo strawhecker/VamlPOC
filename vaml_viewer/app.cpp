@@ -12,6 +12,7 @@
 #include "app_shell.h"    // S440: run_app_shell_plan + AppShellPlanResult (the app-shell load seam)
 #include "app_shell_binding.h" // S443/S445: run_app_shell_binding_plan + AppShellBindingPlanResult (the interactive shell)
 #include "app_shell_compiled.h" // S444: AppShellCompiledPlanResult (the compiled app-shell load seam)
+#include "viewer_seed_context.h" // S11q: run_viewer_seed_plan (the SEED-context reload — bound-but-data-empty docs render)
 
 #include <vaml/core/UIElement.h>        // vaml::UIElement (the REAL visual tree root)
 #include <vaml/vulkan/VulkanSurface.h>
@@ -578,21 +579,23 @@ bool ViewerApp::reopen(std::unique_ptr<vaml::DependencyObject> newRoot)
 
 bool ViewerApp::bind_and_render(const std::string& text)
 {
-    // S256 — the live "you SEE data binding in the window" path: run the S256
-    // plan (app-constructed VM + retained reader + the S252 BindExtensions markup
-    // resolution). A clean bind ADOPTS the bound tree + re-runs the whole S5 path;
-    // a failure keeps the last-good tree + reports (never silent, never blank).
-    vaml::viewer::ViewerBindingPlanResult plan = vaml::viewer::run_viewer_binding_plan(text, 0.4);
+    // S11q — the SEED-context reload path (S620+S621, viewer_seed_context.h).
+    // For a generic file (the reload path with NO hand-authored VM), the SEED
+    // context injects a placeholder data-context BEFORE BindExtensions so a
+    // bound-but-data-empty .xaml renders VISIBLE placeholder layout instead of
+    // black/transparent. This is the S620+B2 injection, viewer-only (the lib
+    // binding engine is untouched). A clean bind ADOPTS the seeded bound tree.
+    vaml::viewer::ViewerSeedPlanResult plan = vaml::viewer::run_viewer_seed_plan(text, /*seedEnabled=*/true);
     if (!plan.ok || !plan.root)
     {
         std::fprintf(stderr, "vaml_viewer: reload bind failed: %s (keeping the last-good tree)\n",
                      plan.detail.empty() ? "no root" : plan.detail.c_str());
         return false;
     }
-    // ADOPT the bound tree + retain the reader/VM (they keep the S243 live wire
-    // armed; a later VM change re-pushes the visible dim).
+    // ADOPT the seeded bound tree + retain the seed VM/reader (they keep the
+    // S243 live wires armed; a later seed change re-pushes the visible value).
     root_          = std::move(plan.root);
-    bindingVM_     = std::move(plan.vm);
+    bindingVM_     = std::move(plan.seedVm);
     bindingReader_ = std::move(plan.reader);
 
     auto* uiRoot = dynamic_cast<vaml::UIElement*>(root_.get());
@@ -603,7 +606,7 @@ bool ViewerApp::bind_and_render(const std::string& text)
         if (!renderer_->set_root(uiRoot))
             return false;
         renderer_->set_frame_size(static_cast<float>(cfg_.width), static_cast<float>(cfg_.height));
-        (void)renderer_->invalidate();   // the whole S5 path re-runs on the bound tree
+        (void)renderer_->invalidate();   // the whole S5 path re-runs on the seeded bound tree
     }
     return true;
 }
