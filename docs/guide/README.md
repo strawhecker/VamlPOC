@@ -131,6 +131,16 @@ that matches your team's appetite for control vs. your tolerance for hand-rollin
 | Option | What the app gets | The app owns | The framework/library owns | Best for |
 |---|---|---|---|---|
 | **A — Raw primitives (DIY)** | The Cat-1 library objects (`Swapchain`, `RenderTarget`, viewport/scissor, `RenderPass`, `Pipeline`, …). | **Everything**: its own render loop, its own resize/recovery policy, its own composition. | The library tools only (no policy). | A team that wants total control and is willing to write its own framework. |
+
+> **`RenderTarget` (the render-to-memory buffer) — where it lives.** The library's `RenderTarget` is the
+> capability that **writes the rendered scene to an offscreen memory buffer** (a CPU-addressable
+> `ImageBuffer`), not just to a live window. It is authored as **roadmap step S640a**
+> (`vaml::presentation::RenderTarget`, `docs/roadmap.md`, Sprint 11r): the retained scene is rendered to an
+> offscreen image through the SAME Vulkan pipeline as the window (byte-faithful, zero drift), then copied
+> to the CPU `ImageBuffer` for interrogation. This is a *library* surface, so it is the one piece of the
+> Sprint-11r UI-compliance effort that belongs in this guide; the dedicated tester (`vaml_ui_tester`), the
+> WPF reference emitter, and the scan/compare/scanner logic are separate projects **outside the library**
+> and therefore outside this guide's scope. See the roadmap for the authoritative step list.
 | **B — Library tools, own composition** | The safe primitives: the **atomic swapchain** (two-generation + `SwapchainState`) + stable `RenderTarget` + viewport/scissor. | Its own loop + composition. | Only the presentation primitive + tools (no policy). | A team that wants the safe swapchain/quiesce behavior but its own scene layout. |
 | **C — The Framework umbrella (recommended)** | Ownership of **the loop, sync, resource lifetimes, recovery state machine, AND composition**. | Only *declares* pipelines/scenes + skin + accessibility. | Loop • sync • two-generation recovery • `SwapchainState` • stale-ghost • **Composition engine** (virtual-surface → panes, grow-only/crisp-max) • `OnPresentationLost`. | A team that wants WPF-style authoring. Our POCs dogfood this. |
 

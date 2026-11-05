@@ -3232,23 +3232,53 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      (presentation) + the `vaml_ui_tester/` + `vaml_ui_tester-linux/` project skeletons (scaffold only — the
 >      scanner is S641). The DEVICE IconAtlas upload + the S209 texture-binding of the atlas descriptor set +
 >      the REAL framebuffer-scale + the on-screen pixel scrape stay [both-apps, not CI] + S641 (recorded NO-GAP).
-> - S641 dep:S640  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
->      dedicated tester): the pull/render/scan/compare loop. Renders an authored `.xaml` through the REAL
->      retained render path, then SCRAPES the rendered UI for compliance — producing a structured outcome
->      (element/draw-item presence, coordinates, pixel/color information at specific locations) — then
->      COMPARES to the expected outcome declared in that `.xaml`. Telescope: a `ScanReport` (pixel/element
->      grid samples) + a `compliance_compare(actualScan, expectedDecl) -> PASS/FAIL(per-datum detail)` + a
->      headless seam that needs no live window. ZERO new locks. PNG bit-match (S.Deferred-PNG) stays the
->      upgrade path when fidelity allows; the structured scan is authoritative now.
-> - S642 dep:S641  **KNOWN-TYPE BINDINGS + DATA CONTEXT** (known bindings to known types — the 11r spine,
->      NOT 11q): a per-step typed VM (real `ObservableObject` + `PROPERTY_BINDABLE`) is set as the reader's
->      `DataContext`; `{Binding Path}` resolves known paths to known types, one-way live where WPF is one-way,
->      two-way where WPF is two-way. The scanner confirms the BOUND value is what appears on the UI (not a
->      seed placeholder). Multi-path + two-way included per type.
-> - S643 dep:S642  **RUN → SCAN → COMPARE SCRIPT** (the driver / script-input loop over the tester): a CLI
->      wrapper + a `build/run_ui_queue.*` script that loads each authored `.xaml`, runs `vaml_ui_tester` on it,
->      scans the display, compares to the declared outcome, and reports per-step PASS/FAIL + the outcome file
->      (coordinates + pixel info). The enumeration entry that ties S640–S642 together for every queued surface.
+> - S640a dep:S640  **`vaml::presentation::RenderTarget` — WRITE THE RENDER TO AN AREA OF MEMORY** (root
+>      of S641; per the driver's "write the result of rendering to an area of memory" mandate): render the
+>      retained scene (the S212 `encode_visual_slice` producer path) to an OFFSCREEN image via the SAME
+>      UiScene/Vulkan pipeline as the window (byte-faithful, zero drift — a separate pipeline is rejected),
+>      then `copy_image_to_buffer` → a CPU `ImageBuffer { width, height, std::vector<uint8_t> BGRA }`.
+>      PUBLIC ADR-021 surface beside `VamlRenderer`. Models on the driver's external oversubscribed
+>      RESIZE-BUFFER pattern (reuse an oversized buffer, avoid swapchain churn — the external-app callback,
+>      not a repo file). Same pipeline, offscreen target; REAL GPU, script-driven; the pure seams are
+>      headless-ctestable. S641 consumes the `ImageBuffer` as the ACTUAL GPU-emitted output. Recorded per
+>      the 11r ALWAYS-SEE-IT contract: the GPU-emitted buffer is the authoritative scrape source, NOT a CPU
+>      re-raster and NOT a doctest re-statement. ZERO new locks.
+> - S640b dep:S640a  **WPF REFERENCE EMITTER (Windows-authoring-only; PRECEDES S641)** — the true-WPF
+>      oracle for the 1:1 compliance compare: a small C#/WPF app renders the SAME `.xaml` offscreen via
+>      `RenderTargetBitmap` → blits to the SAME `ImageBuffer` BGRA shape (both sides converge on two raw
+>      BGRA frames → `compliance_compare`). Sits BEFORE S641 so the COMPARISON SEAM (compare API + the
+>      tolerance scaffold + the in-XAML `SCAN DECLARATION` parser) is already in place, COMMENTED OUT,
+>      during S641; S641 makes it LIVE. Ubuntu BUILDS but does NOT author WPF (the driver's stated reality).
+>      **CAPABILITY-PARITY CONTRACT (tracked separately):** the emitter MUST support the SAME capability
+>      surface as the scanner (data binding, data context, layout, styles/templates, element tree, attached
+>      properties, …) — both sides implement the IDENTICAL set; any one-sided capability is a NAMED
+>      divergence in the PARITY MATRIX (capability → our side status → WPF side status → parity yes/no →
+>      named gap), never silent.
+> - S641 dep:S640b  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
+>      dedicated tester): makes the S640b compare seam LIVE (uncomment): render an authored `.xaml` through
+>      the REAL retained render path → S640a `ImageBuffer` → SCRAPE the rendered UI for compliance
+>      (element/draw-item presence, coordinates, pixel/color at declared locations) → COMPARE to the expected
+>      outcome DECLARED IN that `.xaml`. Telescope: a `ScanReport` (pixel/element grid samples) + a
+>      `compliance_compare(actualScan, expectedDecl) -> PASS/FAIL(per-datum detail)` + a headless seam that
+>      needs no live window. **PER-QUAD DECLARATION (baked):** every S641+ test encodes its quads WITH a
+>      `tolerance` OR a `handling text|icon` in the in-XAML `SCAN DECLARATION` comment (solid geometry →
+>      tight tolerance; text → auto-locate + tolerance band; icon → presence/centroid + loose) — the compare
+>      is per-quad configurable, never a silent global bit-match. **GIMP-STYLE DIFF + TOLERANCE TOOL (in
+>      S641):** per-pixel diff, auto-locate text regions → tolerance band, color-coded diff image a human or
+>      the LLM interprets; catches "one blank, one present" as full-missing-content. PNG bit-match
+>      (S.Deferred-PNG) stays the recorded upgrade path when fidelity allows; the structured scan is
+>      authoritative now. ZERO new locks. **Desktop-only, real GPU, script-driven — NOT a CI lane** (per the
+>      driver's 11r directive; the `ubuntu-clang` lane covers library unit tests only).
+> - S642 dep:S641  **GENERIC CAPABILITY PARITY** (the typed capability catalogue both sides must implement
+>      IDENTICALLY — the "keep both in sync" mechanism): (1) **typed slots** — 10 `int` / 10 `bool` / 10
+>      `string` / 10 …; (2) **icons**; (3) **text**. EVERY S642 test step carries a **SYNC TOKEN** —
+>      "capability X introduced → update the LIB side AND the WPF-emitter side in this step → update the
+>      parity matrix → no drift" — the concrete mechanism enforcing that new things land on BOTH sides at
+>      the same step (never one-sided).
+> - S643 dep:S642  **TOOL SMOKE TEST** — ONE `.xaml` using ONE of each type (1 int, 1 bool, 1 string, 1 icon,
+>      1 text) to prove the tooling works end-to-end through the compare (NOT all 10 of each), so a parity
+>      failure is ATTRIBUTABLE (either a capability is broken or the tooling is — separated). This
+>      independently proves the run → scan → compare script over the tester before the S644+ queue.
 >
 > ---
 > ### THE ONE-SURFACE-PER-STEP QUEUE (S644+ — base building block → higher, ONE per step)
