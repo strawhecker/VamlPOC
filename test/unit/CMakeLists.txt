@@ -1393,7 +1393,17 @@ add_executable(vaml-presentation-tests
     # + the S209 texture-binding stay the on-machine gate; the S641 scanner
     # confirms the image's rect + non-default pixels (recorded NO-GAP).
     ViewerImage_s640_test.cpp
-)
+    # S640a (dep:S640) — OFFSCREEN RENDER HOST (headless Rail 1): the pure decision
+    # seams of the vaml::presentation::RenderTarget (the S641 compliance scanner's
+    # authoritative GPU-emitted scrape source) — ImageBuffer + image_buffer_bytes,
+    # offscreen_format_for (the SRGB zero-drift pairing), offscreen_extent_at (the
+    # oversized-buffer clamp/guard), resize_buffer_decision (reuse-within-capacity vs
+    # grow-on-exceed), image_buffer_ensure_capacity (the external-app RESIZE-BUFFER
+    # reuse-never-shrink contract), offscreen_copy_region (the rowPitch-faithful copy),
+    # render_target_loop_steps. Headless, NO Vulkan runtime — both CI lanes. The REAL
+    # GPU render_to (record -> copy_image_to_buffer -> ImageBuffer) is the S641
+    # script-driven [both apps, not CI] lane, recorded NO-GAP.
+    RenderTarget_s640a_test.cpp)
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
 

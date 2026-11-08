@@ -172,6 +172,13 @@ VulkanLoader::VulkanLoader()
     vkCmdPipelineBarrier                     = reinterpret_cast<PFN_vkCmdPipelineBarrier>(resolve("vkCmdPipelineBarrier"));
     vkCmdCopyBuffer                          = reinterpret_cast<PFN_vkCmdCopyBuffer>(resolve("vkCmdCopyBuffer"));
     vkCmdCopyBufferToImage                   = reinterpret_cast<PFN_vkCmdCopyBufferToImage>(resolve("vkCmdCopyBufferToImage"));
+
+    // ---- S640a offscreen-render entry points ----
+    // The recorded S162..S200 "expanded by later sprints" continuation (S640a
+    // RenderTarget): bind the two entry points the offscreen image->buffer read-back
+    // needs. has_offscreen_loader() is the S640a gate.
+    vkCmdCopyImageToBuffer                   = reinterpret_cast<PFN_vkCmdCopyImageToBuffer>(resolve("vkCmdCopyImageToBuffer"));
+    vkGetImageSubresourceLayout              = reinterpret_cast<PFN_vkGetImageSubresourceLayout>(resolve("vkGetImageSubresourceLayout"));
 }
 
 VulkanLoader::VulkanLoader(VulkanLoader&&) noexcept = default;

@@ -3232,7 +3232,7 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      (presentation) + the `vaml_ui_tester/` + `vaml_ui_tester-linux/` project skeletons (scaffold only — the
 >      scanner is S641). The DEVICE IconAtlas upload + the S209 texture-binding of the atlas descriptor set +
 >      the REAL framebuffer-scale + the on-screen pixel scrape stay [both-apps, not CI] + S641 (recorded NO-GAP).
-> - S640a dep:S640  **`vaml::presentation::RenderTarget` — WRITE THE RENDER TO AN AREA OF MEMORY** (root
+> - S640a dep:S640  **[DONE — implementit S640a; windows-msvc LANE GREEN]** `vaml::presentation::RenderTarget` — WRITE THE RENDER TO AN AREA OF MEMORY (root
 >      of S641; per the driver's "write the result of rendering to an area of memory" mandate): render the
 >      retained scene (the S212 `encode_visual_slice` producer path) to an OFFSCREEN image via the SAME
 >      UiScene/Vulkan pipeline as the window (byte-faithful, zero drift — a separate pipeline is rejected),

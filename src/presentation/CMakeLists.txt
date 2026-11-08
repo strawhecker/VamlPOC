@@ -25,6 +25,14 @@ vaml_add_library(presentation
     # to window via the full S5 path"). The host owns the CPU/merge logic headlessly
     # (create) + the device-backed integration (create_device, [both apps, not CI]).
     src/VamlRenderer.cpp
+    # S640a (dep:S640) — the offscreen render host: renders the RETAINED scene to an
+    # OFFSCREEN image via the SAME UiScene/Vulkan pipeline as the window (the SRGB
+    # byte-faithful zero-drift pairing), then copy_image_to_buffer -> a CPU ImageBuffer
+    # (the S641 compliance scanner's authoritative GPU-emitted scrape source). The pure
+    # seams (offscreen_format_for / offscreen_extent_at / resize_buffer_decision /
+    # image_buffer_ensure_capacity / offscreen_copy_region / render_target_loop_steps)
+    # are headless-ctestable; the real owner is [both apps, not CI] (S641's script lane).
+    src/RenderTarget.cpp
     # S213 (dep:S212_1): the DPI + framebuffer-scale pure seams (logical-px layout,
     # render scales by framebufferScale; high-DPI crisp). The host (VamlRenderer)
     # consumes dpi_render_plan in record_draw to call the S206 SceneRenderer's

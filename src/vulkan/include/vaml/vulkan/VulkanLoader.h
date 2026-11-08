@@ -244,6 +244,31 @@ public:
                vkCmdPipelineBarrier != nullptr;
     }
 
+    // ---- S640a offscreen-render entry points (bound at load) ----
+    // The recorded S162..S200 "expanded by later sprints" continuation: S640a is
+    // the first sprint to COPY the rendered offscreen image BACK to a CPU buffer
+    // (vaml::presentation::RenderTarget reads the GPU output bytes — the S641
+    // compliance scanner's authoritative scrape source). It binds EXACTLY the two
+    // entry points the offscreen image->buffer read-back needs:
+    //   * vkCmdCopyImageToBuffer      — the TRANSFER command (COLOR_ATTACHMENT ->
+    //                                   host-visible staging buffer)
+    //   * vkGetImageSubresourceLayout — the per-row stride (rowPitch) of the
+    //                                   sRGB offscreen image, honored by the copy
+    //                                   region (the S640a offscreen_copy_region seam).
+    // Every OTHER image/memory/copy/pipeline/barrier entry the offscreen path needs
+    // (vkCreateImage/vkDestroyImage/vkAllocateMemory/vkMapMemory/vkCreateRenderPass/
+    // vkCreateFramebuffer/.../vkCmdPipelineBarrier) was already bound by S164/S165/
+    // S166/S200. vkGetDeviceProcAddr remains the general seam later sprints extend.
+    // has_offscreen_loader() gates the S640a surface.
+    PFN_vkCmdCopyImageToBuffer       vkCmdCopyImageToBuffer       = nullptr;
+    PFN_vkGetImageSubresourceLayout  vkGetImageSubresourceLayout  = nullptr;
+
+    // True iff the S640a offscreen image->buffer copy entry points are bound.
+    [[nodiscard]] bool has_offscreen_loader() const noexcept
+    {
+        return vkCmdCopyImageToBuffer != nullptr && vkGetImageSubresourceLayout != nullptr;
+    }
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
