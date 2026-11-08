@@ -95,6 +95,27 @@ gate (dotnet WPF-emitter build + the catalogue-driven sidecar deposit confirmed)
   record kept); ADR-018 ZERO new locks (all single-threaded pure reads); ADR-011 held (core data + scan; no
   classifier/render change). The S641 metadata reader is NOT stranded (forward-compat).
 
+## CI-FIX (GH CI failed on both lanes for the last committed push 26c4377/S641)
+- SYMPTOM: the GH CI matrix (windows-msvc + ubuntu-clang) FAILED at CONFIGURE on the last committed push
+  (S641). A fresh deps clone + configure reproduced it locally: `FATAL_ERROR: stb_image_write.h not found`.
+- ROOT CAUSE: the S641 commit's `cmake/FindImageDecoders.cmake` requires the vendored single header
+  `third_party/deps/stb/stb_image_write.h`, but that file existed ONLY on this local box (gitignored —
+  `third_party/deps/` is fully gitignored) and was NEVER pushed to the public `vaml-deps` remote that
+  GH CI clones fresh. So CI's deps clone had only `stb_image.h` + `stb_truetype.h`, and S641's source/
+  CMake references (PixelDiff.cpp STB_IMAGE_WRITE_IMPLEMENTATION; FindImageDecoders.cmake check) made
+  configure fail on BOTH lanes. Local builds passed only because the file happened to exist locally.
+- FIX (per the S160/S161 dep-migration discipline — deps live in the public `vaml-deps` remote, NOT tracked
+  in-repo): vendored the genuine `stb_image_write.h` v1.16 (the same canonical stb header, verified: 46
+  references to stbi_write_png / STB_IMAGE_WRITE_IMPLEMENTATION / the STBIWDEF API guard) into `vaml-deps`
+  and PUSHED it (commit c4516c8, 1724 insertions; remote master 9fdf028..c4516c8). No in-repo CMake/source
+  change was needed — the fix is purely on the deps remote.
+- VERIFIED (from a fresh deps clone, the exact CI checkout path, BOTH lanes):
+  * windows-msvc: fresh `git clone vaml-deps` into `third_party/deps`, then `cmake --preset msvc-debug`
+    (CONFIG_OK) → `cmake --build --preset msvc-debug` (BUILD_OK) → `ctest --preset msvc-debug` (TEST_OK).
+  * ubuntu-clang (VM /mnt/hgfs/VamlPOC, fresh deps clone): clang-debug configure+build+ctest → CI_UNIX_GREEN.
+- No commit to the VamlPOC repo was made for this (the fix lives on the vaml-deps remote; standing directive —
+  commitit outstanding, driver's seat is yours).
+
 ## GAP-CLOSURE RUN (S642 follow-up — the driver asked "is anything incomplete; the carry on")
 The driver probed for carry-on (the SILENCE RULE guards against assuming green = complete). An audit against
 the FINALIZED plan found THREE plan-named items that were incomplete; all CLOSED this session + re-verified

@@ -3275,7 +3275,12 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      the LLM interprets; catches "one blank, one present" as full-missing-content. PNG bit-match
 >      (S.Deferred-PNG) stays the recorded upgrade path when fidelity allows; the structured scan is
 >      authoritative now. ZERO new locks. **Desktop-only, real GPU, script-driven — NOT a CI lane** (per the
->      driver's 11r directive; the `ubuntu-clang` lane covers library unit tests only).
+>      driver's 11r directive; the `ubuntu-clang` lane covers library unit tests only). **CI-FIX (post-S641):
+>      the S641 diff-PNG writer required `stb_image_write.h`, which existed only locally (gitignored — deps
+>      are external per S160/S161) and was never pushed to the public `vaml-deps` remote that GH CI clones —
+>      that made configure fail on BOTH CI lanes. Vendored the genuine `stb_image_write.h` v1.16 into the
+>      public `vaml-deps` remote (@c4516c8) + re-verified both lanes green from a fresh deps clone (windows-msvc
+>      msvc-debug TEST_OK + ubuntu-clang CI_UNIX_GREEN). No in-repo CMake/source change was needed.**
 > - S642 dep:S641  [DONE — implementit S642; BOTH CI LANES GREEN: windows-msvc (build/verify_s642.cmd
 >      msvc-debug warning-as-error clean + ctest 4/4 incl. the S642 suites) + ubuntu-clang (/mnt/hgfs/VamlPOC
 >      clang-debug configure+build+ctest 4/4) + the Windows-authing gate (local, NOT CI: the WPF-emitter C#
