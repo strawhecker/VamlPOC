@@ -3243,7 +3243,7 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      headless-ctestable. S641 consumes the `ImageBuffer` as the ACTUAL GPU-emitted output. Recorded per
 >      the 11r ALWAYS-SEE-IT contract: the GPU-emitted buffer is the authoritative scrape source, NOT a CPU
 >      re-raster and NOT a doctest re-statement. ZERO new locks.
-> - S640b dep:S640a  **WPF REFERENCE EMITTER (Windows-authoring-only; PRECEDES S641)** — the true-WPF
+> - S640b dep:S640a  **[DONE - implementit S640b; WINDOWS-AUTHORING GATE GREEN; windows-msvc LANE GREEN]** **WPF REFERENCE EMITTER (Windows-authoring-only; PRECEDES S641)** — the true-WPF
 >      oracle for the 1:1 compliance compare: a small C#/WPF app renders the SAME `.xaml` offscreen via
 >      `RenderTargetBitmap` → blits to the SAME `ImageBuffer` BGRA shape (both sides converge on two raw
 >      BGRA frames → consumed by S641's `compliance_compare`). S640b's ONLY job is to DEPOSIT the diffable

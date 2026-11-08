@@ -1,0 +1,23 @@
+<!--
+  S640b WPF REFERENCE EMITTER sample — the offscreen render -> ArrayBuffer proof.
+  Deposits reference material (out.bgra + out.json) for S641's compliance_compare.
+
+  This doc exercises the capability surface S640b can prove TODAY: an element tree (
+  a StackPanel) with a TextBlock (text-bearing quad) and an Image (icon-bearing quad).
+  The emitter's tree-scanner placeholder harvests the Text + Icon quads and writes
+  their declared kind (text / icon) into the sidecar so the S641 compare can apply
+  per-kind tolerance handling (text -> auto-locate + band; icon -> presence/centroid).
+
+  Plain XAML only — NO SCAN DECLARATION comment here (S641 adds metadata consumption).
+-->
+<StackPanel xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="ScanRoot" Width="440" Height="240" Background="#FF1C1C1C">
+
+  <Image x:Name="SampleIcon" Source="assets/sample_icon.png"
+         Stretch="Uniform" Width="64" Height="64" Margin="16" HorizontalAlignment="Left"/>
+
+  <TextBlock x:Name="SampleText" Text="hello vaml" Margin="16,0,16,16"
+             FontSize="24" Foreground="#FFE8E8E8" HorizontalAlignment="Left"/>
+
+</StackPanel>

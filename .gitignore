@@ -74,3 +74,8 @@ FodyWeavers.xsd
 
 #odd balls
 *.bak
+
+# dotnet build output (wpf_emitter)
+**/bin/
+**/obj/
+

@@ -1,0 +1,60 @@
+using System;
+using System.Collections.Generic;
+
+namespace Vaml.WpfEmitter
+{
+    // The C# twin of vaml::presentation::Impl::ImageBuffer (the S640b CONVERGENCE
+    // CONTRACT). Mirrors the C++ header exactly:
+    //     struct ImageBuffer { uint32_t width; uint32_t height; vector<uint8_t> bgra; }
+    //   - bgra holds EXACTLY width*height*4 bytes after a successful render.
+    //   - bgra is BGRA, row 0 = the image's TOP row (NOT bottom-up).
+    // Cross-reference: src/presentation/include/vaml/presentation/RenderTarget.h.
+    // Both sides MUST deposit byte-identical BGRA so S641's compliance_compare sees
+    // identical raw frames. Any drift here is a NAMED parity divergence (PARITY MATRIX),
+    // never silent.
+    public sealed class ImageBuffer
+    {
+        public uint Width { get; set; }
+        public uint Height { get; set; }
+        public byte[] Bgra { get; set; } = Array.Empty<byte>();
+
+        // The bytes a fully-filled ImageBuffer needs: width*height*4 (BGRA).
+        // Mirrors image_buffer_bytes(w, h).
+        public static long BytesFor(uint width, uint height) => (long)width * height * 4;
+    }
+
+    // Per-quad SCANNER METADATA that the emitter deposits alongside the raw frame.
+    // The emitter cannot perfectly prognosticate what each diff kind needs (text ->
+    // auto-locate + tolerance band; icon -> presence/centroid + loose; solid geometry
+    // -> tight), so the emitter writes DECLARED per-quad kind/shape metadata that the
+    // S641 compare READS instead of guessing. Provisional; S642 fine-tunes the shape
+    // (REVISIT S640b/S641 metadata-fine-tune token). Harvested by the tree-scanner
+    // placeholder (RESOLVED BY S642).
+    public enum QuadKind
+    {
+        Solid,   // solid geometry -> tight tolerance
+        Text,    // -> auto-locate + tolerance band
+        Icon,    // -> presence / centroid / loose
+    }
+
+    public sealed class QuadMetadata
+    {
+        public string Name { get; set; } = "";
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public QuadKind Kind { get; set; } = QuadKind.Solid;
+    }
+
+    // The sidecar written next to the .bgra frame. Gives the scanner the declared
+    // quads (with kinds) it needs to apply per-kind tolerance handling, plus the
+    // frame dims.
+    public sealed class EmitterMetadata
+    {
+        public uint Width { get; set; }
+        public uint Height { get; set; }
+        public string Source { get; set; } = "";
+        public List<QuadMetadata> Quads { get; set; } = new List<QuadMetadata>();
+    }
+}

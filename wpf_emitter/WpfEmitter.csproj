@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Vaml.WpfEmitter</RootNamespace>
+    <AssemblyName>WpfEmitter</AssemblyName>
+    <!-- Standalone authoring artifact: excluded from the CMake/slnx build and BOTH CI
+         lanes (Ubuntu does not author WPF). This project is the Windows-authoring lane
+         exercised by build/verify_s640b.cmd only. -->
+  </PropertyGroup>
+
+  <!-- The authored samples are LOOSE .xaml documents read at runtime by XamlReader
+       (they must NOT be compiled as WPF Pages). Exclude them from default Page items
+       and ship them as content that is copied next to the output. -->
+  <ItemGroup>
+    <Page Remove="samples\**\*.xaml" />
+    <None Include="samples\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
