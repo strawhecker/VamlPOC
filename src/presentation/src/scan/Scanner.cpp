@@ -13,6 +13,7 @@
 // report documents exactly what was used per quad (explicit, not silent).
 
 #include <vaml/presentation/scan/Scanner.h>
+#include <vaml/presentation/scan/CapabilityCatalogue.h>  // S642: the catalogued tolerance resolve
 
 #include <algorithm>
 #include <cmath>
@@ -312,6 +313,71 @@ compliance_compare(const ScrapeGrid& actual,
             ++rep.missing_count;
     }
     return rep;
+}
+
+ScanReport
+compliance_compare_catalogued(const ScrapeGrid& actual,
+                              const ScanDeclaration& expected,
+                              const EmitterMetadata& sidecar)
+{
+    // S642 — catalogue-driven compare (PROVISIONAL metadata fine-tune). Build the
+    // sidecarKind map + the catalogue tolerance map from the emitter metadata, then
+    // delegate to the S641 compare. Per-quad tolerance resolution order (the SYNC
+    // TOKEN contract):
+    //   1. the SCAN DECLARATION's declared `tolerance` WINS;
+    //   2. else the emitter sidecar's catalogue-driven tolerance (Capability/Tolerance);
+    //   3. else the built-in kind default.
+    // The S641 compare already implements the declared-wins + sidecar-kind-merge; this
+    // overload additionally honors the sidecar's CAPABILITY-TAGGED tolerance when the
+    // declaration omits one.
+
+    // Build a name -> catalogue-tolerance map from the sidecar quads that carry a
+    // capability id (the catalogued per-quad tolerance).
+    std::vector<std::pair<std::string, QuadKind>> sidecarKinds;
+    sidecarKinds.reserve(sidecar.quads.size());
+
+    // For each sidecar quad that names a capability, we cannot override the S641
+    // merged_tolerance (it only takes (quad, kind)); so we instead PRE-SEED the
+    // declaration's per-quad tolerance from the sidecar when the declaration omitted
+    // one — the catalogued tolerance wins over the kind default. Copy the expected
+    // declaration so we never mutate the caller's.
+    ScanDeclaration decl = expected;
+    for (const auto& sq : sidecar.quads)
+    {
+        sidecarKinds.emplace_back(sq.name, sq.kind);
+        // Locate the declaration quad by name; if it omitted an explicit tolerance and
+        // the sidecar carried a catalogue tolerance (or a capability id that resolves
+        // through the catalogue), apply it.
+        for (auto& q : decl.quads)
+        {
+            if (q.name != sq.name || q.has_tolerance)
+                continue;
+            double tol = 0.0;
+            bool hasTol = sq.has_tolerance && sq.tolerance > 0.0;
+            if (hasTol)
+            {
+                tol = sq.tolerance;
+            }
+            else if (!sq.capability.empty())
+            {
+                // Resolve through the catalogue: a catalogued capability's declared
+                // tolerance wins over the kind default.
+                const Capability* cap = find_capability(capability_catalogue(), sq.capability);
+                if (cap)
+                    tol = catalogue_tolerance_for(*cap);
+                else
+                    tol = default_tolerance_for(sq.kind);
+                hasTol = true;
+            }
+            if (hasTol)
+            {
+                q.tolerance = tol;
+                q.has_tolerance = true;
+            }
+        }
+    }
+
+    return compliance_compare(actual, decl, sidecarKinds);
 }
 
 } // namespace vaml::presentation::scan

@@ -48,13 +48,17 @@ The emitter cannot perfectly prognosticate what each diff kind needs (text → a
 tolerance band; icon → presence/centroid + loose; solid → tight). So the emitter DEPOSITS
 machine-readable per-quad metadata into `out.json`:
 
-- `Quads[]`: name, x/y (frame-space), w/h, and a declared `kind` (`Solid`/`Text`/`Icon`).
-- Harvested by the **tree-scanner placeholder** (`ElementTreeScanner.cs`) that walks the
+- `Quads[]`: name, x/y (frame-space), w/h, a declared `kind` (`Solid`/`Text`/`Icon`), and
+  (S642) the `Capability` SYNC-TOKEN id + the catalogue-driven `Tolerance`.
+- Harvested by the **catalogue-driven tree-scanner** (`ElementTreeScanner.cs`) which walks the
   emitter's OWN rendered element tree and emits text-bearing (TextBlock) and icon-bearing
-  (Image/Shape) nodes now, as a placeholder for the S642 typed-slot/icon/text catalogue.
-  Tagged `// [MINIMAL REAL] WPF metadata tree-scanner — RESOLVED BY S642`.
-- S641 READS whatever this deposits TODAY; the reader is forward-compatible. S642/S643
-  fine-tune the metadata shape (roadmap REVISIT S640b/S641 tokens).
+  (Image/Shape) nodes, carrying each quad's capability id + kind + tolerance through the
+  capability catalogue (`tools/capability_catalogue.json`, the single source both sides read).
+  This scanner RESOLVES the S640b WPF-metadata-tree-scanner MINIMAL REAL marker at S642 (its
+  history + provenance live in docs/roadmap.md + docs/progress.md).
+- S641 READS whatever this deposits TODAY; the reader is forward-compatible. The S642
+  `Capability`/`Tolerance` fields are the PROVISIONAL refined shape; locked after S643's
+  screens prove the quads carry the tolerance info the compare needs (REVISIT S640b/S641).
 
 ## Samples
 

@@ -11,6 +11,12 @@
 //                  "Width": 120, "Height": 40, "Kind": "Text" }, ... ]
 //   }
 //
+//   S642 (metadata fine-tune — PROVISIONAL, locked after S643): the emitter's quads
+//   may additionally carry `Capability` (the SYNC-TOKEN id into the capability
+//   catalogue, e.g. "text_01") + `Tolerance` (the catalogue-driven per-quad default).
+//   This reader is FORWARD-COMPATIBLE: it IGNORES unknown fields, and reads the new
+//   Capability/Tolerance fields when present (the provisional shape S642 iterates).
+//
 // METADATA READ (baked): S641 READS whatever the emitter deposits TODAY; even if
 // S642 refines the metadata shape, S641 reads the current shape — the reader is
 // FORWARD-COMPATIBLE (unknown/extra fields are IGNORED), so a later gap-close
@@ -35,13 +41,19 @@
 
 namespace vaml::presentation::scan {
 
-// A per-quad entry read from the sidecar (only the fields S641 consumes).
+// A per-quad entry read from the sidecar (the fields S641 consifies + the S642
+// catalogue fields when present).
 struct MetadataQuad
 {
     std::string name;
     int x = 0, y = 0, w = 0, h = 0;
     QuadKind kind = QuadKind::Solid; // parsed from the string "Solid"/"Text"/"Icon"
     bool kind_known = false;
+    // S642 (provisional catalogue-driven metadata): the SYNC-TOKEN capability id
+    // (e.g. "text_01") + the catalogue-driven per-quad tolerance, when present.
+    std::string capability;   // "" when absent
+    bool has_tolerance = false;
+    double tolerance = 0.0;
 };
 
 // The parsed sidecar.

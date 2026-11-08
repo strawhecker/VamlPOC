@@ -1,0 +1,37 @@
+{
+  "Width": 440,
+  "Height": 240,
+  "Source": "sample.xaml",
+  "Quads": [
+    {
+      "Name": "SampleTitle",
+      "X": 16,
+      "Y": 16,
+      "Width": 200,
+      "Height": 40,
+      "Kind": "Text",
+      "Capability": "text_01",
+      "Tolerance": 0.08
+    },
+    {
+      "Name": "SampleIcon",
+      "X": 16,
+      "Y": 128,
+      "Width": 64,
+      "Height": 64,
+      "Kind": "Icon",
+      "Capability": "icon_01",
+      "Tolerance": 0.25
+    },
+    {
+      "Name": "CountLabel",
+      "X": 96,
+      "Y": 128,
+      "Width": 120,
+      "Height": 40,
+      "Kind": "Text",
+      "Capability": "slot_string_01",
+      "Tolerance": 0.08
+    }
+  ]
+}

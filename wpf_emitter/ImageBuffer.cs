@@ -27,9 +27,12 @@ namespace Vaml.WpfEmitter
     // The emitter cannot perfectly prognosticate what each diff kind needs (text ->
     // auto-locate + tolerance band; icon -> presence/centroid + loose; solid geometry
     // -> tight), so the emitter writes DECLARED per-quad kind/shape metadata that the
-    // S641 compare READS instead of guessing. Provisional; S642 fine-tunes the shape
-    // (REVISIT S640b/S641 metadata-fine-tune token). Harvested by the tree-scanner
-    // placeholder (RESOLVED BY S642).
+    // S641 compare READS instead of guessing. S642 makes this CATALOGUE-DRIVEN: every
+    // quad carries its capability id (the SYNC-TOKEN id into tools/capability_catalogue.json,
+    // the SAME file the LIB side + the PARITY MATRIX read) + the per-quad tolerance +
+    // kind the S642 compare needs. The metadata shape stays PROVISIONAL until S643's
+    // screens prove it (REVISIT S640b/S641 metadata-fine-tune token). Harvested by the
+    // real catalogue-driven tree-scanner (RESOLVED AT S642).
     public enum QuadKind
     {
         Solid,   // solid geometry -> tight tolerance
@@ -45,6 +48,11 @@ namespace Vaml.WpfEmitter
         public int Width { get; set; }
         public int Height { get; set; }
         public QuadKind Kind { get; set; } = QuadKind.Solid;
+        // S642 — the SYNC-TOKEN capability id (e.g. "text_01", "icon_02") this quad
+        // instantiates; "" when the quad is not catalogue-backed. Carries the
+        // per-quad tolerance/kind the S641/S642 compare needs.
+        public string Capability { get; set; } = "";
+        public double Tolerance { get; set; } = 0.02;
     }
 
     // The sidecar written next to the .bgra frame. Gives the scanner the declared

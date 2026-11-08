@@ -34,6 +34,7 @@
 // ZERO LOCKS (ADR-018) + ZERO MINIMAL REAL — permanent ADR-021 surface.
 
 #include <vaml/presentation/scan/ScanDeclaration.h>
+#include <vaml/presentation/scan/EmitterMetadata.h>  // S642: catalogue-driven tolerance merge
 #include <vaml/presentation/RenderTarget.h> // vaml::presentation::Impl::ImageBuffer
 
 #include <vaml/core/UIElement.h>            // vaml::UIElement (the arranged core tree)
@@ -122,6 +123,18 @@ VAML_PRESENTATION_EXPORT ScanReport
 compliance_compare(const ScrapeGrid& actual,
                    const ScanDeclaration& expected,
                    const std::vector<std::pair<std::string, QuadKind>>& sidecarKinds = {});
+
+// S642 (metadata fine-tune — provisional): the CATALOGUE-DRIVEN compare overload.
+// The emitter sidecar (EmitterMetadata) carries the SYNC-TOKEN capability id per
+// quad + the catalogue-driven per-quad tolerance; this overload resolves each quad's
+// effective tolerance through the capability catalogue (the declared per-quad
+// `tolerance` in the SCAN DECLARATION STILL wins; else the sidecar's catalogue
+// tolerance; else the built-in kind default). PROVISIONAL until S643's screens prove
+// the quads carry the tolerance info the compare needs. PURE + headless.
+VAML_PRESENTATION_EXPORT ScanReport
+compliance_compare_catalogued(const ScrapeGrid& actual,
+                              const ScanDeclaration& expected,
+                              const EmitterMetadata& sidecar);
 
 // A per-quad PIXEL-GRID helper used by the compare: counts the non-empty
 // (non-transparent / non-blank) pixels in a frame rect, and returns how many

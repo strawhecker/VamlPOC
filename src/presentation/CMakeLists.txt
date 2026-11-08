@@ -54,6 +54,16 @@ vaml_add_library(presentation
     src/scan/Scanner.cpp           # ScrapeGrid + compliance_compare + ScanReport
     src/scan/EmitterMetadata.cpp   # forward-compatible sidecar JSON reader
     src/scan/PixelDiff.cpp         # GIMP-style diff + tolerance band + PNG write
+    # S642 (dep:S641) — GENERIC CAPABILITY PARITY (the typed capability catalogue
+    # both sides implement IDENTICALLY — the "keep both in sync" mechanism). The
+    # LIB half of the single-source-of-truth catalogue (tools/capability_catalogue.json,
+    # embedded at compile time): the typed-slot/icon/text capabilities (10 int / 10
+    # bool / 10 string / 10 double / 10 icon / 10 text — soft-start counts) + the
+    # per-capability kind + tolerance. The scanner's tolerance scaffold becomes
+    # CATALOGUE-DRIVEN; a headless ctest asserts parity (our == WPF == matrix) for
+    # every capability — the enforceable half of the SYNC TOKEN (the WPF-emitter C#
+    # side commits to the SAME committed JSON). PURE + headless (both CI lanes).
+    src/scan/CapabilityCatalogue.cpp
     src/version.cpp
 )
 

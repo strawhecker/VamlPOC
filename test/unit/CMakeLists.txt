@@ -1416,7 +1416,19 @@ add_executable(vaml-presentation-tests
     Scanner_s641_test.cpp
     ComplianceCompare_s641_test.cpp
     EmitterMetadata_s641_test.cpp
-    PixelDiff_s641_test.cpp)
+    PixelDiff_s641_test.cpp
+    # S642 (dep:S641) — GENERIC CAPABILITY PARITY (headless Rail 1): the LIB side of
+    # the typed capability catalogue (the SINGLE-SOURCE-OF-TRUTH
+    # tools/capability_catalogue.json embedded at compile time) — the soft-start
+    # families (10 int / 10 bool / 10 string / 10 double / 10 icon / 10 text) + the
+    # per-capability kind + tolerance + the SYNC-TOKEN parity assertion (every
+    # capability: our-side == WPF-side == matrix, parity yes or a NAMED gap, never
+    # silent) + the catalogue-driven tolerance resolve + the catalogue-driven compare
+    # overload (which honors the emitter sidecar's Capability/Tolerance fields).
+    # The WPF-emitter side commits to the SAME committed JSON (its CI-half is the
+    # committed fixture + this C++ reader test).
+    CapabilityCatalogue_s642_test.cpp
+    CapabilityCompare_s642_test.cpp)
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
 
@@ -1424,6 +1436,12 @@ target_include_directories(vaml-presentation-tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/presentation/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../src/tools/include   # S293: app.cpp includes <vaml/tools/VBamlReader.h>
     ${CMAKE_CURRENT_SOURCE_DIR}/../../vaml_viewer   # S222: the shared host's header (app.h)
+)
+# S642 (committed sidecar fixture): the emitter-sidecar sample the C++ headless test
+# validates against (the committed fixture half of the sync token — the WPF side commits
+# to a COMITTED fixture the C++ side reads, so a drift is enforced, not assumed).
+target_compile_definitions(vaml-presentation-tests PRIVATE
+    VAML_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
 )
 target_include_directories(vaml-presentation-tests SYSTEM PRIVATE
     ${VAML_DEPS_DIR}

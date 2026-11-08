@@ -153,3 +153,47 @@ TEST_CASE("S641 tolerance outside 0..1 is rejected")
     CHECK_FALSE(r.ok);
     CHECK(r.error == DeclarationError::BadNumber);
 }
+
+TEST_CASE("S642 the SCAN DECLARATION quad carries an optional capability id (the SYNC TOKEN)")
+{
+    // S642 extends the in-XAML declaration grammar with `capability <id>` so the
+    // author's intent keys the SAME catalogue row as the emitter sidecar + the matrix
+    // (the "keep both in sync" mechanism). The id is an optional bare token.
+    const std::string xaml = R"xaml(<!-- SCAN DECLARATION
+  frame 100 80
+  quad title text auto band 8 capability text_01
+  quad ok    icon auto centroid presence capability icon_02
+  quad solid solid rect 0,0,10,10 tolerance 0.10 capability slot_int_01
+END SCAN DECLARATION -->)xaml";
+    const auto r = parse_scan_declaration(xaml);
+    REQUIRE(r.ok);
+    REQUIRE(r.declaration.quads.size() == 3u);
+    CHECK(r.declaration.quads[0].capability == "text_01");
+    CHECK(r.declaration.quads[0].kind == QuadKind::Text);
+    CHECK(r.declaration.quads[1].capability == "icon_02");
+    CHECK(r.declaration.quads[1].kind == QuadKind::Icon);
+    CHECK(r.declaration.quads[2].capability == "slot_int_01");
+    CHECK(r.declaration.quads[2].kind == QuadKind::Solid);
+    CHECK(r.declaration.quads[2].has_tolerance);
+    CHECK(r.declaration.quads[2].tolerance == doctest::Approx(0.10));
+}
+
+TEST_CASE("S642 a quad without a capability id leaves it empty (forward-compatible)")
+{
+    const std::string xaml = R"xaml(<!-- SCAN DECLARATION
+  frame 20 20
+  quad a solid rect 0,0,4,4
+END SCAN DECLARATION -->)xaml";
+    const auto r = parse_scan_declaration(xaml);
+    REQUIRE(r.ok);
+    REQUIRE(r.declaration.quads.size() == 1u);
+    CHECK(r.declaration.quads[0].capability.empty());
+}
+
+TEST_CASE("S642 a bare capability token with no id is a typed MalformedLine error")
+{
+    const auto r = parse_scan_declaration(
+        "<!-- SCAN DECLARATION\nframe 10 10\nquad a text auto capability\nEND SCAN DECLARATION -->");
+    CHECK_FALSE(r.ok);
+    CHECK(r.error == DeclarationError::MalformedLine);
+}

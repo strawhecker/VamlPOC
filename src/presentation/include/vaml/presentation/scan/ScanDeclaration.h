@@ -26,11 +26,11 @@
 //   END SCAN DECLARATION -->
 //
 //   frame W H                    — authoritative render width/height.
-//   quad NAME KIND rect X,Y,W,H [tolerance T]
+//   quad NAME KIND rect X,Y,W,H [tolerance T] [capability ID]
 //                                — solid geometry at a declared rect (+ optional tight tolerance).
-//   quad NAME KIND auto [band B] [expect-literal "SUB"] [tolerance T]
+//   quad NAME KIND auto [band B] [expect-literal "SUB"] [tolerance T] [capability ID]
 //                                — text: auto-locate + tolerance band (+ optional declared substring).
-//   quad NAME KIND auto [centroid] [presence] [tolerance T]
+//   quad NAME KIND auto [centroid] [presence] [tolerance T] [capability ID]
 //                                — icon: auto-locate + presence/centroid + loose tolerance.
 //
 //   KIND = solid | text | icon. `tolerance` is a per-quad jointolerance override
@@ -87,6 +87,14 @@ struct ScanQuad
     // --- icon (auto-locate) ---
     bool        require_presence  = false; // element/presence check
     bool        require_centroid  = false; // centroid-within-tolerance check
+
+    // S642 (provisional metadata fine-tune): the SYNC-TOKEN capability id into the
+    // capability catalogue (e.g. "text_01", "icon_02"). The in-XAML declaration may
+    // optionally tag a quad with `capability <id>` so the author's intent + the
+    // emitter sidecar + the PARITY MATRIX all key the SAME catalogue row (the "keep
+    // both in sync" mechanism). Empty = the quad is not catalogue-backed. Provisional
+    // until S643's screens prove the quads carry the tolerance info the compare needs.
+    std::string capability;
 };
 
 // The whole declaration: the authoritative render frame + the ordered quad set.

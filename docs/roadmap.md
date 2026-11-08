@@ -3210,8 +3210,9 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 > **VIEWER GROWTH (anti-grave-whistle):** this sprint's growth is intrinsic — every step's scanner CONFIRMS
 > content in the live/retained render path (the tester's offscreen reproduction shares the S212
 > `encode_visual_slice` code path with the viewer's generic renderer). No token = no ✅.
-> STATUS: **ONGOING** — S640 (Image + Source) DONE first (the driver's #1, 11r-FIRST), S641 the scanner,
-> S642 known-type bindings + data context, S643 the run → scan → compare script, then the ONE-SURFACE-PER-STEP
+> STATUS: **ONGOING** — S640 (Image + Source) DONE first (the driver's #1, 11r-FIRST), S641 the scanner DONE,
+> **S642 GENERIC CAPABILITY PARITY + the PARITY MATRIX + the typed-slot/icon/text catalogue DONE**, S643 the
+> run → scan → compare script, then the ONE-SURFACE-PER-STEP
 > queue (S644+). Each flips DONE here with "BOTH CI LANES GREEN + scanner/on-screen CONFIRMED".
 >
 > - S640 dep:S622  **IMAGE + SOURCE — the driver's explicit FIRST step** (the exact thing that keeps failing
@@ -3275,15 +3276,43 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      (S.Deferred-PNG) stays the recorded upgrade path when fidelity allows; the structured scan is
 >      authoritative now. ZERO new locks. **Desktop-only, real GPU, script-driven — NOT a CI lane** (per the
 >      driver's 11r directive; the `ubuntu-clang` lane covers library unit tests only).
-> - S642 dep:S641  **GENERIC CAPABILITY PARITY** (the typed capability catalogue both sides must implement
+> - S642 dep:S641  [DONE — implementit S642; BOTH CI LANES GREEN: windows-msvc (build/verify_s642.cmd
+>      msvc-debug warning-as-error clean + ctest 4/4 incl. the S642 suites) + ubuntu-clang (/mnt/hgfs/VamlPOC
+>      clang-debug configure+build+ctest 4/4) + the Windows-authing gate (local, NOT CI: the WPF-emitter C#
+>      side builds + deposits the catalogue-driven sidecar) + the PARITY MATRIX generator + SYNC-TOKEN check
+>      (60 capabilities, all in sync). GENERIC CAPABILITY PARITY (the typed capability catalogue both sides implement
 >      IDENTICALLY — the "keep both in sync" mechanism): authors the **PARITY MATRIX** (capability → our side status → WPF side status → parity yes/no → named gap, never silent); the catalogue: (1) **typed slots** — 10 `int` / 10 `bool` / 10
->      `string` / 10 …; (2) **icons**; (3) **text**. EVERY S642 test step carries a **SYNC TOKEN** —
+>      `string` / 10 **double** (the "…" family — soft-start, grows in place per the count-scope token); (2) **icons** — 10; (3) **text** — 10. EVERY S642 test step carries a **SYNC TOKEN** —
 >      "capability X introduced → update the LIB side AND the WPF-emitter side in this step → update the
 >      parity matrix → no drift" — the concrete mechanism enforcing that new things land on BOTH sides at
 >      the same step (never one-sided).
->      **REVISIT S640b/S641 (metadata fine-tune):** iterate the emitter OUTPUT metadata + the tree-scanner
->      placeholder against the typed-slot/icon/text capabilities introduced HERE; the metadata shape is
->      PROVISIONAL and is locked only after this step's screens prove the quads carry the tolerance info the compare needs.
+>      **REVISIT S640b/S641 (metadata fine-tune, PROVISIONAL):** iterated the emitter OUTPUT metadata + the tree-scanner
+>      against the typed-slot/icon/text capabilities introduced HERE; the metadata shape (the sidecar now
+>      carries the per-quad `Capability` SYNC-TOKEN id + `Tolerance`) is PROVISIONAL and is locked only after
+>      S643's screens prove the quads carry the tolerance info the compare needs.
+>      **DELIVERED:** (1) `tools/capability_catalogue.json` — the SINGLE-SOURCE-OF-TRUTH catalogue (60
+>      capabilities; each row: id/family/type/kind/tolerance/our/wpf/parity/gap), read by BOTH the LIB side
+>      (embedded at compile time) and the WPF-emitter C# side + the matrix generator; (2) `docs/PARITY_MATRIX.md`
+>      — GENERATED (never hand-edited) by `tools/parity_matrix_gen.py` (fails-loud on blank/unknown status or
+>      parity=no-without-gap), the derived parity matrix; (3) `tools/parity_sync_check.py` — the SYNC-TOKEN
+>      enforcer (every capability in sync across our + WPF + matrix); (4) the LIB surface
+>      `scan::CapabilityCatalogue` (`CapabilityCatalogue.h/.cpp`) — the embedded catalogue + per-capability
+>      kind/tolerance + the catalogue-driven tolerance resolve; the scanner's `default_tolerance_for` becomes
+>      catalogue-driven via `compliance_compare_catalogued` (the catalogue-driven compare overload honoring the
+>      sidecar's Capability/Tolerance fields); (5) the WPF-emitter CATALOGUE-DRIVEN tree-scanner
+>      (`ElementTreeScanner.cs`) — **RESOLVES the S640b tree-scanner MINIMAL-REAL marker at its own step**
+>      (the placeholder grows into the real catalogue-driven scanner, never backfilled; the provenance record
+>      lives here + in progress.md); the sidecar now deposits `Capability`/`Tolerance`; (6) headless S642 suites
+>      (`CapabilityCatalogue_s642_test.cpp` + `CapabilityCompare_s642_test.cpp`) — the soft-start family counts,
+>      the SYNC-TOKEN parity assertion (parity yes or a named gap, never silent), the catalogue-driven tolerance
+>      resolve, the catalogue-driven compare (declared-wins > catalogue > kind-default), the forward-compat
+>      sidecar Capability/Tolerance read; (7) `build/verify_s642.cmd` (two-lane + tooling) + `build/verify_s642_authoring.cmd`
+>      (the Windows-authing C# gate). **COUNT-SCOPE TOKEN (soft start):** 10 per family is an INITIAL EXEMPLAR,
+>      NOT a hard limit — the catalogue + matrix + sync check GROW IN PLACE (no new step, no backfill) when
+>      testing permutations demand more. **NO-GAP clean:** the S640b tree-scanner marker is RESOLVED; ZERO new
+>      MINIMAL REAL introduced; ZERO locks (ADR-018); the S641 metadata reader is NOT stranded (forward-compat
+>      holds — unknown fields ignored, the new fields read when present). **REVISIT RECORD:** the metadata shape
+>      is provisional until S643's smoke proves it; S643 carries the REVISIT token.
 > - S643 dep:S642  **TOOL SMOKE TEST** — ONE `.xaml` using ONE of each type (1 int, 1 bool, 1 string, 1 icon,
 >      1 text) to prove the tooling works end-to-end through the compare (NOT all 10 of each), so a parity
 >      failure is ATTRIBUTABLE (either a capability is broken or the tooling is — separated). This

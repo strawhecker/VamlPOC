@@ -230,6 +230,20 @@ MetadataResult parse_emitter_metadata(const std::string& jsonText)
                         q.kind = kind_from_string(ks);
                         q.kind_known = true;
                     }
+                    else if (qk == "Capability")
+                    {
+                        // S642 (provisional): the SYNC-TOKEN capability id into the
+                        // catalogue (e.g. "text_01"). Forward-compat: ignored if absent.
+                        if (!read_string(c, q.capability, res)) return res;
+                    }
+                    else if (qk == "Tolerance")
+                    {
+                        // S642 (provisional): the catalogue-driven per-quad tolerance.
+                        double td = 0.0;
+                        if (!read_number(c, td, res)) return res;
+                        q.tolerance = td;
+                        q.has_tolerance = true;
+                    }
                     else if (qk == "X" || qk == "Y" || qk == "Width" || qk == "Height")
                     {
                         double d = 0.0;

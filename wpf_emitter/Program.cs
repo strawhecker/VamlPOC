@@ -9,17 +9,25 @@ using System.Xml;
 
 namespace Vaml.WpfEmitter
 {
-    // S640b — WPF REFERENCE EMITTER (Windows-authoring-only; PRECEDES S641).
+    // S640b/S642 — WPF REFERENCE EMITTER (Windows-authoring-only; PRECEDES S641, refined S642).
     // A small C#/WPF app that renders an authored .xaml OFFSCREEN via RenderTargetBitmap,
     // blits to the SAME ImageBuffer BGRA shape (the convergence contract), and DEPOSITS
     // the diffable reference material on disk:
     //     out.bgra = tight w*h*4 raw BGRA (row 0 = top)
-    //     out.json = EmitterMetadata sidecar (dims + per-quad kinds the S641 compare READS)
+    //     out.json = EmitterMetadata sidecar (dims + per-quad kinds + the S642
+    //                catalogue-driven Capability/Tolerance the S641/S642 compare READS)
     //
     // Usage:  WpfEmitter.exe <file.xaml> <out.bgra> [out.json]
     // The emitter is real WPF: XamlReader loads the authored doc into a genuine WPF tree
-    // (zero fidelity drift — it IS WPF). NO compare, NO SCAN DECLARATION parsing, NO
-    // capability matrix here — those are S641/S642.
+    // (zero fidelity drift — it IS WPF). NO compare, NO SCAN DECLARATION parsing HERE — those
+    // are S641. S642 (the catalogue): the emitter's tree-scanner (ElementTreeScanner) reads the
+    // SAME SINGLE-SOURCE-OF-TRUTH capability catalogue (tools/capability_catalogue.json) that
+    // the LIB side (embedded at compile time) and the PARITY MATRIX generator read, and tags
+    // every harvested text/icon quad with its catalogue capability id + kind + tolerance — the
+    // SYNC-TOKEN "keep both in sync" mechanism. This Main harness surfaces that the catalogue
+    // was reachable at authoring time (a FALLBACK catalogue is used only if the repo JSON is
+    // not locatable, so the emitter never crashes; the LIB side + the matrix always use the
+    // committed bytes).
     public static class Program
     {
         [STAThread]
@@ -75,6 +83,20 @@ namespace Vaml.WpfEmitter
                 ElementTreeScanner.Harvest(root, metadata);
                 w = metadata.Width >= 1 ? metadata.Width : w;
                 h = metadata.Height >= 1 ? metadata.Height : h;
+
+                // S642 (the SYNC TOKEN, authoring half): the catalogue-driven scanner must
+                // have read the COMMITTED single-source-of-truth catalogue (tools/
+                // capability_catalogue.json), not the in-memory fallback — otherwise the
+                // WPF side could silently drift from the LIB side + the matrix (which always
+                // use the committed JSON). The authored sample's sidecar main must carry a
+                // catalogued capability id; a fallback-only run FAILS LOUDLY (never silent).
+                if (!ElementTreeScanner.CatalogueLocated())
+                {
+                    Console.Error.WriteLine("WpfEmitter S642-FAIL: capability_catalogue.json was not located — " +
+                                            "fallback in use, the WPF side is NOT in sync with the LIB side + matrix. " +
+                                            "Run me from the repo root so tools/capability_catalogue.json resolves.");
+                    return 2;
+                }
 
                 // 3. RenderTargetBitmap at pixel size -> raw BGRA, row 0 = top.
                 var rtb = new RenderTargetBitmap((int)w, (int)h, 96, 96, PixelFormats.Pbgra32);

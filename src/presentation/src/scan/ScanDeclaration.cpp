@@ -335,6 +335,16 @@ DeclarationResult parse_scan_declaration(const std::string& xamlText)
                 {
                     q.require_presence = true;
                 }
+                else if (t == "capability")
+                {
+                    // S642 (provisional): the SYNC-TOKEN capability id into the
+                    // catalogue (e.g. "text_01", "icon_02"). A bare token (no quotes).
+                    if (i + 1u >= toks.size())
+                        return fail(DeclarationError::MalformedLine,
+                                    "capability expects an id token", lineno + 1);
+                    q.capability = toks[i + 1u];
+                    ++i;
+                }
                 else
                 {
                     return fail(DeclarationError::UnknownKeyword,
