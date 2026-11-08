@@ -3250,6 +3250,16 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      reference material: render the authored `.xaml` offscreen and write the `ImageBuffer`-shaped raw BGRA
 >      frame (+ sidecar) to disk for S641's compare. NO compare, NO `SCAN DECLARATION` parsing, NO capability
 >      matrix here — those are S641/S642. Ubuntu BUILDS but does NOT author WPF (the driver's stated reality).
+>      **SCANNER METADATA IN THE OUTPUT (baked):** the emitter MUST be capable of depositing machine-readable
+>      metadata in its OUTPUT for the scanner to read, because it cannot perfectly prognosticate what each diff
+>      kind needs (text → auto-locate + tolerance band; icon → presence/centroid + loose) — the emitter
+>      writes per-quad metadata (shape/dims + a declared 	ext|icon|solid kind) into the sidecar so S641's
+>      per-quad tolerance handling READS it instead of guessing. **TREE-SCANNER PLACEHOLDER (MINIMAL REAL, SAME
+>      step):** a tree scanner that HARVESTS text and icon metadata NOW as a placeholder for the actual steps
+>      that need them — the emitter walks its own rendered element tree, finds the text-bearing and icon-bearing
+>      nodes, and emits their quads into the metadata sidecar; tagged
+>      // [MINIMAL REAL] WPF metadata tree-scanner — RESOLVED BY S642 (typed-slot/icon/text catalogue) so it is
+>      NOT silently backfilled (NO-GAP). S641 READS it; S642/S643 fine-tune via REVISIT tokens below.
 > - S641 dep:S640b  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
 >      dedicated tester): authors the compare seam (the compare API `compliance_compare(actualScan, expectedDecl)`, the tolerance scaffold, and the in-XAML `SCAN DECLARATION` parser) and makes it LIVE: render an authored `.xaml` through
 >      the REAL retained render path → S640a `ImageBuffer` → SCRAPE the rendered UI for compliance
@@ -3259,7 +3269,7 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      needs no live window. **PER-QUAD DECLARATION (baked):** every S641+ test encodes its quads WITH a
 >      `tolerance` OR a `handling text|icon` in the in-XAML `SCAN DECLARATION` comment (solid geometry →
 >      tight tolerance; text → auto-locate + tolerance band; icon → presence/centroid + loose) — the compare
->      is per-quad configurable, never a silent global bit-match. **GIMP-STYLE DIFF + TOLERANCE TOOL (in
+>      is per-quad configurable, never a silent global bit-match. **METADATA READ (baked):** the compare consumes the emitter-deposited metadata (quad kinds + tolerance) from the sidecar; even if a later step (S642) refines the metadata shape, S641 READS whatever the emitter deposits TODAY — the metadata reader is forward-compatible, so a later gap-close never strands it. **GIMP-STYLE DIFF + TOLERANCE TOOL (in
 >      S641):** per-pixel diff, auto-locate text regions → tolerance band, color-coded diff image a human or
 >      the LLM interprets; catches "one blank, one present" as full-missing-content. PNG bit-match
 >      (S.Deferred-PNG) stays the recorded upgrade path when fidelity allows; the structured scan is
@@ -3271,10 +3281,16 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      "capability X introduced → update the LIB side AND the WPF-emitter side in this step → update the
 >      parity matrix → no drift" — the concrete mechanism enforcing that new things land on BOTH sides at
 >      the same step (never one-sided).
+>      **REVISIT S640b/S641 (metadata fine-tune):** iterate the emitter OUTPUT metadata + the tree-scanner
+>      placeholder against the typed-slot/icon/text capabilities introduced HERE; the metadata shape is
+>      PROVISIONAL and is locked only after this step's screens prove the quads carry the tolerance info the compare needs.
 > - S643 dep:S642  **TOOL SMOKE TEST** — ONE `.xaml` using ONE of each type (1 int, 1 bool, 1 string, 1 icon,
 >      1 text) to prove the tooling works end-to-end through the compare (NOT all 10 of each), so a parity
 >      failure is ATTRIBUTABLE (either a capability is broken or the tooling is — separated). This
 >      independently proves the run → scan → compare script over the tester before the S644+ queue.
+>      **REVISIT S640b/S641 (metadata fine-tune):** the smoke .xaml's text/icon quads must round-trip
+>      emitter-output-metadata → scanner-read → compare; confirm the placeholder tree-scanner metadata
+>      suffices or extend it — closes the planned metadata gap if S642 left any.
 >
 > ---
 > ### THE ONE-SURFACE-PER-STEP QUEUE (S644+ — base building block → higher, ONE per step)
