@@ -32,6 +32,17 @@ if(NOT EXISTS "${_vml_img_stb}/stb_image.h" OR NOT EXISTS "${_vml_img_stb}/stb_t
         "headers at VAML_DEPS_DIR/stb/stb_image.h + stb_truetype.h. Vendor stb "
         "(S202_1 decode + S203 TrueType load) to keep the build drift-free.")
 endif()
+# S641: the UI-COMPLIANCE SCANNER's GIMP-style diff DEPOSITS a real PNG via the
+# vendored stb_image_write single header (the same stb family + the ADR-011
+# single-TU discipline; the STB_IMAGE_WRITE_IMPLEMENTATION define lives in
+# PixelDiff.cpp). It rides the SAME vaml::image SYSTEM include interface the
+# decode/raster headers use (ADR-011: only vaml-presentation/vulkan consume it).
+if(NOT EXISTS "${_vml_img_stb}/stb_image_write.h")
+    message(FATAL_ERROR
+        "stb_image_write.h not found. Expected the vendored single header at "
+        "VAML_DEPS_DIR/stb/stb_image_write.h (S641 diff-PNG writer). Vendor the "
+        "stb family to keep the build drift-free.")
+endif()
 if(NOT EXISTS "${_vml_img_nano}/nanosvg.h" OR NOT EXISTS "${_vml_img_nano}/nanosvgrast.h")
     message(FATAL_ERROR
         "nanosvg not found. Expected the vendored single headers at "

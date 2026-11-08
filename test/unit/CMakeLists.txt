@@ -1403,7 +1403,20 @@ add_executable(vaml-presentation-tests
     # render_target_loop_steps. Headless, NO Vulkan runtime — both CI lanes. The REAL
     # GPU render_to (record -> copy_image_to_buffer -> ImageBuffer) is the S641
     # script-driven [both apps, not CI] lane, recorded NO-GAP.
-    RenderTarget_s640a_test.cpp)
+    # S641 (dep:S640b) — THE UI-COMPLIANCE SCANNER (headless Rail 1, vaml-presentation-tests):
+    # the S641 scanner decision layer, proven headlessly on BOTH CI lanes (PURE, no Vulkan
+    # runtime). The in-XAML SCAN DECLARATION parser (ScanDeclaration), the scrape+compare
+    # (Scanner/ComplianceCompare — per-datum PASS/FAIL + the tolerance scaffold incl. the
+    # emitter-sidecar merge + the full-missing-content catch), the forward-compatible
+    # emitter sidecar JSON reader (EmitterMetadata), and the GIMP-style per-pixel diff +
+    # tolerance band + PNG write (PixelDiff). The REAL GPU render that FILLS the pixel
+    # buffer is S640a's RenderTarget [both apps, not CI].
+    RenderTarget_s640a_test.cpp
+    ScanDeclaration_s641_test.cpp
+    Scanner_s641_test.cpp
+    ComplianceCompare_s641_test.cpp
+    EmitterMetadata_s641_test.cpp
+    PixelDiff_s641_test.cpp)
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
 

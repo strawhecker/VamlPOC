@@ -42,6 +42,18 @@ vaml_add_library(presentation
     # clear-decision seam (the 2-branch WPF HwndTarget.SetBackgroundColor mirror).
     # `clear::decide_clear(allowsTransparency, resolvedBackground) -> ClearValue`.
     src/clear.cpp
+    # S641 (dep:S640b) — THE UI-COMPLIANCE SCANNER (the root capability the whole
+    # sprint rides on; lives in the dedicated tester — the vaml::presentation::scan
+    # namespace). Authors the compare seam (compliance_compare, the tolerance
+    # scaffold, the in-XAML SCAN DECLARATION parser) + makes it LIVE: scrape the
+    # rendered ImageBuffer + the arranged core tree -> ScanReport -> per-datum
+    # PASS/FAIL -> colored diff PNG. PURE + headless (both CI lanes): the four
+    # scan TUs are decision-layer only, no Vulkan runtime; the REAL GPU render that
+    # FILLS the buffer is S640a's RenderTarget [both apps, not CI].
+    src/scan/ScanDeclaration.cpp   # in-XAML SCAN DECLARATION parser
+    src/scan/Scanner.cpp           # ScrapeGrid + compliance_compare + ScanReport
+    src/scan/EmitterMetadata.cpp   # forward-compatible sidecar JSON reader
+    src/scan/PixelDiff.cpp         # GIMP-style diff + tolerance band + PNG write
     src/version.cpp
 )
 

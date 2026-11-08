@@ -3260,7 +3260,7 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      nodes, and emits their quads into the metadata sidecar; tagged
 >      // [MINIMAL REAL] WPF metadata tree-scanner — RESOLVED BY S642 (typed-slot/icon/text catalogue) so it is
 >      NOT silently backfilled (NO-GAP). S641 READS it; S642/S643 fine-tune via REVISIT tokens below.
-> - S641 dep:S640b  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
+> - S641 dep:S640b  **[DONE - implementit S641; BOTH CI LANES GREEN: windows-msvc (6 S641 suites) + ubuntu-clang (mount fixed + clang -Werror fixes, ctest 4/4)]** **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
 >      dedicated tester): authors the compare seam (the compare API `compliance_compare(actualScan, expectedDecl)`, the tolerance scaffold, and the in-XAML `SCAN DECLARATION` parser) and makes it LIVE: render an authored `.xaml` through
 >      the REAL retained render path → S640a `ImageBuffer` → SCRAPE the rendered UI for compliance
 >      (element/draw-item presence, coordinates, pixel/color at declared locations) → COMPARE to the expected

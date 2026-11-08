@@ -21,6 +21,10 @@
   The scanner (S641) will render this doc through the REAL retained render path,
   scrape the rect for compliance, and compare to this declared outcome.
 -->
+<!-- SCAN DECLARATION
+  frame 440 360
+  quad  img   solid  rect 32,32,128,128   tolerance 0.10
+END SCAN DECLARATION -->
 <StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
             x:Name="ScanRoot" Width="440" Height="360" Background="#FF1C1C1C">
 
