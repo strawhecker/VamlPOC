@@ -3246,16 +3246,12 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 > - S640b dep:S640a  **WPF REFERENCE EMITTER (Windows-authoring-only; PRECEDES S641)** — the true-WPF
 >      oracle for the 1:1 compliance compare: a small C#/WPF app renders the SAME `.xaml` offscreen via
 >      `RenderTargetBitmap` → blits to the SAME `ImageBuffer` BGRA shape (both sides converge on two raw
->      BGRA frames → `compliance_compare`). Sits BEFORE S641 so the COMPARISON SEAM (compare API + the
->      tolerance scaffold + the in-XAML `SCAN DECLARATION` parser) is already in place, COMMENTED OUT,
->      during S641; S641 makes it LIVE. Ubuntu BUILDS but does NOT author WPF (the driver's stated reality).
->      **CAPABILITY-PARITY CONTRACT (tracked separately):** the emitter MUST support the SAME capability
->      surface as the scanner (data binding, data context, layout, styles/templates, element tree, attached
->      properties, …) — both sides implement the IDENTICAL set; any one-sided capability is a NAMED
->      divergence in the PARITY MATRIX (capability → our side status → WPF side status → parity yes/no →
->      named gap), never silent.
+>      BGRA frames → consumed by S641's `compliance_compare`). S640b's ONLY job is to DEPOSIT the diffable
+>      reference material: render the authored `.xaml` offscreen and write the `ImageBuffer`-shaped raw BGRA
+>      frame (+ sidecar) to disk for S641's compare. NO compare, NO `SCAN DECLARATION` parsing, NO capability
+>      matrix here — those are S641/S642. Ubuntu BUILDS but does NOT author WPF (the driver's stated reality).
 > - S641 dep:S640b  **THE UI-COMPLIANCE SCANNER** (root capability the whole sprint rides on — lives in the
->      dedicated tester): makes the S640b compare seam LIVE (uncomment): render an authored `.xaml` through
+>      dedicated tester): authors the compare seam (the compare API `compliance_compare(actualScan, expectedDecl)`, the tolerance scaffold, and the in-XAML `SCAN DECLARATION` parser) and makes it LIVE: render an authored `.xaml` through
 >      the REAL retained render path → S640a `ImageBuffer` → SCRAPE the rendered UI for compliance
 >      (element/draw-item presence, coordinates, pixel/color at declared locations) → COMPARE to the expected
 >      outcome DECLARED IN that `.xaml`. Telescope: a `ScanReport` (pixel/element grid samples) + a
@@ -3270,7 +3266,7 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      authoritative now. ZERO new locks. **Desktop-only, real GPU, script-driven — NOT a CI lane** (per the
 >      driver's 11r directive; the `ubuntu-clang` lane covers library unit tests only).
 > - S642 dep:S641  **GENERIC CAPABILITY PARITY** (the typed capability catalogue both sides must implement
->      IDENTICALLY — the "keep both in sync" mechanism): (1) **typed slots** — 10 `int` / 10 `bool` / 10
+>      IDENTICALLY — the "keep both in sync" mechanism): authors the **PARITY MATRIX** (capability → our side status → WPF side status → parity yes/no → named gap, never silent); the catalogue: (1) **typed slots** — 10 `int` / 10 `bool` / 10
 >      `string` / 10 …; (2) **icons**; (3) **text**. EVERY S642 test step carries a **SYNC TOKEN** —
 >      "capability X introduced → update the LIB side AND the WPF-emitter side in this step → update the
 >      parity matrix → no drift" — the concrete mechanism enforcing that new things land on BOTH sides at
