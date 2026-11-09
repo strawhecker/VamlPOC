@@ -2044,7 +2044,8 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 >       (build/verify_s11k4.cmd — windows-msvc + ubuntu-clang, clang first-fail = an unused-function in the
 >       raster seam MSVC didn't flag, fixed + re-verified; 4/4 ctest both lanes). ZERO MINIMAL REAL + ZERO
 >       silent backfills. The authored Brush `{StaticResource}` brush-id literal-color (`#RRGGBB`) → brush-id
->       conversion is recorded NO-GAP (a later surface, not silent).]
+>       conversion is recorded NO-GAP — **RESOLVED BY S700 (the WPF BrushConverter-faithful hex
+      BrushId-literal surface; see S700 in the S685-gap headroom).**]
 
 > - 11k-5 — `EventTrigger` element-level authoring: `<Control.Triggers><EventTrigger RoutedEvent="...">...` —
 >       the event-driven trigger AUTHORING surface (distinct from PropertyTrigger/DataTrigger S454/11j-7),
@@ -2117,7 +2118,9 @@ The rule for DONE is the roadmap.md status includes DONE for both CI lanes green
 >       the WPF-fidelity discipline): TextBlock's `Foreground` DP is `ValueType::BrushId` with NO literal
 >       converter (the 11k-1 test documented it is authored programmatically), so a literal `Foreground="7"`
 >       threw UnknownType at authoring — removed from the corpus sample + the test copy (documented, not a
->       silent dodge).]
+>       silent dodge). **NO-GAP — RESOLVED BY S700: the hex-color-literal-on-BrushId surface (a literal
+      `Foreground="#RRGGBB"` now converts to a SolidColorBrush registered under `Brush:<id>` + a
+      `Value::BrushId` — the WPF BrushConverter-faithful receiver; see S700).**]
 > - 11k-7 — CONTROL-NAME FIDELITY GATE + SURVIVOR(11k): full build + ctest BOTH lanes green; grep-audit that
 >       EVERY authored element/control name (in `register_builtin_elements()` + the classified control set)
 >       exists in the WPF type namespace — ZERO invented names (closes the `Text`→`TextBlock` class of error at
@@ -3384,6 +3387,42 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >     (TextBlock), S656 (Icon), S657 (Label) MUST tighten the fuzzy-compare quality (readable-glyph,
 >     auto-locate, tighter band); the geometry sentinels prove the scan→compare loop can FAIL LOUDLY.
 >
+> ---
+- **S643a (gap-closure) dep:S643  HEX-COLOR LITERAL ON BrushId DPs — RESOLVES the 11k-4 ~ 11k-6 recorded
+      NO-GAP: `Foreground="#RRGGBB"` (and `Background`/`Fill`/`Stroke`/`BorderBrush` on BrushId DPs)
+      parse + render in vaml_viewer.** The current readers (S2 `VamlReader::convertLiteral` + S7
+      `VBamlReader::convertLiterals`) have **no BrushId arm** (only Int32/Bool/Color/Thickness/Double/
+      GridLength), so a `#RRGGBB` literal on a BrushId DP hits `typeName.empty()` → throws UnknownType.
+      **Ground truth: WPF's BrushConverter (PresentationCore, Generated) → `Brush.Parse` → `Parsers`.
+      `ParseBrush` is a PURE TYPE-LEVEL converter, context-free** (verified in E:\GitRepos\wpf): it does
+      NOT register a brush id, holds no shared id registry, no element scoping, no dedup map, no collision
+      concern — it just `new SolidColorBrush(ParseHexColor(...))` each time. Non-obvious facts surfaced by
+      reading the WPF source: (1) `ParseHexColor` accepts `#RRGGBB`/`#AARRGGBB`/`#ARGB`/`#RGB` with a
+      **high-alpha-alpha-first** convention (9→AARRGGBB, 5→ARGB single-digit alpha-first), and the
+      5/4-digit single-digit forms alpha-first — so S602's parse_color fix for #RGB/#ARGB is the
+      building block; (2) the conversion is pure, no registry — VAML's only adaptation is that it must
+      register the fresh SolidColorBrush under `Brush:<id>` on the TARGET ELEMENT so the render-time
+      `find_for_element` three-scope walk resolves it (VAML holds a BrushId int, WPF holds the brush
+      object — the required divergence is the id-registration, NOT any id-dedup/id-collision machinery
+      the earlier plan invented; WPF has none). **Change:** (1) a shared `convert_brush_id_literal`
+      helper, the `Parsers.ParseBrush` analogue, added to BOTH readers (S288 parity): parse-as-int →
+      `Value::BrushId(id)` (the existing GeometryDrawing numeric convention, unchanged); else
+      `parse_color(literal)` succeeds → allocate an owned `SolidColorBrush`, register it under
+      `Brush:<id>` on the target element's resources set, return `Value::BrushId(newId)`; else →
+      structured `MalformedValue` (WPF throws FormatException; never silent); (2) registration at the
+      BUILD CALL SITES (convertLiteral still has no element — WPF's converter is context-free, VAML
+      needs the element to register, same as 11k-4's original scoping constraint), owned brush kept in a
+      reader-held per-Load `owned_brushes_` vector (like `owned_merged_`), auto-ids from a high base
+      offset so they never collide with app-registered small ids (a one-line guard, not a dedup-map
+      design — WPF's fresh-object-per-conversion is honored, a color used on multiple elements is a
+      separate brush per element, exactly like WPF); (3) end-to-end headless test (both CI lanes):
+      `TextBlock Foreground="#FFE8E8E8"` + `Rectangle Fill="Red"` + `Border Background="#80RRGGBB"`
+      load with NO throw, the DP carries the BrushId, and `resolve_foreground_color` returns the parsed
+      Color (register→resolve seam); gate through the real `vaml_viewer <xaml>` parse check so the smoke
+      `.xaml` is proven loadable by the real actual-frame producer.** NO-GAP: the real per-control
+      material surface S400/S401 is owned by its own steps (recorded, not silently backfilled here);
+      the build_geometry_drawing `#RRGGBB` "a later surface — recorded NO-GAP" comment is consumed (this
+      IS that later surface).
 > ---
 > ### THE ONE-SURFACE-PER-STEP QUEUE (S644+ — base building block → higher, ONE per step)
 > Each step: authored `.xaml` (declaring its expected outcome) + the surface's component + the scanner
