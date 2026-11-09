@@ -77,12 +77,22 @@ namespace Vaml.WpfEmitter
                 root.Arrange(new Rect(0, 0, w, h));
                 root.UpdateLayout();
 
-                // Tree-scanner placeholder harvests text/icon quads AFTER layout (so the
-                // quads carry real frame-space positions). Sets meta.Width/Height from the
-                // root's post-layout RenderSize.
-                ElementTreeScanner.Harvest(root, metadata);
+                // S643 (REVISIT S640b/S641 closure): the tree-scanner derives the sidecar
+                // FROM the authored XAML's in-XAML SCAN DECLARATION (the PRIMARY oracle the
+                // C++ compare reads) + overlays each declared quad's real layout position from
+                // the named element. Pass the XAML text so the scanner can read the block.
+                string xamlText = File.ReadAllText(xamlPath);
+                ElementTreeScanner.Harvest(root, metadata, xamlText);
                 w = metadata.Width >= 1 ? metadata.Width : w;
                 h = metadata.Height >= 1 ? metadata.Height : h;
+
+                // S643 (DRIVER input-hash, approved): stamp the sidecar with the hash over
+                // the PRINCIPLE SOURCE FILES. The driver recomputes this and compares to the
+                // stamped value to decide A-skip vs A-render. Source-only (no exe bytes, no
+                // version constant) so a no-op rebuild reuses the cached frame; any source
+                // change to the emitter/scanner/xaml/catalogue re-renders (the stage where
+                // CHANGING THE SOURCE is what matters). A missing principle file FAILS loudly.
+                metadata.InputHash = HashInput.Compute(xamlPath);
 
                 // S642 (the SYNC TOKEN, authoring half): the catalogue-driven scanner must
                 // have read the COMMITTED single-source-of-truth catalogue (tools/

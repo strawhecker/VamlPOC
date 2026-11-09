@@ -1428,7 +1428,17 @@ add_executable(vaml-presentation-tests
     # The WPF-emitter side commits to the SAME committed JSON (its CI-half is the
     # committed fixture + this C++ reader test).
     CapabilityCatalogue_s642_test.cpp
-    CapabilityCompare_s642_test.cpp)
+    CapabilityCompare_s642_test.cpp
+    # S643 (dep:S642) — TOOL SMOKE TEST (headless Rail 1): the enforceable half of the
+    # run → scan → compare proof. READS the COMMITTED vaml_ui_tester/sample.smoke.xaml,
+    # parses its in-XAML SCAN DECLARATION (the primary oracle), and drives the compare over
+    # a synthetic ScrapeGrid that mirrors BOTH regimes — the FUZZY floor (int/bool/string →
+    # text glyph labels + icon → presence, "non-empty == non-empty") and the EXACT
+    # fails-loud geometry sentinels (a no-text Rectangle + a Border at tight rects). Asserts
+    # the loop PASSES when everything renders and FAILS LOUDLY on a blank geometry/text quad.
+    # Also the REVISIT S640b/S641 closure: the smoke's declared capability ids + tolerances
+    # round-trip through the compare (the declaration is the authoritative oracle).
+    ToolSmoke_s643_test.cpp)
 
 vaml_apply_compiler_policy(vaml-presentation-tests)
 
@@ -1442,6 +1452,9 @@ target_include_directories(vaml-presentation-tests PRIVATE
 # to a COMITTED fixture the C++ side reads, so a drift is enforced, not assumed).
 target_compile_definitions(vaml-presentation-tests PRIVATE
     VAML_TEST_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../fixtures"
+    # S643: the committed smoke `.xaml` (vaml_ui_tester/sample.smoke.xaml) the headless
+    # S643 suite parses — the repo root is CMAKE_SOURCE_DIR.
+    VAML_UI_TESTER_DIR="${CMAKE_SOURCE_DIR}/vaml_ui_tester"
 )
 target_include_directories(vaml-presentation-tests SYSTEM PRIVATE
     ${VAML_DEPS_DIR}

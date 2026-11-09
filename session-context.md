@@ -1,141 +1,133 @@
 # session-context.md
 
-last_command: implementit (S642 — GENERIC CAPABILITY PARITY — dep:S641; the typed capability catalogue
-both sides implement IDENTICALLY — the "keep both in sync" mechanism)
-plan_digest: S642 authors the PARITY MATRIX (capability → our side status → WPF side status → parity yes/no
-→ named gap, never silent) + the typed capability catalogue (typed slots: 10 int / 10 bool / 10 string / 10
-double; icons: 10; text: 10 — soft-start counts) + the SYNC TOKEN (a capability may only be introduced by
-updating the LIB side AND the WPF-emitter side AND the matrix IN THE SAME STEP). REVISIT S640b/S641
-(metadata fine-tune, PROVISIONAL) — iterated the emitter OUTPUT metadata + the tree-scanner placeholder
-against the typed-slot/icon/text capabilities; the metadata shape is PROVISIONAL and locks only after
-S643's screens. **THIS SESSION: S642 implemented; BOTH CI LANES GREEN: windows-msvc (build/verify_s642.cmd
-warning-as-error clean + ctest 4/4 incl. the 2 S642 suites) + ubuntu-clang (VM /mnt/hgfs/VamlPOC clang-debug
-UBUNTU-GREEN) + the PARITY MATRIX gen + SYNC-TOKEN check (60 capabilities in sync) + the Windows-authoring
-gate (dotnet WPF-emitter build + the catalogue-driven sidecar deposit confirmed).**
+last_command: implementit (S643 — TOOL SMOKE TEST — dep:S642; ONE .xaml using ONE of each capability type +
+two no-text geometry sentinels, proving the run -> scan -> compare tooling end-to-end + the REVISIT
+S640b/S641 metadata-fine-tune closure)
+plan_digest: S643 proves the run -> scan -> compare tooling end-to-end over ONE authored `.xaml`
+(vaml_ui_tester/sample.smoke.xaml) using ONE of each capability type (1 int / 1 bool / 1 string / 1 icon
+/ 1 text) PLUS two no-text geometry sentinels (a Rectangle box01 + a Border border01) as the ONLY EXACT
+fails-loud compare path — so a parity failure at S644+ is ATTRIBUTABLE (capability broken vs tooling
+broken — separated). OWNER DECISION: bound int/bool/string slots render as TEXT GLYPHS (fuzzy-pool), so the
+smoke adds the two no-text geometry sentinels; the fuzzy text/icon quads compare on a DECLARED presence
+floor with 0.08 as the SMOKE-ONLY soft start (NEVER a catalogue default/limit — S644/S656/S657 must tighten
+it, NO-GAP). The in-XAML SCAN DECLARATION is the PRIMARY oracle; declared tolerance/kind always win the
+merge (the locked S642 order). **THIS SESSION: S643 fully implemented; BOTH CI LANES + the Windows-authoring
+gate GREEN (build/verify_s643.cmd ran to "S643 GREEN") + the REVISIT S640b/S641 metadata-fine-tune CLOSED
+(the WPF scanner is now declaration-driven) + the driver-directed catalogue-kind amendment
+(int/bool/double Solid->Text) applied + roadmap/progress/session-context updated.**
 
-## files_touched — S642 (this session)
-- tools/capability_catalogue.json (NEW): the SINGLE-SOURCE-OF-TRUTH catalogue (60 capabilities: 10 int / 10
-  bool / 10 string / 10 double / 10 icon / 10 text; each row id/family/type/kind/tolerance/our/wpf/parity/gap;
-  counts_are_soft_start: true).
-- tools/parity_matrix_gen.py (NEW): the PARITY MATRIX generator (docs/PARITY_MATRIX.md, derived never
-  hand-edited; fails-loud on blank/unknown status or parity=no-without-gap).
-- tools/parity_sync_check.py (NEW): the SYNC-TOKEN enforcer (every capability in sync across our + WPF + matrix).
-- docs/PARITY_MATRIX.md (generated): the derived parity matrix (60 rows) + family-summary + soft-start token.
-- src/presentation/include/vaml/presentation/scan/CapabilityCatalogue.h + src/presentation/src/scan/
-  CapabilityCatalogue.cpp (NEW): the LIB side — parses the embedded catalogue into a CapabilityCatalogue
-  (version/counts_are_soft_start/capabilities) + find_capability/catalogue_tolerance_for/family_count/summarize;
-  a hand-rolled focused JSON scanner (handles object/array/string/boolean fields) — the S641 EmitterMetadata
-  precedent.
-- src/presentation/include/vaml/presentation/scan/EmitterMetadata.h + src/presentation/src/scan/
-  EmitterMetadata.cpp (MOD): read the per-quad Capability (SYNC-TOKEN id) + Tolerance fields when present
-  (forward-compat — S641 keeps working; unknown fields ignored).
-- src/presentation/include/vaml/presentation/scan/Scanner.h + src/presentation/src/scan/Scanner.cpp (MOD):
-  NEW compliance_compare_catalogued(actual, expected, sidecar) — the catalogue-driven compare; per-quad
-  tolerance merge: SCAN-DECLARATION-tolerance WINS > sidecar catalogue-tolerance > built-in kind default.
-- src/presentation/CMakeLists.txt (MOD): + src/scan/CapabilityCatalogue.cpp into vaml-presentation.
-- test/unit/CapabilityCatalogue_s642_test.cpp (NEW): embedded catalogue loads; soft-start family counts 10x6;
-  per-capability kind/tolerance; catalogue-tolerance-resolve; family counts; the SYNC-TOKEN parity assertion.
-- test/unit/CapabilityCompare_s642_test.cpp (NEW): the sidecar Capability/Tolerance fields parse
-  forward-compatibly; the S641 forward-compat contract; the catalogue-driven compare (sidecar icon capability
-  -> loose tolerance; declared-tolerance WINS; a catalogued string capability -> text tolerance); catalogue-tolerance-resolve.
-- test/unit/CMakeLists.txt (MOD): + the 2 S642 suites into vaml-presentation-tests.
-- wpf_emitter/ImageBuffer.cs (MOD): QuadMetadata + Capability + Tolerance fields (the provisional S642 shape).
-- wpf_emitter/ElementTreeScanner.cs (MOD): the catalogue-driven tree-scanner — **RESOLVES the S640b
-  tree-scanner MINIMAL REAL marker at its own step** (the placeholder grows into the real scanner; harvests
-  text/icon quads tagged with the capability id + kind + tolerance through the catalogue + a deterministic
-  fallback; the [MINIMAL REAL] sentinel removed, the provenance record kept in source docs).
-- wpf_emitter/README.md (MOD): the scanner metadata section updated (catalogue-driven; the marker RESOLVED).
-- wpf_emitter/samples/WpfEmitterSample.xaml (unchanged): the sample the authoring gate runs.
-- build/verify_s642.cmd (NEW): the two-lane gate (new-files + MINIMAL-REAL resolution audit + matrix gen +
-  sync-check + windows-msvc + ubuntu-clang + the authoring gate).
-- build/verify_s642_authoring.cmd (NEW): the Windows-authoring gate (grep-audit marker-resolved + dotnet
-  WPF-emitter build + run against the sample -> the sidecar carries Capability/Tolerance).
-- docs/roadmap.md (MOD): S642 token -> [DONE] with the full digest (DELIVERED bullets + COUNT-SCOPE token +
-  NO-GAP note + REVISIT record).
-- docs/progress.md (MOD): the S642 record (this session digest + build status + checkpoint).
-- session-context.md (MOD): this entry (fresh rewrite).
+## files_touched — S643 (this session, cumulative incl. the planning amendment)
+- vaml_ui_tester/sample.smoke.xaml (NEW): the S643 smoke — 7 quads (int01/bool01/str01/text01/icon01 FUZZY
+  floor + box01 Rectangle + border01 Border EXACT sentinels) with the in-XAML SCAN DECLARATION (the primary
+  oracle; declared kind + capability + tolerance per quad; 0.08 declared as the smoke-only text start). NOTE:
+  the XAML comments avoid `--` (XML comments may not contain two consecutive dashes — the WPF XamlReader
+  rejects it; validated by parsing the .xaml as XML).
+- test/unit/ToolSmoke_s643_test.cpp (NEW): the headless both-lane half of the run->scan->compare proof —
+  READS the committed `vaml_ui_tester/sample.smoke.xaml` (via VAML_UI_TESTER_DIR), parses its SCAN
+  DECLARATION, drives the compare over a synthetic grid mirroring BOTH regimes, asserts the loop PASSES
+  fully-rendered AND FAILS LOUDLY on a blank geometry/text quad + the REVISIT declared-capability round-trip
+  + the DRIVER input-hash forward-compat case (the C++ sidecar reader tolerates the new `InputHash` field).
+- tools/compare_hash.py (NEW): the S643 DRIVER's source-hash authority — `hash` (write the principle-files
+  SHA-256 to stdout) + `stale` (fresh/stale vs the metadata's stamped hash; exit 0/1/2). Principle set (read
+  in + appended, deterministic order): the test `.xaml` + tools/capability_catalogue.json + wpf_emitter/*.cs +
+  src/presentation/src/scan/*.{cpp,h} + the scan public headers.
+- wpf_emitter/HashInput.cs (NEW): the C# twin of the source hash (SHA-256 over the same principle files);
+  cross-implementation-consistent with compare_hash.py (verified identical 64-hex digest).
+- wpf_emitter/ImageBuffer.cs (MOD): EmitterMetadata gains the `InputHash` field.
+- wpf_emitter/Program.cs (MOD): passes the XAML text to ElementTreeScanner.Harvest (so it can read the SCAN
+  DECLARATION) + stamps metadata.InputHash via HashInput.Compute.
+- build/run_compare.cmd (NEW): the S643 TWO-APP DRIVER (approved) — loops build/compare_tests.manifest; A
+  (the WPF composer) runs ONLY on missing/stale (via compare_hash.py), B (vaml_ui_tester --compare) runs
+  ALWAYS + ACCUMULATES every failure (a silent fail is banned); one frame at a time; `--rebuild` forces A.
+- build/compare_tests.manifest (NEW): the ordered test-name list (one file per test; sample.smoke).
+- vaml_ui_tester/vaml_ui_tester.vcxproj (MOD): sample.smoke.xaml None item + `_CRT_SECURE_NO_WARNINGS`
+  (the msbuild-as-B build needed it under TreatWarningAsError).
+- build/verify_s643.cmd (MOD): the desktop lane now builds the tester (B) via msbuild when absent + runs the
+  DRIVER (`call build\run_compare.cmd --frames ... --report ...`) as an ENFORCED desktop two-app lane (not a
+  skip); gate exits `S643 GREEN (both CI lanes + authoring gate + desktop two-app driver)`.
+- tools/capability_catalogue.json (MOD): typed-slot kinds Solid -> Text for slot_int / slot_bool / slot_double
+  (family entries + all 30 capability rows); tolerance rows UNCHANGED (0.02). 33 replacements. Symmetric with
+  the embedded bytes.
+- src/presentation/src/scan/CapabilityCatalogue.cpp (MOD): the embedded bytes mirror the JSON (same 33
+  Solid -> Text edits) — the compile-time single source of truth stays byte-identical to the JSON.
+- docs/PARITY_MATRIX.md (REGEN): regenerated via tools/parity_matrix_gen.py (60 rows; slot_int/bool/double
+  now kind Text, tolerance 0.02; SYNC-CHECK OK).
+- test/unit/CapabilityCatalogue_s642_test.cpp (MOD): the slot_int_01 + slot_double_05 kind assertions updated
+  to QuadKind::Text (tolerance still 0.02) — matching the corrected semantics + comments.
+- wpf_emitter/ElementTreeScanner.cs (MOD): the REVISIT S640b/S641 CLOSURE — the placeholder scanner was NOT
+  declaration-synced (Rectangle->Icon, Border dropped, capability ids collapsed); now DECLARATION-DRIVEN: it
+  parses the SAME in-XAML SCAN DECLARATION as the C++ side (the C# mirror of the S641 grammar) and emits ONE
+  sidecar quad PER DECLARED quad (Name/Kind/Capability/Tolerance from the DECLARATION; X/Y/W/H from the REAL
+  layout position of the named WPF element). ALSO added: FindByName (visual-tree walk) + ParseScanDeclaration
+  (the C# declaration mirror). QuadKind::Border NOT needed (a Border falls under the tight `solid` diff kind).
+- wpf_emitter/Program.cs (MOD): passes the XAML text to ElementTreeScanner.Harvest (so it can read the
+  SCAN DECLARATION).
+- docs/roadmap.md (MOD): S643 entry -> [DONE] + the REVISIT-CLOSED record; S642 entry -> the CATALOGUE-KIND
+  AMENDMENT record (from planning); PARITY_MATRIX regenerated.
+- docs/progress.md (MOD): NEW S643 — SURVIVOR block + NEW ACTIVE-CURRENT checkpoint (11r-S643) at the top
+  (the whole doc's checkpoint history preserved, not truncated).
 
-## build_status (S642 — from first principles)
-- windows-msvc (the CI lane) via build/verify_s642.cmd: cmake --preset msvc-debug configure clean + build
-  warning-as-error clean + ctest 4/4 PASS (vaml-core / vaml-tools / vaml-vulkan / vaml-presentation — the
-  vaml-presentation suite now includes the 2 S642 suites: CapabilityCatalogue_s642 + CapabilityCompare_s642,
-  all green). The PARITY MATRIX gen + SYNC-TOKEN check run in the gate (60 capabilities in sync).
-- ubuntu-clang: RUN + GREEN this session (build/verify_s642.cmd -> UBUNTU-GREEN; /mnt/hgfs/VamlPOC
-  clang-debug configure+build+ctest 4/4).
+## build_status (S643 — from first principles)
+- windows-msvc: build/verify_s643.cmd -> GREEN. cmake --preset msvc-debug configure clean + build
+  warning-as-error clean + ctest 4/4 PASS (the vaml-presentation suite 265/265 cases / 1606/1606 assertions,
+  incl. the S643 ToolSmoke 6 cases / 80 assertions + the re-verified S642 17 cases / 226 assertions).
+- ubuntu-clang (VM /mnt/hgfs/VamlPOC, clang 21): build/verify_s643.cmd -> UBUNTU-GREEN; clang-debug
+  configure+build+ctest 4/4. The S643 doctest filter confirmed directly on the VM: 6 cases / 80 assertions /
+  0 failed.
+- PARITY matrix gen + SYNC-TOKEN check: OK (60 capabilities in sync — our + WPF + matrix agree).
+- Windows-authoring gate (local, NOT CI): GREEN — the WPF emitter built 0 warnings/0 errors, deposited
+  build/_s643_out.bgra (440x340) + build/_s643_out.json (with the InputHash stamped), and the tightened
+  assertion passed: `S643-SIDECAR-OK quads=7 catalogued=5 solidsentinels=2`.
+- **Desktop two-app DRIVER (local, NOT CI — ENFORCED, not skipped):** BOTH green. (a) The driver's own clean
+  run (`build/run_compare.cmd`) exits 0 (`ALL tests PASSED`; A skipped on a fresh hash), `--rebuild` forces A
+  (re-render then B PASSED), and the accumulate path catches every failure across the manifest in one batch
+  (a missing-test entry is reported while the other tests still run B). (b) The full gate's desktop lane
+  builds the tester (B, `vaml_ui_tester.exe x64\Debug`) via msbuild when absent, then runs the driver, and
+  `build/verify_s643.cmd` exits `S643 GREEN (both CI lanes + authoring gate + desktop two-app driver)`. The
+  smoke's real compare against the WPF frame passes **14/14** (data=14 pass=14) through the tester (B), after
+  the smoke declaration rects + the icon (Image->Ellipse, no external asset) were corrected to real layout.
 - windows-clang-debug: NOT a CI lane (pre-existing /Zc:preprocessor clang-cl failure; CI does not run it).
-- Windows-authoring gate (local, NOT CI): verify_s642_authoring.cmd -> GREEN (minimal-real audit OK + dotnet
-  WPF-emitter build clean + run over the sample -> the deposited sidecar carries Capability: icon_01/text_01 +
-  Tolerance — the S642 metadata shape confirmed).
 
-## next_step — S642 implemented (BOTH CI LANES GREEN)
-- S642 implemented: the PARITY MATRIX (generated) + the typed capability catalogue (LIB + WPF-emitter sides,
-  embedded/runtime-loaded from the SAME JSON) + the SYNC-TOKEN mechanism (parity + the catalogue-driven
-  compare) + the metadata fine-tune (REVISIT S640b/S641, PROVISIONAL). The S640b tree-scanner MINIMAL REAL
-  marker RESOLVED at its own step. Headless-ctested on BOTH lanes + the authoring gate + the matrix/sync-check.
-- Next per the roadmap chain = **S643** (TOOL SMOKE TEST — ONE .xaml using ONE of each type (1 int/1 bool/1
-  string/1 icon/1 text) proving the run->scan->compare script end-to-end + the S642/S643 REVISIT metadata
-  fine-tune — confirm the placeholder tree-scanner metadata suffices or extend it).
+## next_step — S643 implemented (BOTH CI LANES + the authoring gate + the desktop two-app DRIVER GREEN)
+- S643 implemented: the TOOL SMOKE TEST (ONE .xaml, both compare regimes, fails-loud sentinels) proving the
+  run -> scan -> compare tooling end-to-end via the APPROVED TWO-APP DRIVER + the REVISIT S640b/S641
+  metadata-fine-tune CLOSED (the WPF scanner is declaration-driven) + the driver-directed catalogue-kind
+  amendment (int/bool/double Solid->Text).
+- Next per the roadmap chain = **S644 (TextBlock — real glyphs via the S400/S409_1 SDF path; the scanner
+  confirms authored text is READABLE at the text rect, not a nominal full-atlas quad; the FIRST step that
+  tightens the fuzzy-compare quality the S643 smoke left soft — the NO-GAP owner)**, with the
+  [11r EXHAUSTIVE: S644 TextBlock x6 xaml instances] token. Each new surface's `.xaml` joins
+  build/compare_tests.manifest so B (the vaml compare) runs it — the S643 driver is the standing harness.
 
 ## notes
-- SINGLE-SOURCE-OF-TRUTH: the catalogue (tools/capability_catalogue.json) is read by the LIB side (embedded
-  at compile time — no runtime file dep, both CI lanes run the identical bytes), the WPF-emitter C# side
-  (runtime load with a deterministic fallback), and the PARITY MATRIX generator / sync-check — so a
-  capability can never drift one-sided. The C++ headless parity test is the enforceable half; the C# side
-  commits to the SAME committed JSON.
-- SYNC TOKEN: every S642 capability may only be introduced by updating OUR side AND the WPF-emitter side AND
-  the matrix IN THE SAME STEP (never one-sided, never silent). parity=no must carry a named gap.
-- COUNT-SCOPE (soft start): 10 per family is an INITIAL EXEMPLAR, NOT a hard limit — the catalogue + matrix
-  + sync check GROW IN PLACE (no new step, no backfill) when testing permutations demand more. Documented in
-  the matrix + roadmap + progress.
-- METADATA FINE-TUNE (REVISIT S640b/S641, PROVISIONAL): the emitter sidecar now deposits the per-quad
-  Capability (SYNC-TOKEN id) + Tolerance fields; the LIB reader + the catalogue-driven compare consume them.
-  The shape is PROVISIONAL — locked only after S643's screens prove the quads carry the tolerance info the
-  compare needs (S643 carries the REVISIT token).
-- NO-GAP: ZERO NEW MINIMAL REAL introduced; the S640b tree-scanner marker RESOLVED at its own step (provenance
-  record kept); ADR-018 ZERO new locks (all single-threaded pure reads); ADR-011 held (core data + scan; no
-  classifier/render change). The S641 metadata reader is NOT stranded (forward-compat).
-
-## CI-FIX (GH CI failed on both lanes for the last committed push 26c4377/S641)
-- SYMPTOM: the GH CI matrix (windows-msvc + ubuntu-clang) FAILED at CONFIGURE on the last committed push
-  (S641). A fresh deps clone + configure reproduced it locally: `FATAL_ERROR: stb_image_write.h not found`.
-- ROOT CAUSE: the S641 commit's `cmake/FindImageDecoders.cmake` requires the vendored single header
-  `third_party/deps/stb/stb_image_write.h`, but that file existed ONLY on this local box (gitignored —
-  `third_party/deps/` is fully gitignored) and was NEVER pushed to the public `vaml-deps` remote that
-  GH CI clones fresh. So CI's deps clone had only `stb_image.h` + `stb_truetype.h`, and S641's source/
-  CMake references (PixelDiff.cpp STB_IMAGE_WRITE_IMPLEMENTATION; FindImageDecoders.cmake check) made
-  configure fail on BOTH lanes. Local builds passed only because the file happened to exist locally.
-- FIX (per the S160/S161 dep-migration discipline — deps live in the public `vaml-deps` remote, NOT tracked
-  in-repo): vendored the genuine `stb_image_write.h` v1.16 (the same canonical stb header, verified: 46
-  references to stbi_write_png / STB_IMAGE_WRITE_IMPLEMENTATION / the STBIWDEF API guard) into `vaml-deps`
-  and PUSHED it (commit c4516c8, 1724 insertions; remote master 9fdf028..c4516c8). No in-repo CMake/source
-  change was needed — the fix is purely on the deps remote.
-- VERIFIED (from a fresh deps clone, the exact CI checkout path, BOTH lanes):
-  * windows-msvc: fresh `git clone vaml-deps` into `third_party/deps`, then `cmake --preset msvc-debug`
-    (CONFIG_OK) → `cmake --build --preset msvc-debug` (BUILD_OK) → `ctest --preset msvc-debug` (TEST_OK).
-  * ubuntu-clang (VM /mnt/hgfs/VamlPOC, fresh deps clone): clang-debug configure+build+ctest → CI_UNIX_GREEN.
-- No commit to the VamlPOC repo was made for this (the fix lives on the vaml-deps remote; standing directive —
-  commitit outstanding, driver's seat is yours).
-
-## GAP-CLOSURE RUN (S642 follow-up — the driver asked "is anything incomplete; the carry on")
-The driver probed for carry-on (the SILENCE RULE guards against assuming green = complete). An audit against
-the FINALIZED plan found THREE plan-named items that were incomplete; all CLOSED this session + re-verified
-on BOTH CI lanes + the authoring gate:
-1. GAP (S642-B): the in-XAML `SCAN DECLARATION` was NOT extended with the per-quad `capability <id>` token.
-   FIXED: `ScanQuad.capability` added + the parser accepts the optional `capability ID` quad option (empty when
-   absent = forward-compatible; a bare token with no id -> typed MalformedLine). Tests added in
-   ScanDeclaration_s641_test.cpp (3 cases, all pass).
-2. GAP (S642-C): `wpf_emitter/Program.cs` did not OWN a catalogue read (only ElementTreeScanner did).
-   FIXED: `ElementTreeScanner.UsesCommittedCatalogue` exposes the located-flag; `Program.cs` now FAILS LOUDLY
-   (return 2, never silent) if the COMMITTED tools/capability_catalogue.json was not located (a fallback-only
-   run is rejected — the WPF side cannot silently drift from the LIB side + matrix). The authoring gate sets
-   `VAML_REPO_ROOT` + the catalogue root-discovery was made robust (env var + assembly + cwd-relative).
-3. GAP (sync-token fixture half): the plan's "the C# side commits to a committed sample fixture the C++ side
-   reads" was not concretely shipped. FIXED: NEW `test/fixtures/s642_emitter_sidecar.json` (the committed
-   emitter-sidecar sample) + NEW C++ test case in CapabilityCompare_s642_test.cpp that READS the fixture via
-   the new `VAML_TEST_FIXTURES_DIR` compile definition and asserts every fixture capability id resolves to a
-   catalogue row with a matching kind + tolerance (the enforceable half). All pass.
-VERIFY after the closure: build/verify_s642.cmd -> S642 GREEN (both CI lanes + matrix/sync-check + authoring
-gate); the focused doctest run of `*S642*` = 17 cases / 226 assertions / 0 failed.
-- ZERO LOCKS (ADR-018): the catalogue parse + the compare are single-threaded pure reads over the embedded JSON.
-- No commit made (standing directive — commitit outstanding; the driver's seat is yours; the S642 change set
-  is uncommitted).
+- PRIMARY ORACLE: the in-XAML SCAN DECLARATION is authoritative for kind/capability/tolerance; the
+  emitter-sidecar is the SECONDARY oracle (now declaration-derived, so it round-trips by construction). The
+  declared tolerance ALWAYS wins the merge (declared > sidecar catalogue > built-in kind default).
+- CATALOGUE-KIND SEMANTICS: a bound int/bool/double slot renders as a TEXT GLYPH (a TextBlock showing
+  "42"/"True"), NOT a filled solid box — so its DEFAULT compare kind is Text (fuzzy), not Solid. The
+  per-capability tolerance stays 0.02 (the tight text floor); 0.08 is the SMOKE-ONLY soft start, NEVER a
+  catalogue default or limit (S644/S656/S657 must tighten it).
+- NO-GAP: the fuzzy-pool soft start is OWNED by a named forward obligation recorded in roadmap + progress
+  (S644 TextBlock / S656 Icon / S657 Label MUST tighten the fuzzy-compare quality); the geometry sentinels
+  (box01/border01) prove the scan->compare loop can FAIL LOUDLY. ZERO MINIMAL REAL (grep-audit in
+  verify_s643.cmd); ADR-018 ZERO new locks; ZERO invented names (Rectangle/Border are real WPF types).
+- SOURCE OF TRUTH: the catalogue (tools/capability_catalogue.json) is read by the LIB side (embedded at
+  compile time), the WPF-emitter C# side (runtime load), and the PARITY MATRIX generator/sync-check — a
+  capability can never drift one-sided. SYNC-TOKEN audience applies (a capability only introduced by updating
+  BOTH sides + the matrix IN THE SAME STEP).
+- S643 DRIVER (approved two-app): build/run_compare.cmd loops build/compare_tests.manifest (ordered names,
+  one test = one .xaml = one frame+metadata pair). A (WPF composer) runs only on missing/stale (the
+  input-hash in the metadata — compare_hash.py compares it); B (vaml_ui_tester --compare) runs ALWAYS +
+  ACCUMULATES failures into a marker file (a silent fail is banned); ONE frame at a time (portable; never N
+  tests composited into one large frame). `--rebuild` + deleting an artifact are manual overrides, never the
+  correctness mechanism. Enforced in verify_s643.cmd's desktop lane (builds the tester via msbuild when
+  absent). Desktop acceptance = this driver green + headless CI lanes green.
+- INPUT-HASH PRINCIPLE: SHA-256 over the SOURCE files (test .xaml + capability_catalogue.json +
+  wpf_emitter/*.cs + src/presentation/src/scan/*.{cpp,h} + scan public headers). NOT the rebuilt exe (WPF
+  rebuilds churn binary bytes), NOT a version constant (forgotten bump = silent stale frame). Cross-impl
+  consistent (HashInput.cs == compare_hash.py). A source change (xaml/emitter/scanner) IS the invalidation —
+  that's when a re-render fires + B re-runs (the regression radar as the vaml lib/viewer changes).
+- XML comment rule (recorded): an XML comment may not contain `--`. The smoke .xaml comments use single
+  hyphens/em-dashes only; validated by XML-parsing the file.
+- No commit made (standing directive — commitit outstanding, driver's seat is yours; the S643 + the S642
+  change set are uncommitted).

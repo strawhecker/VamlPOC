@@ -40,10 +40,11 @@ TEST_CASE("S642 soft-start-count families: 10 int / 10 bool / 10 string / 10 dou
 TEST_CASE("S642 every capability is catalogued with the right kind + tolerance")
 {
     const auto& cat = capability_catalogue();
-    // a typed int slot -> Solid quad + the tight tolerance
+    // a typed int slot -> Text quad (an int bound to a TextBlock renders as a glyph
+    // label, NOT a filled box — fuzzy floor) + the tight catalogue tolerance
     const Capability* si = find_capability(cat, "slot_int_01");
     REQUIRE(si != nullptr);
-    CHECK(si->kind == QuadKind::Solid);
+    CHECK(si->kind == QuadKind::Text);
     CHECK(si->type == "int");
     CHECK(si->tolerance == doctest::Approx(0.02));
 
@@ -135,7 +136,7 @@ TEST_CASE("S642 the embedded catalogue is intact (spot-check family/tolerance ag
     const Capability* d = find_capability(cat, "slot_double_05");
     REQUIRE(d != nullptr);
     CHECK(d->type == "double");
-    CHECK(d->kind == QuadKind::Solid);
+    CHECK(d->kind == QuadKind::Text);   // a double renders as a glyph label -> fuzzy floor
     CHECK(d->tolerance == doctest::Approx(0.02));
 
     const Capability* t = find_capability(cat, "text_07");

@@ -63,6 +63,12 @@ namespace Vaml.WpfEmitter
         public uint Width { get; set; }
         public uint Height { get; set; }
         public string Source { get; set; } = "";
+        // S643 — the DRIVER's input-hash (approved scheme): SHA-256 over the PRINCIPLE
+        // SOURCE FILES (the test .xaml + capability_catalogue.json + wpf_emitter/*.cs +
+        // the scanner sources/headers). The driver recomputes it and compares to this value:
+        // equal => A (the composer) is SKIPPED (only B compares); mismatch => A re-renders.
+        // Rebuilding WPF does NOT change it (no exe bytes, no version constant — source only).
+        public string InputHash { get; set; } = "";
         public List<QuadMetadata> Quads { get; set; } = new List<QuadMetadata>();
     }
 }

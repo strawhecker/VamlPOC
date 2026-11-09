@@ -1,0 +1,76 @@
+<!--
+  S643 TOOL SMOKE TEST : ONE .xaml, BOTH COMPARE REGIMES, FAILS-LOUD.
+  (XML comments may not contain two consecutive dashes, so this block uses only
+   single hyphens and em dashes. The XML parser rule is absolute.)
+  Proves the run > scan > compare tooling end-to-end over ONE authored doc using
+  ONE of each capability type (1 int, 1 bool, 1 string, 1 icon, 1 text) PLUS two
+  no-text geometry sentinels (a Rectangle and a Border), so a parity failure at the
+  S644+ queue is ATTRIBUTABLE (the failing surface is a capability, or it is the
+  tooling run/scan/compare). This is the driver-accepted owner decision for
+  S643 (see docs/roadmap.md).
+
+  FUZZY floor (DECLARED presence, NOT tight glyph fidelity):
+    int01 / bool01 / str01 / text01 / icon01  - "non-empty == non-empty" presence.
+    These resolve to glyph labels (an int/bool/string bound to a TextBlock renders
+    as text, NOT a filled box), so they are text/icon quads, the fuzzy-pool side.
+    This coarse allowance is OWNED by a named forward obligation (NO-GAP): S644
+    (TextBlock), S656 (Icon), S657 (Label) MUST tighten the fuzzy-compare quality
+    (readable-glyph, auto-locate, tighter band). The tight sentinels below are what
+    keep THIS smoke fails-loud.
+
+  EXACT sentinels (TIGHT, fails-loud geometry):
+    box01    - a no-text Rectangle (Solid, S482). The ONLY tight path in this smoke.
+    border01 - a Border (Border material, S481). The other tight path.
+    If the geometry does not render (blank/transparent), these FAIL loudly. The
+    loop is proven CAPABLE of issuing a FAIL on geometry (never a silent all-pass).
+
+  REVISIT S640b/S641 (metadata fine-tune): the in-XAML SCAN DECLARATION is the PRIMARY
+  oracle - it declares each quad's kind + capability + tolerance. The emitter sidecar
+  (secondary, forward-compatible) rounds the emitter-produced metadata through the
+  compare; the DECLARED values ALWAYS win (the locked S642 merge order). The declared
+  tolerance is written into every datum so the report documents exactly what was used.
+  No QuadKind::Border was needed: a Border's compare falls under the tight solid
+  regime (the diff kind, NOT a new catalogue row), so ZERO catalogue SYNC-TOKEN churn.
+-->
+<!-- SCAN DECLARATION
+  frame 440 340
+  quad  int01     text  auto            band 16  capability slot_int_01     tolerance 0.08
+  quad  bool01    text  auto            band 16  capability slot_bool_01    tolerance 0.08
+  quad  str01     text  auto            band 16  capability slot_string_01  tolerance 0.08
+  quad  icon01    icon  auto  presence  capability icon_01                  tolerance 0.25
+  quad  text01    text  auto            band 16  capability text_01         tolerance 0.08
+  quad  box01     solid rect 16,210,64,40                                  tolerance 0.02
+  quad  border01  solid rect 48,266,64,40                                  tolerance 0.02
+END SCAN DECLARATION -->
+<StackPanel xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="ScanRoot" Width="440" Height="340" Background="#FF1C1C1C">
+
+  <!-- Icon quad: a real WPF Shape (Ellipse) needs no external asset file (no binary to
+       commit) and renders with ink — the icon/asset FAMILY's presence+ink compare. The
+       committed in-layout quads below overlay each element's real position. -->
+  <Ellipse x:Name="icon01" Width="48" Height="48" Fill="#FFFFD860" Margin="16,8,16,8"
+           HorizontalAlignment="Left"/>
+
+  <TextBlock x:Name="text01" Text="hello vaml" Margin="16,4,16,4" FontSize="20"
+             Foreground="#FFE8E8E8" HorizontalAlignment="Left"/>
+
+  <TextBlock x:Name="str01" Text="a bound string" Margin="16,4,16,4" FontSize="20"
+             Foreground="#FFE8E8E8" HorizontalAlignment="Left"/>
+
+  <TextBlock x:Name="int01" Text="42" Margin="16,4,16,4" FontSize="20"
+             Foreground="#FFC8F0C8" HorizontalAlignment="Left"/>
+
+  <TextBlock x:Name="bool01" Text="True" Margin="16,4,16,4" FontSize="20"
+             Foreground="#FFF0C8C8" HorizontalAlignment="Left"/>
+
+  <!-- The two EXACT (tight) geometry sentinels: NO text, so they cannot be
+       auto-located as glyphs; the compare must see a filled solid region. -->
+  <Rectangle x:Name="box01" Width="64" Height="40" Fill="#FF60A060"
+             Margin="16,8,16,8" HorizontalAlignment="Left"/>
+
+  <Border x:Name="border01" Width="64" Height="40" BorderBrush="#FFE0E0E0"
+          BorderThickness="2" Background="#FF3050A0" Margin="48,8,16,8"
+          HorizontalAlignment="Left"/>
+
+</StackPanel>

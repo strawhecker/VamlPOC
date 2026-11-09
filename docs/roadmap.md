@@ -3366,13 +3366,15 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >     are green AND the **desktop two-app test run is green against the real GPU frame** — the desktop test run
 >     is REQUIRED for acceptance on this machine (it is precisely how, as the vaml lib → viewer → tester
 >     changes, this test run tells us when we break things). CI does NOT run the GPU apps (no GPU on CI), but
->     desktop acceptance DOES include them. **IMPLEMENTATION STATUS:** the smoke content + the headless
->     ToolSmoke suite + the declaration-driven WPF scanner are DONE and green; the DESKTOP DRIVER + the
->     manifest + the hash-in-metadata + the CMake target for the tester (so B can actually run against the
->     real frame — currently the live B lane is SKIPPED, not executed) are the OUTSTANDING part to be
->     implemented. NO-GAP: any step that changes the emitter/scanner/compare behavior must commit the source
->     affecting the hash IN THE SAME STEP (the hash is source-derived, so a committed source change IS the
->     invalidation — no separate revision to remember).
+>     desktop acceptance DOES include them. **IMPLEMENTATION STATUS: DONE + GREEN** — the approved DRIVER is
+>     implemented: `build/run_compare.cmd` (the two-app loop: A-if-stale, B-always, accumulate, one frame at a
+>     time over `build/compare_tests.manifest`), `tools/compare_hash.py` (the source-hash authority), the hash
+>     embedded in the metadata (`wpf_emitter/HashInput.cs` + `EmitterMetadata.InputHash`), and the tester (B,
+>     `vaml_ui_tester.exe`) built via msbuild so B RUNS against the real frame. The drive-clean gate
+>     `build/verify_s643.cmd` now runs the driver in its desktop lane (enforced, not skipped) and exits GREEN:
+>     `S643 GREEN (both CI lanes + authoring gate + desktop two-app driver)`. NO-GAP: any step that changes
+>     the emitter/scanner/compare behavior must commit the source affecting the hash IN THE SAME STEP (the hash
+>     is source-derived, so a committed source change IS the invalidation — no separate revision to remember).
 >     **OWNER DECISION (accepted):** because an int/bool/string bound slot RENDERS AS A TEXT GLYPH, the five
 >     catalogue quads (int01/bool01/str01/text01/icon01) are ALL fuzzy-pool — so the smoke adds TWO no-text
 >     geometry sentinels (a `Rectangle` `box01` + a `Border` `border01`) as the ONLY EXACT fails-loud compare
