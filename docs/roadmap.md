@@ -3329,13 +3329,50 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      SYNC-TOKEN change in ONE step: `tools/capability_catalogue.json` + the embedded bytes
 >      (`CapabilityCatalogue.cpp`) + regenerated `docs/PARITY_MATRIX.md` + the `CapabilityCatalogue_s642_test.cpp`
 >      assertions (kind Text, tolerance still 0.02) + the WPF side reads the SAME JSON (auto-consistent).
-> - S643 dep:S642  **TOOL SMOKE TEST** — ONE `.xaml` using ONE of each type (1 int, 1 bool, 1 string, 1 icon,
+> - S643 dep:S642  **[DONE — implementit S643; BOTH CI LANES + the authoring gate GREEN]** **TOOL SMOKE TEST** — ONE `.xaml` using ONE of each type (1 int, 1 bool, 1 string, 1 icon,
 >      1 text) to prove the tooling works end-to-end through the compare (NOT all 10 of each), so a parity
 >     failure is ATTRIBUTABLE (either a capability is broken or the tooling is — separated). This
 >     independently proves the run → scan → compare script over the tester before the S644+ queue.
 >     **REVISIT S640b/S641 (metadata fine-tune):** the smoke .xaml's text/icon quads must round-trip
 >     emitter-output-metadata → scanner-read → compare; confirm the placeholder tree-scanner metadata
 >     suffices or extend it — closes the planned metadata gap if S642 left any.
+>     **REVISIT S640b/S641 CLOSED (implementit):** the placeholder WPF scanner did NOT round-trip (Rectangle
+>     as Icon, Border dropped, capability ids collapsed). `wpf_emitter/ElementTreeScanner.cs` is now
+>     DECLARATION-DRIVEN: it parses the SAME in-XAML SCAN DECLARATION as the C++ side and emits ONE sidecar
+>     quad PER DECLARED quad (Name/Kind/Capability/Tolerance from the declaration; X/Y/W/H from the real
+>     layout position of the named WPF element). `QuadKind::Border` NOT needed (Border falls under the tight
+>     `solid` diff kind — ZERO catalogue churn). Authoring gate confirms the round-trip: `S643-SIDECAR-OK
+>     quads=7 catalogued=5 solidsentinels=2`.
+>     **DRIVER DESIGN (driver-directed revision of the S643 harness; APPROVED — supersedes the `.cmd`
+>     shortcut):** the run/compare harness is NOT a sequence of hard-coded `.cmd` `dotnet run` steps — it is a
+>     proper **desktop two-program driver**, a real unit-test process composed of two apps + one looping
+>     driver: (A) the **WPF composer** reads `\*.xaml` + args, renders, and writes the **frame (`.bgra`) +
+>     metadata (`.json`)**; (B) the **vaml compare** reads the frame + metadata + the declared predicates and
+>     performs the **actual UI test against those predicates**, running ALL cases (never short-circuiting on a
+>     failure), accumulating ONE aggregated error report (a silent fail is banned — NO-LAZY-LLM). The driver
+>     reads a **manifest of test names (one file per test, not per step; ordered as the user wants, e.g. step
+>     order)**, and for each test in that order: run A only when the frame+metadata are **missing or stale**,
+>     run **B always**, clearing the single render canvas before each A. Memory/VRAM is bounded to **ONE
+>     frame at a time** (a single reused canvas) — never N tests composited into one large frame (that would
+>     require 16 GiB VRAM and is REJECTED for portability). **Hash scheme (approved):** the metadata `.json`
+>     itself carries the `input_hash`; `--rebuild` is provided but NOT the correctness mechanism. The hash is
+>     computed over the **PRINCIPLE FILES read in and appended** — the test's `.xaml` source + the committed
+>     `tools/capability_catalogue.json` + the `wpf_emitter/*.cs` sources + the `src/presentation/src/scan/*`
+>     scanner sources — NOT the rebuilt executable (rebuilding WPF always churns binary bytes), and NOT a
+>     hand-bumped version constant (a forgotten bump = a silent stale frame). At WPF's current stage, CHANGING
+>     THE SOURCE is all that matters: any edit to the emitter/scanner source forces a re-render (expected +
+>     actual) and a full compare; a no-op rebuild reuses the cached frame. `--rebuild` + deleting a file remain
+>     manual override escape-hatches. **ACCEPTANCE (recodified):** a step is done when the headless CI lanes
+>     are green AND the **desktop two-app test run is green against the real GPU frame** — the desktop test run
+>     is REQUIRED for acceptance on this machine (it is precisely how, as the vaml lib → viewer → tester
+>     changes, this test run tells us when we break things). CI does NOT run the GPU apps (no GPU on CI), but
+>     desktop acceptance DOES include them. **IMPLEMENTATION STATUS:** the smoke content + the headless
+>     ToolSmoke suite + the declaration-driven WPF scanner are DONE and green; the DESKTOP DRIVER + the
+>     manifest + the hash-in-metadata + the CMake target for the tester (so B can actually run against the
+>     real frame — currently the live B lane is SKIPPED, not executed) are the OUTSTANDING part to be
+>     implemented. NO-GAP: any step that changes the emitter/scanner/compare behavior must commit the source
+>     affecting the hash IN THE SAME STEP (the hash is source-derived, so a committed source change IS the
+>     invalidation — no separate revision to remember).
 >     **OWNER DECISION (accepted):** because an int/bool/string bound slot RENDERS AS A TEXT GLYPH, the five
 >     catalogue quads (int01/bool01/str01/text01/icon01) are ALL fuzzy-pool — so the smoke adds TWO no-text
 >     geometry sentinels (a `Rectangle` `box01` + a `Border` `border01`) as the ONLY EXACT fails-loud compare
@@ -3550,6 +3587,8 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      one consolidated script run; both CI lanes green; RENDER_SURFACE.md + the validator green; grep-audit
 >      ZERO MINIMAL REAL / ZERO stubs; SURVIVOR block in progress.md (every step's on-screen proof recorded).
 >      Checkpoint advances: last = 11r, next = S520 (Sprint 11h).
+
+## next sprint to start at S800 to leave room for gap tests after S685
 
 ---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
