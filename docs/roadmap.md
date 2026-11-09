@@ -3629,7 +3629,119 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      ZERO MINIMAL REAL / ZERO stubs; SURVIVOR block in progress.md (every step's on-screen proof recorded).
 >      Checkpoint advances: last = 11r, next = S520 (Sprint 11h).
 
-## next sprint to start at S800 to leave room for gap tests after S685
+## Sprint 11s — DRIFT ZERO: property identity keyed on (name, ownerType)  (goal: remove the name-only DP-uniqueness drift — VAML uniques/resolves on the WPF ground-truth composite `(name, ownerType)` pair — and un-revert every workaround that drift forced)  [token S800+]
+> **WHY THIS SPRINT EXISTS (the drift, recorded NOT silent — the audit verdict of the S033/S036 conversation, ratified here):**
+> VAML's property registry uniques + resolves DPs by **NAME alone**, described as "WPF-style". The actual WPF source
+> (`E:\GitRepos\wpf`, `DependencyProperty.cs`) uniques + resolves on the composite **`(name, ownerType)`** pair:
+> `FromNameKey key = new(name, ownerType)` (src line 251), `PropertyFromName.ContainsKey(key)` → throw on a
+> re-registered pair (254-256), `PropertyFromName[key] = dp` (297), lookup by the pair (1018-1038, 959-975).
+> **Fidelity to WPF is the product promise and a binding contract** (the standing directive), not a nice-to-have: VAML
+> exists to convert commercial C#/WPF apps 1:1 and mechanically into C++. A real WPF app CAN and DOES register
+> same-name/different-owner DPs that coexist as distinct objects (`Button.Width` vs `Panel.Width`; `Slider.Delay` vs
+> `RepeatButton.Delay`; `Popup.AllowsTransparency` vs `Window.AllowsTransparency`; `Image.StretchDirection` vs
+> `Viewbox.StretchDirection`; `TextBlock.FontSize` vs `Control.FontSize`). Name-only uniqueness means the FIRST such
+> collision hoses the conversion — the author must manually disambiguate names (global-search-and-replace without name
+> resolution) that WPF never required them to disambiguate. That is a functional conversion blocker, not recorded debt.
+>
+> **THE EVIDENCE THE DRIFT ALREADY COST US (the workaround history this sprint abolishes):** the name-only contract is
+> the direct cause of a whole class of prior migration churn that WPF would never have forced:
+> - **11j-5** hoisted `Padding`/`HorizontalContentAlignment`/`VerticalContentAlignment`/`FontSize`/`FontFamily` under a
+>   single owner `"Control"` **and migrated away** Text's bare `"FontSize"`, Label's dotted `"Label.FontSize"`/
+>   `"Label.FontFamily"`/`"Label.HorizontalContentAlignment"`, and Border's dotted `"Border.Padding"` — a migration that
+>   is **unnecessary** under `(name, owner)`, where `TextBlock.FontSize`/`Control.FontSize`/`Label.FontSize`/`Border.Padding`
+>   all correctly coexist.
+> - **11k-9** deliberately **dropped** bare names because they would collide (`Delay`/`Interval` under Slider vs
+>   RepeatButton; `AllowsTransparency` under Popup vs Window; `StretchDirection` under Image vs Viewbox) — each documented
+>   "NOT silent", but each is a **real WPF DP VAML refuses**. Under `(name, owner)` these are legal and must be **re-added**.
+> - **11k-1/11k-8** flagged `TextBlock` has its OWN `Padding` + Font* family (FrameworkElement branch, NOT the Control
+>   bundle) — in WPF those are distinct DPs from `Control.FontSize`; under name-only VAML they had to resolve against
+>   the shared Control DP.
+> These are not "expensive reverts to preserve" — they are **the tax the drift itself collects**. This sprint's refactor
+> **abolishes the charge**. The un-revert IS the payoff, not the price.
+>
+> **THE DECISION (ratified at the head of this sprint, per the audit):** commit to **composite identity `(name, owner)`**.
+> The runtime-hierarchy alternative (resolve by an object's class ancestry) is **REJECTED** because it is genuinely
+> ambiguous for same-name/different-owner pairs with no shared declaring base (`Slider.Delay` vs `RepeatButton.Delay`) —
+> it would reintroduce the hosing. Consequence: `PropertyId` becomes a composite `(name_view, owner_view)` constexpr-safe
+> name-token (pair-keyed `==`/`!=`/`std::hash`, still `of()/name()/owner()/valid()`), and EVERY consumer re-keys. The
+> **dotted `owner.name` form becomes CANONICAL first-class authoring** (currently `VamlReader` flattens `"Label.Content"`
+> into a bare literal name — under this sprint dotted keys resolve as native `(name, owner)` composite lookup).
+>
+> **REGISTRY CONTRACT AFTER (WPF-faithful):** `DependencyProperty::Register`/`PropertyRegistry::register_key` unique on
+> the **`(name, ownerType)` pair** and throw `PropertyAlreadyRegistered` ONLY when the SAME pair is re-registered;
+> same-name/different-owner DPs **coexist as distinct DPs**. `try_find/find/id_of/try_id` resolve on the pair.
+> The name-only flags (`name`-dedupe, name-unique global DP discipline S095/S09x) are removed.
+>
+> **VIEWER GROWTH (anti-grave-whistle):** this sprint introduces no NEW renderable control chrome — it re-keys the
+> property identity underneath. Its growth token is **S804** (three same-name/different-owner DPs authored + resolved +
+> rendered in the LIVE viewer — the coexistence proof on screen; S222_1 RELOAD re-demonstrated). No token, no ✅ per the
+> S11+ OPEN-ENDED clause. ADR-018: ZERO new locks (single-threaded registration/resolution, unchanged). ADR-011 held:
+> identity is core DATA; the render path is untouched by the re-key (classify/material unchanged).
+>
+> **RE-VERIFY EVERY PRECEDENT (the S167_1 corrective-token discipline):** this sprint lands as a corrective that
+> SUPERSEDES the name-only workarounds IN PLACE — history preserved un-edited, never renumbered to hide the drift; the
+> affected prior tokens (11j-5, 11k-9, S095/S09x name-unique DPs, 11k-1 TextBlock-FontSize note) are each marked
+> `SUPERSEDED BY 11s` with the coexistence re-adding the same-name DPs they dropped. NO silent backfill; NO invented names.
+- S800 dep:-  **CONTRACT + COMPOSITE `PropertyId` (foundation, pure type change, no behavior change yet).** Replace the
+      bare-name `PropertyId` with the composite `(name_view, owner_view)` constexpr-safe name-token in
+      `src/core/include/vaml/core/PropertyId.h`: `of(name, owner)`, `name()/owner()/valid()`, pair-keyed `==`/`!=` +
+      `std::hash`. Keep it header-only + constexpr-safe (the S033 compile-time contract holds). For this step ONLY, keep
+      the existing runtime consumers compiling via a temporary both-fields-carry type that resolves to the same bare-name
+      behavior (op == `owner.empty()`-distinguished, per the migration decision) — NOT yet a live semantic change. Add the
+      SET of composite-identity tests (`PropertyId` pair-equality, distinctness of same-name/different-owner, hash
+      difference, both compilers constexpr green). Both CI lanes green. This step RECORDS the ratified (name, owner)
+      decision at the sprint head + marks the SUPERSEDE notes on 11j-5/11k-9/S095/S09x (docs-only here).
+- S801 dep:S800  **COMPOSITE-KEYED KEY STORE (the single most central edit).** Introduce the `(name, owner)` composite-key
+      variant alongside the existing single-string `detail/NameTable<T>` (which stays shared by ChangeRecorder/
+      GlobalTable/ChangeQueue — NOT blanket-rewritten). Re-key `PropertyRegistry` (`src/core/include/vaml/core/
+      PropertyRegistry.h` + `.cpp`: `register_key`/`try_find`/`find`/`id_of`/`try_id`) and `DependencyProperty::GlobalTable`
+      + `Register`/`TryGet`/`Get` (`src/core/src/DependencyProperty.cpp`) onto the composite key. Dedupe now throws
+      `PropertyAlreadyRegistered` ONLY for the same `(name, owner)` pair. Rewrite `PropertyRegistryExhaustive_test` +
+      `PropertyKeyRegistry_test` to **coexistence semantics**: same-name/different-owner registers TWICE as distinct DPs;
+      same-pair re-register throws + store unchanged; both pair-lookups resolve distinctly. Both CI lanes green. This
+      RESOLVES the S033/S039 name-only contract drift at its source.
+- S802 dep:S801  **PER-OBJECT STORE + RESOLUTION over the composite id.** Re-key the per-object DP store + all resolution
+      paths in `DependencyObject.{h,cpp}` (register_property, Get, Set, GetEffectiveValue, has_local_value, the S041
+      property-changed subscriber registry, the S037 marshalling queue) onto the composite `PropertyId`. `get_effective_value`
+      and marshalling key on `(name, owner)`. Update the S037/S038/S041 + marshalling suites (each object's DP store now
+      distinct per (name, owner)). Both CI lanes green.
+- S803 dep:S802  **READER DOTTED-KEY → FIRST-CLASS COMPOSITE (drop the flatten).** In `VamlReader.cpp`, replace the
+      literal-name flattening of dotted `owner.name` keys with native `(name, owner)` composite lookup. `"Label.Content"`,
+      `"Border.Padding"`, `"Grid.Row"`, `"S091Grid.Row=3"`, the S092/S093/S094/S095 golden DPs, the S384 attached-DP
+      authoring, and the 11j-5/11k-9 re-added dotted forms all resolve as true `(name, owner)` pairs instead of a
+      name-flatten. REMOVE the S095/S09x name-unique global-DP discipline (each golden global DP re-keys under its real
+      shared owner). Re-key + update the S087-S095 goldens + the S240-S242/S600 DP-resolution tests to pair lookup.
+      Both CI lanes green.
+- S804 dep:S803  **VIEWER-GROWTH(11s) + the COEXISTENCE live proof.** In vaml_viewer, a sample that authors THREE
+      same-name/different-owner DP pairs (`Slider.Delay` AND `RepeatButton.Delay` render their independent values;
+      `Popup.AllowsTransparency` AND `Window.AllowsTransparency`; `TextBlock.FontSize` AND `Control.FontSize`) — each must
+      resolve + render via the generic renderer (S222_1 RELOAD re-demonstrated). This is the on-screen proof that the
+      name-only hosing is abolished. Both CI lanes green (headless seam + the LIVE window = [both-apps, not CI]).
+- S805 dep:S804  **UN-REVERT THE WORKAROUNDS (the 11j-5/11k-9 corrective re-addition).** Per the S167_1 corrective-token
+      convention, mark 11j-5's migration + 11k-9's name-drops **SUPERSEDED BY 11s** and RE-ADD the same-name/different-owner
+      DPs the name-only contract forced away: `Slider.Delay`/`Interval` AND `RepeatButton.Delay`/`Interval` (owner-qualified,
+      coexist); `Popup.AllowsTransparency` (distinct from Window's); `Image.StretchDirection` AND `Viewbox.StretchDirection`;
+      `TextBlock`'s own Font* + Padding (FrameworkElement branch, distinct from the Control bundle); Label's Font*/content +
+      Border's Padding re-registered owner-qualified (the 11j-5 REMOVED list restored). Each lands under its real WPF owner
+      type (verified from `E:\GitRepos\wpf`), resolving through the composite key. Update the 11k-9 DpFidelity suite + 11j-5
+      ControlDp suite to coexistence assertions. Both CI lanes green. This is the sprint's payoff: the drift's forced
+      disambiguation work is abolished.
+- S806 dep:S805  **RE-VERIFY PRE-11S VALUE/HIERARCHY FIDELITY + WIDE-SUITE SWEEP (the 11k-P0 mandate re-applied against the
+      new key).** Re-audit every pre-11s value/payload type + base-class hierarchy against the WPF source (the standing
+      11k-P0 obligation, now against the composite key): confirm the Control vs FrameworkElement vs UIElement branches
+      remain WPF-true at the per-DP owner level, converter surfaces (ValueConverterRegistry + S600 convert_int32_for_dp)
+      now key owner-aware, and the S09x-era name-unique-DP special-casing is gone. Full build + ctest BOTH lanes green;
+      grep-audit ZERO invented names + ZERO silent backfill + the composite key is the only identity (no residual bare-name
+      path). Both CI lanes green.
+- S807 dep:S806  **REFACTOR GATE(11s):** full build + ctest BOTH lanes green (msvc-debug + ubuntu-clang, from first
+      principles); grep-audit — NO name-only uniqueness remains, NO bare-name registry lookup survives, the dotted key
+      never flattens to a bare name, NO stubs/MINIMAL REAL introduced; the S033/PropertyId constexpr compile-time contract
+      still holds under the composite token. Both CI lanes green.
+- S808 dep:S807  **SURVIVOR(11s) + checkpoint:** consolidated SURVIVOR block in progress.md (the composite (name, owner)
+      identity landed end-to-end: PropertyId → composite keyed registry/GlobalTable → per-object store → reader dotted-key →
+      coexistence re-additions; the 11j-5/11k-9/S095/S09x SUPERSEDE notes recorded; ZERO MINIMAL REAL introduced). Checkpoint
+      advances: last = S808, next = **S520 (Sprint 11h)** per the surrounding continuation order. No MINIMAL REAL introduced/
+      resolved. ZERO new locks (ADR-018).
 
 ---
 ## Sprint 11h — 3rd-party IMPORT / INJECT seam  (goal: hard goal 3 — import and inject a 3rd-party control, proven in the viewer)  [token S520+]
