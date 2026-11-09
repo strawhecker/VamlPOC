@@ -21,26 +21,26 @@ counts_are_soft_start: true
 
 | capability | type | kind | tolerance | our side | WPF side | parity | named gap |
 |-----------|------|------|-----------|----------|----------|--------|-----------|
-| `slot_int_01` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_02` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_03` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_04` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_05` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_06` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_07` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_08` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_09` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_int_10` | int | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_01` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_02` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_03` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_04` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_05` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_06` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_07` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_08` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_09` | bool | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_bool_10` | bool | Solid | 0.02 | introduced | introduced | yes | — |
+| `slot_int_01` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_02` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_03` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_04` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_05` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_06` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_07` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_08` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_09` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_int_10` | int | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_01` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_02` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_03` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_04` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_05` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_06` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_07` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_08` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_09` | bool | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_bool_10` | bool | Text | 0.02 | introduced | introduced | yes | — |
 | `slot_string_01` | string | Text | 0.08 | introduced | introduced | yes | — |
 | `slot_string_02` | string | Text | 0.08 | introduced | introduced | yes | — |
 | `slot_string_03` | string | Text | 0.08 | introduced | introduced | yes | — |
@@ -51,16 +51,16 @@ counts_are_soft_start: true
 | `slot_string_08` | string | Text | 0.08 | introduced | introduced | yes | — |
 | `slot_string_09` | string | Text | 0.08 | introduced | introduced | yes | — |
 | `slot_string_10` | string | Text | 0.08 | introduced | introduced | yes | — |
-| `slot_double_01` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_02` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_03` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_04` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_05` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_06` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_07` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_08` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_09` | double | Solid | 0.02 | introduced | introduced | yes | — |
-| `slot_double_10` | double | Solid | 0.02 | introduced | introduced | yes | — |
+| `slot_double_01` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_02` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_03` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_04` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_05` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_06` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_07` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_08` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_09` | double | Text | 0.02 | introduced | introduced | yes | — |
+| `slot_double_10` | double | Text | 0.02 | introduced | introduced | yes | — |
 | `icon_01` | icon | Icon | 0.25 | introduced | introduced | yes | — |
 | `icon_02` | icon | Icon | 0.25 | introduced | introduced | yes | — |
 | `icon_03` | icon | Icon | 0.25 | introduced | introduced | yes | — |
@@ -86,9 +86,9 @@ counts_are_soft_start: true
 
 | family | type | count | kind | default tolerance |
 |--------|------|-------|------|-------------------|
-| `slot_int` | `int` | 10 | `Solid` | 0.02 |
-| `slot_bool` | `bool` | 10 | `Solid` | 0.02 |
+| `slot_int` | `int` | 10 | `Text` | 0.02 |
+| `slot_bool` | `bool` | 10 | `Text` | 0.02 |
 | `slot_string` | `string` | 10 | `Text` | 0.08 |
-| `slot_double` | `double` | 10 | `Solid` | 0.02 |
+| `slot_double` | `double` | 10 | `Text` | 0.02 |
 | `icon` | `icon` | 10 | `Icon` | 0.25 |
 | `text` | `text` | 10 | `Text` | 0.08 |

@@ -3318,13 +3318,32 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
 >      MINIMAL REAL introduced; ZERO locks (ADR-018); the S641 metadata reader is NOT stranded (forward-compat
 >      holds — unknown fields ignored, the new fields read when present). **REVISIT RECORD:** the metadata shape
 >      is provisional until S643's smoke proves it; S643 carries the REVISIT token.
+>      **CATALOGUE KIND AMENDMENT (driver-directed, captured at S643 planning):** the typed slot kinds were
+>      corrected from `Solid` → `Text` for `int` / `bool` / `double` (the catalogue has no `float`/`long`
+>      families — nothing to change there). Rationale: an `int`/`bool`/`double` valued slot, when bound, RENDERS
+>      AS A GLYPH LABEL (a TextBlock showing e.g. "42", "True"), NOT a filled solid box — so its default
+>      compare kind is the FUZZY pool (`Text`), not `Solid`. The per-capability `tolerance` for these rows is
+>      UNCHANGED (0.02 — the tight text floor); the 0.08 band is the SMOKE-ONLY start (applied as a per-quad
+>      declaration in `vaml_ui_tester/sample.smoke.xaml`), NEVER a catalogue default, NEVER an ideal/limit —
+>      the smoke's 0.08 is deliberately a very soft start that S644/S656/S657 must tighten. Applied as a
+>      SYNC-TOKEN change in ONE step: `tools/capability_catalogue.json` + the embedded bytes
+>      (`CapabilityCatalogue.cpp`) + regenerated `docs/PARITY_MATRIX.md` + the `CapabilityCatalogue_s642_test.cpp`
+>      assertions (kind Text, tolerance still 0.02) + the WPF side reads the SAME JSON (auto-consistent).
 > - S643 dep:S642  **TOOL SMOKE TEST** — ONE `.xaml` using ONE of each type (1 int, 1 bool, 1 string, 1 icon,
 >      1 text) to prove the tooling works end-to-end through the compare (NOT all 10 of each), so a parity
->      failure is ATTRIBUTABLE (either a capability is broken or the tooling is — separated). This
->      independently proves the run → scan → compare script over the tester before the S644+ queue.
->      **REVISIT S640b/S641 (metadata fine-tune):** the smoke .xaml's text/icon quads must round-trip
->      emitter-output-metadata → scanner-read → compare; confirm the placeholder tree-scanner metadata
->      suffices or extend it — closes the planned metadata gap if S642 left any.
+>     failure is ATTRIBUTABLE (either a capability is broken or the tooling is — separated). This
+>     independently proves the run → scan → compare script over the tester before the S644+ queue.
+>     **REVISIT S640b/S641 (metadata fine-tune):** the smoke .xaml's text/icon quads must round-trip
+>     emitter-output-metadata → scanner-read → compare; confirm the placeholder tree-scanner metadata
+>     suffices or extend it — closes the planned metadata gap if S642 left any.
+>     **OWNER DECISION (accepted):** because an int/bool/string bound slot RENDERS AS A TEXT GLYPH, the five
+>     catalogue quads (int01/bool01/str01/text01/icon01) are ALL fuzzy-pool — so the smoke adds TWO no-text
+>     geometry sentinels (a `Rectangle` `box01` + a `Border` `border01`) as the ONLY EXACT fails-loud compare
+>     path in this step (the loop must be proven CAPABLE of issuing a FAIL on geometry — never a silent
+>     all-presence pass). The fuzzy text/icon quads compare on a DECLARED presence floor ("non-empty ==
+>     non-empty"), with 0.08 as a SMOKE-ONLY soft start (NEVER a catalogue default or limit). NO-GAP: S644
+>     (TextBlock), S656 (Icon), S657 (Label) MUST tighten the fuzzy-compare quality (readable-glyph,
+>     auto-locate, tighter band); the geometry sentinels prove the scan→compare loop can FAIL LOUDLY.
 >
 > ---
 > ### THE ONE-SURFACE-PER-STEP QUEUE (S644+ — base building block → higher, ONE per step)
