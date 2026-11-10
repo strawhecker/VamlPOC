@@ -3741,6 +3741,37 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
       SET of composite-identity tests (`PropertyId` pair-equality, distinctness of same-name/different-owner, hash
       difference, both compilers constexpr green). Both CI lanes green. This step RECORDS the ratified (name, owner)
       decision at the sprint head + marks the SUPERSEDE notes on 11j-5/11k-9/S095/S09x (docs-only here).
+      **[DONE — S800 implemented + BOTH CI LANES GREEN from first principles (build/verify_s800.cmd: windows-msvc
+      msvc-debug warning-as-error clean + ctest 4/4; ubuntu-clang /mnt/hgfs/VamlPOC clang-debug configure+build+ctest
+      4/4). MOD src/core/include/vaml/core/PropertyId.h — the composite token is REAL + permanent (NOT MINIMAL REAL):
+      `PropertyId(name, owner)` + `PropertyId::of(name, owner)` (the flat two-arg composite factory — the owner is a
+      plain `std::string_view` fully-qualified declaring-type token, NEVER a nested id), `name()`/`owner()`/`valid()`,
+      STRICT PAIR `operator==`/`!=` (equal IFF name AND owner equal — no name-only path), PAIR-KEYED `std::hash` (both
+      fields), header-only + constexpr-safe (the S033 compile-time contract holds). ONWER ENCODING (locked with the
+      driver at plan review, the WPF mapping): the owner is the fully-qualified DECLARING-TYPE name (`vaml::StackPanel`,
+      or `::Foo` for a C++-global-namespace app type — C++ HAS a genuine global namespace, C# does not, and VAML MUST
+      host it; `::StackPanel` is a FOREIGN text token distinct from `vaml::StackPanel` and NEVER resolves to VAML).
+      NAMESPACE-POLICY EXCLUSIONS (recorded at this step, docs-only contract): (1) the global-`::` owner form is a real,
+      valid, resolvable ownership scope (apps that don't use namespaces); (2) C++ ANONYMOUS (`namespace { }`) namespaces
+      are deliberately NOT supported as owners — they have NO name, so no token can name them and same-name DPs from two
+      TUs' anonymous namespaces are unresolvable (a documented boundary, NOT a gap; C# has no anonymous namespace either
+      — full parity). LEGACY BRIDGE (deprecated, this step only, contractually-eliminated at S801–S803): the existing
+      single-arg `PropertyId(name)`/`PropertyId::of(name)` constructs an owner-`""` id so every runtime consumer compiles
+      + behaves UNCHANGED (among owner-`""` ids strict pair equality reduces to today's name equality — NO live semantic
+      change); the registry store STAYS name-keyed this step (the re-key is S801), so `reg.id_of("Width") ==
+      PropertyId::of("Width")` still holds (S033 regression green). STRICT PAIR equality (no `owner.empty()`-distinguished
+      special-case) + pair-keyed hash + a fully-composite token = the drift-to-zero contract (name-only semantics
+      REMOVED at the type level); the empty-owner bridge is a deprecated compile artifact scheduled for S801–S803, NOT a
+      live name-only path. MOD test/unit/PropertyId_test.cpp (the composite-identity SET): pair-equality; same-name/
+      different-owner distinctness (`of("Orientation","vaml::StackPanel") != of("Orientation","vaml::Controls")` — the WPF
+      disambiguation); the global-`::` vs namespaced-owner distinction (`of("Foo","::Foo") != of("Foo","vaml::Foo")`);
+      pair-keyed hash (equal pairs equal, diff-owner differ, `::Foo` vs `vaml::Foo` differ); both compilers constexpr
+      green (`static_assert` pair proofs — the S033 compile-time contract extends to the composite); the legacy-bridge
+      no-behavior-change regression (owner-`""` ids behave as today; a composite owner-carrying id is a DISTINCT identity
+      from the same-name legacy id). S801 (re-key) is the named NO-GAP hand-off for the empty-owner bridge removal —
+      recorded, never a silent backfill. The SUPERSEDE notes on 11j-5/11k-9/S095/S09x are the 11s header's standing
+      `SUPERSEDED BY 11s` records (docs-only; the actual coexistence RE-ADDITION of the same-name/different-owner DPs is
+      S805's named step, not S800's). ZERO MINIMAL REAL introduced; ADR-018 ZERO new locks (header-only type).]**
 - S801 dep:S800  **COMPOSITE-KEYED KEY STORE (the single most central edit).** Introduce the `(name, owner)` composite-key
       variant alongside the existing single-string `detail/NameTable<T>` (which stays shared by ChangeRecorder/
       GlobalTable/ChangeQueue — NOT blanket-rewritten). Re-key `PropertyRegistry` (`src/core/include/vaml/core/
