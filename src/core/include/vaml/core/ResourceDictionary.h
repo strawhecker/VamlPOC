@@ -51,6 +51,7 @@
 //
 // ADR-018: ZERO new locks (single-threaded startup + per-thread use).
 
+#include "vaml/core/Color.h"            // Color (register_element_brush, S643a)
 #include "vaml/core/DependencyObject.h" // owned DependencyObject (Object resources)
 #include "vaml/core/UIElement.h"        // UIElement (find_for_element; resources() slot)
 #include "vaml/core/Value.h"            // Value (Plain resources)
@@ -269,5 +270,15 @@ find_resource(const ResourceDictionary& dict, std::string_view key) noexcept;
 // system. Returns nullptr when absent. Never throws.
 [[nodiscard]] VAML_CORE_EXPORT const ResourceValue*
 find_for_element(const UIElement& element, std::string_view key) noexcept;
+
+// S643a (dep:S643) — the shared register seam for a COLOR valued on a BrushId
+// paint DP. Allocates a fresh SolidColorBrush, registers it under
+// "Brush:<autoId>" (high-base, never-colliding) on the element's resources dict
+// (create+attach or merge), and returns the BrushId to store on the paint DP.
+// The auto-id counter is a function-local static (process lifetime), seeded at
+// kAutoBrushIdBase (see VamlReader.h) so it never collides with app-registered
+// small ids (fresh-object-per-conversion — WPF-faithful).
+[[nodiscard]] VAML_CORE_EXPORT std::int32_t
+register_element_brush(UIElement& element, Color color);
 
 } // namespace vaml

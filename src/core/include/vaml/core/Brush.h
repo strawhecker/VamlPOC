@@ -23,12 +23,39 @@
 
 #include "vaml/core/Color.h"
 #include "vaml/core/DependencyObject.h"
+#include "vaml/core/Freezable.h" // S643b-4 (D3): Brush : Freezable (WPF-true base)
 #include "vaml/core/Value.h"
 
 #include <cstdint>
 #include <vector>
 
 namespace vaml {
+
+// S643b-1 (closes D1) + S643b-4 (D3) — the WPF-faithful BRUSH base. WPF's
+// `Brush` (Brush.cs) is `Brush : Freezable : DependencyObject` — the abstract
+// common base of every concrete brush (SolidColorBrush, LinearGradientBrush,
+// ImageBrush, DrawingBrush...). VAML's paint DPs now hold a
+// `std::shared_ptr<Brush>` — the "the DP holds the brush OBJECT" read
+// (Control.cs:108-124 `(Brush) GetValue(BackgroundProperty)`) — so every brush
+// derives from this base. It is a Freezable (WPF-true), so a brush can be
+// frozen + shared (D3). ADR-011 HELD: a Brush is CORE DATA (a DependencyObject),
+// consumed at render time, never the reverse. It carries the common color-
+// resolution surface the renderer uses (see color()).
+class VAML_CORE_EXPORT Brush : public Freezable
+{
+public:
+    ~Brush() override;
+
+    // The brush's representative opaque color (the render seam). SolidColorBrush
+    // returns its Color; LinearGradientBrush returns its representative_color;
+    // a non-color brush (ImageBrush/DrawingBrush) returns opaque black via the
+    // base (the S465/S649 material surfaces upgrade the real read, recorded
+    // NO-GAP not silent). Pure + headless-testable.
+    [[nodiscard]] virtual Color color() const = 0;
+
+protected:
+    Brush() = default;
+};
 
 // S460 (dep:S456) — BRUSH AUTHORING. A GRADIENT STOP: one authored
 // {Color, Offset} pair inside a linear-gradient brush. `offset` is the
@@ -81,7 +108,8 @@ public:
 // A LinearGradientBrush is registered under the SAME "Brush:<id>" convention as
 // SolidColorBrush (a scalar BrushId -> registered brush resource -> color), so
 // `<Button.Background>` (the BrushId path) can consume an authored gradient.
-class VAML_CORE_EXPORT LinearGradientBrush : public DependencyObject
+// S643b-1: derives the shared `Brush` base (object paint payload).
+class VAML_CORE_EXPORT LinearGradientBrush : public Brush
 {
 public:
     LinearGradientBrush();
@@ -109,6 +137,9 @@ public:
     // the LAST when only two; the average of the two endpoint stops otherwise.
     [[nodiscard]] Color representative_color() const noexcept;
 
+    // Brush::color override — the representative color (the scalar render seam).
+    [[nodiscard]] Color color() const override { return representative_color(); }
+
 private:
     std::vector<GradientStop> stops_;
     double startX_ = 0.0;
@@ -117,7 +148,7 @@ private:
     double endY_   = 1.0;
 };
 
-class VAML_CORE_EXPORT SolidColorBrush : public DependencyObject
+class VAML_CORE_EXPORT SolidColorBrush : public Brush
 {
 public:
     SolidColorBrush();
@@ -129,7 +160,45 @@ public:
     // Typed round-trip on the Color value path; also settable via
     // Set/Get(PropertyId("Color")).
     [[nodiscard]] SetResult set_color(const vaml::Color& value);
-    [[nodiscard]] vaml::Color color() const;
+    [[nodiscard]] vaml::Color color() const override;
 };
+
+// S643b-4 (D3 — SHARED FROZEN, no waiver) — the WPF `IFreezeFreezables.
+// TryGetFreezable` analogue (Brush.cs:55-77): the SAME color literal resolves to
+// a SINGLE SHARED, FROZEN SolidColorBrush instance (WPF shares identical frozen
+// brushes). `shared_frozen_solid_brush(color)` returns a process-lifetime cached
+// frozen brush, creating + caching the first time a given color is requested. A
+// frozen SolidColorBrush is immutable (writes throw) — the safe shared read the
+// renderer uses. ADR-018 zero new locks (single-threaded cache map / Meyer's).
+[[nodiscard]] VAML_CORE_EXPORT std::shared_ptr<SolidColorBrush>
+shared_frozen_solid_brush(const vaml::Color& color);
+
+// S643b-4 — freezes `brush` (WPF Freeze); a frozen brush is immutable. Used by
+// the shared pool; a caller may also freeze a brush it owns. Freeze must be
+// callable on the affinity thread (ADR-018 single-threaded affinity).
+VAML_CORE_EXPORT void freeze_solid_brush(SolidColorBrush& brush);
+
+// S643b-1 — the shared default paint brush (opaque black — the WPF default
+// foreground/background/... brush default). A single shared instance (WPF's
+// default values are shared objects). The renderer reads its color() directly.
+[[nodiscard]] VAML_CORE_EXPORT const std::shared_ptr<SolidColorBrush>&
+default_black_brush() noexcept;
+
+// S643b-2 (D2 confinement) — the auto brush id BASE. Auto-ids (from a COLOR
+// literal or a Style/visual-state brush) start at this HIGH base so they can
+// never collide with app-registered small ids. Declared here (Brush.h) as the
+// single source; VamlReader.h / VBamlReader.h reference it (the S7 reader's own
+// legacy mirror is removed).
+inline constexpr std::int32_t kAutoBrushIdBase = 1000000;
+
+// S643b-2 (D2 confinement) — the SINGLE SOURCE OF TRUTH for the auto brush id.
+// A process-lifetime monotonic atomic allocator (seeded at kAutoBrushIdBase, so
+// it can never collide with app-registered small ids). EVERY consumer — the S2
+// text reader + S7 compiled reader auto-id path and register_element_brush
+// (Style setter / visual-state) — draws from THIS one allocator, so ids are
+// unique across the whole process, NOT reset per Load. This declares the seam
+// divergence explicitly (D2): the ids are a monotonic namespace, never a dedup
+// map. ADR-018 zero new locks (a single std::atomic<std::int32_t> fetch_add).
+[[nodiscard]] VAML_CORE_EXPORT std::int32_t next_auto_brush_id() noexcept;
 
 } // namespace vaml

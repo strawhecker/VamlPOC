@@ -23,6 +23,7 @@
 #include <memory>
 
 using vaml::Label;
+using vaml::SolidColorBrush;
 
 TEST_CASE("S480: Label DP surface round-trips")
 {
@@ -32,12 +33,15 @@ TEST_CASE("S480: Label DP surface round-trips")
     (void)label.set_content("Hello, world");
     (void)label.set_font_size(20.0);
     (void)label.set_font_family("Consolas");
-    (void)label.set_foreground(7);
+    // S643b-1: Foreground is a Brush OBJECT.
+    auto fg = std::make_shared<SolidColorBrush>();
+    (void)fg->set_color(vaml::Color{ 7, 7, 7, 255 });
+    (void)label.set_foreground(fg);
     (void)label.set_horizontal_content_alignment(2);
     SHOULD(ShouldlyString(label.content()).ShouldBe(std::string("Hello, world")));
     SHOULD(ShouldlyIntegral(static_cast<int>(label.font_size() == 20.0)).ShouldBe(1));
     SHOULD(ShouldlyString(label.font_family()).ShouldBe(std::string("Consolas")));
-    SHOULD(ShouldlyIntegral(label.foreground()).ShouldBe(7));
+    SHOULD(ShouldlyIntegral(label.foreground() == fg).ShouldBe(1));
     SHOULD(ShouldlyIntegral(label.horizontal_content_alignment()).ShouldBe(2));
 }
 

@@ -97,7 +97,9 @@ TEST_CASE("S400_1: Icon is a real UIElement + DP defaults + registered built-in"
     SHOULD(ShouldlyString(ic.icon_key()).ShouldBe(std::string("")));
     SHOULD(ShouldlyString(ic.source()).ShouldBe(std::string("")));
     SHOULD(ShouldlyString(ic.tint_mode()).ShouldBe(static_cast<std::int32_t>(IconTintMode::Preserve)));
-    SHOULD(ShouldlyString(ic.foreground()).ShouldBe(0));
+    // S643b-1: Foreground defaults to the shared opaque-black Brush OBJECT.
+    SHOULD(ShouldlyIntegral(ic.foreground() != nullptr).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(static_cast<int>(ic.foreground()->color().r == 0)).ShouldBe(1));
     SHOULD(ShouldlyString(ic.width()).ShouldBe(0.0));
     SHOULD(ShouldlyString(ic.height()).ShouldBe(0.0));
     SHOULD(ShouldlyString(ic.stretch()).ShouldBe(static_cast<std::int32_t>(IconStretch::None)));
@@ -109,8 +111,12 @@ TEST_CASE("S400_1: Icon is a real UIElement + DP defaults + registered built-in"
     SHOULD(ShouldlyString(ic.source()).ShouldBe(std::string("inline-asset")));
     SHOULD(ShouldlyString(ic.set_tint_mode(static_cast<std::int32_t>(IconTintMode::Monochrome))).ShouldBe(vaml::SetResult::APPLIED));
     SHOULD(ShouldlyString(ic.tint_mode()).ShouldBe(static_cast<std::int32_t>(IconTintMode::Monochrome)));
-    SHOULD(ShouldlyString(ic.set_foreground(9)).ShouldBe(vaml::SetResult::APPLIED));
-    SHOULD(ShouldlyString(ic.foreground()).ShouldBe(9));
+    {
+        auto fg = std::make_shared<vaml::SolidColorBrush>();
+        (void)fg->set_color(vaml::Color{ 9, 9, 9, 255 });
+        SHOULD(ShouldlyString(ic.set_foreground(fg)).ShouldBe(vaml::SetResult::APPLIED));
+        SHOULD(ShouldlyIntegral(ic.foreground() == fg).ShouldBe(true));
+    }
     SHOULD(ShouldlyString(ic.set_width(48.0)).ShouldBe(vaml::SetResult::APPLIED));
     SHOULD(ShouldlyString(ic.width()).ShouldBe(48.0));
     SHOULD(ShouldlyString(ic.set_height(32.0)).ShouldBe(vaml::SetResult::APPLIED));

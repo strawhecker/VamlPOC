@@ -3466,6 +3466,12 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
       setter-only, **literal+setter co-occurrence on one element**, cross-Load reuse, and a
       `resolve_foreground_brush` OBJECT round-trip asserting `.color()` on the returned object); both CI lanes
       green via build/verify_s643b.cmd (windows-msvc) + clang-debug on the Ubuntu VM from /mnt/hgfs/VamlPOC.
+      **IMPLEMENTED (S643b):** D1 (Value::Brush + enumerated paint-DP object payloads + object accessors; int32
+      brush accessors REMOVED; resolve_foreground_brush object seam; renderer reads brush->color), D2 (single
+      process-lifetime next_auto_brush_id atomic allocator consolidated across S2/S7 readers + register_element_brush;
+      per-Load resets removed — ids never reused), D3 (Brush : Freezable; shared_frozen_solid_brush TryGetFreezable-
+      analog pool; same color -> same shared frozen object; set_color rejects writes on frozen). verify_s643b.cmd
+      GREEN on both CI lanes. NO-GAP: the single tokenized S465a deferral stands (roadmap S643c / S465a).
 - **S643c (gap-closure) dep:S643b  implement and close out S465a.**
 > ---
 > ### THE ONE-SURFACE-PER-STEP QUEUE (S644+ — base building block → higher, ONE per step)

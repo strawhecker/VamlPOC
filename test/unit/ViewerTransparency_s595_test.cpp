@@ -19,6 +19,8 @@
 #include <vaml/vulkan/ui/UiScene.h>         // DrawItem, DrawItemKind
 #include <vaml/core/Element.h>              // Window, StackPanel, Label
 #include <vaml/core/Color.h>                // parse_color
+#include <vaml/core/ResourceDictionary.h>   // S643a: register_element_brush
+#include "vaml_test_brush.h"                // S643b: brush_value (Brush-object paint)
 
 #include <GLFW/glfw3.h>   // GLFW_TRANSPARENT_FRAMEBUFFER / GLFW_ALPHA_BITS (macro pinning)
 
@@ -98,7 +100,7 @@ TEST_CASE("S595 half-alpha panel keeps partial alpha through the single-fold (S5
     auto panel = std::make_unique<vaml::StackPanel>();
     vaml::StackPanel* panelRaw = panel.get();
     (void)panelRaw->Set(vaml::PropertyId::of("Background"),
-                        vaml::Value::Color(vaml::parse_color("#80FF0000")));  // half-alpha red
+                        vaml::test::brush_value(vaml::parse_color("#80FF0000")));  // half-alpha red
     (void)panelRaw->set_opacity(0.5);
     w.set_content(std::move(panel));   // the Window's single-content slot (arranges the child to fill)
     w.Measure(vaml::Size{ 420.0f, 240.0f });

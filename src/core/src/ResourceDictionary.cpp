@@ -3,10 +3,14 @@
 
 #include "vaml/core/ResourceDictionary.h"
 
-#include "vaml/core/Color.h"     // parse_color (system resource seeds)
-#include "vaml/core/Intern.h"    // intern()
+#include "vaml/core/Brush.h"       // S643a: SolidColorBrush (register_element_brush)
+#include "vaml/core/Color.h"       // parse_color (system resource seeds)
+#include "vaml/core/Intern.h"      // intern()
+#include "vaml/core/UIElement.h"   // S643a: element resources() slot
+#include "vaml/core/VamlReader.h"  // S643a: kAutoBrushIdBase (the high-base auto-id)
 
 #include <algorithm>
+#include <cstdint>
 #include <unordered_map>
 #include <utility>
 
@@ -83,6 +87,43 @@ void element_resources_master_reset() noexcept
 }
 
 } // namespace detail
+
+// S643a (dep:S643, WPF paint-DP compliance) — the shared register seam for a
+// COLOR valued on a BrushId paint DP. See the header member note. Allocates a
+// fresh SolidColorBrush, registers it under "Brush:<autoId>" (high-base,
+// never-colliding) on the element's resources dict (create+attach or merge),
+// and returns the BrushId to store on the paint DP. The auto-id counter is a
+// function-local static (process lifetime, single-threaded startup per
+// ADR-018), seeded at kAutoBrushIdBase so it can never collide with app-
+// registered small ids (fresh-object-per-conversion — WPF-faithful).
+VAML_CORE_EXPORT
+std::int32_t register_element_brush(UIElement& element, Color color)
+{
+    auto brush = std::make_unique<SolidColorBrush>();
+    (void)brush->set_color(color);
+    // S643b-2: draw from the SINGLE process-lifetime auto-id allocator (shared
+    // with the readers) so ids are globally unique, never colliding with
+    // app-registered small ids.
+    const std::int32_t autoId = next_auto_brush_id();
+
+    ResourceDictionary* dict = element.resources();
+    std::unique_ptr<ResourceDictionary> ownedDict;
+    if (dict == nullptr)
+    {
+        ownedDict = std::make_unique<ResourceDictionary>();
+        dict = ownedDict.get();
+    }
+    // The per-process monotonic auto-id guarantees a unique key within one
+    // element's dict (a duplicate-key throw is impossible here — one-line guard,
+    // NOT a dedup map: a color on multiple elements is a separate brush each).
+    dict->set("Brush:" + std::to_string(autoId), std::move(brush));
+    if (ownedDict)
+    {
+        vaml::detail::set_element_resources(&element, std::move(ownedDict));
+    }
+    return autoId;
+}
+
 
 // ------------------------------------------------------------------ ResourceLookupException
 VAML_CORE_EXPORT

@@ -29,16 +29,19 @@
 // mapping is S400-render (vulkan), NOT backfilled here (ADR-011 / ADR-021).
 
 #include "vaml/core/Color.h"      // Color (the resolved foreground)
+#include "vaml/core/Value.h"       // Value (resolve_foreground_brush reads the DP value)
 #include "vaml/core/export.h"
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string_view>
 #include <vector>
 
 namespace vaml {
 
 class UIElement; // forward — resolve_foreground_color anchors resolution at an element
+class Brush; // forward — resolve_foreground_brush returns the brush OBJECT
 class LinearGradientBrush; // forward — resolve_gradient_fill (S460 seed resolution, S465)
 
 // One glyph's horizontal metric the layout uses. `render=false` for a codepoint
@@ -110,6 +113,20 @@ VAML_CORE_EXPORT TextGlyphMetric default_text_metric(std::uint32_t codepoint,
 // Pure + headless-testable.
 VAML_CORE_EXPORT Color resolve_foreground_color(const UIElement& element,
                                                 std::int32_t brushId) noexcept;
+
+// S643b-1 (closes D1) — the OBJECT brush resolver. Given a paint DP's held
+// value (a Brush OBJECT — the WPF-faithful payload per Control.cs:108-124 — or
+// a legacy BrushId), returns the resolved Brush object:
+//   * a Value::Brush payload -> its shared_ptr<Brush> directly (the DP now
+//     holds the object; no id walk needed),
+//   * a legacy Value::BrushId -> resolves through the "Brush:<id>" three-scope
+//     find_for_element walk (S643a seam),
+//   * an unresolved/other value -> the shared default black brush (never null).
+// This is the renderer's single brush read: it calls brush->color() (or the
+// gradient/image material) on the returned OBJECT — the scalar Color collapse
+// at the render seam is DELETED. Pure + headless-testable.
+[[nodiscard]] VAML_CORE_EXPORT std::shared_ptr<Brush>
+resolve_foreground_brush(const UIElement& element, const Value& dpValue) noexcept;
 
 // S465 (dep:S464) — GRADIENT FILL RESOLUTION (RESOLVES the S460
 // LinearGradientBrush MINIMAL REAL seed at its own step — the gradient RENDER).

@@ -9,6 +9,8 @@
 #include "vaml/core/PropertyMetadata.h"
 
 #include <algorithm>
+#include <atomic>
+#include <vector>
 
 namespace vaml {
 
@@ -41,8 +43,38 @@ VAML_CORE_EXPORT
 SolidColorBrush::~SolidColorBrush() = default;
 
 VAML_CORE_EXPORT
+Brush::~Brush() = default;
+
+VAML_CORE_EXPORT
+const std::shared_ptr<SolidColorBrush>& default_black_brush() noexcept
+{
+    // S643b-1 — the shared default paint brush (opaque black, the WPF default
+    // foreground/background/... brush). A Meyer's static so every Brush-typed
+    // paint DP's DEFAULT shares ONE immutable object (WPF DefaultValue is a
+    // single shared instance). The SolidColorBrush ctor self-registers the Color
+    // DP (idempotent); the first call here guarantees the global Color DP exists.
+    // S643b-4 (D3): the shared default is the SHARED FROZEN opaque-black brush.
+    static const std::shared_ptr<SolidColorBrush> brush =
+        shared_frozen_solid_brush(vaml::Color{ 0, 0, 0, 255 });
+    return brush;
+}
+
+VAML_CORE_EXPORT
+std::int32_t next_auto_brush_id() noexcept
+{
+    // S643b-2 — the single process-lifetime monotonic auto-id allocator.
+    // A single std::atomic fetch_add (ADR-018 zero new locks). Seeded at
+    // kAutoBrushIdBase so it can never collide with app-registered small ids.
+    static std::atomic<std::int32_t> next{kAutoBrushIdBase};
+    return next.fetch_add(1, std::memory_order_relaxed);
+}
+
+VAML_CORE_EXPORT
 SetResult SolidColorBrush::set_color(const vaml::Color& value)
 {
+    // S643b-4 (D3): a FROZEN brush is immutable — reject the write exactly as
+    // WPF's "cannot change a frozen Freezable" (Freezable.cpp throw_if_frozen).
+    throw_if_frozen("SolidColorBrush.Color");
     return Set(PropertyId::of("Color"), Value::Color(value));
 }
 
@@ -51,6 +83,38 @@ vaml::Color SolidColorBrush::color() const
 {
     const Value v = Get(PropertyId::of("Color"));
     return v.type() == ValueType::Color ? v.get<vaml::Color>() : vaml::Color{ 0, 0, 0, 255 };
+}
+
+VAML_CORE_EXPORT
+void freeze_solid_brush(SolidColorBrush& brush)
+{
+    // WPF Freeze — irreversible; the shared frozen brush is then immutable +
+    // safe to share (D3). Must run on the brush's affinity thread (ADR-018).
+    brush.Freeze();
+}
+
+VAML_CORE_EXPORT
+std::shared_ptr<SolidColorBrush> shared_frozen_solid_brush(const vaml::Color& color)
+{
+    // S643b-4 (D3) — the WPF `IFreezeFreezables.TryGetFreezable` analogue: the
+    // SAME color resolves to a SINGLE SHARED, FROZEN SolidColorBrush (Brush.cs:
+    // 55-77). A process-lifetime pool (Meyer's static, ADR-018 zero new locks)
+    // caches one frozen brush per distinct color; a color seen before returns
+    // the SAME instance (identity-shared). The brush is FROZEN on creation so
+    // it is immutable + safe for every consumer (renderer reads color() only).
+    static std::vector<std::pair<vaml::Color, std::shared_ptr<SolidColorBrush>>> pool;
+    for (auto& entry : pool)
+    {
+        if (entry.first == color)
+        {
+            return entry.second;
+        }
+    }
+    auto brush = std::make_shared<SolidColorBrush>();
+    (void)brush->set_color(color);
+    freeze_solid_brush(*brush);
+    pool.emplace_back(color, brush);
+    return brush;
 }
 
 // ---------------------------------------------------------------------------

@@ -109,9 +109,9 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         const vaml::TextLayoutPlan plan = vaml::text_layout_plan(
             text->text(), fs, r.width,
             [fs](std::uint32_t cp) { return vaml::default_text_metric(cp, fs); });
-        // The resolved foreground (WPF-faithful brush read; unresolved -> opaque
-        // black + a structured diagnostic, NEVER silent).
-        const vaml::Color fg = vaml::resolve_foreground_color(element, text->foreground());
+        // The resolved foreground (S643b-1: foreground is a Brush OBJECT; read
+        // brush->color() directly — the scalar .color() collapse is deleted).
+        const vaml::Color fg = text->foreground()->color();
 
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Text;
@@ -151,8 +151,10 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         // fill.
         vaml::Color bg{ 200, 200, 205, 255 };
         const vaml::Value bv = element.Get(vaml::PropertyId::of("Background"));
-        if (bv.type() == vaml::ValueType::Color)
-            bg = bv.get<vaml::Color>();
+        // S643b-1: the DP holds a Brush OBJECT (or the legacy BrushId seam);
+        // resolve through the object resolver (handles both).
+        if (bv.type() == vaml::ValueType::Brush || bv.type() == vaml::ValueType::BrushId)
+            bg = vaml::resolve_foreground_brush(element, bv)->color();
         // IsEnabled fades the fill (disabled visual); the effective opacity
         // (S208) alpha composites below.
         const float enabledAlpha = button->is_enabled() ? 1.0f : 0.55f;
@@ -321,7 +323,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     if (auto* border = dynamic_cast<const vaml::Border*>(&element))
     {
         const vaml::Rect r = element.final_rect();
-        const vaml::Color bc = vaml::resolve_foreground_color(element, border->border_brush());
+        const vaml::Color bc = border->border_brush()->color();
         const vaml::Thickness bt = border->border_thickness();
         const vaml::Thickness rc = border->corner_radius();
         // thickness01: a single edge width normalized by the box's max side (a
@@ -372,7 +374,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        (void)vaml::resolve_foreground_color(element, label->foreground());  // resolved for the glyph/content (S400 path)
+        (void)label->foreground()->color();  // resolved for the glyph/content (S400 path)
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.75f, 0.78f, 0.82f, 1.0f });  // NEUTRAL backdrop, alpha 1.0
@@ -387,7 +389,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        const vaml::Color fc = vaml::resolve_foreground_color(element, rect->fill());
+        const vaml::Color fc = rect->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
@@ -402,7 +404,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        const vaml::Color fc = vaml::resolve_foreground_color(element, el->fill());
+        const vaml::Color fc = el->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
@@ -417,7 +419,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        const vaml::Color sc = vaml::resolve_foreground_color(element, ln->stroke());
+        const vaml::Color sc = ln->stroke()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ static_cast<float>(sc.r) / 255.0f,
@@ -438,7 +440,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        const vaml::Color fc = vaml::resolve_foreground_color(element, path->fill());
+        const vaml::Color fc = path->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
@@ -453,7 +455,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        const vaml::Color fc = vaml::resolve_foreground_color(element, polygon->fill());
+        const vaml::Color fc = polygon->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
@@ -468,7 +470,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
         const vaml::Rect r = element.final_rect();
-        const vaml::Color fc = vaml::resolve_foreground_color(element, pline->fill());
+        const vaml::Color fc = pline->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ static_cast<float>(fc.r) / 255.0f,
@@ -919,9 +921,9 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     const vaml::Rect r = element.final_rect();
     vaml::Color bg{ 191, 204, 229, 255 };  // the neutral 0.75/0.80/0.90 fill, alpha 1.0
     const vaml::Value bv = element.Get(vaml::PropertyId::of("Background"));
-    if (bv.type() == vaml::ValueType::Color)
+    if (bv.type() == vaml::ValueType::Brush || bv.type() == vaml::ValueType::BrushId)
     {
-        bg = bv.get<vaml::Color>();
+        bg = vaml::resolve_foreground_brush(element, bv)->color();
     }
     v.item = vaml::vulkan::ui::solid_rect(
         r.x, r.y, r.width, r.height,
@@ -1131,14 +1133,17 @@ bool VamlRenderer::record_draw(vaml::presentation::Presenter& self,
         // default opaque black is NOT a resolved background (WPF Window.Background
         // defaults null). `has_local_value` detects the authored-local case; an
         // inherited/template value is beyond this horizontal slice (recorded NO-GAP).
+        const vaml::Value wbg = windowRoot->Get(vaml::PropertyId::of("Background"));
+        // S643b-1: an authored Background is a Brush OBJECT (or the legacy
+        // BrushId seam) — use the object resolver for both.
         const bool authored =
             windowRoot->has_local_value(vaml::PropertyId::of("Background")) &&
-            windowRoot->Get(vaml::PropertyId::of("Background")).type() == vaml::ValueType::Color;
+            (wbg.type() == vaml::ValueType::Brush || wbg.type() == vaml::ValueType::BrushId);
         vaml::Color bgColor{ 0, 0, 0, 0 };
         const vaml::Color* resolved = nullptr;
         if (authored)
         {
-            bgColor = windowRoot->Get(vaml::PropertyId::of("Background")).get<vaml::Color>();
+            bgColor = vaml::resolve_foreground_brush(*windowRoot, wbg)->color();
             resolved = &bgColor;
         }
         decided = clear::decide_clear(allows, resolved);

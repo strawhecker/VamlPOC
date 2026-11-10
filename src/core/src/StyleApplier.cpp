@@ -2,13 +2,17 @@
 
 #include "vaml/core/StyleApplier.h"
 
+#include "vaml/core/Brush.h"                // S643b: SolidColorBrush (the Brush-object setter)
 #include "vaml/core/DependencyObject.h"     // Get/Set
+#include "vaml/core/DependencyProperty.h"   // S643a: TryGet (BrushId-target detection)
 #include "vaml/core/Element.h"              // StackPanel/Grid/... (type names)
 #include "vaml/core/PropertyId.h"           // PropertyId
-#include "vaml/core/ResourceDictionary.h"   // find_for_element
+#include "vaml/core/PropertyMetadata.h"     // S643a: boundType (BrushId-target detection)
+#include "vaml/core/ResourceDictionary.h"   // find_for_element + register_element_brush (S643a)
 #include "vaml/core/ResourceMarkup.h"       // parse_resource_markup
 #include "vaml/core/ResourceResolver.h"     // apply_markup (dynamic setter re-push)
 #include "vaml/core/UIElement.h"
+#include "vaml/core/Value.h"                // S643a: Value::Color (deferred paint setter)
 
 #include <string>
 #include <typeinfo>
@@ -101,6 +105,38 @@ private:
     {
         out.applied = false; // the style setter must NOT clobber a pre-pass local
         out.value = element.Get(id);
+        return out;
+    }
+    // S643a/S643b (WPF paint-DP compliance): a Brush-typed target receiving a
+    // DEFERRED color (a Style setter's color literal — WPF holds a Brush OBJECT
+    // in the setter) gets a fresh SolidColorBrush held DIRECTLY (D1 — S643b-1).
+    // The legacy BrushId seam (shared Control Background/BorderBrush before the
+    // S643b object conversion) registered a fresh id instead. Now that the
+    // enumerated + shared paint DPs are Brush objects, the object path is
+    // primary; a numeric BrushId or a non-paint value passes through unchanged.
+    const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGet(prop);
+    if (dp && dp->metadata().boundType() == vaml::ValueType::Brush &&
+        value.type() == vaml::ValueType::Color)
+    {
+        // S643b-1 (D1) + S643b-4 (D3): a Brush OBJECT — the color's SHARED FROZEN
+        // SolidColorBrush (same color -> same shared object, WPF TryGetFreezable).
+        const Color c = value.get<vaml::Color>();
+        const Value brushValue = Value::Brush(shared_frozen_solid_brush(c));
+        const SetResult r2 = element.Set(id, brushValue);
+        out.value = brushValue;
+        out.applied = (r2 == SetResult::APPLIED);
+        return out;
+    }
+    // S643a legacy — the BrushId seam still supports a Color-typed setter value
+    // that lands on a BrushId DP (e.g. an authored numeric-id target).
+    if (dp && dp->metadata().boundType() == vaml::ValueType::BrushId &&
+        value.type() == vaml::ValueType::Color)
+    {
+        const std::int32_t bid =
+            vaml::register_element_brush(element, value.get<vaml::Color>());
+        const SetResult r2 = element.Set(id, Value::BrushId(bid));
+        out.value = Value::BrushId(bid);
+        out.applied = (r2 == SetResult::APPLIED);
         return out;
     }
     try

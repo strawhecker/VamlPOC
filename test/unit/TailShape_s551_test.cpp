@@ -44,10 +44,15 @@ TEST_CASE("S551: Path/Polygon/Polyline/Track/TickBar are registered + resolvable
 TEST_CASE("S551: Path authors inline Data geometry + a FillRule, all real DPs")
 {
     Path path;
-    SHOULD(ShouldlyString(path.set_fill(7)).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyIntegral(path.fill()).ShouldBe(7));
-    SHOULD(ShouldlyString(path.set_stroke(3)).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyIntegral(path.stroke()).ShouldBe(3));
+    // S643b-1: Fill/Stroke are Brush OBJECTs.
+    auto fill = std::make_shared<vaml::SolidColorBrush>();
+    (void)fill->set_color(vaml::Color{ 7, 7, 7, 255 });
+    auto stroke = std::make_shared<vaml::SolidColorBrush>();
+    (void)stroke->set_color(vaml::Color{ 3, 3, 3, 255 });
+    SHOULD(ShouldlyString(path.set_fill(fill)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyIntegral(path.fill() == fill).ShouldBe(1));
+    SHOULD(ShouldlyString(path.set_stroke(stroke)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyIntegral(path.stroke() == stroke).ShouldBe(1));
     (void)path.set_stroke_thickness(2.0);
     SHOULD(ShouldlyIntegral(path.stroke_thickness() >= 1.9).ShouldBe(true));
 
@@ -65,7 +70,11 @@ TEST_CASE("S551: Path authors inline Data geometry + a FillRule, all real DPs")
 TEST_CASE("S551: Polygon + Polyline author an authored Points list")
 {
     Polygon polygon;
-    (void)polygon.set_fill(5);
+    {
+        auto fill = std::make_shared<vaml::SolidColorBrush>();
+        (void)fill->set_color(vaml::Color{ 5, 5, 5, 255 });
+        (void)polygon.set_fill(fill);
+    }
     SHOULD(ShouldlyString(polygon.set_points("0,0 20,0 20,20")).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyIntegral(polygon.parsed()).ShouldBe(true));
     SHOULD(ShouldlyIntegral(polygon.points().size()).ShouldBe(3u));
@@ -73,7 +82,11 @@ TEST_CASE("S551: Polygon + Polyline author an authored Points list")
     polygon.Measure(Size{ 40.0f, 40.0f });
 
     Polyline pline;
-    (void)pline.set_fill(9);
+    {
+        auto fill = std::make_shared<vaml::SolidColorBrush>();
+        (void)fill->set_color(vaml::Color{ 9, 9, 9, 255 });
+        (void)pline.set_fill(fill);
+    }
     SHOULD(ShouldlyString(pline.set_points("0,0 30,0 30,30")).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyIntegral(pline.parsed()).ShouldBe(true));
     SHOULD(ShouldlyIntegral(pline.points().size()).ShouldBe(3u));

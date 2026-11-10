@@ -70,11 +70,13 @@ TEST_CASE("11k-1: TextBlock measures to its wrapped extent + classifies to Mater
     vaml::TextBlock tb;
     (void)tb.set_text("AAAAA AAAA A"); // 5 + space + 4 + space + 1 glyphs
 
-    // Foreground (BrushId) round-trip. NOTE: BrushId has no literal converter,
-    // so it is authored programmatically (the WPF-faithful brush surface); the
-    // LN inline-content + FontSize authoring is proven in test (A).
-    (void)tb.set_foreground(7);
-    SHOULD(ShouldlyIntegral(tb.foreground() == 7).ShouldBe(true));
+    // Foreground (Brush OBJECT) round-trip (S643b-1). Foreground is a Brush
+    // object (no id); authored programmatically (the WPF-faithful brush surface);
+    // the LN inline-content + FontSize authoring is proven in test (A).
+    auto fg = std::make_shared<vaml::SolidColorBrush>();
+    (void)fg->set_color(vaml::Color{ 7, 7, 7, 255 });
+    (void)tb.set_foreground(fg);
+    SHOULD(ShouldlyIntegral(tb.foreground() == fg).ShouldBe(true));
 
     // A WIDE offer with INFINITE height -> one line.
     tb.Measure(vaml::Size{ 500.0f, vaml::Size::Infinite().height });

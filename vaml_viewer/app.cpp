@@ -698,8 +698,9 @@ bool ViewerApp::install_atlas_visual_of()
             const vaml::TextLayoutPlan plan = vaml::text_layout_plan(
                 text->text(), fs, r.width, layoutMetrics);
 
-            // The resolved foreground color (WPF-faithful brush read).
-            const vaml::Color fg = vaml::resolve_foreground_color(e, text->foreground());
+            // The resolved foreground color (S643b-1: Foreground is a Brush
+            // OBJECT; read its color() directly).
+            const vaml::Color fg = text->foreground()->color();
 
             // Emit EVERY placed + renderable glyph as a per-glyph atlas quad.
             std::vector<vaml::vulkan::ui::DrawItem> glyphs;

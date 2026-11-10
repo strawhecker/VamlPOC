@@ -1209,12 +1209,12 @@ void register_textblock_properties()
     (void)DependencyProperty::Register(
         "FontWeight", ValueType::Int32, "TextBlock",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    // Foreground: BrushId, default 0. The WPF-faithful "foreground is a BRUSH"
-    // read (a BrushId maps to a registered SolidColorBrush; see
-    // resolve_foreground_brush below). BrushId rides the Int32 payload.
+    // Foreground: Brush OBJECT (S643b-1 closes D1). The WPF-faithful
+    // "foreground is a BRUSH" read — the DP holds the brush object directly,
+    // shared default opaque black.
     (void)DependencyProperty::Register(
-        "Foreground", ValueType::BrushId, "TextBlock",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Foreground", ValueType::Brush, "TextBlock",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
 }
 
 // Runs register_textblock_properties() at most once (first TextBlock ctor).
@@ -1276,15 +1276,21 @@ std::int32_t TextBlock::font_weight() const
 }
 
 VAML_CORE_EXPORT
-SetResult TextBlock::set_foreground(std::int32_t brushId)
+SetResult TextBlock::set_foreground(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Foreground"), Value::BrushId(brushId));
+    // A null brush is a degenerate write -> reset to the shared default black.
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Foreground"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
-std::int32_t TextBlock::foreground() const
+std::shared_ptr<Brush> TextBlock::foreground() const
 {
-    return Get(PropertyId::of("Foreground")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Foreground"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 
 VAML_CORE_EXPORT
@@ -1339,11 +1345,11 @@ void register_icon_properties()
     (void)DependencyProperty::Register(
         "Icon.TintMode", ValueType::Int32, "Icon",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    // Foreground: BrushId, default 0 — the Monochrome tint color (the
-    // WPF-faithful brush read, mirrors Text).
+    // Foreground: Brush OBJECT (S643b-1 closes D1) — the Monochrome tint brush
+    // (the WPF-faithful brush read, mirrors Text).
     (void)DependencyProperty::Register(
-        "Icon.Foreground", ValueType::BrushId, "Icon",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Icon.Foreground", ValueType::Brush, "Icon",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     // Width: Double, default 0 = auto. Validated >= 0 (a negative icon box is
     // structurally meaningless -> REJECTED).
     (void)DependencyProperty::Register(
@@ -1417,15 +1423,20 @@ std::int32_t Icon::tint_mode() const
 }
 
 VAML_CORE_EXPORT
-SetResult Icon::set_foreground(std::int32_t brushId)
+SetResult Icon::set_foreground(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Icon.Foreground"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Icon.Foreground"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
-std::int32_t Icon::foreground() const
+std::shared_ptr<Brush> Icon::foreground() const
 {
-    return Get(PropertyId::of("Icon.Foreground")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Icon.Foreground"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 
 VAML_CORE_EXPORT
@@ -3867,8 +3878,8 @@ void register_inkcanvas_properties()
         "InkCanvas.ActiveStroke", ValueType::String, "InkCanvas",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "InkCanvas.Background", ValueType::BrushId, "InkCanvas",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "InkCanvas.Background", ValueType::Brush, "InkCanvas",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
 }
 void ensure_inkcanvas_properties_registered()
 {
@@ -3917,9 +3928,20 @@ SetResult InkCanvas::set_active_stroke(std::string v) { return Set(PropertyId::o
 VAML_CORE_EXPORT
 std::string InkCanvas::active_stroke() const { return Get(PropertyId::of("InkCanvas.ActiveStroke")).get<std::string>(); }
 VAML_CORE_EXPORT
-SetResult InkCanvas::set_background(std::int32_t b) { return Set(PropertyId::of("InkCanvas.Background"), Value::BrushId(b)); }
+SetResult InkCanvas::set_background(std::shared_ptr<Brush> b)
+{
+    if (!b)
+        b = default_black_brush();
+    return Set(PropertyId::of("InkCanvas.Background"), Value::Brush(std::move(b)));
+}
 VAML_CORE_EXPORT
-std::int32_t InkCanvas::background() const { return Get(PropertyId::of("InkCanvas.Background")).get<std::int32_t>(); }
+std::shared_ptr<Brush> InkCanvas::background() const
+{
+    const Value v = Get(PropertyId::of("InkCanvas.Background"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
+}
 VAML_CORE_EXPORT
 Size InkCanvas::MeasureOverride(const Size& available) const
 {
@@ -4120,8 +4142,8 @@ void register_label_properties()
         "Label.Content", ValueType::String, "Label",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Label.Foreground", ValueType::BrushId, "Label",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Label.Foreground", ValueType::Brush, "Label",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
 }
 
 void ensure_label_properties_registered()
@@ -4182,15 +4204,20 @@ std::string Label::font_family() const
 }
 
 VAML_CORE_EXPORT
-SetResult Label::set_foreground(std::int32_t brushId)
+SetResult Label::set_foreground(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Label.Foreground"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Label.Foreground"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
-std::int32_t Label::foreground() const
+std::shared_ptr<Brush> Label::foreground() const
 {
-    return Get(PropertyId::of("Label.Foreground")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Label.Foreground"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 
 VAML_CORE_EXPORT
@@ -4230,8 +4257,8 @@ namespace {
 void register_border_properties()
 {
     (void)DependencyProperty::Register(
-        "Border.BorderBrush", ValueType::BrushId, "Border",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Border.BorderBrush", ValueType::Brush, "Border",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
         "Border.BorderThickness", ValueType::Thickness, "Border",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
@@ -4262,15 +4289,20 @@ Border::Border()
 }
 
 VAML_CORE_EXPORT
-SetResult Border::set_border_brush(std::int32_t brushId)
+SetResult Border::set_border_brush(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Border.BorderBrush"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Border.BorderBrush"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
-std::int32_t Border::border_brush() const
+std::shared_ptr<Brush> Border::border_brush() const
 {
-    return Get(PropertyId::of("Border.BorderBrush")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Border.BorderBrush"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 
 VAML_CORE_EXPORT
@@ -4381,11 +4413,11 @@ namespace {
 void register_rectangle_properties()
 {
     (void)DependencyProperty::Register(
-        "Rectangle.Fill", ValueType::BrushId, "Rectangle",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Rectangle.Fill", ValueType::Brush, "Rectangle",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Rectangle.Stroke", ValueType::BrushId, "Rectangle",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Rectangle.Stroke", ValueType::Brush, "Rectangle",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
         "Rectangle.StrokeThickness", ValueType::Double, "Rectangle",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
@@ -4413,24 +4445,34 @@ Rectangle::Rectangle()
 }
 
 VAML_CORE_EXPORT
-SetResult Rectangle::set_fill(std::int32_t brushId)
+SetResult Rectangle::set_fill(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Rectangle.Fill"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Rectangle.Fill"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Rectangle::fill() const
+std::shared_ptr<Brush> Rectangle::fill() const
 {
-    return Get(PropertyId::of("Rectangle.Fill")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Rectangle.Fill"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
-SetResult Rectangle::set_stroke(std::int32_t brushId)
+SetResult Rectangle::set_stroke(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Rectangle.Stroke"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Rectangle.Stroke"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Rectangle::stroke() const
+std::shared_ptr<Brush> Rectangle::stroke() const
 {
-    return Get(PropertyId::of("Rectangle.Stroke")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Rectangle.Stroke"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
 SetResult Rectangle::set_stroke_thickness(double value)
@@ -4463,11 +4505,11 @@ namespace {
 void register_ellipse_properties()
 {
     (void)DependencyProperty::Register(
-        "Ellipse.Fill", ValueType::BrushId, "Ellipse",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Ellipse.Fill", ValueType::Brush, "Ellipse",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Ellipse.Stroke", ValueType::BrushId, "Ellipse",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Ellipse.Stroke", ValueType::Brush, "Ellipse",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
         "Ellipse.StrokeThickness", ValueType::Double, "Ellipse",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
@@ -4493,24 +4535,34 @@ Ellipse::Ellipse()
 }
 
 VAML_CORE_EXPORT
-SetResult Ellipse::set_fill(std::int32_t brushId)
+SetResult Ellipse::set_fill(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Ellipse.Fill"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Ellipse.Fill"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Ellipse::fill() const
+std::shared_ptr<Brush> Ellipse::fill() const
 {
-    return Get(PropertyId::of("Ellipse.Fill")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Ellipse.Fill"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
-SetResult Ellipse::set_stroke(std::int32_t brushId)
+SetResult Ellipse::set_stroke(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Ellipse.Stroke"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Ellipse.Stroke"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Ellipse::stroke() const
+std::shared_ptr<Brush> Ellipse::stroke() const
 {
-    return Get(PropertyId::of("Ellipse.Stroke")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Ellipse.Stroke"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
 SetResult Ellipse::set_stroke_thickness(double value)
@@ -4540,11 +4592,11 @@ namespace {
 void register_line_properties()
 {
     (void)DependencyProperty::Register(
-        "Line.Fill", ValueType::BrushId, "Line",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Line.Fill", ValueType::Brush, "Line",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Line.Stroke", ValueType::BrushId, "Line",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Line.Stroke", ValueType::Brush, "Line",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
         "Line.StrokeThickness", ValueType::Double, "Line",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
@@ -4570,24 +4622,34 @@ Line::Line()
 }
 
 VAML_CORE_EXPORT
-SetResult Line::set_fill(std::int32_t brushId)
+SetResult Line::set_fill(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Line.Fill"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Line.Fill"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Line::fill() const
+std::shared_ptr<Brush> Line::fill() const
 {
-    return Get(PropertyId::of("Line.Fill")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Line.Fill"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
-SetResult Line::set_stroke(std::int32_t brushId)
+SetResult Line::set_stroke(std::shared_ptr<Brush> brush)
 {
-    return Set(PropertyId::of("Line.Stroke"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Line.Stroke"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Line::stroke() const
+std::shared_ptr<Brush> Line::stroke() const
 {
-    return Get(PropertyId::of("Line.Stroke")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Line.Stroke"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
 SetResult Line::set_stroke_thickness(double value)
@@ -4621,11 +4683,11 @@ namespace {
 void register_shape_properties()
 {
     (void)DependencyProperty::Register(
-        "Shape.Fill", ValueType::BrushId, "Shape",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Shape.Fill", ValueType::Brush, "Shape",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Shape.Stroke", ValueType::BrushId, "Shape",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+        "Shape.Stroke", ValueType::Brush, "Shape",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
         "Shape.StrokeThickness", ValueType::Double, "Shape",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
@@ -4782,26 +4844,36 @@ VAML_CORE_EXPORT
 Shape::~Shape() = default;
 
 VAML_CORE_EXPORT
-SetResult Shape::set_fill(std::int32_t brushId)
+SetResult Shape::set_fill(std::shared_ptr<Brush> brush)
 {
     ensure_shape_properties_registered();
-    return Set(PropertyId::of("Shape.Fill"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Shape.Fill"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Shape::fill() const
+std::shared_ptr<Brush> Shape::fill() const
 {
-    return Get(PropertyId::of("Shape.Fill")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Shape.Fill"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
-SetResult Shape::set_stroke(std::int32_t brushId)
+SetResult Shape::set_stroke(std::shared_ptr<Brush> brush)
 {
     ensure_shape_properties_registered();
-    return Set(PropertyId::of("Shape.Stroke"), Value::BrushId(brushId));
+    if (!brush)
+        brush = default_black_brush();
+    return Set(PropertyId::of("Shape.Stroke"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
-std::int32_t Shape::stroke() const
+std::shared_ptr<Brush> Shape::stroke() const
 {
-    return Get(PropertyId::of("Shape.Stroke")).get<std::int32_t>();
+    const Value v = Get(PropertyId::of("Shape.Stroke"));
+    if (v.type() == ValueType::Brush)
+        return v.get<std::shared_ptr<::vaml::Brush>>();
+    return default_black_brush();
 }
 VAML_CORE_EXPORT
 SetResult Shape::set_stroke_thickness(double value)

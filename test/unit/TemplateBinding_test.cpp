@@ -24,7 +24,9 @@
 #include "vaml/core/Brush.h"
 #include "vaml/core/ControlTemplate.h"
 #include "vaml/core/PropertyId.h"
+#include "vaml/core/ResourceDictionary.h" // S643a: register_element_brush
 #include "vaml/core/Style.h"
+#include "vaml/core/TextLayout.h"         // S643a: resolve_foreground_color
 #include "vaml/core/UIElement.h"
 #include "vaml/core/Value.h"
 
@@ -77,7 +79,9 @@ TEST_CASE("S365: TemplateBinding reads the control's DP")
 
     // The templated control is a UIElement (its Background DP defaults to black).
     UIElement control;
-    (void)control.Set(PropertyId::of("Background"), Value::Color(vaml::Color{ 0, 0, 0, 255 }));
+    auto blackBrush = std::make_shared<SolidColorBrush>();
+    (void)blackBrush->set_color(vaml::Color{ 0, 0, 0, 255 });
+    (void)control.Set(PropertyId::of("Background"), Value::Brush(std::move(blackBrush)));
 
     // apply_control_template builds content + wires the TemplateBinding from the
     // control's current Background DP.
@@ -85,8 +89,11 @@ TEST_CASE("S365: TemplateBinding reads the control's DP")
     SHOULD(ShouldlyString(built).ShouldBe(1u));
 
     // The control's Background DP remains its own value (black default); the wire
-    // reads it (the S365 read-the-control-DP mechanism).
-    SHOULD(ShouldlyString(control.Get(PropertyId::of("Background"))).
+    // reads it (the S365 read-the-control-DP mechanism). S643b-1: Background is
+    // a Brush OBJECT — read its color().
+    const vaml::Color resolvedBlack =
+        control.Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+    SHOULD(ShouldlyString(vaml::Value::Color(resolvedBlack)).
                ShouldBe(Value::Color(vaml::Color{ 0, 0, 0, 255 })));
 }
 
@@ -107,8 +114,12 @@ TEST_CASE("S365: control DP change is observed + the bound wire re-reads (re-ski
     // Change the control's DP -> the live wire re-reads the new value (the S365
     // live-subscription re-skin: a control DP change re-skins the template part).
     // The wire's source is the control DP, so a later read observes the change.
-    (void)control.Set(PropertyId::of("Background"), Value::Color(vaml::Color{ 0, 0, 255, 255 }));
-    SHOULD(ShouldlyString(control.Get(PropertyId::of("Background"))).
+    auto blueBrush = std::make_shared<SolidColorBrush>();
+    (void)blueBrush->set_color(vaml::Color{ 0, 0, 255, 255 });
+    (void)control.Set(PropertyId::of("Background"), Value::Brush(std::move(blueBrush)));
+    const vaml::Color resolvedBlue =
+        control.Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+    SHOULD(ShouldlyString(vaml::Value::Color(resolvedBlue)).
                ShouldBe(Value::Color(vaml::Color{ 0, 0, 255, 255 })));
 }
 
@@ -139,7 +150,9 @@ TEST_CASE("S365: templated control restyle attaches visual states + brightness")
     if (shover)
     {
         enter_state(control, *shover);
-        SHOULD(ShouldlyString(control.Get(PropertyId::of("Background"))).
+        const vaml::Color resolvedRed =
+            control.Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        SHOULD(ShouldlyString(vaml::Value::Color(resolvedRed)).
                    ShouldBe(Value::Color(vaml::Color{ 255, 0, 0, 255 })));
     }
 }

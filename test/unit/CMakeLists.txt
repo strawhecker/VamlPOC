@@ -662,6 +662,31 @@ add_executable(vaml-core-tests
     # UnknownProperty) naming type + literal + the offending fragment, never a
     # message catch-all.
     StructuredError_s604_test.cpp
+    # S643a (gap-closure dep:S643) — HEX-COLOR LITERAL ON BrushId DPs (the
+    # 11k-4 ~ 11k-6 recorded NO-GAP, RESOLVED): `#RRGGBB` (and Background/Fill/
+    # Stroke/BorderBrush) on BrushId DPs parse + render in BOTH readers.
+    # Ground truth: WPF's Generated BrushConverter -> Parsers.ParseBrush is a
+    # PURE context-free type-level converter (no id registry/dedup/collision) —
+    # VAML's only divergence is registering a fresh SolidColorBrush under
+    # "Brush:<autoId>" on the TARGET element so the render-time
+    # find_for_element/register-to-resolve seam resolves the BrushId. Headline:
+    # TextBlock Foreground="#FFE8E8E8" + Rectangle Fill="Red" + Border
+    # BorderBrush="#80808080" (alpha honored) load with NO throw in both
+    # readers, the DPs carry BrushIds (auto-id >= kAutoBrushIdBase), and
+    # resolve_foreground_color returns the parsed Color (register->resolve seam).
+    # NUMERIC literal stays a brush id (GeometryDrawing convention); a
+    # NON-UIElement target (GeometryDrawing.Brush) or a malformed literal fails
+    # loud (MalformedValue) — never silent (NO LAZY LLM). Gated through the real
+    # vaml_viewer <xaml> load so the smoke .xaml is proven loadable by the real
+    # actual-frame producer.
+    HexBrushId_s643a_test.cpp
+    # S643b (BRUSH-OBJECT DP closure, D1/D2/D3): the enumerated paint DPs hold
+    # Brush OBJECTs (Value::Brush); SAME literal -> SAME SHARED FROZEN brush
+    # (D3); a Style setter + authored literal CO-OCCUR on ONE element without the
+    # id/registry seam collision (seam-2 regression); the object round-trips
+    # through resolve_foreground_brush asserting .color(); cross-Load auto-id
+    # reuse cannot resolve into a prior tree (process-lifetime allocator).
+    HexBrushId_s643b_test.cpp
     # S326/S327 (Dispatcher/Task/async) are DEFERRED to Sprint 11a (the
     # multithreaded-UI construction) — NOT tested in Sprint 8 (single-threaded).
     # NO S326/S327 test TUs are present in this target.
@@ -701,7 +726,17 @@ else()
 endif()
 
 # Link the real library — proves an external consumer can consume vaml-core.
-target_link_libraries(vaml-core-tests PRIVATE vaml-core)
+# S643a adds the S7 compiled reader to this target (the compiled-path parity
+# half of the hex-color BrushId test) — vaml-tools links vaml-core transitively.
+target_link_libraries(vaml-core-tests PRIVATE vaml-core vaml-tools)
+
+# S643a — the real vaml_viewer <xaml> gate: the test loads the COMMITTED
+# sample.s643a.xaml via the real actual-frame producer's seam (vaml::load_file).
+# VAML_VIEWER_DIR is the repo path to vaml_viewer/ at compile time (mirrors the
+# S643 VAML_UI_TESTER_DIR convention; repo root is CMAKE_SOURCE_DIR).
+target_compile_definitions(vaml-core-tests PRIVATE
+    VAML_VIEWER_DIR="${CMAKE_SOURCE_DIR}/vaml_viewer"
+)
 
 # Register with CTest. Per-case discovery via doctest_discover_tests is deferred
 # to a follow-up (scoped decision for S005: harness proven first; documented,

@@ -22,18 +22,24 @@
 #include <memory>
 
 using vaml::Border;
+using vaml::SolidColorBrush;
 using vaml::Thickness;
 using vaml::UIElement;
 
 TEST_CASE("S481: Border DP surface round-trips (Thickness value path)")
 {
     Border border;
-    SHOULD(ShouldlyIntegral(static_cast<int>(border.border_brush() == 0)).ShouldBe(1));
-    (void)border.set_border_brush(12);
+    // S643b-1: BorderBrush defaults to the shared opaque-black Brush OBJECT.
+    SHOULD(ShouldlyIntegral(border.border_brush() != nullptr).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(border.border_brush()->color().r == 0)).ShouldBe(1));
+    auto bb = std::make_shared<vaml::SolidColorBrush>();
+    (void)bb->set_color(vaml::Color{ 12, 12, 12, 255 });
+    (void)border.set_border_brush(bb);
     (void)border.set_border_thickness(Thickness{ 2.0f, 2.0f, 2.0f, 2.0f });
     (void)border.set_corner_radius(Thickness{ 4.0f, 4.0f, 4.0f, 4.0f });
     (void)border.set_padding(Thickness{ 6.0f, 6.0f, 6.0f, 6.0f });
-    SHOULD(ShouldlyIntegral(border.border_brush()).ShouldBe(12));
+    SHOULD(ShouldlyIntegral(border.border_brush() == bb).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(static_cast<int>(border.border_brush()->color().r == 12)).ShouldBe(1));
     SHOULD(ShouldlyIntegral(static_cast<int>(border.border_thickness().left == 2.0f)).ShouldBe(1));
     SHOULD(ShouldlyIntegral(static_cast<int>(border.corner_radius().left == 4.0f)).ShouldBe(1));
     SHOULD(ShouldlyIntegral(static_cast<int>(border.padding().left == 6.0f)).ShouldBe(1));

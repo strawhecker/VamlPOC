@@ -30,6 +30,7 @@
 // Element.obj (Element.cpp) hosts register_builtin_elements() — the startup
 // registration call that populates ElementFactoryRegistry::global() once.
 
+#include "vaml/core/Brush.h"          // S643b-1 — Brush (object paint accessors)
 #include "vaml/core/DependencyObject.h"
 #include "vaml/core/FlowDocument.h" // 11k_12 — the RichTextBox flow-content model (FlowDocument/Paragraph/Run/Span/Section), WPF Documents\*.cs
 #include "vaml/core/GridLength.h" // GridLength, RowDefinition, ColumnDefinition (S131)
@@ -512,12 +513,14 @@ public:
     [[nodiscard]] SetResult set_font_weight(std::int32_t value);
     [[nodiscard]] std::int32_t font_weight() const;
 
-    // --- Foreground (REAL DP; BrushId, default 0) -------------------------
-    // The WPF-faithful brush read (see the header note). Map a BrushId to a
-    // SolidColorBrush's Color via resolve_foreground_brush; an unresolved id
-    // yields opaque black (the default) + a diagnostic.
-    [[nodiscard]] SetResult set_foreground(std::int32_t brushId);
-    [[nodiscard]] std::int32_t foreground() const;
+    // --- Foreground (REAL DP; Brush OBJECT, default shared opaque black) ---
+    // S643b-1 (closes D1): the WPF-faithful read — Foreground IS a Brush object
+    // (TextBlock.ForegroundProperty AddOwner of the TextElement brush DP). The
+    // DP holds a std::shared_ptr<Brush>; the renderer reads brush->color()
+    // directly (resolve_foreground_brush). The int32 BrushId accessor is
+    // REMOVED (WPF never exposes an int brush accessor).
+    [[nodiscard]] SetResult set_foreground(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> foreground() const;
 
 protected:
     // S400 real TextBlock algorithm (see Element.cpp): MeasureOverride runs the
@@ -612,10 +615,10 @@ public:
     [[nodiscard]] SetResult set_tint_mode(std::int32_t value);
     [[nodiscard]] std::int32_t tint_mode() const;
 
-    // --- Foreground (REAL DP; BrushId, default 0) --------------------------
-    // The WPF-faithful brush read (mirrors Text). The Monochrome tint color.
-    [[nodiscard]] SetResult set_foreground(std::int32_t brushId);
-    [[nodiscard]] std::int32_t foreground() const;
+    // --- Foreground (REAL DP; Brush OBJECT, default shared opaque black) ---
+    // S643b-1 (closes D1): the Monochrome tint color as a Brush OBJECT.
+    [[nodiscard]] SetResult set_foreground(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> foreground() const;
 
     // --- Width (REAL DP; Double, default 0 = auto) -------------------------
     [[nodiscard]] SetResult set_width(double value);
@@ -1416,8 +1419,10 @@ public:
     [[nodiscard]] std::string strokes() const;
     [[nodiscard]] SetResult set_active_stroke(std::string value);
     [[nodiscard]] std::string active_stroke() const;
-    [[nodiscard]] SetResult set_background(std::int32_t brushId);
-    [[nodiscard]] std::int32_t background() const;
+    // S643b-1 (closes D1): Background as a Brush OBJECT (InkCanvas.Background
+    // is a Brush in WPF). The int32 accessor is REMOVED.
+    [[nodiscard]] SetResult set_background(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> background() const;
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
@@ -1750,9 +1755,10 @@ public:
     [[nodiscard]] SetResult set_font_family(std::string value);
     [[nodiscard]] std::string font_family() const;
 
-    // --- Foreground (REAL DP; BrushId, default 0) -------------------------
-    [[nodiscard]] SetResult set_foreground(std::int32_t brushId);
-    [[nodiscard]] std::int32_t foreground() const;
+    // --- Foreground (REAL DP; Brush OBJECT, default shared opaque black) ---
+    // S643b-1 (closes D1): the WPF-faithful brush-object read.
+    [[nodiscard]] SetResult set_foreground(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> foreground() const;
 
     // --- HorizontalContentAlignment (REAL DP; Int32, default Left=0) ------
     [[nodiscard]] SetResult set_horizontal_content_alignment(std::int32_t value);
@@ -1786,9 +1792,10 @@ class VAML_CORE_EXPORT Border final : public UIElement
 public:
     Border();
 
-    // --- BorderBrush (REAL DP; BrushId, default 0) ------------------------
-    [[nodiscard]] SetResult set_border_brush(std::int32_t brushId);
-    [[nodiscard]] std::int32_t border_brush() const;
+    // --- BorderBrush (REAL DP; Brush OBJECT, default shared opaque black) --
+    // S643b-1 (closes D1): the WPF-faithful stroke brush object read.
+    [[nodiscard]] SetResult set_border_brush(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> border_brush() const;
 
     // --- BorderThickness (REAL DP; Thickness, default 0) ------------------
     [[nodiscard]] SetResult set_border_thickness(vaml::Thickness value);
@@ -1835,10 +1842,12 @@ class VAML_CORE_EXPORT Rectangle final : public UIElement
 public:
     Rectangle();
 
-    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
-    [[nodiscard]] std::int32_t fill() const;
-    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
-    [[nodiscard]] std::int32_t stroke() const;
+    // S643b-1 (closes D1): Fill/Stroke as Brush OBJECTs (Shape.Fill/Stroke are
+    // Brush in WPF). The int32 accessors are REMOVED.
+    [[nodiscard]] SetResult set_fill(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> fill() const;
+    [[nodiscard]] SetResult set_stroke(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> stroke() const;
     [[nodiscard]] SetResult set_stroke_thickness(double value);
     [[nodiscard]] double stroke_thickness() const;
     // Width/Height are the base UIElement WPF-style layout DPs (auto/NaN — the
@@ -1854,10 +1863,10 @@ class VAML_CORE_EXPORT Ellipse final : public UIElement
 public:
     Ellipse();
 
-    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
-    [[nodiscard]] std::int32_t fill() const;
-    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
-    [[nodiscard]] std::int32_t stroke() const;
+    [[nodiscard]] SetResult set_fill(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> fill() const;
+    [[nodiscard]] SetResult set_stroke(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> stroke() const;
     [[nodiscard]] SetResult set_stroke_thickness(double value);
     [[nodiscard]] double stroke_thickness() const;
 
@@ -1870,10 +1879,10 @@ class VAML_CORE_EXPORT Line final : public UIElement
 public:
     Line();
 
-    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
-    [[nodiscard]] std::int32_t fill() const;
-    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
-    [[nodiscard]] std::int32_t stroke() const;
+    [[nodiscard]] SetResult set_fill(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> fill() const;
+    [[nodiscard]] SetResult set_stroke(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> stroke() const;
     [[nodiscard]] SetResult set_stroke_thickness(double value);
     [[nodiscard]] double stroke_thickness() const;
     // Line has no authored Width/Height DPs of its own; it uses the base
@@ -1905,10 +1914,10 @@ public:
     Shape() = default;
     ~Shape() override;
 
-    [[nodiscard]] SetResult set_fill(std::int32_t brushId);
-    [[nodiscard]] std::int32_t fill() const;
-    [[nodiscard]] SetResult set_stroke(std::int32_t brushId);
-    [[nodiscard]] std::int32_t stroke() const;
+    [[nodiscard]] SetResult set_fill(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> fill() const;
+    [[nodiscard]] SetResult set_stroke(std::shared_ptr<Brush> brush);
+    [[nodiscard]] std::shared_ptr<Brush> stroke() const;
     [[nodiscard]] SetResult set_stroke_thickness(double value);
     [[nodiscard]] double stroke_thickness() const;
 

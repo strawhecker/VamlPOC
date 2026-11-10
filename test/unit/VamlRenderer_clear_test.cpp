@@ -20,6 +20,9 @@
 #include <vaml/core/Element.h>   // Window (the app-shell root), StackPanel
 #include <vaml/core/UIElement.h> // UIElement
 #include <vaml/core/Color.h>     // vaml::Color, parse_color
+#include <vaml/core/ResourceDictionary.h> // S643a: register_element_brush
+#include "vaml_test_brush.h"              // S643b: brush_value (Brush-object paint)
+#include <vaml/core/TextLayout.h>         // S643a: resolve_foreground_color
 
 #include "doctest/doctest.h"
 
@@ -40,14 +43,19 @@ namespace {
 ClearValue window_clear(const vaml::Window& w)
 {
     const bool allows = w.Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
+    const vaml::Value bv = w.Get(vaml::PropertyId::of("Background"));
+    // S643b-1 (D1): the shared "Background" DP holds a Brush OBJECT — resolve it
+    // through the object resolver (handles the Brush object and the legacy
+    // BrushId seam). A local value is "resolved" only when it's an authored
+    // Brush/BrushId (the DP-default null is not authored).
     const bool authored =
         w.has_local_value(vaml::PropertyId::of("Background")) &&
-        w.Get(vaml::PropertyId::of("Background")).type() == vaml::ValueType::Color;
+        (bv.type() == vaml::ValueType::Brush || bv.type() == vaml::ValueType::BrushId);
     vaml::Color bgColor{ 0, 0, 0, 0 };
     const vaml::Color* resolved = nullptr;
     if (authored)
     {
-        bgColor = w.Get(vaml::PropertyId::of("Background")).get<vaml::Color>();
+        bgColor = vaml::resolve_foreground_brush(w, bv)->color();
         resolved = &bgColor;
     }
     return decide_clear(allows, resolved);
@@ -97,7 +105,7 @@ TEST_CASE("S592 real Window tree: AllowsTransparency=true + Transparent Backgrou
     vaml::Window w;
     (void)w.Set(vaml::PropertyId::of("AllowsTransparency"), vaml::Value::Bool(true));
     (void)w.Set(vaml::PropertyId::of("Background"),
-                vaml::Value::Color(vaml::parse_color("#00000000")));
+                vaml::test::brush_value(vaml::parse_color("#00000000")));
     w.Measure(vaml::Size{ 400.0f, vaml::Size::Infinite().height });
     w.Arrange(vaml::Rect{ 0.0f, 0.0f, 400.0f, 300.0f });
 
@@ -110,7 +118,7 @@ TEST_CASE("S592 real Window tree: opaque window + Background -> the resolved Bac
 {
     vaml::Window w;
     // Opaque (AllowsTransparency default false) + an authored opaque blue background.
-    (void)w.Set(vaml::PropertyId::of("Background"), vaml::Value::Color(vaml::parse_color("#FF0000FF")));
+    (void)w.Set(vaml::PropertyId::of("Background"), vaml::test::brush_value(vaml::parse_color("#FF0000FF")));
     w.Measure(vaml::Size{ 400.0f, vaml::Size::Infinite().height });
     w.Arrange(vaml::Rect{ 0.0f, 0.0f, 400.0f, 300.0f });
 

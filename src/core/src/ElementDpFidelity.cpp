@@ -31,6 +31,7 @@
 // DP/event here is real, permanent, resolvable code. The 11k-8 audit table is
 // the acceptance checklist: EVERY row now registers + resolves.
 
+#include "vaml/core/Brush.h"              // S643b-1: default_black_brush (the shared paint default)
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/PropertyFlags.h"
 #include "vaml/core/PropertyMetadata.h"
@@ -146,12 +147,12 @@ void run_dp_fidelity_closure()
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 
     // Control (beyond the shared 11j-5 bundle) — WPF-faithful.
-    dp_register_guard("BorderBrush",         ValueType::BrushId, "Control",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    dp_register_guard("BorderBrush",         ValueType::Brush, "Control",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     dp_register_guard("BorderThickness",     ValueType::Thickness, "Control",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
-    dp_register_guard("Background",          ValueType::BrushId, "Control",
-        PropertyMetadata::WithDefault(Value::BrushId(0), PropertyFlags::None));
+    dp_register_guard("Background",          ValueType::Brush, "Control",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     dp_register_guard("TabIndex",            ValueType::Int32,  "Control",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     dp_register_guard("IsTabStop",           ValueType::Int32,  "Control",

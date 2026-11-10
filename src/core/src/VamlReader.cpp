@@ -260,6 +260,116 @@ Value VamlReader::convertLiteral(const DependencyProperty& dp,
     return ValueConverterRegistry::global().convert(typeName, literal);
 }
 
+// S643a (dep:S643) — HEX-COLOR LITERAL ON BrushId DPs. See the VamlReader.h
+// member comment for the full design. Implements the WPF-faithful
+// `Parsers.ParseBrush` analogue: numeric -> BrushId (unchanged), color ->
+// allocate a fresh SolidColorBrush + defer registration, else -> MalformedValue.
+VAML_CORE_EXPORT
+Value VamlReader::convertBrushIdLiteral(const DependencyProperty& dp,
+                                        DependencyObject* target,
+                                        std::string_view literal)
+{
+    using vaml::Value;
+    const bool isObject = (dp.metadata().boundType() == ValueType::Brush); // S643b-1 (D1)
+
+    // 1) NUMERIC brush id — the GeometryDrawing / StaticResource numeric
+    //    convention. Only the LEGACY BrushId DP keeps the numeric-id path
+    //    (the internal render seam). A numeric literal on a Brush OBJECT DP is
+    //    not WPF-faithful (WPF's BrushConverter has no numeric form for a Brush
+    //    object) -> fails loud (MalformedValue), never silent.
+    std::int32_t id = 0;
+    if (parse_int32(literal, id))
+    {
+        if (!isObject)
+        {
+            return Value::BrushId(id);
+        }
+        throw ValueConversionException(
+            ValueConversionError::MalformedValue, std::string(),
+            std::string(literal),
+            "a numeric literal on a Brush OBJECT DP is not WPF-faithful (a Brush "
+            "object has no numeric id form); author a color literal (MalformedValue)");
+    }
+
+    // 2) COLOR literal (#RRGGBB/#AARRGGBB/#RGB/#ARGB or a WPF named color).
+    //    The close counterpart of S602's parse_color building block. On success
+    //    it yields a real parsed Color; a malformed literal throws the S089
+    //    structured ValueConversionException(MalformedValue, "Color") which
+    //    propagates (never silent), exactly as WPF's ParseHexColor throws
+    //    FormatException.
+    const Color c = parse_color(literal);
+
+    // 3) Brush OBJECT DP (S643b-1 D1 CLOSED + S643b-4 D3): hold the color's SHARED
+    //    FROZEN SolidColorBrush DIRECTLY in the DP as a Value::Brush object — the
+    //    WPF-faithful `new SolidColorBrush(ParseHexColor(...))` (Parsers.cs:252-290)
+    //    that WPF's TryGetFreezable SHARES for the same color (Brush.cs:55-77).
+    //    Context-free, NO id registry, NO element registration; the DP holds the
+    //    object the renderer reads. Same literal -> same shared frozen object (D3).
+    if (isObject)
+    {
+        return Value::Brush(shared_frozen_solid_brush(c));
+    }
+
+    // 4) Legacy BrushId DP (the S643a seam): the colored brush needs a TARGET
+    //    element whose resources dict the render-time find_for_element walk (via
+    //    resolve_foreground_color) resolves. That target must be a UIElement
+    //    (the only DO with the S360 element-resources slot). A color literal on
+    //    a NON-UIElement target (e.g. GeometryDrawing.Brush, whose scalar id has
+    //    no render resolution seam — see the 11k-4 recorded NO-GAP) fails loud
+    //    rather than registering dead code.
+    UIElement* ui = dynamic_cast<UIElement*>(target);
+    if (ui == nullptr)
+    {
+        throw ValueConversionException(
+            ValueConversionError::MalformedValue, std::string(),
+            std::string(literal),
+            "a color literal on a BrushId DP requires a UIElement target to "
+            "register the brush under 'Brush:<id>' for render-time resolution "
+            "(MalformedValue)");
+    }
+
+    // Assign a fresh high-base auto-id (never collides with app small ids) and
+    // defer the registration: the brush is OWNED in pending_brushes_ only until
+    // flush_pending_brushes() moves it into the element's resources dict (the
+    // single owner). Fresh-object-per-conversion — a color on multiple elements
+    // yields a separate brush per element, exactly like WPF.
+    const std::int32_t autoId = next_auto_brush_id();
+    auto brush = std::make_unique<SolidColorBrush>();
+    (void)brush->set_color(c);
+    pending_brushes_.push_back(PendingBrush{ ui, autoId, std::move(brush) });
+    return Value::BrushId(autoId);
+}
+
+// S643a — flushes every pending literal brush into its target element's
+// resources dict (see the member comment). Called at the end of build() so the
+// children loop's authored <X.Resources> has already attached via
+// set_element_resources (REPLACING the dict); here we MERGE into that existing
+// dict (or create + attach a fresh one when the element never authored
+// resources), so a BrushId color literal never clobbers an authored dictionary.
+// The dict (via the S360 side-table) becomes the brush's SINGLE owner.
+VAML_CORE_EXPORT
+void VamlReader::flush_pending_brushes()
+{
+    for (PendingBrush& pending : pending_brushes_)
+    {
+        ResourceDictionary* dict = pending.target->resources();
+        std::unique_ptr<ResourceDictionary> ownedDict;
+        if (dict == nullptr)
+        {
+            ownedDict = std::make_unique<ResourceDictionary>();
+            dict = ownedDict.get();
+        }
+        // The fresh-object-per-conversion auto-id is unique within one Load, so
+        // a duplicate-key throw is impossible here (one-line collision guard).
+        dict->set("Brush:" + std::to_string(pending.brushId), std::move(pending.brush));
+        if (ownedDict)
+        {
+            vaml::detail::set_element_resources(pending.target, std::move(ownedDict));
+        }
+    }
+    pending_brushes_.clear();
+}
+
 VAML_CORE_EXPORT
 std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element,
                                                     std::size_t depth)
@@ -557,7 +667,19 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
             continue;   // collect mode: skip the (never-valid) set, keep scanning
         }
 
-        const Value value = convertLiteral(*dp, attr.value);
+        // S643a/S643b — a Brush-typed paint DP (Brush OBJECT — S643b-1) and a
+        // legacy BrushId DP both take the literal through the brush converter:
+        //   * ValueType::Brush   (TextBlock.Foreground, Border.BorderBrush,
+        //     Shape.Fill/Stroke, InkCanvas.Background, ...) -> a Brush OBJECT,
+        //   * ValueType::BrushId (shared Control Background/BorderBrush,
+        //     GeometryDrawing.Brush/Pen — the internal id render seam) -> the
+        //     S643a id path.
+        // All other bound types use the unchanged generic literal converter.
+        const ValueType bt = dp->metadata().boundType();
+        const Value value =
+            (bt == ValueType::Brush || bt == ValueType::BrushId)
+                ? convertBrushIdLiteral(*dp, obj.get(), attr.value)
+                : convertLiteral(*dp, attr.value);
         (void)obj->Set(PropertyId(attr.key), value); // S043 attached-aware by name
     }
 
@@ -1084,6 +1206,11 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         retained_.push_back(std::move(childObj));
     }
 
+    // S643a — flush the literal-color brushes recorded on THIS element's
+    // BrushId DPs. Runs after the children loop so an authored <X.Resources>
+    // (attached above via set_element_resources) is merged, never clobbered.
+    flush_pending_brushes();
+
     // Step 4 — the caller owns the root; children live in `retained_` until
     // the S440 finalize_visual_tree() hand-off (see that method).
     return obj;
@@ -1600,11 +1727,22 @@ void VamlReader::build_geometry_drawing(GeometryDrawing& drawing, const ParsedEl
         }
         if (attr.key == "Brush")
         {
-            // A BrushId is accepted only when the literal parses as a numeric
-            // brush id (the corpus's {StaticResource} form is a deferred
-            // extension, resolved by S361; a literal COLOR string (`#RRGGBB`)
-            // needs the brush-id/palette conversion, a later surface — recorded
-            // NO-GAP, not silent). Non-numeric brush attrs are skipped.
+            // S643a (dep:S643) — a GeometryDrawing Brush stays on the NUMERIC
+            // brush-id path (the corpus's {StaticResource} form is a deferred
+            // extension, resolved by S361). A literal COLOR string (`#RRGGBB`)
+            // on GeometryDrawing.Brush is NOT routed here: GeometryDrawing is
+            // NOT a UIElement, so convertBrushIdLiteral's register-onto-target
+            // seam (the render-time find_for_element walk) has no resolution
+            // consumer — wiring a color there would register dead, unresolvable
+            // code (verified against WPF: GeometryDrawing.Brush is a Brush
+            // OBJECT passed straight to DrawGeometry, not an id; VAML's scalar
+            // BrushId + representative_color()-returns-black has no render seam
+            // yet). The resolvable hex-color surface is the UIElement BrushId-DP
+            // path (convertBrushIdLiteral -> resolve_foreground_color), delivered
+            // by S643a. The GeometryDrawing brush-COLOR surface needs a render
+            // consumer (a real target element + DrawGeometry for it) — recorded
+            // NO-GAP, OWNED by the S400/S401 per-control material surface, NOT
+            // a silent backfill here. Numeric brush attrs are unchanged.
             std::int32_t bid = 0;
             if (parse_int32(attr.value, bid))
             {
@@ -2214,6 +2352,40 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
         return;
     }
 
+    // S643a (WPF paint-DP compliance): a Style setter targeting a BrushId DP.
+    // WPF holds a Brush OBJECT in the setter (registered on the applied
+    // element); VAML's BrushId mapping is registered at APPLY time (there is no
+    // element here to register on). So a NUMERIC literal stays a brush id, and a
+    // COLOR literal is deferred as Value::Color — apply_value_to (StyleApplier)
+    // registers it on the target element via register_element_brush and sets the
+    // resulting BrushId.
+    if (dp->metadata().boundType() == ValueType::BrushId)
+    {
+        std::int32_t bid = 0;
+        if (parse_int32(value, bid))
+        {
+            out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(Value::BrushId(bid))};
+            return;
+        }
+        const Color deferred = parse_color(value); // throws MalformedValue on a bad literal
+        out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(Value::Color(deferred))};
+        return;
+    }
+
+    // S643b-1 (D1): a Style setter targeting a Brush OBJECT DP (Background/
+    // Foreground/BorderBrush/Fill/Stroke). WPF holds a Brush OBJECT in the
+    // setter (registered/built on the applied element); VAML's object is built
+    // at APPLY time (there is no element to hold it here). So a COLOR literal is
+    // deferred as Value::Color — apply_value_to (StyleApplier, the S643b object
+    // branch) builds the SolidColorBrush OBJECT on the target element. A numeric
+    // literal is NOT WPF-faithful on a Brush object -> fails loud (MalformedValue).
+    if (dp->metadata().boundType() == ValueType::Brush)
+    {
+        const Color deferred = parse_color(value); // throws MalformedValue on a bad literal
+        out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(Value::Color(deferred))};
+        return;
+    }
+
     // A plain literal (converted to the property's bound type).
     out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(convertLiteral(*dp, value))};
 }
@@ -2601,6 +2773,9 @@ std::unique_ptr<DependencyObject> VamlReader::Load(const ParsedElement& root)
     dynamicResourceLinks_.clear();   // S361: per-Load dynamic-resource scope
     owned_merged_.clear();           // S453: per-Load merged-resource scope
     owned_templates_.clear();        // S503: per-Load authored DataTemplate scope
+    pending_brushes_.clear();        // S643a: per-Load literal-brush pending scope
+    // S643b-2: the auto-id counter is the PROCESS-LIFETIME allocator
+    // (next_auto_brush_id) — NOT reset per Load (ids never reused across trees).
     built_dicts_.clear();            // S454: per-Load authored-dict index
     deferred_based_on_.clear();      // S454: per-Load Style BasedOn wires
     issues_.clear();                 // 11d-DEBUG: per-Load scan-issue scope

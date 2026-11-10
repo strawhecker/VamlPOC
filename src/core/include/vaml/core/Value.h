@@ -19,11 +19,14 @@
 #include "vaml/core/Transform.h"
 #include "vaml/core/export.h"
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace vaml {
+
+class Brush; // forward — Value::Brush holds a shared_ptr<Brush> (D1 object payload)
 
 // Discriminator tags — values follow the roadmap order exactly.
 // Underlying type is uint8_t (12 tags, room to grow). Matrix2D is APPENDED
@@ -44,6 +47,10 @@ enum class ValueType : std::uint8_t
     UntypedPtr,
     Matrix2D,   // S208: the REAL per-element affine transform (RenderTransform)
     GridLength, // 11k-3: the REAL GridLength value (WPF GridLengthConverter-faithful)
+    Brush,      // S643b-1 (closes D1): a REAL Brush OBJECT payload (shared_ptr<Brush>) — the
+                // WPF-faithful "the paint DP holds the brush object" read, replacing the
+                // scalar BrushId collapse at the public paint surface. APPENDED additive
+                // (enum-stable: existing ordinals unchanged).
 };
 
 // Thrown by Value::get<T>() when T is not a valid payload type for the tag.
@@ -90,6 +97,8 @@ template <> struct ValueTypeOf<vaml::GridLength>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::GridLength; } };
 template <> struct ValueTypeOf<vaml::Matrix2D>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Matrix2D; } };
+template <> struct ValueTypeOf<std::shared_ptr<vaml::Brush>>
+{ static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Brush; } };
 template <> struct ValueTypeOf<void*>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::UntypedPtr; } };
 
@@ -114,6 +123,12 @@ public:
     // get<std::int32_t> — which accepts the BrushId tag.
     [[nodiscard]] static Value BrushId(std::int32_t v) noexcept { return Value(ValueType::BrushId, v); }
     [[nodiscard]] static Value UntypedPtr(void* v) noexcept { return Value(ValueType::UntypedPtr, v); }
+    // S643b-1 (closes D1): the REAL Brush OBJECT payload. Holds an owned
+    // shared_ptr<Brush> — the WPF-faithful "the paint DP holds the brush object"
+    // read (Control.cs:108-124 `(Brush) GetValue(BackgroundProperty)`). WPF's
+    // DP layer is generic over object; this is VAML's generic-object payload for
+    // the paint DPs. (NOT noexcept: shared_ptr construction can allocate.)
+    [[nodiscard]] static Value Brush(std::shared_ptr<::vaml::Brush> v) { return Value(ValueType::Brush, std::move(v)); }
 
     // --- Introspection -------------------------------------------------
     [[nodiscard]] ValueType type() const noexcept { return type_; }
@@ -167,6 +182,7 @@ private:
         vaml::GridLength asGridLength; // 11k-3 GridLength payload
         vaml::Matrix2D  asMatrix2D; // S208 RenderTransform
         void*           asPtr; // UntypedPtr
+        std::shared_ptr<::vaml::Brush> asBrush; // S643b-1 Brush object payload
     } storage_;
 
     // Out-of-line throw (defined in Value.cpp).
@@ -234,5 +250,11 @@ template <>
 
 template <>
 [[nodiscard]] inline void* Value::read<void*>() const { return storage_.asPtr; }
+
+template <>
+[[nodiscard]] inline std::shared_ptr<::vaml::Brush> Value::read<std::shared_ptr<::vaml::Brush>>() const
+{
+    return storage_.asBrush;
+}
 
 } // namespace vaml

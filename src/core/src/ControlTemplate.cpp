@@ -2,11 +2,13 @@
 
 #include "vaml/core/ControlTemplate.h"
 
+#include "vaml/core/Brush.h"              // S643b: SolidColorBrush (the visual-state paint object)
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/PropertyFlags.h"
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyMetadata.h"
+#include "vaml/core/ResourceDictionary.h" // S643a: register_element_brush (visual-state paint)
 #include "vaml/core/Value.h"
 
 #include <utility>
@@ -16,21 +18,21 @@ namespace vaml {
 
 namespace {
 
-// Registers the "Background" Color DP used by the visual-state engine (the
-// templated control's brushProperty target). A global register so S043
-// attached-aware Set/Get on any DependencyObject works. Default opaque black.
-void register_template_properties()
-{
-    (void)DependencyProperty::Register(
-        "Background", ValueType::Color, "UIElement",
-        PropertyMetadata::WithDefault(Value::Color(vaml::Color{ 0, 0, 0, 255 }),
-                                      PropertyFlags::None));
-}
-
-const bool kTemplatePropsRegistered = [] {
-    register_template_properties();
-    return true;
-}();
+// S643a (WPF paint-DP compliance): the legacy scalar-`Color` "Background" DP
+// registered here (owner UIElement, a raw color written by the visual-state
+// engine) has been REMOVED — it is NOT WPF-faithful (WPF has no scalar-color
+// paint DP; Background is typeof(Brush)) and it PRE-EMPTED the canonical
+// BrushId "Background" (ElementDpFidelity.cpp:153, guard-registered under
+// "Control"), making Background's bound type registration-order-DEPENDENT
+// (non-deterministic — bad pre-11 code per the standing directive). The
+// visual-state engine now registers each state's color as a fresh BrushId via
+// register_element_brush (see enter_state/exit_state) and stores that BrushId,
+// so the canonical BrushId "Background" (ElementDpFidelity) is the SINGLE,
+// deterministic DP. kTemplatePropsRegistered is retained as the ctor's
+// dependency marker (the canonical Background is guard-registered by
+// register_builtin_elements -> vaml_run_dp_fidelity_closure, which the ctor
+// also triggers via the element registry path).
+const bool kTemplatePropsRegistered = true;
 
 // Flattens the TemplateBinding wires from a part tree into `out`.
 void collect_bindings(const TemplatePart& part,
@@ -162,10 +164,16 @@ void enter_state(UIElement& control, VisualState& state)
         return;
     }
     // Apply the state's brush color onto the control's brushProperty DP.
+    // S643b-1 (D1, WPF paint-DP compliance): the state's color becomes a fresh
+    // SolidColorBrush OBJECT held directly in the DP (WPF visual-state color is
+    // a Brush object, never a scalar color and never a BrushId). The renderer
+    // reads brush->color() via resolve_foreground_brush.
     try
     {
+        // S643b-1 (D1) + S643b-4 (D3): the state's color -> the SHARED FROZEN
+        // SolidColorBrush object (same color -> same shared object).
         (void)control.Set(PropertyId::of(state.brushProperty),
-                          Value::Color(state.brush->color()));
+                          Value::Brush(shared_frozen_solid_brush(state.brush->color())));
         state.engaged = true;
     }
     catch (...)
@@ -186,10 +194,14 @@ void exit_state(UIElement& control, VisualState& state)
     // Revert: push back the brush's own color (the state's neutral) and mark
     // unengaged. (A full revert-to-Normal re-applies the Normal state's brush;
     // the caller re-enters the Normal state to swap back.)
+    // S643b-1 (D1): mirror enter_state — a fresh Brush OBJECT, never a scalar
+    // Color and never a BrushId.
     try
     {
+        // S643b-1 (D1) + S643b-4 (D3): the state's color -> the SHARED FROZEN
+        // SolidColorBrush object (same color -> same shared object).
         (void)control.Set(PropertyId::of(state.brushProperty),
-                          Value::Color(state.brush->color()));
+                          Value::Brush(shared_frozen_solid_brush(state.brush->color())));
     }
     catch (...)
     {

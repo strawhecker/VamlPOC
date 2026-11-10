@@ -28,8 +28,13 @@
 #include "vaml/core/ValueConversionError.h"
 #include "vaml/core/EnumDomainRegistry.h"   // S600: shared TYPE-AWARE int32 enum conversion (A1)
 #include "vaml/core/ValueConverter.h"
+#include "vaml/core/Color.h"        // S643a: parse_color (hex/named color literal)
+#include "vaml/core/Brush.h"        // S643a: SolidColorBrush (fresh literal brush)
+#include "vaml/core/ResourceDictionary.h" // S643a: set_element_resources (flush)
+#include "vaml/core/UIElement.h"    // S643a: resources() slot (registry target)
 
 #include <algorithm> // std::find (event-name scan)
+#include <charconv>  // S643a: std::from_chars (numeric brush-id arm, parse_int32_tools)
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -117,6 +122,102 @@ namespace {
 
 } // namespace
 
+namespace {
+
+// S643a — mirrors the S2 reader's parse_int32 (VamlReader.cpp): true iff `s`
+// parses wholly as a signed 32-bit integer. Used for the numeric brush-id arm.
+[[nodiscard]] bool parse_int32_tools(std::string_view s, std::int32_t& out) noexcept
+{
+    if (s.empty())
+    {
+        return false;
+    }
+    const char* begin = s.data();
+    const char* end = s.data() + s.size();
+    const auto [ptr, ec] = std::from_chars(begin, end, out);
+    return ec == std::errc{} && ptr == end;
+}
+
+} // namespace
+
+// S643a (dep:S643) — HEX-COLOR LITERAL ON BrushId DPs (compiled-path parity
+// with the S2 text reader's VamlReader::convertBrushIdLiteral). Bounded by the
+// call site to a DP whose bound type is BrushId. See VBamlReader.h member note.
+vaml::Value VBamlReader::convertBrushIdLiteral(DependencyObject* target,
+                                               vaml::ValueType boundType,
+                                               std::string_view literal)
+{
+    using vaml::Value;
+    const bool isObject = (boundType == vaml::ValueType::Brush); // S643b-1 (D1)
+
+    // 1) NUMERIC brush id — the GeometryDrawing / StaticResource numeric
+    //    convention. Only the legacy BrushId DP keeps the numeric-id path.
+    std::int32_t id = 0;
+    if (parse_int32_tools(literal, id))
+    {
+        if (!isObject)
+        {
+            return Value::BrushId(id);
+        }
+        throw VBamlException(VBamlError::MalformedValue,
+                             "a numeric literal on a Brush OBJECT DP is not "
+                             "WPF-faithful; author a color literal",
+                             kNoElement);
+    }
+
+    // 2) COLOR literal — parse_color throws the structured ValueConversionException
+    //    (MalformedValue, "Color") on a malformed literal; never silent.
+    const vaml::Color c = vaml::parse_color(literal);
+
+    // 3) Brush OBJECT DP (S643b-1 D1 CLOSED + S643b-4 D3): the color's SHARED
+    //    FROZEN SolidColorBrush held directly. Same literal -> same shared
+    //    frozen object (WPF TryGetFreezable, Brush.cs:55-77).
+    if (isObject)
+    {
+        return Value::Brush(vaml::shared_frozen_solid_brush(c));
+    }
+
+    // 4) Registration divergence — the legacy BrushId path needs a UIElement
+    //    target whose resources dict the render-time find_for_element walk
+    //    resolves. A non-UIElement target fails loud (no resolution seam — see
+    //    the S2 member note, GeometryDrawing case).
+    vaml::UIElement* ui = dynamic_cast<vaml::UIElement*>(target);
+    if (ui == nullptr)
+    {
+        throw VBamlException(VBamlError::MalformedValue,
+                             "a color literal on a BrushId DP requires a UIElement "
+                             "target to register the brush under 'Brush:<id>'",
+                             kNoElement);
+    }
+
+    const std::int32_t autoId = vaml::next_auto_brush_id();
+    auto brush = std::make_unique<vaml::SolidColorBrush>();
+    (void)brush->set_color(c);
+    pending_brushes_.push_back(PendingBrush{ ui, autoId, std::move(brush) });
+    return Value::BrushId(autoId);
+}
+
+// S643a — flushes pending literal brushes (mirror of VamlReader::flush_pending_brushes).
+void VBamlReader::flush_pending_brushes()
+{
+    for (PendingBrush& pending : pending_brushes_)
+    {
+        vaml::ResourceDictionary* dict = pending.target->resources();
+        std::unique_ptr<vaml::ResourceDictionary> ownedDict;
+        if (dict == nullptr)
+        {
+            ownedDict = std::make_unique<vaml::ResourceDictionary>();
+            dict = ownedDict.get();
+        }
+        dict->set("Brush:" + std::to_string(pending.brushId), std::move(pending.brush));
+        if (ownedDict)
+        {
+            vaml::detail::set_element_resources(pending.target, std::move(ownedDict));
+        }
+    }
+    pending_brushes_.clear();
+}
+
 // ---------------------------------------------------------------------------
 // S285 — the reader's entry: decode + build.
 // ---------------------------------------------------------------------------
@@ -135,6 +236,9 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
     deferred_extensions_.clear();
     deferred_event_handlers_.clear();
     property_element_children_.clear(); // S452: fresh Load re-arms the object-property set
+    pending_brushes_.clear();           // S643a: per-Load literal-brush pending scope
+    // S643b-2: the auto-id counter is the PROCESS-LIFETIME core allocator
+    // (vaml::next_auto_brush_id) — NOT reset per Load.
 
     // Decode the .vbaml (S282). A structurally malformed buffer throws
     // VbamlMalformedBuffer; map it to the compiled reader's MalformedBuffer
@@ -293,8 +397,15 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
             }
             try
             {
-                (void)nodes[id]->Set(vaml::PropertyId::of(a.key),
-                                     convertLiterals(*dp, a.value));
+                // S643a/S643b — a Brush-typed paint DP (Brush OBJECT — S643b-1)
+                // and a legacy BrushId DP both route through the brush converter;
+                // all other bound types use the unchanged generic converter.
+                const vaml::ValueType bt = dp->metadata().boundType();
+                const vaml::Value v =
+                    (bt == vaml::ValueType::Brush || bt == vaml::ValueType::BrushId)
+                        ? convertBrushIdLiteral(nodes[id].get(), bt, a.value)
+                        : convertLiterals(*dp, a.value);
+                (void)nodes[id]->Set(vaml::PropertyId::of(a.key), v);
             }
             catch (const vaml::ValueConversionException& e)
             {
@@ -302,6 +413,13 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
             }
         }
     }
+
+    // S643a — flush every literal-color brush recorded on the BrushId DPs
+    // (after all elements are instantiated + their plain literals set; the
+    // S7 reader never authors <X.Resources>, so no authored-dict clobber risk
+    // exists here — it creates + attaches a per-element dict, or merges into an
+    // existing one for parity with the S2 reader).
+    flush_pending_brushes();
 
     // Pass 2: parent-link children (S039/S041 set_parent) — NON-OWNING parent
     // links only. Ownership stays unified: the root goes to the caller, every

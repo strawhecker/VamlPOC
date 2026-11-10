@@ -190,7 +190,11 @@ TEST_CASE("S400: TextBlock is a real UIElement (S087 seed re-based) + DPs round-
     SHOULD(ShouldlyString(t.text()).ShouldBe(std::string("")));
     SHOULD(ShouldlyString(t.font_size()).ShouldBe(12.0));
     SHOULD(ShouldlyString(t.font_weight()).ShouldBe(0));
-    SHOULD(ShouldlyString(t.foreground()).ShouldBe(0));
+    // S643b-1: Foreground defaults to the shared opaque-black Brush OBJECT.
+    SHOULD(ShouldlyIntegral(t.foreground() != nullptr).ShouldBe(true));
+    SHOULD(ShouldlyString(t.foreground()->color().r).ShouldBe(0));
+    SHOULD(ShouldlyString(t.foreground()->color().g).ShouldBe(0));
+    SHOULD(ShouldlyString(t.foreground()->color().b).ShouldBe(0));
 
     // Round-trip each DP (typed accessors).
     SHOULD(ShouldlyString(t.set_text("Hello")).ShouldBe(vaml::SetResult::APPLIED));
@@ -199,8 +203,16 @@ TEST_CASE("S400: TextBlock is a real UIElement (S087 seed re-based) + DPs round-
     SHOULD(ShouldlyString(t.font_size()).ShouldBe(24.0));
     SHOULD(ShouldlyString(t.set_font_weight(1)).ShouldBe(vaml::SetResult::APPLIED));
     SHOULD(ShouldlyString(t.font_weight()).ShouldBe(1));
-    SHOULD(ShouldlyString(t.set_foreground(5)).ShouldBe(vaml::SetResult::APPLIED));
-    SHOULD(ShouldlyString(t.foreground()).ShouldBe(5));
+    {
+        // Foreground round-trips a Brush OBJECT (D1 — the DP holds the brush).
+        auto fg = std::make_shared<vaml::SolidColorBrush>();
+        (void)fg->set_color(vaml::Color{ 10, 20, 30, 255 });
+        SHOULD(ShouldlyString(t.set_foreground(fg)).ShouldBe(vaml::SetResult::APPLIED));
+        SHOULD(ShouldlyIntegral(t.foreground() == fg).ShouldBe(true));
+        SHOULD(ShouldlyString(t.foreground()->color().r).ShouldBe(10));
+        SHOULD(ShouldlyString(t.foreground()->color().g).ShouldBe(20));
+        SHOULD(ShouldlyString(t.foreground()->color().b).ShouldBe(30));
+    }
 
     // Resolves globally on a PLAIN DependencyObject (the S043 attached-aware
     // read): "Text" is globally registered, so a plain DO reads the global

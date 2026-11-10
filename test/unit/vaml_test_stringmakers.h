@@ -89,6 +89,7 @@ inline std::ostream& operator<<(std::ostream& os, ValueType t)
         case ValueType::UntypedPtr:return os << "UntypedPtr";
         case ValueType::Matrix2D:  return os << "Matrix2D";
         case ValueType::GridLength:return os << "GridLength";
+        case ValueType::Brush:     return os << "Brush";
     }
     return os << "Unknown";
 }
@@ -111,6 +112,7 @@ inline std::ostream& operator<<(std::ostream& os, Value const& v)
         case ValueType::UntypedPtr: os << v.get<void*>();                     break;
         case ValueType::Matrix2D:   os << v.get<Matrix2D>();                  break;
         case ValueType::GridLength: os << v.get<GridLength>();                break;
+        case ValueType::Brush:      os << (v.get<std::shared_ptr<::vaml::Brush>>() ? "[Brush object]" : "[null-brush]"); break;
     }
     return os << ">";
 }
@@ -164,6 +166,7 @@ inline const char* vaml_value_type_name(vaml::ValueType t)
         case vaml::ValueType::UntypedPtr:return "UntypedPtr";
         case vaml::ValueType::Matrix2D:  return "Matrix2D";
         case vaml::ValueType::GridLength:return "GridLength";
+        case vaml::ValueType::Brush:     return "Brush";
     }
     return "Unknown";
 }
@@ -193,6 +196,7 @@ struct StringMaker<vaml::Value>
             case vaml::ValueType::UntypedPtr: os << v.get<void*>();                 break;
             case vaml::ValueType::Matrix2D:   os << v.get<vaml::Matrix2D>();        break;
             case vaml::ValueType::GridLength: os << v.get<vaml::GridLength>();      break;
+            case vaml::ValueType::Brush:      os << (v.get<std::shared_ptr<::vaml::Brush>>() ? "[Brush object]" : "[null-brush]"); break;
         }
         os << ">";
         return os.str().c_str(); // doctest::String(const char*)

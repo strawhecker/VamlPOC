@@ -1,0 +1,20 @@
+<!-- S643a (gap-closure dep:S643) — HEX-COLOR LITERAL ON BrushId DPs.
+     The smoke .xaml for the S643a gate: three BrushId DPs authored with COLOR
+     literal attributes (Foreground / Background / BorderBrush). This file is
+     the COMMITTED sample the real actual-frame producer (the vaml_viewer
+     load_file seam) must LOAD without throwing — it is the end-to-end proof
+     that `#RRGGBB`-style literals on BrushId DPs parse + render, wiring the
+     convertBrushIdLiteral -> register-on-target -> resolve_foreground_color
+     seam (the 11k-4 ~ 11k-6 recorded NO-GAP, delivered by S643a).
+
+     Ground-truth note (WPF, E:\GitRepos\wpf): Parsers.ParseBrush is a pure
+     context-free converter (fresh SolidColorBrush per conversion, no registry);
+     VAML's only divergence is registering each brush under "Brush:<autoId>"
+     on the target element for render-time resolution. -->
+<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root">
+  <StackPanel>
+    <TextBlock x:Name="ForegroundLit" Foreground="#FFE8E8E8">hex-foreground</TextBlock>
+    <TextBlock x:Name="NamedLit" Foreground="Red">named-foreground</TextBlock>
+    <Border x:Name="BorderColored" Background="#80AABBCC" BorderBrush="#FF123456" Width="120" Height="40"/>
+  </StackPanel>
+</Window>

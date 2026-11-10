@@ -84,6 +84,15 @@ namespace vaml {
 
 struct ParsedElement; // forward-declared (Load(const ParsedElement&) takes a ref)
 
+class UIElement;              // S643a: literal-brush registration target
+class SolidColorBrush;        // S643a: the freshly allocated literal brush
+
+// S643a/S643b — the auto-id base for literal-color brushes on paint DPs is
+// defined once in Brush.h (kAutoBrushIdBase); auto-ids are allocated from the
+// SINGLE process-lifetime allocator next_auto_brush_id() (S643b-2), never a
+// per-Load reset. A color on multiple elements is a separate brush per element
+// (WPF's fresh-object-per-conversion model).
+
 // S091: the reader's OWN error taxonomy — contains ONLY what the reader can
 // itself produce (S048 discipline — no dead enum arms). An attribute may name
 // a property that has no global DependencyProperty definition; that is this
@@ -561,6 +570,38 @@ private:
     // via the type-name mapping. Throws ValueConversionException (S089/S090).
     static Value convertLiteral(const DependencyProperty& dp, std::string_view literal);
 
+    // S643a (dep:S643) — HEX-COLOR LITERAL ON BrushId DPs (RESOLVES the 11k-4
+    // recorded NO-GAP). Converts a literal on a BrushId DP (Foreground/
+    // Background/Fill/Stroke/BorderBrush) — the `Parsers.ParseBrush` analogue:
+    //   * a NUMERIC literal parses as a brush id (the GeometryDrawing/
+    //     StaticResource numeric convention, unchanged) -> Value::BrushId(id);
+    //   * a COLOR literal (#RRGGBB/#AARRGGBB/#RGB/#ARGB or a WPF named color,
+    //     via parse_color, S602) -> allocate a FRESH SolidColorBrush, assign it a
+    //     high-base auto-id (kAutoBrushIdBase+), record it in pending_brushes_,
+    //     and return Value::BrushId(autoId). The actual registration into the
+    //     target element's resources dict is DEFERRED to flush_pending_brushes()
+    //     at end of build() so an authored <X.Resources> (which REPLACES the
+    //     side-table dict during the children loop) is MERGED, never clobbered;
+    //   * any other literal -> structured MalformedValue (WPF throws
+    //     FormatException; never silent).
+    //
+    // VAML registration divergence (verified against the WPF source): WPF's
+    // ParseBrush is context-free and creates a fresh SolidColorBrush per
+    // conversion with NO id registry/dedup/collision machinery — VAML's only
+    // adaptation is registering the brush under "Brush:<autoId>" on the TARGET
+    // element so the render-time find_for_element three-scope walk (via
+    // resolve_foreground_color) resolves the BrushId VAML holds. A color literal
+    // on a NON-UIElement target (e.g. GeometryDrawing.Brush) has no resolution
+    // seam -> fails loud (MalformedValue), never registers dead code.
+    Value convertBrushIdLiteral(const DependencyProperty& dp,
+                                DependencyObject* target,
+                                std::string_view literal);
+    // S643a — flushes every pending literal brush into its target element's
+    // resources dict (creates + attaches a fresh dict when the element has none,
+    // else merges into the existing authored <X.Resources>). Called at the end of
+    // build() so the children loop's authored <X.Resources> has already attached.
+    void flush_pending_brushes();
+
     // S453 (dep:S452) — RESOURCE-DICTIONARY AUTHORING (the S366 NO-GAP
     // resolved): builds an OWNED ResourceDictionary from a parsed
     // `<ResourceDictionary>` element (a non-DependencyObject container, so it
@@ -675,6 +716,17 @@ private:
     void build_perspective_camera(PerspectiveCamera& camera, const ParsedElement& element);
     void build_orthographic_camera(OrthographicCamera& camera, const ParsedElement& element);
 
+    // S643a — one deferred literal-color brush, to be registered into its target
+    // element's resources dict at flush_pending_brushes(). target is the element
+    // the BrushId DP was authored on (must be a UIElement); brush is the freshly
+    // allocated SolidColorBrush (owned here until the element's dict takes it).
+    struct PendingBrush
+    {
+        UIElement* target;
+        std::int32_t brushId;
+        std::unique_ptr<SolidColorBrush> brush;
+    };
+
     // 11k-4 — builds an authored child element (recursively via build()),
     // RETAINS it READER-OWNED, parent-links it, and returns the raw pointer.
     // Used by the drawing/geometry builders to wire owned child graphs.
@@ -711,6 +763,17 @@ private:
     // so this vector keeps the template (and its content subtree) alive for the
     // tree's lifetime. Cleared at Load start.
     std::vector<std::unique_ptr<DataTemplate>> owned_templates_;
+
+    // S643a — pending literal-color brushes (per-Load). Each is a freshly
+    // allocated SolidColorBrush from a #RRGGBB/named-color literal on a BrushId
+    // DP, OWNED here only until flush_pending_brushes() registers it into the
+    // target element's resources dict (the S360 side-table then owns it — a
+    // SINGLE owner; this vector is only the transient pre-registration holder,
+    // so the resolved-owner invariant is never double-owned). Cleared at Load
+    // start. Auto-ids start at kAutoBrushIdBase (never collide with app-
+    // registered small ids; one-line guard, NOT a dedup map — WPF's
+    // fresh-object-per-conversion is honored).
+    std::vector<PendingBrush> pending_brushes_;
 
     // S454 — reader-owned authored dictionaries (per-Load) used to resolve a
     // Style BasedOn by key: every ResourceDictionary this Load BUILT

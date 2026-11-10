@@ -47,13 +47,16 @@
 #pragma once
 
 #include "vaml/core/BindingMarkup.h"      // parse_markup_binding (the {Binding} source grammar)
+#include "vaml/core/Brush.h"              // S643b: SolidColorBrush (the Brush-object seed)
 #include "vaml/core/Color.h"              // S621: Color (the deterministic opaque placeholder fill)
 #include "vaml/core/DependencyObject.h"   // the load root (unique_ptr<DependencyObject>)
 #include "vaml/core/DependencyProperty.h" // TryGet (the type-aware target read)
 #include "vaml/core/GridLength.h"         // S621: GridLength::Pixel (a non-zero track default)
 #include "vaml/core/ObservableObject.h"   // ObservableObject (the SEED data-context VM)
 #include "vaml/core/PropertyId.h"         // PropertyId::of
+#include "vaml/core/ResourceDictionary.h" // S643a: register_element_brush (seed brush registration)
 #include "vaml/core/Thickness.h"          // S621: Thickness (a 1px inset default)
+#include "vaml/core/UIElement.h"          // S643a: the seed-brush registration target (ext.target)
 #include "vaml/core/Value.h"              // Value::String / Value::Color / Value::Double / Value::BrushId
 #include "vaml/core/VamlReader.h"         // VamlReader (Load + set_data_context + BindExtensions)
 
@@ -317,7 +320,41 @@ seed_typed_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
         {
             boundType = dp->metadata().boundType();
         }
-        const vaml::Value seed = seed_value_for_type(boundType, m.path);
+        // S643a/S643b (WPF paint-DP compliance): a paint-bound target must seed
+        // a REAL brush so the render-time read resolves the seeded fill.
+        //   * ValueType::Brush  (S643b-1 D1 — the enumerated paint DPs): seed a
+        //     fresh SolidColorBrush OBJECT (Value::Brush) with the seed color.
+        //   * ValueType::BrushId (the legacy internal render seam — shared
+        //     Control Background/BorderBrush): register a BrushId via
+        //     register_element_brush (fresh-object-per-conversion).
+        // The seed color is deterministic + opaque + non-black (seed_visible_color).
+        vaml::Value seed = seed_value_for_type(boundType, m.path);
+        if (boundType == vaml::ValueType::Brush)
+        {
+            const vaml::Color seedColor =
+                seed_visible_color(seed_name_hash(m.path, 0x02u));
+            auto brush = std::make_shared<vaml::SolidColorBrush>();
+            (void)brush->set_color(seedColor);
+            seed = vaml::Value::Brush(std::move(brush));
+        }
+        else if (boundType == vaml::ValueType::BrushId)
+        {
+            if (const auto* ui = dynamic_cast<const vaml::UIElement*>(ext.target))
+            {
+                const vaml::Color seedColor =
+                    seed_visible_color(seed_name_hash(m.path, 0x02u));
+                // S643a: register_element_brush mutates the element's resources
+                // dict (writes a "Brush:<id>" Object entry), so it needs a
+                // non-const UIElement*. The reader owns the live tree element;
+                // the const-ness here is only the DeferredExtension view's, so a
+                // documented const_cast is the correct seam (not UB — the object
+                // truly is mutable).
+                auto* mut = const_cast<vaml::UIElement*>(ui);
+                const std::int32_t registeredId =
+                    vaml::register_element_brush(*mut, seedColor);
+                seed = vaml::Value::BrushId(registeredId);
+            }
+        }
         if (seed.isNull())
         {
             continue;   // no seed for this bound type (Bool/pointer/etc.)

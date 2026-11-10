@@ -131,10 +131,11 @@ TEST_CASE("S401: hover/pressed/disabled visual states swap the Background brush 
     // The default template has the four states (Normal/Hover/Pressed/Disabled)
     // driving the shared "Background" Color DP.
 
-    // Enter Hover -> the Background Color changes off the Normal default.
+    // Enter Hover -> the Background DP holds a Brush OBJECT (S643b-1 D1, the
+    // WPF-faithful paint read — not a Color, not a BrushId).
     (void)b.set_visual_state("Hover");
     const vaml::Value normalBg = b.Get(vaml::PropertyId::of("Background"));
-    SHOULD(ShouldlyString(normalBg.type() == vaml::ValueType::Color).ShouldBe(true));
+    SHOULD(ShouldlyString(normalBg.type() == vaml::ValueType::Brush).ShouldBe(true));
     (void)normalBg;
 
     // The current visual state reports Hover.

@@ -21,6 +21,8 @@
 #include "vaml/core/Brush.h"
 #include "vaml/core/ControlTemplate.h"
 #include "vaml/core/PropertyId.h"
+#include "vaml/core/ResourceDictionary.h" // S643a: register_element_brush
+#include "vaml/core/TextLayout.h"         // S643a: resolve_foreground_color
 #include "vaml/core/UIElement.h"
 #include "vaml/core/Value.h"
 
@@ -99,6 +101,16 @@ TEST_CASE("S364: enter_state applies the state brush Color to the target DP; exi
 {
     // The brushProperty (Background) DP is registered by ControlTemplate.
     UIElement control;
+    // S643b-1 (D1): the paint DP holds a Brush OBJECT; read its color() directly.
+    const auto resolveBg = [&control](vaml::Value v) -> vaml::Color {
+        if (v.type() == vaml::ValueType::Brush)
+        {
+            return v.get<std::shared_ptr<vaml::Brush>>()->color();
+        }
+        return v.type() == vaml::ValueType::BrushId
+                   ? vaml::resolve_foreground_color(control, v.get<std::int32_t>())
+                   : vaml::Color{ 0, 0, 0, 255 };
+    };
 
     // A state carrying a red brush.
     VisualState hover;
@@ -108,17 +120,17 @@ TEST_CASE("S364: enter_state applies the state brush Color to the target DP; exi
     (void)hover.brush->set_color(vaml::Color{ 255, 0, 0, 255 });
 
     // Normal default: black (opaque).
-    SHOULD(ShouldlyString(control.Get(PropertyId::of("Background"))).
+    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background"))))).
                ShouldBe(Value::Color(vaml::Color{ 0, 0, 0, 255 })));
 
     enter_state(control, hover);
     SHOULD(ShouldlyIntegral(static_cast<int>(hover.engaged)).ShouldBe(1));
-    SHOULD(ShouldlyString(control.Get(PropertyId::of("Background"))).
+    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background"))))).
                ShouldBe(Value::Color(vaml::Color{ 255, 0, 0, 255 })));
 
     exit_state(control, hover);
     SHOULD(ShouldlyIntegral(static_cast<int>(hover.engaged)).ShouldBe(0));
-    SHOULD(ShouldlyString(control.Get(PropertyId::of("Background"))).
+    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background"))))).
                ShouldBe(Value::Color(vaml::Color{ 255, 0, 0, 255 })));
 }
 

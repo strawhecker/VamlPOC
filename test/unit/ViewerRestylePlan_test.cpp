@@ -27,6 +27,7 @@
 
 #include "vaml/core/Color.h"
 #include "vaml/core/PropertyId.h"
+#include "vaml/core/TextLayout.h" // S643a: resolve_foreground_color
 #include "vaml/core/UIElement.h"
 #include "vaml/core/Value.h"
 
@@ -74,7 +75,9 @@ TEST_CASE("S369: live re-skin — an edited brush re-skis the rendered element r
     SHOULD(ShouldlyIntegral(element != nullptr).ShouldBe(true));
     if (element)
     {
-        SHOULD(ShouldlyString(element->Get(PropertyId::of("Background"))).
+        const vaml::Color bg =
+            element->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        SHOULD(ShouldlyString(vaml::Value::Color(bg)).
                    ShouldBe(Value::Color(Color{ 255, 0, 0, 255 })));
     }
 
@@ -87,7 +90,9 @@ TEST_CASE("S369: live re-skin — an edited brush re-skis the rendered element r
     SHOULD(ShouldlyIntegral(element2 != nullptr).ShouldBe(true));
     if (element2)
     {
-        SHOULD(ShouldlyString(element2->Get(PropertyId::of("Background"))).
+        const vaml::Color bg2 =
+            element2->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        SHOULD(ShouldlyString(vaml::Value::Color(bg2)).
                    ShouldBe(Value::Color(Color{ 0, 255, 0, 255 })));
     }
 }

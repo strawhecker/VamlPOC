@@ -24,6 +24,7 @@
 #include "vaml_test_stringmakers.h"
 #include <vaml/assert/Shouldly.h>
 
+#include "vaml/core/Brush.h"
 #include "vaml/core/Color.h"
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/UIElement.h"
@@ -96,7 +97,9 @@ TEST_CASE("S455: an authored implicit Style re-skis the live target by target ty
     SHOULD(ShouldlyIntegral(element != nullptr).ShouldBe(true));
     if (element)
     {
-        SHOULD(ShouldlyString(element->Get(PropertyId::of("Background")))
+        const vaml::Color bg =
+            element->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        SHOULD(ShouldlyString(vaml::Value::Color(bg))
                    .ShouldBe(Value::Color(Color{ 255, 0, 0, 255 })));
     }
 }
@@ -108,7 +111,9 @@ TEST_CASE("S455: an authored-Background edit + re-Load re-skis the target red ->
     SHOULD(ShouldlyIntegral(e1 != nullptr).ShouldBe(true));
     if (e1)
     {
-        SHOULD(ShouldlyString(e1->Get(PropertyId::of("Background")))
+        const vaml::Color bg1 =
+            e1->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        SHOULD(ShouldlyString(vaml::Value::Color(bg1))
                    .ShouldBe(Value::Color(Color{ 255, 0, 0, 255 })));
     }
 
@@ -120,7 +125,9 @@ TEST_CASE("S455: an authored-Background edit + re-Load re-skis the target red ->
     SHOULD(ShouldlyIntegral(e2 != nullptr).ShouldBe(true));
     if (e2)
     {
-        SHOULD(ShouldlyString(e2->Get(PropertyId::of("Background")))
+        const vaml::Color bg2 =
+            e2->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        SHOULD(ShouldlyString(vaml::Value::Color(bg2))
                    .ShouldBe(Value::Color(Color{ 0, 255, 0, 255 })));
     }
 }

@@ -77,6 +77,8 @@
 #include "vaml/tools/export.h"
 
 #include "vaml/core/DependencyObject.h"
+#include "vaml/core/Value.h"          // S643a: brush-id Value tag
+#include "vaml/core/ResourceDictionary.h" // S643a: set_element_resources (flush)
 
 #include <cstddef>
 #include <cstdint>
@@ -88,7 +90,17 @@
 #include <utility>
 #include <vector>
 
+namespace vaml {
+class UIElement;        // S643a: brush-registration target
+class SolidColorBrush;  // S643a: the freshly allocated literal brush
+} // namespace vaml
+
 namespace vaml::tools {
+
+// S643b-2 (D2 confinement): the compiled reader draws auto-ids from the SAME
+// process-lifetime core allocator (vaml::next_auto_brush_id), so the compiled
+// path and the text path + register_element_brush share ONE monotonic id space.
+// kAutoBrushIdBase is defined once in vaml/core/Brush.h.
 
 class VAML_TOOLS_EXPORT VBamlException;
 
@@ -314,6 +326,31 @@ private:
     // S440 finalize_visual_tree() transfer — a property-element is never a
     // visual child at S452. Emptied/refilled per Load.
     std::unordered_set<vaml::DependencyObject*> property_element_children_;
+
+    // S643a (dep:S643) — HEX-COLOR LITERAL ON BrushId DPs (compiled-path parity
+    // with the S2 text reader). On a legacy BrushId DP: numeric literal ->
+    // BrushId(id) (unchanged); color literal (#RRGGBB/#AARRGGBB/#RGB/#ARGB /
+    // named) -> allocate a fresh SolidColorBrush, assign a high-base auto-id,
+    // defer the registration into pending_brushes_, return BrushId(autoId).
+    // On a Brush OBJECT DP (S643b-1): a color literal -> a fresh Brush OBJECT
+    // held directly (WPF `new SolidColorBrush`), no id; a numeric literal fails
+    // loud (not WPF-faithful). A non-UIElement target or a malformed literal
+    // fails loud (MalformedValue) — never silent.
+    [[nodiscard]] vaml::Value convertBrushIdLiteral(DependencyObject* target,
+                                                    vaml::ValueType boundType,
+                                                    std::string_view literal);
+    // S643a — flushes pending literal brushes into their target element's
+    // resources dict after Pass 1 (merge into authored dict, or create+attach).
+    void flush_pending_brushes();
+
+    // S643a — one deferred literal-color brush (mirrors VamlReader's PendingBrush).
+    struct PendingBrush
+    {
+        vaml::UIElement* target;
+        std::int32_t brushId;
+        std::unique_ptr<vaml::SolidColorBrush> brush;
+    };
+    std::vector<PendingBrush> pending_brushes_;
 };
 
 } // namespace vaml::tools

@@ -47,8 +47,11 @@ TEST_CASE("S554: InkCanvas/InkPresenter carry the real strokes + background surf
     SHOULD(ShouldlyString(canvas.strokes()).ShouldBe("M0,0 L10,10 M20,0 L30,10"));
     (void)canvas.set_active_stroke("M5,5 L6,6");
     SHOULD(ShouldlyString(canvas.active_stroke()).ShouldBe("M5,5 L6,6"));
-    (void)canvas.set_background(4);
-    SHOULD(ShouldlyIntegral(canvas.background()).ShouldBe(4));
+    // S643b-1: Background is a Brush OBJECT.
+    auto bg = std::make_shared<vaml::SolidColorBrush>();
+    (void)bg->set_color(vaml::Color{ 4, 4, 4, 255 });
+    (void)canvas.set_background(bg);
+    SHOULD(ShouldlyIntegral(canvas.background() == bg).ShouldBe(1));
     canvas.Measure(Size{ 120.0f, 80.0f });
     SHOULD(ShouldlyIntegral(canvas.desired_size().width > 0.0f).ShouldBe(true));
 

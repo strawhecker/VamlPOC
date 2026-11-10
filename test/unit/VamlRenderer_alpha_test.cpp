@@ -20,6 +20,8 @@
 #include <vaml/core/Element.h>   // StackPanel, Label, Border, TextBlock, Image
 #include <vaml/core/UIElement.h> // UIElement, Opacity/Background DPs
 #include <vaml/core/Color.h>     // vaml::Color, parse_color
+#include <vaml/core/ResourceDictionary.h> // S643a: register_element_brush
+#include "vaml_test_brush.h"              // S643b: brush_value / make_brush (Brush-object paint)
 #include <vaml/vulkan/ui/UiScene.h> // DrawItem, DrawItemKind, MaterialKind
 
 #include "doctest/doctest.h"
@@ -52,7 +54,7 @@ TEST_CASE("S593 base panel: opaque Background + Opacity=0.5 -> item.a == 0.5 (SI
     // double-count it would be 0.25 — this is the regression tripwire.
     vaml::StackPanel p;
     (void)p.Set(vaml::PropertyId::of("Background"),
-                vaml::Value::Color(vaml::parse_color("#FF102030")));
+                vaml::test::brush_value(vaml::parse_color("#FF102030")));
     (void)p.set_opacity(0.5);
     p.Measure(vaml::Size{ 100.0f, 100.0f });
     p.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
@@ -66,7 +68,7 @@ TEST_CASE("S593 panel Background=Transparent (alpha 0) -> item.a == 0")
 {
     vaml::StackPanel p;
     (void)p.Set(vaml::PropertyId::of("Background"),
-                vaml::Value::Color(vaml::parse_color("#00000000")));  // fully transparent
+                vaml::test::brush_value(vaml::parse_color("#00000000")));  // transparent
     p.Measure(vaml::Size{ 100.0f, 100.0f });
     p.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
 
@@ -78,7 +80,7 @@ TEST_CASE("S593 panel semi-alpha Background + Opacity=1.0 -> item.a == bg.a")
 {
     vaml::StackPanel p;
     (void)p.Set(vaml::PropertyId::of("Background"),
-                vaml::Value::Color(vaml::parse_color("#80FF0000")));  // half-alpha red
+                vaml::test::brush_value(vaml::parse_color("#80FF0000")));  // half-alpha red
     p.Measure(vaml::Size{ 100.0f, 100.0f });
     p.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
 
@@ -90,7 +92,7 @@ TEST_CASE("S593 cross-product: semi-alpha Background × Opacity=0.5 -> item.a ==
 {
     vaml::StackPanel p;
     (void)p.Set(vaml::PropertyId::of("Background"),
-                vaml::Value::Color(vaml::parse_color("#80FF0000")));
+                vaml::test::brush_value(vaml::parse_color("#80FF0000")));
     (void)p.set_opacity(0.5);
     p.Measure(vaml::Size{ 100.0f, 100.0f });
     p.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });

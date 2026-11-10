@@ -107,46 +107,69 @@ Color resolve_gradient_fill(const UIElement& element, std::int32_t brushId, doub
 
 Color resolve_foreground_color(const UIElement& element, std::int32_t brushId) noexcept
 {
-    // Default (0) -> opaque black (the Text default foreground). No lookup, no
-    // diagnostic — this is the honest default, not a failure.
-    if (brushId == 0)
+    // S643b-1: the scalar Color seam now DELEGATES to the object resolver for
+    // the legacy BrushId path (the internal render seam stays; the public paint
+    // DPs hold Brush objects, resolved by resolve_foreground_brush). Kept for
+    // the S643a legacy callers + tests; new paint reads use resolve_foreground_brush.
+    return resolve_foreground_brush(element, Value::BrushId(brushId))->color();
+}
+
+// S643b-1 — the OBJECT brush resolver (see TextLayout.h). Returns a non-null
+// shared_ptr<Brush>:
+//   * Value::Brush payload -> the held object (the WPF-faithful primary path),
+//   * Value::BrushId -> the legacy "Brush:<id>" three-scope walk (S643a seam),
+//   * anything else / unresolved -> the shared default black brush.
+std::shared_ptr<Brush> resolve_foreground_brush(const UIElement& element,
+                                                const Value& dpValue) noexcept
+{
+    // 1) BRUSH OBJECT payload (the S643b-1 primary path — D1 closed). The paint
+    //    DP holds the object directly; no id walk. A null held shared_ptr is a
+    //    degenerate guard -> default black.
+    if (dpValue.type() == ValueType::Brush)
     {
-        return Color{ 0, 0, 0, 255 };
+        std::shared_ptr<Brush> brush = dpValue.get<std::shared_ptr<::vaml::Brush>>();
+        if (brush)
+        {
+            return brush;
+        }
+        return default_black_brush();
     }
 
-    // A non-zero BrushId resolves a registered SolidColorBrush via the S360
-    // three-scope walk anchored at the element. The key convention is the
-    // interned string "Brush:<id>" (S144 discipline; a stable, searchable key).
-    const std::string key = "Brush:" + std::to_string(brushId);
-    const ResourceValue* rv = vaml::find_for_element(element, key);
-    if (rv && rv->kind() == ResourceValue::Kind::Object && rv->object())
+    // 2) LEGACY BrushId payload — the S643a render seam (id + registry). The
+    //    enumerated paint DPs are re-targeted to Brush objects in S643b, but a
+    //    legacy authored id (numeric BrushId, StyleApplier setter path) still
+    //    resolves through the "Brush:<id>" three-scope walk. Default 0 -> black.
+    if (dpValue.type() == ValueType::BrushId)
     {
-        if (const auto* brush = dynamic_cast<const SolidColorBrush*>(rv->object()))
+        const std::int32_t brushId = dpValue.get<std::int32_t>();
+        if (brushId == 0)
         {
-            return brush->color();
+            return default_black_brush();
         }
-        // S460 (BRUSH AUTHORING): an authored LinearGradientBrush also resolves
-        // by id — its scalar representative color feeds the same scalar-foreground
-        // path (S403-note: S465 upgrades this to the real gradient render).
-        if (const auto* grad = dynamic_cast<const LinearGradientBrush*>(rv->object()))
+        const std::string key = "Brush:" + std::to_string(brushId);
+        const ResourceValue* rv = vaml::find_for_element(element, key);
+        if (rv && rv->kind() == ResourceValue::Kind::Object && rv->object())
         {
-            return grad->representative_color();
+            if (const auto* brush = dynamic_cast<const Brush*>(rv->object()))
+            {
+                return std::shared_ptr<Brush>(const_cast<Brush*>(brush),
+                                              [](Brush*) {}); // non-owning view of the registered resource
+            }
         }
+        // Unresolved non-zero BrushId -> default black + a structured diagnostic
+        // (the S250_1 channel; NO-silent, mirrors the old resolve_foreground_color).
+        vaml::BindingDiagnostic d;
+        d.reasonCode = vaml::BindingReasonCode::MissingProperty;
+        d.targetProp = "Foreground";
+        d.sourcePath = key;
+        d.detail     = "BrushId " + std::to_string(brushId) +
+                       " did not resolve to a registered Brush; defaulted to opaque black";
+        vaml::view_binding_diagnostics().emit(d);
+        return default_black_brush();
     }
 
-    // Unresolved non-zero BrushId -> opaque black (the deliberate fallback) +
-    // a STRUCTURED diagnostic through the S250_1 view diagnostics channel
-    // (mirrors binding diagnostics; NEVER silent, NEVER a crash — ADR-016
-    // observation, never control flow). The diagnostic reuses the binding
-    // record + sink surface (one channel, two consumers — S250_1).
-    vaml::BindingDiagnostic d;
-    d.reasonCode = vaml::BindingReasonCode::MissingProperty;
-    d.targetProp = "Foreground";
-    d.sourcePath = key;
-    d.detail     = "Text foreground BrushId " + std::to_string(brushId) +
-                   " did not resolve to a registered SolidColorBrush; defaulted to opaque black";
-    vaml::view_binding_diagnostics().emit(d);
-    return Color{ 0, 0, 0, 255 };
+    // 3) Any other payload (Null default, etc.) -> default black, no diagnostic.
+    return default_black_brush();
 }
 
 
