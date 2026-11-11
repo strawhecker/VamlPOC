@@ -51,11 +51,11 @@ inline const DependencyProperty& dp_register_guard(
     const char* name, ValueType type, std::string_view owner,
     PropertyMetadata metadata)
 {
-    // S801 composite store: idempotence check by NAME via the guarded unique-
-    // name bridge (MINIMAL REAL, S803-resolved) — a shared bare name with one
-    // registration resolves, and a never-registered name returns null. This
-    // never silently picks among ambiguous names.
-    if (const DependencyProperty* p = DependencyProperty::TryGetByName(name))
+    // S801/S803 composite store: idempotence check by the (name, owner) PAIR —
+    // a same-pair registration already exists -> keep the canonical DP. A
+    // same-name/different-owner pair is DISTINCT (coexist), so it is NOT
+    // skipped (WPF-faithful). Never a bare-name lookup.
+    if (const DependencyProperty* p = DependencyProperty::TryGet(name, owner))
     {
         return *p;
     }
@@ -483,19 +483,23 @@ void run_dp_fidelity_closure()
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
 
     // ---- TreeView/TreeViewItem (the 11k-8 audit rows) ----
-    dp_register_guard("SelectedItem",         ValueType::String, "TreeView",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    dp_register_guard("SelectedValue",        ValueType::String, "TreeView",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // S803: the flattened composite keys (SelectedItem/SelectedValue/IsExpanded
+    // with owners TreeView/TreeViewItem) are now OWNED + registered by
+    // Element.cpp's register_treeview_properties()/register_treeviewitem_properties()
+    // (the accessors' Set/Get use that registration). These were once DOTTED
+    // (owner-qualified) registrations that did not collide; post-flatten they
+    // became the same composite key, so the duplicate guard rows are REMOVED
+    // (Element.cpp is the single authority). The routed event stays here.
     event_register("SelectedItemChanged", RouteEventDirection::Bubble);
-    dp_register_guard("IsExpanded",           ValueType::Int32,  "TreeViewItem",
-        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
-            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
 
     // ---- MenuItem own (already owned) + the shared HeaderedItems surface ----
     // ---- DatePicker rows (the 11k-8 audit) ----
-    dp_register_guard("SelectedDate",         ValueType::String, "DatePicker",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // S803: SelectedDate is now OWNED + registered by Element.cpp's
+    // register_datepicker_properties() as ValueType::Int64 (the accessor
+    // DatePicker::selected_date()/set_selected_date(std::int64_t) reads/writes
+    // Value::Int64). The old guard row registered it as String and collides
+    // post-flatten — REMOVED. The remaining DatePicker rows below are genuinely
+    // missing from Element.cpp and stay here.
     dp_register_guard("SelectedDateFormat",   ValueType::Int32,  "DatePicker",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     dp_register_guard("FirstDayOfWeek",        ValueType::Int32,  "DatePicker",

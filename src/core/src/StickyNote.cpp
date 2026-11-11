@@ -195,25 +195,25 @@ namespace {
 void register_stickynote_properties()
 {
     (void)DependencyProperty::Register(
-        "StickyNote.IsExpanded", ValueType::Int32, "StickyNote",
+        "IsExpanded", ValueType::Int32, "StickyNote",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "StickyNote.Author", ValueType::String, "StickyNote",
+        "Author", ValueType::String, "StickyNote",
         PropertyMetadata::WithDefault(Value::String(""), PropertyFlags::ReadOnly));
     (void)DependencyProperty::Register(
-        "StickyNote.Type", ValueType::Int32, "StickyNote",
+        "Type", ValueType::Int32, "StickyNote",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "StickyNote.Width", ValueType::Double, "StickyNote",
+        "Width", ValueType::Double, "StickyNote",
         PropertyMetadata::WithDefault(Value::Double(std::nan("")), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "StickyNote.Height", ValueType::Double, "StickyNote",
+        "Height", ValueType::Double, "StickyNote",
         PropertyMetadata::WithDefault(Value::Double(std::nan("")), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "StickyNote.ZOrder", ValueType::Int32, "StickyNote",
+        "ZOrder", ValueType::Int32, "StickyNote",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "StickyNote.PositionTransform", ValueType::Matrix2D, "StickyNote",
+        "PositionTransform", ValueType::Matrix2D, "StickyNote",
         PropertyMetadata::WithDefault(Value::Matrix2D(Matrix2D::identity()), PropertyFlags::None));
 }
 
@@ -239,64 +239,64 @@ StickyNote::StickyNote()
 
 SetResult StickyNote::set_is_expanded(bool value)
 {
-    return Set(PropertyId::of("StickyNote.IsExpanded"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsExpanded","StickyNote"), Value::Int32(value ? 1 : 0));
 }
 
 bool StickyNote::is_expanded() const
 {
-    return Get(PropertyId::of("StickyNote.IsExpanded")).get<int>() != 0;
+    return Get(PropertyId::of("IsExpanded","StickyNote")).get<int>() != 0;
 }
 
 SetResult StickyNote::set_author(const std::string& value)
 {
     // The owner-internal startup path (WPF's author comes from the annotation,
     // never authored); the S045 read-only guard throws for an external Set.
-    return Set(PropertyId::of("StickyNote.Author"), Value::String(value));
+    return Set(PropertyId::of("Author","StickyNote"), Value::String(value));
 }
 
 std::string StickyNote::author() const
 {
-    return Get(PropertyId::of("StickyNote.Author")).get<std::string>();
+    return Get(PropertyId::of("Author","StickyNote")).get<std::string>();
 }
 
 SetResult StickyNote::set_sticky_note_type(StickyNoteType t)
 {
-    return Set(PropertyId::of("StickyNote.Type"), Value::Int32(static_cast<std::int32_t>(t)));
+    return Set(PropertyId::of("Type","StickyNote"), Value::Int32(static_cast<std::int32_t>(t)));
 }
 
 StickyNoteType StickyNote::sticky_note_type() const
 {
-    return static_cast<StickyNoteType>(Get(PropertyId::of("StickyNote.Type")).get<std::int32_t>());
+    return static_cast<StickyNoteType>(Get(PropertyId::of("Type","StickyNote")).get<std::int32_t>());
 }
 
 SetResult StickyNote::set_note_width(double value)
 {
-    return Set(PropertyId::of("StickyNote.Width"), Value::Double(value));
+    return Set(PropertyId::of("Width","StickyNote"), Value::Double(value));
 }
 
 double StickyNote::note_width() const
 {
-    return Get(PropertyId::of("StickyNote.Width")).get<double>();
+    return Get(PropertyId::of("Width","StickyNote")).get<double>();
 }
 
 SetResult StickyNote::set_note_height(double value)
 {
-    return Set(PropertyId::of("StickyNote.Height"), Value::Double(value));
+    return Set(PropertyId::of("Height","StickyNote"), Value::Double(value));
 }
 
 double StickyNote::note_height() const
 {
-    return Get(PropertyId::of("StickyNote.Height")).get<double>();
+    return Get(PropertyId::of("Height","StickyNote")).get<double>();
 }
 
 SetResult StickyNote::set_z_order(std::int32_t value)
 {
-    return Set(PropertyId::of("StickyNote.ZOrder"), Value::Int32(value));
+    return Set(PropertyId::of("ZOrder","StickyNote"), Value::Int32(value));
 }
 
 std::int32_t StickyNote::z_order() const
 {
-    return Get(PropertyId::of("StickyNote.ZOrder")).get<std::int32_t>();
+    return Get(PropertyId::of("ZOrder","StickyNote")).get<std::int32_t>();
 }
 
 SetResult StickyNote::set_position_transform(const vaml::Matrix2D& value)
@@ -306,12 +306,12 @@ SetResult StickyNote::set_position_transform(const vaml::Matrix2D& value)
     {
         return SetResult::REJECTED;
     }
-    return Set(PropertyId::of("StickyNote.PositionTransform"), Value::Matrix2D(value));
+    return Set(PropertyId::of("PositionTransform","StickyNote"), Value::Matrix2D(value));
 }
 
 vaml::Matrix2D StickyNote::position_transform() const
 {
-    const vaml::Value v = Get(PropertyId::of("StickyNote.PositionTransform"));
+    const vaml::Value v = Get(PropertyId::of("PositionTransform","StickyNote"));
     return v.get<vaml::Matrix2D>();
 }
 

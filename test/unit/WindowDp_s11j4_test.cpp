@@ -23,20 +23,23 @@ using namespace vaml;
 
 namespace {
 
+// S803 re-key: the Window-owner DPs are registered ONCE under the composite
+// owner "Window". The composite id (name, owner) is the product contract, so
+// these "unprefixed" names are expressed with declaring owner "Window".
 void expectInt32(DependencyObject& o, const char* name, std::int32_t want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
+    const DependencyProperty* dp = DependencyProperty::TryGet(name, "Window");
     REQUIRE(dp != nullptr);
-    (void)o.Set(PropertyId::of(name), Value::Int32(want));
-    CHECK(o.Get(PropertyId::of(name)).get<std::int32_t>() == want);
+    (void)o.Set(PropertyId::of(name, "Window"), Value::Int32(want));
+    CHECK(o.Get(PropertyId::of(name, "Window")).get<std::int32_t>() == want);
 }
 
 void expectBool(DependencyObject& o, const char* name, std::int32_t want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
+    const DependencyProperty* dp = DependencyProperty::TryGet(name, "Window");
     REQUIRE(dp != nullptr);
-    (void)o.Set(PropertyId::of(name), Value::Bool(want != 0));
-    CHECK(o.Get(PropertyId::of(name)).get<bool>() == (want != 0));
+    (void)o.Set(PropertyId::of(name, "Window"), Value::Bool(want != 0));
+    CHECK(o.Get(PropertyId::of(name, "Window")).get<bool>() == (want != 0));
 }
 
 } // namespace
@@ -61,13 +64,13 @@ TEST_CASE("11j-4: the Window-owner DPs resolve UNPREFIXED on a plain DependencyO
 TEST_CASE("11j-4: the Window-owner DPs carry the WPF-faithful DEFAULTS")
 {
     Window window;
-    const DependencyProperty* p = DependencyProperty::TryGetByName("WindowStartupLocation");
+    const DependencyProperty* p = DependencyProperty::TryGet("WindowStartupLocation", "Window");
     REQUIRE(p != nullptr);
-    CHECK(window.Get(PropertyId::of("AllowsTransparency")).get<bool>() == false);
-    CHECK(window.Get(PropertyId::of("WindowStartupLocation")).get<std::int32_t>() == 0); // Manual
-    CHECK(window.Get(PropertyId::of("WindowStyle")).get<std::int32_t>() == 1);           // SingleBorderWindow
-    CHECK(window.Get(PropertyId::of("Topmost")).get<bool>() == false);
-    CHECK(window.Get(PropertyId::of("ResizeMode")).get<std::int32_t>() == 2);            // CanResize
+    CHECK(window.Get(PropertyId::of("AllowsTransparency", "Window")).get<bool>() == false);
+    CHECK(window.Get(PropertyId::of("WindowStartupLocation", "Window")).get<std::int32_t>() == 0); // Manual
+    CHECK(window.Get(PropertyId::of("WindowStyle", "Window")).get<std::int32_t>() == 1);           // SingleBorderWindow
+    CHECK(window.Get(PropertyId::of("Topmost", "Window")).get<bool>() == false);
+    CHECK(window.Get(PropertyId::of("ResizeMode", "Window")).get<std::int32_t>() == 2);            // CanResize
 }
 
 TEST_CASE("11j-4: the Window enum NAMES convert (Bool for true/false, Int32 enums for others)")

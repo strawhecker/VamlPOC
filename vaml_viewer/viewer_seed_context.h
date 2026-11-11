@@ -315,8 +315,13 @@ seed_typed_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
             continue;   // multi-hop: recorded S620/S621 scope, NOT seeded
         }
         // The FIRST target that binds this leaf determines the seed's bound type.
+        // S803 composite identity: resolve the (name, owner) DP against the
+        // target element's DECLARED OWNER-CHAIN (ResolveForElement walks the
+        // element type's chain — bare key, or dotted owner.name split). No
+        // bare-name global lookup survives.
         vaml::ValueType boundType = vaml::ValueType::String;   // B1 default
-        if (const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(ext.key))
+        if (const vaml::DependencyProperty* dp =
+                vaml::DependencyProperty::ResolveForElement(ext.key, ext.elementTypeName))
         {
             boundType = dp->metadata().boundType();
         }

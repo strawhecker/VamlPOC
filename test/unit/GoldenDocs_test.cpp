@@ -124,7 +124,7 @@ const DependencyProperty& registerGlobal(const std::string& name, ValueType type
         return DependencyProperty::Register(name, type, "S095_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "S095_Owner");
 }
 
 // The S095-unique global DPs the S095 golden documents set from text. This is

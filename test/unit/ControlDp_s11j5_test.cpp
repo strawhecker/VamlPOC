@@ -30,45 +30,53 @@ using namespace vaml;
 
 namespace {
 
+// 11j-5 — S803 re-key: the shared Control-base DPs are registered ONCE under the
+// composite owner "Control". Composite identity (name, owner) is the product
+// contract, so these "unprefixed" names are now expressed with their declaring
+// owner "Control" explicitly (there is no bare-name global lookup; a bare id on
+// a plain DependencyObject would resolve to nothing). ResolveForElement walks
+// the element owner-chain when the concrete element type is known.
 void expectInt32(DependencyObject& o, const char* name, std::int32_t want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
+    const DependencyProperty* dp = DependencyProperty::TryGet(name, "Control");
     REQUIRE(dp != nullptr);
-    (void)o.Set(PropertyId::of(name), Value::Int32(want));
-    CHECK(o.Get(PropertyId::of(name)).get<std::int32_t>() == want);
+    (void)o.Set(PropertyId::of(name, "Control"), Value::Int32(want));
+    CHECK(o.Get(PropertyId::of(name, "Control")).get<std::int32_t>() == want);
 }
 
 void expectDouble(DependencyObject& o, const char* name, double want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
+    const DependencyProperty* dp = DependencyProperty::TryGet(name, "Control");
     REQUIRE(dp != nullptr);
-    (void)o.Set(PropertyId::of(name), Value::Double(want));
-    CHECK(o.Get(PropertyId::of(name)).get<double>() == want);
+    (void)o.Set(PropertyId::of(name, "Control"), Value::Double(want));
+    CHECK(o.Get(PropertyId::of(name, "Control")).get<double>() == want);
 }
 
 void expectString(DependencyObject& o, const char* name, const std::string& want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
+    const DependencyProperty* dp = DependencyProperty::TryGet(name, "Control");
     REQUIRE(dp != nullptr);
-    (void)o.Set(PropertyId::of(name), Value::String(want));
-    CHECK(o.Get(PropertyId::of(name)).get<std::string>() == want);
+    (void)o.Set(PropertyId::of(name, "Control"), Value::String(want));
+    CHECK(o.Get(PropertyId::of(name, "Control")).get<std::string>() == want);
 }
 
 } // namespace
 
-TEST_CASE("11j-5: the shared Control base names resolve UNPREFIXED on a plain DependencyObject (S043 attached)")
+TEST_CASE("11j-5: the shared Control base names resolve UNPREFIXED COMPOSITE on a plain DependencyObject (S043 attached, S803)")
 {
-    // The whole point: these names (no "Label."/"Border." prefix) resolve on ANY
-    // element via the S043 attached-aware read, because they are registered ONCE
-    // under the single canonical "Control" owner.
+    // S803: the Control-base DPs are registered ONCE under composite owner
+    // "Control". They resolve on ANY element via the S043-owner-chain
+    // attached-aware read (ResolveForElement walks each element's owner chain to
+    // owner "Control"). On a bare DependencyObject the calling form is the
+    // composite id with the declaring owner.
     TextBlock text0; // ensure the bundle is registered (Text ctor depends on it)
     DependencyObject o;
 
-    const DependencyProperty* pPadding = DependencyProperty::TryGetByName("Padding");
+    const DependencyProperty* pPadding = DependencyProperty::TryGet("Padding", "Control");
     REQUIRE(pPadding != nullptr);
     CHECK(pPadding->metadata().boundType() == ValueType::Thickness);
-    (void)o.Set(PropertyId::of("Padding"), Value::Thickness(vaml::Thickness{1, 2, 3, 4}));
-    CHECK(o.Get(PropertyId::of("Padding")).get<vaml::Thickness>() == vaml::Thickness{1, 2, 3, 4});
+    (void)o.Set(PropertyId::of("Padding", "Control"), Value::Thickness(vaml::Thickness{1, 2, 3, 4}));
+    CHECK(o.Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>() == vaml::Thickness{1, 2, 3, 4});
 
     expectInt32(o, "HorizontalContentAlignment", 2); // Center
     expectInt32(o, "VerticalContentAlignment", 1);   // Top
@@ -112,8 +120,8 @@ TEST_CASE("11j-5: the control DEFAULT for FontSize/Padding/HAlignment is the Con
     // HorizontalContentAlignment Left (0); VerticalContentAlignment Top (0).
     TextBlock text; // also forces the bundle to exist
     DependencyObject o;
-    CHECK(o.Get(PropertyId::of("FontSize")).get<double>() == 12.0);
-    CHECK(o.Get(PropertyId::of("Padding")).get<vaml::Thickness>() == vaml::Thickness{});
-    CHECK(o.Get(PropertyId::of("HorizontalContentAlignment")).get<std::int32_t>() == 0);
-    CHECK(o.Get(PropertyId::of("VerticalContentAlignment")).get<std::int32_t>() == 0);
+    CHECK(o.Get(PropertyId::of("FontSize", "Control")).get<double>() == 12.0);
+    CHECK(o.Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>() == vaml::Thickness{});
+    CHECK(o.Get(PropertyId::of("HorizontalContentAlignment", "Control")).get<std::int32_t>() == 0);
+    CHECK(o.Get(PropertyId::of("VerticalContentAlignment", "Control")).get<std::int32_t>() == 0);
 }

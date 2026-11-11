@@ -105,14 +105,14 @@ TEST_CASE("S146: public API accepts string_view literals and intern() views (reg
     const std::string_view lit = "Opacity";
     const std::string_view interned = intern(lit);
 
-    SHOULD(ShouldlyPointer(DependencyProperty::TryGetByName(lit)).ShouldNotBeNull());
-    SHOULD(ShouldlyPointer(DependencyProperty::TryGetByName(interned)).ShouldNotBeNull());
-    (void)DependencyProperty::GetByName(lit); // Compilation proof: a string_view enters GetByName().
+    SHOULD(ShouldlyPointer(DependencyProperty::TryGet("Opacity", "UIElement")).ShouldNotBeNull());
+    SHOULD(ShouldlyPointer(DependencyProperty::TryGet("Opacity", "UIElement")).ShouldNotBeNull());
+    (void)DependencyProperty::Get("Opacity", "UIElement"); // Compilation proof: a string_view enters GetByName().
 
     // PropertyRegistry (S032/S039) composite loads need a real (name, owner)
     // pair — audit against the registered Opacity owner via the global DP.
     const PropertyRegistry& reg = PropertyRegistry::global();
-    const vaml::DependencyProperty* opDp = DependencyProperty::TryGetByName("Opacity");
+    const vaml::DependencyProperty* opDp = DependencyProperty::TryGet("Opacity", "UIElement");
     REQUIRE(opDp != nullptr);
     const std::string_view opOwner = opDp->owner_type_id();
     SHOULD(ShouldlyPointer(reg.try_find("Opacity", opOwner)).ShouldNotBeNull());

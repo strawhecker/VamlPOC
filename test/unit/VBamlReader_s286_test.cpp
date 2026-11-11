@@ -75,7 +75,7 @@ const DependencyProperty& registerS286Global(const std::string& name, ValueType 
         return DependencyProperty::Register(name, type, "S286_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "S286_Owner");
 }
 
 void registerS286Properties()

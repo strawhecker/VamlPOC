@@ -86,18 +86,18 @@ void ensure_stackpanel_properties_registered()
 void register_grid_properties()
 {
     (void)DependencyProperty::Register(
-        "Grid.Row", ValueType::Int32, "Grid",
+        "Row", ValueType::Int32, "Grid",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Grid.Column", ValueType::Int32, "Grid",
+        "Column", ValueType::Int32, "Grid",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // S132 span DPs: a child's CELL SPAN (rows × columns). Same attached-aware
     // model + Int32 path; default 1 (no explicit span = single cell).
     (void)DependencyProperty::Register(
-        "Grid.RowSpan", ValueType::Int32, "Grid",
+        "RowSpan", ValueType::Int32, "Grid",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Grid.ColumnSpan", ValueType::Int32, "Grid",
+        "ColumnSpan", ValueType::Int32, "Grid",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
 }
 
@@ -161,10 +161,10 @@ void register_canvas_properties()
 {
     const double nan = std::numeric_limits<double>::quiet_NaN();
     (void)DependencyProperty::Register(
-        "Canvas.Left", ValueType::Double, "Canvas",
+        "Left", ValueType::Double, "Canvas",
         PropertyMetadata::WithDefault(Value::Double(nan), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Canvas.Top", ValueType::Double, "Canvas",
+        "Top", ValueType::Double, "Canvas",
         PropertyMetadata::WithDefault(Value::Double(nan), PropertyFlags::None));
 }
 
@@ -333,13 +333,13 @@ void register_button_properties()
     // for the pointers, String for the parameter) so metadata.boundType == the
     // key type — never Value::Null() (tag Null would mismatch the UntypedPtr key).
     (void)DependencyProperty::Register(
-        "Button.Command", ValueType::UntypedPtr, "Button",
+        "Command", ValueType::UntypedPtr, "Button",
         PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Button.CommandParameter", ValueType::String, "Button",
+        "CommandParameter", ValueType::String, "Button",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Button.CommandTarget", ValueType::UntypedPtr, "Button",
+        "CommandTarget", ValueType::UntypedPtr, "Button",
         PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
 }
 
@@ -377,7 +377,7 @@ void ensure_button_properties_registered()
 void register_dockpanel_properties()
 {
     (void)DependencyProperty::Register(
-        "DockPanel.Dock", ValueType::Int32, "DockPanel",
+        "Dock", ValueType::Int32, "DockPanel",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x >= 0 && x <= 3; }));
 }
@@ -397,7 +397,7 @@ void ensure_dockpanel_properties_registered()
 void register_radiobutton_properties()
 {
     (void)DependencyProperty::Register(
-        "RadioButton.IsChecked", ValueType::Int32, "RadioButton",
+        "IsChecked", ValueType::Int32, "RadioButton",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     (void)RoutedEvent::registered("Checked", RouteEventDirection::Bubble);
@@ -418,19 +418,19 @@ void ensure_radiobutton_properties_registered()
 void register_combobox_properties()
 {
     (void)DependencyProperty::Register(
-        "ComboBox.Items", ValueType::String, "ComboBox",
+        "Items", ValueType::String, "ComboBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ComboBox.ItemsSource", ValueType::String, "ComboBox",
+        "ItemsSource", ValueType::String, "ComboBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ComboBox.SelectedIndex", ValueType::Int32, "ComboBox",
+        "SelectedIndex", ValueType::Int32, "ComboBox",
         PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ComboBox.SelectedItem", ValueType::String, "ComboBox",
+        "SelectedItem", ValueType::String, "ComboBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ComboBox.IsOpen", ValueType::Int32, "ComboBox",
+        "IsOpen", ValueType::Int32, "ComboBox",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     (void)RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble);
@@ -450,16 +450,16 @@ void ensure_combobox_properties_registered()
 void register_listbox_properties()
 {
     (void)DependencyProperty::Register(
-        "ListBox.Items", ValueType::String, "ListBox",
+        "Items", ValueType::String, "ListBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ListBox.ItemsSource", ValueType::String, "ListBox",
+        "ItemsSource", ValueType::String, "ListBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ListBox.SelectedIndex", ValueType::Int32, "ListBox",
+        "SelectedIndex", ValueType::Int32, "ListBox",
         PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ListBox.SelectedItem", ValueType::String, "ListBox",
+        "SelectedItem", ValueType::String, "ListBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     // The S452 property-element grammar resolves `<ListBox.ItemTemplate>` /
     // `<ListView.ItemTemplate>` against the GLOBAL name (VamlReader::TryGet uses
@@ -491,11 +491,11 @@ void register_textbox_properties()
 {
     // Text: String, default "".
     (void)DependencyProperty::Register(
-        "TextBox.Text", ValueType::String, "TextBox",
+        "Text", ValueType::String, "TextBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     // AcceptsReturn: Bool via Int32, default false (single-line).
     (void)DependencyProperty::Register(
-        "TextBox.AcceptsReturn", ValueType::Int32, "TextBox",
+        "AcceptsReturn", ValueType::Int32, "TextBox",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
 }
@@ -546,7 +546,7 @@ Button::~Button() = default;
 VAML_CORE_EXPORT
 SetResult Button::set_is_enabled(bool value)
 {
-    const SetResult r = Set(PropertyId::of("IsEnabled"), Value::Int32(value ? 1 : 0));
+    const SetResult r = Set(PropertyId::of("IsEnabled", "Button"), Value::Int32(value ? 1 : 0));
     // An IsEnabled change re-flows the visual state (disabled swaps the fill;
     // re-enabling returns to Normal). The invalidation re-renders.
     InvalidateMeasure();
@@ -556,7 +556,7 @@ SetResult Button::set_is_enabled(bool value)
 VAML_CORE_EXPORT
 bool Button::is_enabled() const
 {
-    return Get(PropertyId::of("IsEnabled")).get<int>() != 0;
+    return Get(PropertyId::of("IsEnabled", "Button")).get<int>() != 0;
 }
 
 // --- ICommandSource (11n-2) ------------------------------------------------
@@ -583,13 +583,13 @@ DependencyObject* Button::source_command_target() const noexcept
 VAML_CORE_EXPORT
 SetResult Button::set_command(vaml::ICommand* cmd)
 {
-    return Set(PropertyId::of("Button.Command"), Value::UntypedPtr(cmd));
+    return Set(PropertyId::of("Command","Button"), Value::UntypedPtr(cmd));
 }
 
 VAML_CORE_EXPORT
 vaml::ICommand* Button::command() const noexcept
 {
-    const Value v = Get(PropertyId::of("Button.Command"));
+    const Value v = Get(PropertyId::of("Command","Button"));
     return v.isNull() ? nullptr : static_cast<vaml::ICommand*>(v.get<void*>());
 }
 
@@ -600,27 +600,27 @@ SetResult Button::set_command_parameter(vaml::Value value)
     // String). A Value::String is passed straight through; any other Value is
     // stored as the generic literal.
     if (value.type() == vaml::ValueType::String)
-        return Set(PropertyId::of("Button.CommandParameter"), value);
-    return Set(PropertyId::of("Button.CommandParameter"),
+        return Set(PropertyId::of("CommandParameter","Button"), value);
+    return Set(PropertyId::of("CommandParameter","Button"),
                vaml::Value::String(std::string{}));
 }
 
 VAML_CORE_EXPORT
 vaml::Value Button::command_parameter() const
 {
-    return Get(PropertyId::of("Button.CommandParameter"));
+    return Get(PropertyId::of("CommandParameter","Button"));
 }
 
 VAML_CORE_EXPORT
 SetResult Button::set_command_target(DependencyObject* target)
 {
-    return Set(PropertyId::of("Button.CommandTarget"), Value::UntypedPtr(target));
+    return Set(PropertyId::of("CommandTarget","Button"), Value::UntypedPtr(target));
 }
 
 VAML_CORE_EXPORT
 DependencyObject* Button::command_target() const noexcept
 {
-    const Value v = Get(PropertyId::of("Button.CommandTarget"));
+    const Value v = Get(PropertyId::of("CommandTarget","Button"));
     return v.isNull() ? nullptr : static_cast<DependencyObject*>(v.get<void*>());
 }
 
@@ -775,49 +775,49 @@ SetResult Grid::set_row(DependencyObject& obj, std::int32_t value)
 {
     // Value rides the Int32 path on the attached name (S043 attached-aware:
     // the key is owned by Grid, stored on `obj`).
-    return obj.Set(PropertyId::of("Grid.Row"), Value::Int32(value));
+    return obj.Set(PropertyId::of("Row","Grid"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Grid::row(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("Grid.Row")).get<std::int32_t>();
+    return obj.Get(PropertyId::of("Row","Grid")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult Grid::set_column(DependencyObject& obj, std::int32_t value)
 {
-    return obj.Set(PropertyId::of("Grid.Column"), Value::Int32(value));
+    return obj.Set(PropertyId::of("Column","Grid"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Grid::column(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("Grid.Column")).get<std::int32_t>();
+    return obj.Get(PropertyId::of("Column","Grid")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult Grid::set_row_span(DependencyObject& obj, std::int32_t value)
 {
-    return obj.Set(PropertyId::of("Grid.RowSpan"), Value::Int32(value));
+    return obj.Set(PropertyId::of("RowSpan","Grid"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Grid::row_span(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("Grid.RowSpan")).get<std::int32_t>();
+    return obj.Get(PropertyId::of("RowSpan","Grid")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult Grid::set_column_span(DependencyObject& obj, std::int32_t value)
 {
-    return obj.Set(PropertyId::of("Grid.ColumnSpan"), Value::Int32(value));
+    return obj.Set(PropertyId::of("ColumnSpan","Grid"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Grid::column_span(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("Grid.ColumnSpan")).get<std::int32_t>();
+    return obj.Get(PropertyId::of("ColumnSpan","Grid")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -839,14 +839,14 @@ SetResult WrapPanel::set_wrap_direction(Orientation o)
 {
     // Rides the Int32 value path (the enum stores as Int32, same convention as
     // Orientation on StackPanel / Visibility / alignment enums).
-    return Set(PropertyId::of("WrapDirection"),
+    return Set(PropertyId::of("WrapDirection", "WrapPanel"),
                Value::Int32(static_cast<std::int32_t>(o)));
 }
 
 VAML_CORE_EXPORT
 Orientation WrapPanel::wrap_direction() const
 {
-    return static_cast<Orientation>(Get(PropertyId::of("WrapDirection")).get<std::int32_t>());
+    return static_cast<Orientation>(Get(PropertyId::of("WrapDirection", "WrapPanel")).get<std::int32_t>());
 }
 
 // The flow/wrap/align measure. Children are measured at NATURAL (unbounded)
@@ -1025,25 +1025,25 @@ SetResult Canvas::set_left(DependencyObject& obj, double value)
 {
     // Value rides the Double path on the attached name (S043 attached-aware:
     // the key is owned by Canvas, stored on `obj`).
-    return obj.Set(PropertyId::of("Canvas.Left"), Value::Double(value));
+    return obj.Set(PropertyId::of("Left","Canvas"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Canvas::left(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("Canvas.Left")).get<double>();
+    return obj.Get(PropertyId::of("Left","Canvas")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Canvas::set_top(DependencyObject& obj, double value)
 {
-    return obj.Set(PropertyId::of("Canvas.Top"), Value::Double(value));
+    return obj.Set(PropertyId::of("Top","Canvas"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Canvas::top(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("Canvas.Top")).get<double>();
+    return obj.Get(PropertyId::of("Top","Canvas")).get<double>();
 }
 
 // The measure-side virtual. Canvas never constrains its children: every child
@@ -1242,37 +1242,37 @@ TextBlock::TextBlock()
 VAML_CORE_EXPORT
 SetResult TextBlock::set_text(std::string value)
 {
-    return Set(PropertyId::of("Text"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Text", "TextBlock"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string TextBlock::text() const
 {
-    return Get(PropertyId::of("Text")).get<std::string>();
+    return Get(PropertyId::of("Text", "TextBlock")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult TextBlock::set_font_size(double value)
 {
-    return Set(PropertyId::of("FontSize"), Value::Double(value));
+    return Set(PropertyId::of("FontSize", "Control"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double TextBlock::font_size() const
 {
-    return Get(PropertyId::of("FontSize")).get<double>();
+    return Get(PropertyId::of("FontSize", "Control")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult TextBlock::set_font_weight(std::int32_t value)
 {
-    return Set(PropertyId::of("FontWeight"), Value::Int32(value));
+    return Set(PropertyId::of("FontWeight", "TextBlock"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t TextBlock::font_weight() const
 {
-    return Get(PropertyId::of("FontWeight")).get<std::int32_t>();
+    return Get(PropertyId::of("FontWeight", "TextBlock")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -1281,13 +1281,13 @@ SetResult TextBlock::set_foreground(std::shared_ptr<Brush> brush)
     // A null brush is a degenerate write -> reset to the shared default black.
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Foreground"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Foreground", "TextBlock"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> TextBlock::foreground() const
 {
-    const Value v = Get(PropertyId::of("Foreground"));
+    const Value v = Get(PropertyId::of("Foreground", "TextBlock"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -1339,31 +1339,31 @@ void register_icon_properties()
     // IconKey wins when both are set (the resource dict is the ADR-015
     // authority).
     (void)DependencyProperty::Register(
-        "Icon.Source", ValueType::String, "Icon",
+        "Source", ValueType::String, "Icon",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     // TintMode: Int32, default Preserve=0 (IconTintMode::Preserve).
     (void)DependencyProperty::Register(
-        "Icon.TintMode", ValueType::Int32, "Icon",
+        "TintMode", ValueType::Int32, "Icon",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // Foreground: Brush OBJECT (S643b-1 closes D1) — the Monochrome tint brush
     // (the WPF-faithful brush read, mirrors Text).
     (void)DependencyProperty::Register(
-        "Icon.Foreground", ValueType::Brush, "Icon",
+        "Foreground", ValueType::Brush, "Icon",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     // Width: Double, default 0 = auto. Validated >= 0 (a negative icon box is
     // structurally meaningless -> REJECTED).
     (void)DependencyProperty::Register(
-        "Icon.Width", ValueType::Double, "Icon",
+        "Width", ValueType::Double, "Icon",
         std::move(PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None))
             .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
     // Height: Double, default 0 = auto. Validated >= 0.
     (void)DependencyProperty::Register(
-        "Icon.Height", ValueType::Double, "Icon",
+        "Height", ValueType::Double, "Icon",
         std::move(PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None))
             .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
     // Stretch: Int32, default None=0 (IconStretch::None).
     (void)DependencyProperty::Register(
-        "Icon.Stretch", ValueType::Int32, "Icon",
+        "Stretch", ValueType::Int32, "Icon",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -1389,37 +1389,37 @@ Icon::Icon()
 VAML_CORE_EXPORT
 SetResult Icon::set_icon_key(std::string value)
 {
-    return Set(PropertyId::of("IconKey"), Value::String(std::move(value)));
+    return Set(PropertyId::of("IconKey", "Icon"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string Icon::icon_key() const
 {
-    return Get(PropertyId::of("IconKey")).get<std::string>();
+    return Get(PropertyId::of("IconKey", "Icon")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult Icon::set_source(std::string value)
 {
-    return Set(PropertyId::of("Icon.Source"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Source","Icon"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string Icon::source() const
 {
-    return Get(PropertyId::of("Icon.Source")).get<std::string>();
+    return Get(PropertyId::of("Source","Icon")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult Icon::set_tint_mode(std::int32_t value)
 {
-    return Set(PropertyId::of("Icon.TintMode"), Value::Int32(value));
+    return Set(PropertyId::of("TintMode","Icon"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Icon::tint_mode() const
 {
-    return Get(PropertyId::of("Icon.TintMode")).get<std::int32_t>();
+    return Get(PropertyId::of("TintMode","Icon")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -1427,13 +1427,13 @@ SetResult Icon::set_foreground(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Icon.Foreground"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Foreground","Icon"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Icon::foreground() const
 {
-    const Value v = Get(PropertyId::of("Icon.Foreground"));
+    const Value v = Get(PropertyId::of("Foreground","Icon"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -1442,37 +1442,37 @@ std::shared_ptr<Brush> Icon::foreground() const
 VAML_CORE_EXPORT
 SetResult Icon::set_width(double value)
 {
-    return Set(PropertyId::of("Icon.Width"), Value::Double(value));
+    return Set(PropertyId::of("Width","Icon"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Icon::width() const
 {
-    return Get(PropertyId::of("Icon.Width")).get<double>();
+    return Get(PropertyId::of("Width","Icon")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Icon::set_height(double value)
 {
-    return Set(PropertyId::of("Icon.Height"), Value::Double(value));
+    return Set(PropertyId::of("Height","Icon"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Icon::height() const
 {
-    return Get(PropertyId::of("Icon.Height")).get<double>();
+    return Get(PropertyId::of("Height","Icon")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Icon::set_stretch(std::int32_t value)
 {
-    return Set(PropertyId::of("Icon.Stretch"), Value::Int32(value));
+    return Set(PropertyId::of("Stretch","Icon"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Icon::stretch() const
 {
-    return Get(PropertyId::of("Icon.Stretch")).get<std::int32_t>();
+    return Get(PropertyId::of("Stretch","Icon")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -1508,25 +1508,25 @@ TextBox::TextBox()
 VAML_CORE_EXPORT
 SetResult TextBox::set_text(std::string value)
 {
-    return Set(PropertyId::of("TextBox.Text"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Text","TextBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string TextBox::text() const
 {
-    return Get(PropertyId::of("TextBox.Text")).get<std::string>();
+    return Get(PropertyId::of("Text","TextBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult TextBox::set_accepts_return(bool value)
 {
-    return Set(PropertyId::of("TextBox.AcceptsReturn"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("AcceptsReturn","TextBox"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool TextBox::accepts_return() const
 {
-    return Get(PropertyId::of("TextBox.AcceptsReturn")).get<int>() != 0;
+    return Get(PropertyId::of("AcceptsReturn","TextBox")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -1612,7 +1612,7 @@ bool TextBox::handle_key(vaml::KeyCode key, bool isDown, bool shift)
     // `TextChanged="..."` markup fires on a keystroke.
     const auto commit = [&]() {
         const std::string before = text();
-        (void)Set(PropertyId::of("TextBox.Text"), Value::String(s));
+        (void)Set(PropertyId::of("Text","TextBox"), Value::String(s));
         if (text() != before)
         {
             raise_text_changed();
@@ -1757,7 +1757,7 @@ Size TextBox::MeasureOverride(const Size& available) const
     // the S123 stretch-vs-wrap rule.
     // FontSize reads the shared Control-bundle DP (default 12.0 — the WPF
     // theme-message-font size @96 DPI), NOT a hardcoded literal.
-    const float fs = static_cast<float>(Get(PropertyId::of("FontSize")).get<double>());
+    const float fs = static_cast<float>(Get(PropertyId::of("FontSize", "Control")).get<double>());
     const float lineH = 1.2f * fs;
     const TextLayoutPlan plan = text_layout_plan(
         text(), fs, available.width,
@@ -1776,13 +1776,13 @@ void register_slider_properties()
     // Value: Double, default 0; the value_clamp is applied in apply_change
     // (Set is validated >= min/max on read, see set_value).
     (void)DependencyProperty::Register(
-        "Slider.Value", ValueType::Double, "Slider",
+        "Value", ValueType::Double, "Slider",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Slider.Minimum", ValueType::Double, "Slider",
+        "Minimum", ValueType::Double, "Slider",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Slider.Maximum", ValueType::Double, "Slider",
+        "Maximum", ValueType::Double, "Slider",
         PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
     // The S403 "routed change event" identity (Bubbling).
     (void)RoutedEvent::registered("ValueChanged", RouteEventDirection::Bubble);
@@ -1813,10 +1813,10 @@ SetResult Slider::set_value(double v)
     const double lo = std::min(minimum(), maximum());
     const double hi = std::max(minimum(), maximum());
     const double clamped = std::clamp(v, lo, hi);
-    const double old = Get(PropertyId::of("Slider.Value")).get<double>();
+    const double old = Get(PropertyId::of("Value","Slider")).get<double>();
     if (old == clamped)
         return vaml::SetResult::NO_CHANGE;
-    const SetResult r = Set(PropertyId::of("Slider.Value"), Value::Double(clamped));
+    const SetResult r = Set(PropertyId::of("Value","Slider"), Value::Double(clamped));
     if (r == vaml::SetResult::APPLIED)
         apply_change(clamped);
     return r;
@@ -1825,31 +1825,31 @@ SetResult Slider::set_value(double v)
 VAML_CORE_EXPORT
 double Slider::value() const
 {
-    return Get(PropertyId::of("Slider.Value")).get<double>();
+    return Get(PropertyId::of("Value","Slider")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Slider::set_minimum(double v)
 {
-    return Set(PropertyId::of("Slider.Minimum"), Value::Double(v));
+    return Set(PropertyId::of("Minimum","Slider"), Value::Double(v));
 }
 
 VAML_CORE_EXPORT
 double Slider::minimum() const
 {
-    return Get(PropertyId::of("Slider.Minimum")).get<double>();
+    return Get(PropertyId::of("Minimum","Slider")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Slider::set_maximum(double v)
 {
-    return Set(PropertyId::of("Slider.Maximum"), Value::Double(v));
+    return Set(PropertyId::of("Maximum","Slider"), Value::Double(v));
 }
 
 VAML_CORE_EXPORT
 double Slider::maximum() const
 {
-    return Get(PropertyId::of("Slider.Maximum")).get<double>();
+    return Get(PropertyId::of("Maximum","Slider")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -1900,12 +1900,12 @@ void register_checkbox_properties()
 {
     // IsChecked: Int32 (0=unchecked, 1=checked, 2=indeterminate), default 0.
     (void)DependencyProperty::Register(
-        "CheckBox.IsChecked", ValueType::Int32, "CheckBox",
+        "IsChecked", ValueType::Int32, "CheckBox",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x >= 0 && x <= 2; }));
     // IsThreeState: Bool via Int32, default false.
     (void)DependencyProperty::Register(
-        "CheckBox.IsThreeState", ValueType::Int32, "CheckBox",
+        "IsThreeState", ValueType::Int32, "CheckBox",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     (void)RoutedEvent::registered("CheckedChanged", RouteEventDirection::Bubble);
@@ -1935,10 +1935,10 @@ SetResult CheckBox::set_checked(std::int32_t state)
     // IsChecked is nullable (third state 2=indeterminate). A real change raises
     // the change + writes back via the S244 two-way IsChecked binding.
     const std::int32_t s = std::clamp(state, 0, 2);
-    const std::int32_t old = Get(PropertyId::of("CheckBox.IsChecked")).get<int>();
+    const std::int32_t old = Get(PropertyId::of("IsChecked","CheckBox")).get<int>();
     if (old == s)
         return vaml::SetResult::NO_CHANGE;
-    const SetResult r = Set(PropertyId::of("CheckBox.IsChecked"), Value::Int32(s));
+    const SetResult r = Set(PropertyId::of("IsChecked","CheckBox"), Value::Int32(s));
     if (r == vaml::SetResult::APPLIED)
         apply_change(s);
     return r;
@@ -1947,19 +1947,19 @@ SetResult CheckBox::set_checked(std::int32_t state)
 VAML_CORE_EXPORT
 std::int32_t CheckBox::checked() const
 {
-    return Get(PropertyId::of("CheckBox.IsChecked")).get<int>();
+    return Get(PropertyId::of("IsChecked","CheckBox")).get<int>();
 }
 
 VAML_CORE_EXPORT
 SetResult CheckBox::set_is_three_state(bool value)
 {
-    return Set(PropertyId::of("CheckBox.IsThreeState"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsThreeState","CheckBox"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool CheckBox::is_three_state() const
 {
-    return Get(PropertyId::of("CheckBox.IsThreeState")).get<int>() != 0;
+    return Get(PropertyId::of("IsThreeState","CheckBox")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -2338,7 +2338,7 @@ void UserControl::set_content(std::unique_ptr<UIElement> child)
     content_ = raw;
     // Mirror the Content DP onto the object identity (the header documents the
     // Content DP + the child slot both describe the same single content).
-    (void)Set(PropertyId::of("Content"), Value::UntypedPtr(raw));
+    (void)Set(PropertyId::of("Content", "UserControl"), Value::UntypedPtr(raw));
     InvalidateMeasure();
     InvalidateArrange();
 }
@@ -2411,13 +2411,13 @@ Application::Application()
 VAML_CORE_EXPORT
 SetResult Application::set_startup_uri(std::string value)
 {
-    return Set(PropertyId::of("StartupUri"), Value::String(std::move(value)));
+    return Set(PropertyId::of("StartupUri", "Application"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string Application::startup_uri() const
 {
-    return Get(PropertyId::of("StartupUri")).get<std::string>();
+    return Get(PropertyId::of("StartupUri", "Application")).get<std::string>();
 }
 
 // --- 11j-2 ResourceDictionaryHolder (REAL document-root element; GAP CLOSE) --
@@ -2487,14 +2487,14 @@ SetResult StackPanel::set_orientation(Orientation o)
 {
     // Rides the Int32 value path (the enum stores as Int32, same convention as
     // Visibility / alignment enums).
-    return Set(PropertyId::of("Orientation"),
+    return Set(PropertyId::of("Orientation", "StackPanel"),
                Value::Int32(static_cast<std::int32_t>(o)));
 }
 
 VAML_CORE_EXPORT
 Orientation StackPanel::orientation() const
 {
-    return static_cast<Orientation>(Get(PropertyId::of("Orientation")).get<std::int32_t>());
+    return static_cast<Orientation>(Get(PropertyId::of("Orientation", "StackPanel")).get<std::int32_t>());
 }
 
 // The panel's own content is its children. Orientation-aware measure:
@@ -2774,13 +2774,13 @@ SetResult DockPanel::set_dock(DependencyObject& obj, std::int32_t value)
 {
     // Value rides the Int32 path on the attached name (S043 attached-aware:
     // the key is owned by DockPanel, stored on `obj`).
-    return obj.Set(PropertyId::of("DockPanel.Dock"), Value::Int32(value));
+    return obj.Set(PropertyId::of("Dock","DockPanel"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t DockPanel::dock(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("DockPanel.Dock")).get<std::int32_t>();
+    return obj.Get(PropertyId::of("Dock","DockPanel")).get<std::int32_t>();
 }
 
 // The S470 real dock-stacking measure. Children are offered UNBOUNDED on both
@@ -2942,7 +2942,7 @@ SetResult RadioButton::set_checked(bool value)
     {
         return vaml::SetResult::NO_CHANGE;
     }
-    const SetResult r = Set(PropertyId::of("RadioButton.IsChecked"), Value::Int32(value ? 1 : 0));
+    const SetResult r = Set(PropertyId::of("IsChecked","RadioButton"), Value::Int32(value ? 1 : 0));
     if (r == vaml::SetResult::APPLIED)
     {
         // EXCLUSIVE GROUP (the honest single-parent model): when this button
@@ -2963,7 +2963,7 @@ SetResult RadioButton::set_checked(bool value)
                     }
                     if (auto* rb = dynamic_cast<RadioButton*>(sib))
                     {
-                        (void)rb->Set(PropertyId::of("RadioButton.IsChecked"), Value::Int32(0));
+                        (void)rb->Set(PropertyId::of("IsChecked","RadioButton"), Value::Int32(0));
                     }
                 }
             }
@@ -2976,7 +2976,7 @@ SetResult RadioButton::set_checked(bool value)
 VAML_CORE_EXPORT
 bool RadioButton::is_checked() const
 {
-    return Get(PropertyId::of("RadioButton.IsChecked")).get<int>() != 0;
+    return Get(PropertyId::of("IsChecked","RadioButton")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -3001,9 +3001,9 @@ std::vector<std::string> ComboBox::split_items() const
     // The owned item list: the source is Items when explicitly set, else
     // ItemsSource. Items are split on commas and whitespace (simple owned list —
     // the WPF ItemCollection model is consumed at S649, recorded NO-GAP).
-    const std::string src = Get(PropertyId::of("ComboBox.Items")).get<std::string>().empty()
-                                ? Get(PropertyId::of("ComboBox.ItemsSource")).get<std::string>()
-                                : Get(PropertyId::of("ComboBox.Items")).get<std::string>();
+    const std::string src = Get(PropertyId::of("Items","ComboBox")).get<std::string>().empty()
+                                ? Get(PropertyId::of("ItemsSource","ComboBox")).get<std::string>()
+                                : Get(PropertyId::of("Items","ComboBox")).get<std::string>();
     std::vector<std::string> out;
     std::string cur;
     for (const char c : src)
@@ -3031,25 +3031,25 @@ std::vector<std::string> ComboBox::split_items() const
 VAML_CORE_EXPORT
 SetResult ComboBox::set_items(std::string value)
 {
-    return Set(PropertyId::of("ComboBox.Items"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Items","ComboBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string ComboBox::items() const
 {
-    return Get(PropertyId::of("ComboBox.Items")).get<std::string>();
+    return Get(PropertyId::of("Items","ComboBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult ComboBox::set_items_source(std::string value)
 {
-    return Set(PropertyId::of("ComboBox.ItemsSource"), Value::String(std::move(value)));
+    return Set(PropertyId::of("ItemsSource","ComboBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string ComboBox::items_source() const
 {
-    return Get(PropertyId::of("ComboBox.ItemsSource")).get<std::string>();
+    return Get(PropertyId::of("ItemsSource","ComboBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -3070,10 +3070,10 @@ SetResult ComboBox::set_selected_index(std::int32_t index)
     const auto items = split_items();
     const std::int32_t clamped =
         items.empty() ? -1 : std::clamp<std::int32_t>(index, -1, static_cast<std::int32_t>(items.size()) - 1);
-    const std::int32_t old = Get(PropertyId::of("ComboBox.SelectedIndex")).get<int>();
-    const SetResult r = Set(PropertyId::of("ComboBox.SelectedIndex"), Value::Int32(clamped));
+    const std::int32_t old = Get(PropertyId::of("SelectedIndex","ComboBox")).get<int>();
+    const SetResult r = Set(PropertyId::of("SelectedIndex","ComboBox"), Value::Int32(clamped));
     // Keep SelectedItem in sync (a readable round-trip, never a throw).
-    (void)Set(PropertyId::of("ComboBox.SelectedItem"),
+    (void)Set(PropertyId::of("SelectedItem","ComboBox"),
               Value::String(clamped >= 0 && static_cast<std::size_t>(clamped) < items.size()
                                 ? items[static_cast<std::size_t>(clamped)]
                                 : std::string{}));
@@ -3087,25 +3087,25 @@ SetResult ComboBox::set_selected_index(std::int32_t index)
 VAML_CORE_EXPORT
 std::int32_t ComboBox::selected_index() const
 {
-    return Get(PropertyId::of("ComboBox.SelectedIndex")).get<int>();
+    return Get(PropertyId::of("SelectedIndex","ComboBox")).get<int>();
 }
 
 VAML_CORE_EXPORT
 std::string ComboBox::selected_item() const
 {
-    return Get(PropertyId::of("ComboBox.SelectedItem")).get<std::string>();
+    return Get(PropertyId::of("SelectedItem","ComboBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult ComboBox::set_is_open(bool value)
 {
-    return Set(PropertyId::of("ComboBox.IsOpen"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsOpen","ComboBox"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool ComboBox::is_open() const
 {
-    return Get(PropertyId::of("ComboBox.IsOpen")).get<int>() != 0;
+    return Get(PropertyId::of("IsOpen","ComboBox")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -3149,9 +3149,9 @@ ListBox::ListBox()
 VAML_CORE_EXPORT
 std::vector<std::string> ListBox::split_items() const
 {
-    const std::string src = Get(PropertyId::of("ListBox.Items")).get<std::string>().empty()
-                                ? Get(PropertyId::of("ListBox.ItemsSource")).get<std::string>()
-                                : Get(PropertyId::of("ListBox.Items")).get<std::string>();
+    const std::string src = Get(PropertyId::of("Items","ListBox")).get<std::string>().empty()
+                                ? Get(PropertyId::of("ItemsSource","ListBox")).get<std::string>()
+                                : Get(PropertyId::of("Items","ListBox")).get<std::string>();
     std::vector<std::string> out;
     std::string cur;
     for (const char c : src)
@@ -3179,25 +3179,25 @@ std::vector<std::string> ListBox::split_items() const
 VAML_CORE_EXPORT
 SetResult ListBox::set_items(std::string value)
 {
-    return Set(PropertyId::of("ListBox.Items"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Items","ListBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string ListBox::items() const
 {
-    return Get(PropertyId::of("ListBox.Items")).get<std::string>();
+    return Get(PropertyId::of("Items","ListBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult ListBox::set_items_source(std::string value)
 {
-    return Set(PropertyId::of("ListBox.ItemsSource"), Value::String(std::move(value)));
+    return Set(PropertyId::of("ItemsSource","ListBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string ListBox::items_source() const
 {
-    return Get(PropertyId::of("ListBox.ItemsSource")).get<std::string>();
+    return Get(PropertyId::of("ItemsSource","ListBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -3218,9 +3218,9 @@ SetResult ListBox::set_selected_index(std::int32_t index)
     const auto items = split_items();
     const std::int32_t clamped =
         items.empty() ? -1 : std::clamp<std::int32_t>(index, -1, static_cast<std::int32_t>(items.size()) - 1);
-    const std::int32_t old = Get(PropertyId::of("ListBox.SelectedIndex")).get<int>();
-    const SetResult r = Set(PropertyId::of("ListBox.SelectedIndex"), Value::Int32(clamped));
-    (void)Set(PropertyId::of("ListBox.SelectedItem"),
+    const std::int32_t old = Get(PropertyId::of("SelectedIndex","ListBox")).get<int>();
+    const SetResult r = Set(PropertyId::of("SelectedIndex","ListBox"), Value::Int32(clamped));
+    (void)Set(PropertyId::of("SelectedItem","ListBox"),
               Value::String(clamped >= 0 && static_cast<std::size_t>(clamped) < items.size()
                                 ? items[static_cast<std::size_t>(clamped)]
                                 : std::string{}));
@@ -3234,13 +3234,13 @@ SetResult ListBox::set_selected_index(std::int32_t index)
 VAML_CORE_EXPORT
 std::int32_t ListBox::selected_index() const
 {
-    return Get(PropertyId::of("ListBox.SelectedIndex")).get<int>();
+    return Get(PropertyId::of("SelectedIndex","ListBox")).get<int>();
 }
 
 VAML_CORE_EXPORT
 std::string ListBox::selected_item() const
 {
-    return Get(PropertyId::of("ListBox.SelectedItem")).get<std::string>();
+    return Get(PropertyId::of("SelectedItem","ListBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -3257,13 +3257,13 @@ SetResult ListBox::set_item_template(std::string value)
     raw->set_parent(this);
     itemTemplateOwned_.push_back(std::move(tmpl));
     itemTemplateObject_ = nullptr; // a raw-text template is not a DataTemplate object
-    return Set(PropertyId::of("ItemTemplate"), Value::UntypedPtr(raw));
+    return Set(PropertyId::of("ItemTemplate", "ListBox"), Value::UntypedPtr(raw));
 }
 
 VAML_CORE_EXPORT
 std::string ListBox::item_template() const
 {
-    const Value v = Get(PropertyId::of("ItemTemplate"));
+    const Value v = Get(PropertyId::of("ItemTemplate", "ListBox"));
     // An authored object child (the S452 property-element / the programmatic
     // accessor) is stored as UntypedPtr; render it to its authored per-item
     // content text if it holds a Text template.
@@ -3293,7 +3293,7 @@ void ListBox::set_item_template_object(DataTemplate* templ)
     if (templ != nullptr)
     {
         // The authored DataTemplate is the DP's object value (UntypedPtr).
-        (void)Set(PropertyId::of("ItemTemplate"), Value::UntypedPtr(templ));
+        (void)Set(PropertyId::of("ItemTemplate", "ListBox"), Value::UntypedPtr(templ));
     }
 }
 
@@ -3378,16 +3378,16 @@ namespace {
 void register_treeview_properties()
 {
     (void)DependencyProperty::Register(
-        "TreeView.ItemsSource", ValueType::String, "TreeView",
+        "ItemsSource", ValueType::String, "TreeView",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TreeView.SelectedItem", ValueType::String, "TreeView",
+        "SelectedItem", ValueType::String, "TreeView",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TreeView.SelectedValue", ValueType::String, "TreeView",
+        "SelectedValue", ValueType::String, "TreeView",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TreeView.SelectedValuePath", ValueType::String, "TreeView",
+        "SelectedValuePath", ValueType::String, "TreeView",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 
@@ -3404,13 +3404,13 @@ void ensure_treeview_properties_registered()
 void register_treeviewitem_properties()
 {
     (void)DependencyProperty::Register(
-        "TreeViewItem.IsExpanded", ValueType::Int32, "TreeViewItem",
+        "IsExpanded", ValueType::Int32, "TreeViewItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TreeViewItem.IsSelected", ValueType::Int32, "TreeViewItem",
+        "IsSelected", ValueType::Int32, "TreeViewItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TreeViewItem.Header", ValueType::String, "TreeViewItem",
+        "Header", ValueType::String, "TreeViewItem",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 
@@ -3435,42 +3435,42 @@ TreeView::TreeView()
 VAML_CORE_EXPORT
 SetResult TreeView::set_items_source(std::string value)
 {
-    return Set(PropertyId::of("TreeView.ItemsSource"), Value::String(std::move(value)));
+    return Set(PropertyId::of("ItemsSource","TreeView"), Value::String(std::move(value)));
 }
 VAML_CORE_EXPORT
 std::string TreeView::items_source() const
 {
-    return Get(PropertyId::of("TreeView.ItemsSource")).get<std::string>();
+    return Get(PropertyId::of("ItemsSource","TreeView")).get<std::string>();
 }
 VAML_CORE_EXPORT
 SetResult TreeView::set_selected_item(std::string value)
 {
-    return Set(PropertyId::of("TreeView.SelectedItem"), Value::String(std::move(value)));
+    return Set(PropertyId::of("SelectedItem","TreeView"), Value::String(std::move(value)));
 }
 VAML_CORE_EXPORT
 std::string TreeView::selected_item() const
 {
-    return Get(PropertyId::of("TreeView.SelectedItem")).get<std::string>();
+    return Get(PropertyId::of("SelectedItem","TreeView")).get<std::string>();
 }
 VAML_CORE_EXPORT
 SetResult TreeView::set_selected_value(std::string value)
 {
-    return Set(PropertyId::of("TreeView.SelectedValue"), Value::String(std::move(value)));
+    return Set(PropertyId::of("SelectedValue","TreeView"), Value::String(std::move(value)));
 }
 VAML_CORE_EXPORT
 std::string TreeView::selected_value() const
 {
-    return Get(PropertyId::of("TreeView.SelectedValue")).get<std::string>();
+    return Get(PropertyId::of("SelectedValue","TreeView")).get<std::string>();
 }
 VAML_CORE_EXPORT
 SetResult TreeView::set_selected_value_path(std::string value)
 {
-    return Set(PropertyId::of("TreeView.SelectedValuePath"), Value::String(std::move(value)));
+    return Set(PropertyId::of("SelectedValuePath","TreeView"), Value::String(std::move(value)));
 }
 VAML_CORE_EXPORT
 std::string TreeView::selected_value_path() const
 {
-    return Get(PropertyId::of("TreeView.SelectedValuePath")).get<std::string>();
+    return Get(PropertyId::of("SelectedValuePath","TreeView")).get<std::string>();
 }
 VAML_CORE_EXPORT
 void TreeView::add_item(std::unique_ptr<UIElement> child)
@@ -3513,33 +3513,33 @@ SetResult TreeViewItem::set_is_expanded(bool value)
 {
     InvalidateMeasure();
     InvalidateArrange();
-    return Set(PropertyId::of("TreeViewItem.IsExpanded"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsExpanded","TreeViewItem"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool TreeViewItem::is_expanded() const
 {
-    return Get(PropertyId::of("TreeViewItem.IsExpanded")).get<int>() != 0;
+    return Get(PropertyId::of("IsExpanded","TreeViewItem")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 SetResult TreeViewItem::set_is_selected(bool value)
 {
     InvalidateMeasure();
-    return Set(PropertyId::of("TreeViewItem.IsSelected"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsSelected","TreeViewItem"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool TreeViewItem::is_selected() const
 {
-    return Get(PropertyId::of("TreeViewItem.IsSelected")).get<int>() != 0;
+    return Get(PropertyId::of("IsSelected","TreeViewItem")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 SetResult TreeViewItem::set_header(std::string value)
 {
-    return Set(PropertyId::of("TreeViewItem.Header"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Header","TreeViewItem"), Value::String(std::move(value)));
 }
 VAML_CORE_EXPORT
 std::string TreeViewItem::header() const
 {
-    return Get(PropertyId::of("TreeViewItem.Header")).get<std::string>();
+    return Get(PropertyId::of("Header","TreeViewItem")).get<std::string>();
 }
 VAML_CORE_EXPORT
 void TreeViewItem::add_item(std::unique_ptr<UIElement> child)
@@ -3617,16 +3617,16 @@ namespace {
 void register_calendardaybutton_properties()
 {
     (void)DependencyProperty::Register(
-        "CalendarDayButton.IsToday", ValueType::Int32, "CalendarDayButton",
+        "IsToday", ValueType::Int32, "CalendarDayButton",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "CalendarDayButton.IsSelected", ValueType::Int32, "CalendarDayButton",
+        "IsSelected", ValueType::Int32, "CalendarDayButton",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "CalendarDayButton.IsBlackedOut", ValueType::Int32, "CalendarDayButton",
+        "IsBlackedOut", ValueType::Int32, "CalendarDayButton",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "CalendarDayButton.DayNumber", ValueType::Int32, "CalendarDayButton",
+        "DayNumber", ValueType::Int32, "CalendarDayButton",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 void ensure_calendardaybutton_properties_registered()
@@ -3637,10 +3637,10 @@ void ensure_calendardaybutton_properties_registered()
 void register_calendarbutton_properties()
 {
     (void)DependencyProperty::Register(
-        "CalendarButton.DisplayDate", ValueType::Int64, "CalendarButton",
+        "DisplayDate", ValueType::Int64, "CalendarButton",
         PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "CalendarButton.IsSelected", ValueType::Int32, "CalendarButton",
+        "IsSelected", ValueType::Int32, "CalendarButton",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 void ensure_calendarbutton_properties_registered()
@@ -3651,10 +3651,10 @@ void ensure_calendarbutton_properties_registered()
 void register_calendaritem_properties()
 {
     (void)DependencyProperty::Register(
-        "CalendarItem.DisplayMode", ValueType::Int32, "CalendarItem",
+        "DisplayMode", ValueType::Int32, "CalendarItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "CalendarItem.DisplayDate", ValueType::Int64, "CalendarItem",
+        "DisplayDate", ValueType::Int64, "CalendarItem",
         PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
 }
 void ensure_calendaritem_properties_registered()
@@ -3665,16 +3665,16 @@ void ensure_calendaritem_properties_registered()
 void register_calendar_properties()
 {
     (void)DependencyProperty::Register(
-        "Calendar.DisplayDate", ValueType::Int64, "Calendar",
+        "DisplayDate", ValueType::Int64, "Calendar",
         PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Calendar.SelectedDate", ValueType::Int64, "Calendar",
+        "SelectedDate", ValueType::Int64, "Calendar",
         PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Calendar.FirstDayOfWeek", ValueType::Int32, "Calendar",
+        "FirstDayOfWeek", ValueType::Int32, "Calendar",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Calendar.SelectionMode", ValueType::Int32, "Calendar",
+        "SelectionMode", ValueType::Int32, "Calendar",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 void ensure_calendar_properties_registered()
@@ -3685,10 +3685,10 @@ void ensure_calendar_properties_registered()
 void register_datepickertetxbox_properties()
 {
     (void)DependencyProperty::Register(
-        "DatePickerTextBox.Text", ValueType::String, "DatePickerTextBox",
+        "Text", ValueType::String, "DatePickerTextBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DatePickerTextBox.SelectedDate", ValueType::Int64, "DatePickerTextBox",
+        "SelectedDate", ValueType::Int64, "DatePickerTextBox",
         PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
 }
 void ensure_datepickertetxbox_properties_registered()
@@ -3699,13 +3699,13 @@ void ensure_datepickertetxbox_properties_registered()
 void register_datepicker_properties()
 {
     (void)DependencyProperty::Register(
-        "DatePicker.SelectedDate", ValueType::Int64, "DatePicker",
+        "SelectedDate", ValueType::Int64, "DatePicker",
         PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DatePicker.DisplayDate", ValueType::Int64, "DatePicker",
+        "DisplayDate", ValueType::Int64, "DatePicker",
         PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DatePicker.IsDropDownOpen", ValueType::Int32, "DatePicker",
+        "IsDropDownOpen", ValueType::Int32, "DatePicker",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 void ensure_datepicker_properties_registered()
@@ -3719,21 +3719,21 @@ void ensure_datepicker_properties_registered()
 VAML_CORE_EXPORT
 CalendarDayButton::CalendarDayButton() { ensure_calendardaybutton_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult CalendarDayButton::set_is_today(bool v) { return Set(PropertyId::of("CalendarDayButton.IsToday"), Value::Int32(v ? 1 : 0)); }
+SetResult CalendarDayButton::set_is_today(bool v) { return Set(PropertyId::of("IsToday","CalendarDayButton"), Value::Int32(v ? 1 : 0)); }
 VAML_CORE_EXPORT
-bool CalendarDayButton::is_today() const { return Get(PropertyId::of("CalendarDayButton.IsToday")).get<int>() != 0; }
+bool CalendarDayButton::is_today() const { return Get(PropertyId::of("IsToday","CalendarDayButton")).get<int>() != 0; }
 VAML_CORE_EXPORT
-SetResult CalendarDayButton::set_is_selected(bool v) { return Set(PropertyId::of("CalendarDayButton.IsSelected"), Value::Int32(v ? 1 : 0)); }
+SetResult CalendarDayButton::set_is_selected(bool v) { return Set(PropertyId::of("IsSelected","CalendarDayButton"), Value::Int32(v ? 1 : 0)); }
 VAML_CORE_EXPORT
-bool CalendarDayButton::is_selected() const { return Get(PropertyId::of("CalendarDayButton.IsSelected")).get<int>() != 0; }
+bool CalendarDayButton::is_selected() const { return Get(PropertyId::of("IsSelected","CalendarDayButton")).get<int>() != 0; }
 VAML_CORE_EXPORT
-SetResult CalendarDayButton::set_is_blacked_out(bool v) { return Set(PropertyId::of("CalendarDayButton.IsBlackedOut"), Value::Int32(v ? 1 : 0)); }
+SetResult CalendarDayButton::set_is_blacked_out(bool v) { return Set(PropertyId::of("IsBlackedOut","CalendarDayButton"), Value::Int32(v ? 1 : 0)); }
 VAML_CORE_EXPORT
-bool CalendarDayButton::is_blacked_out() const { return Get(PropertyId::of("CalendarDayButton.IsBlackedOut")).get<int>() != 0; }
+bool CalendarDayButton::is_blacked_out() const { return Get(PropertyId::of("IsBlackedOut","CalendarDayButton")).get<int>() != 0; }
 VAML_CORE_EXPORT
-SetResult CalendarDayButton::set_day_number(std::int32_t v) { return Set(PropertyId::of("CalendarDayButton.DayNumber"), Value::Int32(v)); }
+SetResult CalendarDayButton::set_day_number(std::int32_t v) { return Set(PropertyId::of("DayNumber","CalendarDayButton"), Value::Int32(v)); }
 VAML_CORE_EXPORT
-std::int32_t CalendarDayButton::day_number() const { return Get(PropertyId::of("CalendarDayButton.DayNumber")).get<int>(); }
+std::int32_t CalendarDayButton::day_number() const { return Get(PropertyId::of("DayNumber","CalendarDayButton")).get<int>(); }
 VAML_CORE_EXPORT
 Size CalendarDayButton::MeasureOverride(const Size& available) const
 {
@@ -3745,13 +3745,13 @@ Size CalendarDayButton::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 CalendarButton::CalendarButton() { ensure_calendarbutton_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult CalendarButton::set_display_date(std::int64_t v) { return Set(PropertyId::of("CalendarButton.DisplayDate"), Value::Int64(v)); }
+SetResult CalendarButton::set_display_date(std::int64_t v) { return Set(PropertyId::of("DisplayDate","CalendarButton"), Value::Int64(v)); }
 VAML_CORE_EXPORT
-std::int64_t CalendarButton::display_date() const { return Get(PropertyId::of("CalendarButton.DisplayDate")).get<std::int64_t>(); }
+std::int64_t CalendarButton::display_date() const { return Get(PropertyId::of("DisplayDate","CalendarButton")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
-SetResult CalendarButton::set_is_selected(bool v) { return Set(PropertyId::of("CalendarButton.IsSelected"), Value::Int32(v ? 1 : 0)); }
+SetResult CalendarButton::set_is_selected(bool v) { return Set(PropertyId::of("IsSelected","CalendarButton"), Value::Int32(v ? 1 : 0)); }
 VAML_CORE_EXPORT
-bool CalendarButton::is_selected() const { return Get(PropertyId::of("CalendarButton.IsSelected")).get<int>() != 0; }
+bool CalendarButton::is_selected() const { return Get(PropertyId::of("IsSelected","CalendarButton")).get<int>() != 0; }
 VAML_CORE_EXPORT
 Size CalendarButton::MeasureOverride(const Size& available) const
 {
@@ -3763,13 +3763,13 @@ Size CalendarButton::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 CalendarItem::CalendarItem() { ensure_calendaritem_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult CalendarItem::set_display_mode(std::int32_t v) { return Set(PropertyId::of("CalendarItem.DisplayMode"), Value::Int32(v)); }
+SetResult CalendarItem::set_display_mode(std::int32_t v) { return Set(PropertyId::of("DisplayMode","CalendarItem"), Value::Int32(v)); }
 VAML_CORE_EXPORT
-std::int32_t CalendarItem::display_mode() const { return Get(PropertyId::of("CalendarItem.DisplayMode")).get<int>(); }
+std::int32_t CalendarItem::display_mode() const { return Get(PropertyId::of("DisplayMode","CalendarItem")).get<int>(); }
 VAML_CORE_EXPORT
-SetResult CalendarItem::set_display_date(std::int64_t v) { return Set(PropertyId::of("CalendarItem.DisplayDate"), Value::Int64(v)); }
+SetResult CalendarItem::set_display_date(std::int64_t v) { return Set(PropertyId::of("DisplayDate","CalendarItem"), Value::Int64(v)); }
 VAML_CORE_EXPORT
-std::int64_t CalendarItem::display_date() const { return Get(PropertyId::of("CalendarItem.DisplayDate")).get<std::int64_t>(); }
+std::int64_t CalendarItem::display_date() const { return Get(PropertyId::of("DisplayDate","CalendarItem")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
 Size CalendarItem::MeasureOverride(const Size& available) const
 {
@@ -3783,26 +3783,26 @@ Calendar::Calendar() { ensure_calendar_properties_registered(); }
 VAML_CORE_EXPORT
 SetResult Calendar::set_display_date(std::int64_t v)
 {
-    return Set(PropertyId::of("Calendar.DisplayDate"), Value::Int64(v));
+    return Set(PropertyId::of("DisplayDate","Calendar"), Value::Int64(v));
 }
 VAML_CORE_EXPORT
-std::int64_t Calendar::display_date() const { return Get(PropertyId::of("Calendar.DisplayDate")).get<std::int64_t>(); }
+std::int64_t Calendar::display_date() const { return Get(PropertyId::of("DisplayDate","Calendar")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
 SetResult Calendar::set_selected_date(std::int64_t v)
 {
     InvalidateMeasure();
-    return Set(PropertyId::of("Calendar.SelectedDate"), Value::Int64(v));
+    return Set(PropertyId::of("SelectedDate","Calendar"), Value::Int64(v));
 }
 VAML_CORE_EXPORT
-std::int64_t Calendar::selected_date() const { return Get(PropertyId::of("Calendar.SelectedDate")).get<std::int64_t>(); }
+std::int64_t Calendar::selected_date() const { return Get(PropertyId::of("SelectedDate","Calendar")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
-SetResult Calendar::set_first_day_of_week(std::int32_t v) { return Set(PropertyId::of("Calendar.FirstDayOfWeek"), Value::Int32(v)); }
+SetResult Calendar::set_first_day_of_week(std::int32_t v) { return Set(PropertyId::of("FirstDayOfWeek","Calendar"), Value::Int32(v)); }
 VAML_CORE_EXPORT
-std::int32_t Calendar::first_day_of_week() const { return Get(PropertyId::of("Calendar.FirstDayOfWeek")).get<int>(); }
+std::int32_t Calendar::first_day_of_week() const { return Get(PropertyId::of("FirstDayOfWeek","Calendar")).get<int>(); }
 VAML_CORE_EXPORT
-SetResult Calendar::set_selection_mode(std::int32_t v) { return Set(PropertyId::of("Calendar.SelectionMode"), Value::Int32(v)); }
+SetResult Calendar::set_selection_mode(std::int32_t v) { return Set(PropertyId::of("SelectionMode","Calendar"), Value::Int32(v)); }
 VAML_CORE_EXPORT
-std::int32_t Calendar::selection_mode() const { return Get(PropertyId::of("Calendar.SelectionMode")).get<int>(); }
+std::int32_t Calendar::selection_mode() const { return Get(PropertyId::of("SelectionMode","Calendar")).get<int>(); }
 VAML_CORE_EXPORT
 void Calendar::set_blackout_dates(CalendarBlackoutDatesCollection dates) { blackout_ = std::move(dates); }
 VAML_CORE_EXPORT
@@ -3818,13 +3818,13 @@ Size Calendar::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 DatePickerTextBox::DatePickerTextBox() { ensure_datepickertetxbox_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult DatePickerTextBox::set_text(std::string v) { return Set(PropertyId::of("DatePickerTextBox.Text"), Value::String(std::move(v))); }
+SetResult DatePickerTextBox::set_text(std::string v) { return Set(PropertyId::of("Text","DatePickerTextBox"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string DatePickerTextBox::text() const { return Get(PropertyId::of("DatePickerTextBox.Text")).get<std::string>(); }
+std::string DatePickerTextBox::text() const { return Get(PropertyId::of("Text","DatePickerTextBox")).get<std::string>(); }
 VAML_CORE_EXPORT
-SetResult DatePickerTextBox::set_selected_date(std::int64_t v) { return Set(PropertyId::of("DatePickerTextBox.SelectedDate"), Value::Int64(v)); }
+SetResult DatePickerTextBox::set_selected_date(std::int64_t v) { return Set(PropertyId::of("SelectedDate","DatePickerTextBox"), Value::Int64(v)); }
 VAML_CORE_EXPORT
-std::int64_t DatePickerTextBox::selected_date() const { return Get(PropertyId::of("DatePickerTextBox.SelectedDate")).get<std::int64_t>(); }
+std::int64_t DatePickerTextBox::selected_date() const { return Get(PropertyId::of("SelectedDate","DatePickerTextBox")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
 Size DatePickerTextBox::MeasureOverride(const Size& available) const
 {
@@ -3839,18 +3839,18 @@ VAML_CORE_EXPORT
 SetResult DatePicker::set_selected_date(std::int64_t v)
 {
     InvalidateMeasure();
-    return Set(PropertyId::of("DatePicker.SelectedDate"), Value::Int64(v));
+    return Set(PropertyId::of("SelectedDate","DatePicker"), Value::Int64(v));
 }
 VAML_CORE_EXPORT
-std::int64_t DatePicker::selected_date() const { return Get(PropertyId::of("DatePicker.SelectedDate")).get<std::int64_t>(); }
+std::int64_t DatePicker::selected_date() const { return Get(PropertyId::of("SelectedDate","DatePicker")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
-SetResult DatePicker::set_display_date(std::int64_t v) { return Set(PropertyId::of("DatePicker.DisplayDate"), Value::Int64(v)); }
+SetResult DatePicker::set_display_date(std::int64_t v) { return Set(PropertyId::of("DisplayDate","DatePicker"), Value::Int64(v)); }
 VAML_CORE_EXPORT
-std::int64_t DatePicker::display_date() const { return Get(PropertyId::of("DatePicker.DisplayDate")).get<std::int64_t>(); }
+std::int64_t DatePicker::display_date() const { return Get(PropertyId::of("DisplayDate","DatePicker")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
-SetResult DatePicker::set_is_drop_down_open(bool v) { return Set(PropertyId::of("DatePicker.IsDropDownOpen"), Value::Int32(v ? 1 : 0)); }
+SetResult DatePicker::set_is_drop_down_open(bool v) { return Set(PropertyId::of("IsDropDownOpen","DatePicker"), Value::Int32(v ? 1 : 0)); }
 VAML_CORE_EXPORT
-bool DatePicker::is_drop_down_open() const { return Get(PropertyId::of("DatePicker.IsDropDownOpen")).get<int>() != 0; }
+bool DatePicker::is_drop_down_open() const { return Get(PropertyId::of("IsDropDownOpen","DatePicker")).get<int>() != 0; }
 VAML_CORE_EXPORT
 Size DatePicker::MeasureOverride(const Size& available) const
 {
@@ -3872,13 +3872,13 @@ namespace {
 void register_inkcanvas_properties()
 {
     (void)DependencyProperty::Register(
-        "InkCanvas.Strokes", ValueType::String, "InkCanvas",
+        "Strokes", ValueType::String, "InkCanvas",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "InkCanvas.ActiveStroke", ValueType::String, "InkCanvas",
+        "ActiveStroke", ValueType::String, "InkCanvas",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "InkCanvas.Background", ValueType::Brush, "InkCanvas",
+        "Background", ValueType::Brush, "InkCanvas",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
 }
 void ensure_inkcanvas_properties_registered()
@@ -3889,7 +3889,7 @@ void ensure_inkcanvas_properties_registered()
 void register_inkpresenter_properties()
 {
     (void)DependencyProperty::Register(
-        "InkPresenter.Strokes", ValueType::String, "InkPresenter",
+        "Strokes", ValueType::String, "InkPresenter",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 void ensure_inkpresenter_properties_registered()
@@ -3900,13 +3900,13 @@ void ensure_inkpresenter_properties_registered()
 void register_mediaelement_properties()
 {
     (void)DependencyProperty::Register(
-        "MediaElement.Source", ValueType::String, "MediaElement",
+        "Source", ValueType::String, "MediaElement",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MediaElement.Volume", ValueType::Double, "MediaElement",
+        "Volume", ValueType::Double, "MediaElement",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MediaElement.Muted", ValueType::Int32, "MediaElement",
+        "Muted", ValueType::Int32, "MediaElement",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 void ensure_mediaelement_properties_registered()
@@ -3920,24 +3920,24 @@ void ensure_mediaelement_properties_registered()
 VAML_CORE_EXPORT
 InkCanvas::InkCanvas() { ensure_inkcanvas_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult InkCanvas::set_strokes(std::string v) { return Set(PropertyId::of("InkCanvas.Strokes"), Value::String(std::move(v))); }
+SetResult InkCanvas::set_strokes(std::string v) { return Set(PropertyId::of("Strokes","InkCanvas"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string InkCanvas::strokes() const { return Get(PropertyId::of("InkCanvas.Strokes")).get<std::string>(); }
+std::string InkCanvas::strokes() const { return Get(PropertyId::of("Strokes","InkCanvas")).get<std::string>(); }
 VAML_CORE_EXPORT
-SetResult InkCanvas::set_active_stroke(std::string v) { return Set(PropertyId::of("InkCanvas.ActiveStroke"), Value::String(std::move(v))); }
+SetResult InkCanvas::set_active_stroke(std::string v) { return Set(PropertyId::of("ActiveStroke","InkCanvas"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string InkCanvas::active_stroke() const { return Get(PropertyId::of("InkCanvas.ActiveStroke")).get<std::string>(); }
+std::string InkCanvas::active_stroke() const { return Get(PropertyId::of("ActiveStroke","InkCanvas")).get<std::string>(); }
 VAML_CORE_EXPORT
 SetResult InkCanvas::set_background(std::shared_ptr<Brush> b)
 {
     if (!b)
         b = default_black_brush();
-    return Set(PropertyId::of("InkCanvas.Background"), Value::Brush(std::move(b)));
+    return Set(PropertyId::of("Background","InkCanvas"), Value::Brush(std::move(b)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> InkCanvas::background() const
 {
-    const Value v = Get(PropertyId::of("InkCanvas.Background"));
+    const Value v = Get(PropertyId::of("Background","InkCanvas"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -3953,9 +3953,9 @@ Size InkCanvas::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 InkPresenter::InkPresenter() { ensure_inkpresenter_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult InkPresenter::set_strokes(std::string v) { return Set(PropertyId::of("InkPresenter.Strokes"), Value::String(std::move(v))); }
+SetResult InkPresenter::set_strokes(std::string v) { return Set(PropertyId::of("Strokes","InkPresenter"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string InkPresenter::strokes() const { return Get(PropertyId::of("InkPresenter.Strokes")).get<std::string>(); }
+std::string InkPresenter::strokes() const { return Get(PropertyId::of("Strokes","InkPresenter")).get<std::string>(); }
 VAML_CORE_EXPORT
 Size InkPresenter::MeasureOverride(const Size& available) const
 {
@@ -3967,17 +3967,17 @@ Size InkPresenter::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 MediaElement::MediaElement() { ensure_mediaelement_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult MediaElement::set_source(std::string v) { return Set(PropertyId::of("MediaElement.Source"), Value::String(std::move(v))); }
+SetResult MediaElement::set_source(std::string v) { return Set(PropertyId::of("Source","MediaElement"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string MediaElement::source() const { return Get(PropertyId::of("MediaElement.Source")).get<std::string>(); }
+std::string MediaElement::source() const { return Get(PropertyId::of("Source","MediaElement")).get<std::string>(); }
 VAML_CORE_EXPORT
-SetResult MediaElement::set_volume(double v) { return Set(PropertyId::of("MediaElement.Volume"), Value::Double(v)); }
+SetResult MediaElement::set_volume(double v) { return Set(PropertyId::of("Volume","MediaElement"), Value::Double(v)); }
 VAML_CORE_EXPORT
-double MediaElement::volume() const { return Get(PropertyId::of("MediaElement.Volume")).get<double>(); }
+double MediaElement::volume() const { return Get(PropertyId::of("Volume","MediaElement")).get<double>(); }
 VAML_CORE_EXPORT
-SetResult MediaElement::set_muted(bool v) { return Set(PropertyId::of("MediaElement.Muted"), Value::Int32(v ? 1 : 0)); }
+SetResult MediaElement::set_muted(bool v) { return Set(PropertyId::of("Muted","MediaElement"), Value::Int32(v ? 1 : 0)); }
 VAML_CORE_EXPORT
-bool MediaElement::muted() const { return Get(PropertyId::of("MediaElement.Muted")).get<int>() != 0; }
+bool MediaElement::muted() const { return Get(PropertyId::of("Muted","MediaElement")).get<int>() != 0; }
 VAML_CORE_EXPORT
 Size MediaElement::MeasureOverride(const Size& available) const
 {
@@ -3999,7 +3999,7 @@ namespace {
 void register_page_properties()
 {
     (void)DependencyProperty::Register(
-        "Page.Content", ValueType::String, "Page",
+        "Content", ValueType::String, "Page",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 void ensure_page_properties_registered()
@@ -4010,10 +4010,10 @@ void ensure_page_properties_registered()
 void register_frame_properties()
 {
     (void)DependencyProperty::Register(
-        "Frame.Source", ValueType::String, "Frame",
+        "Source", ValueType::String, "Frame",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Frame.NavigateUri", ValueType::String, "Frame",
+        "NavigateUri", ValueType::String, "Frame",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 void ensure_frame_properties_registered()
@@ -4024,7 +4024,7 @@ void ensure_frame_properties_registered()
 void register_documentviewerbase_properties()
 {
     (void)DependencyProperty::Register(
-        "DocumentViewerBase.Document", ValueType::String, "DocumentViewerBase",
+        "Document", ValueType::String, "DocumentViewerBase",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 void ensure_documentviewerbase_properties_registered()
@@ -4035,7 +4035,7 @@ void ensure_documentviewerbase_properties_registered()
 void register_singlepageviewer_properties()
 {
     (void)DependencyProperty::Register(
-        "SinglePageViewer.Document", ValueType::String, "SinglePageViewer",
+        "Document", ValueType::String, "SinglePageViewer",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 void ensure_singlepageviewer_properties_registered()
@@ -4049,9 +4049,9 @@ void ensure_singlepageviewer_properties_registered()
 VAML_CORE_EXPORT
 Page::Page() { ensure_page_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult Page::set_content(std::string v) { return Set(PropertyId::of("Page.Content"), Value::String(std::move(v))); }
+SetResult Page::set_content(std::string v) { return Set(PropertyId::of("Content","Page"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string Page::content() const { return Get(PropertyId::of("Page.Content")).get<std::string>(); }
+std::string Page::content() const { return Get(PropertyId::of("Content","Page")).get<std::string>(); }
 VAML_CORE_EXPORT
 Size Page::MeasureOverride(const Size& available) const
 {
@@ -4063,13 +4063,13 @@ Size Page::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 Frame::Frame() { ensure_frame_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult Frame::set_source(std::string v) { return Set(PropertyId::of("Frame.Source"), Value::String(std::move(v))); }
+SetResult Frame::set_source(std::string v) { return Set(PropertyId::of("Source","Frame"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string Frame::source() const { return Get(PropertyId::of("Frame.Source")).get<std::string>(); }
+std::string Frame::source() const { return Get(PropertyId::of("Source","Frame")).get<std::string>(); }
 VAML_CORE_EXPORT
-SetResult Frame::set_navigate_uri(std::string v) { return Set(PropertyId::of("Frame.NavigateUri"), Value::String(std::move(v))); }
+SetResult Frame::set_navigate_uri(std::string v) { return Set(PropertyId::of("NavigateUri","Frame"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string Frame::navigate_uri() const { return Get(PropertyId::of("Frame.NavigateUri")).get<std::string>(); }
+std::string Frame::navigate_uri() const { return Get(PropertyId::of("NavigateUri","Frame")).get<std::string>(); }
 VAML_CORE_EXPORT
 Size Frame::MeasureOverride(const Size& available) const
 {
@@ -4083,9 +4083,9 @@ DocumentViewerBase::DocumentViewerBase() { ensure_documentviewerbase_properties_
 VAML_CORE_EXPORT
 DocumentViewerBase::~DocumentViewerBase() = default;
 VAML_CORE_EXPORT
-SetResult DocumentViewerBase::set_document(std::string v) { return Set(PropertyId::of("DocumentViewerBase.Document"), Value::String(std::move(v))); }
+SetResult DocumentViewerBase::set_document(std::string v) { return Set(PropertyId::of("Document","DocumentViewerBase"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string DocumentViewerBase::document() const { return Get(PropertyId::of("DocumentViewerBase.Document")).get<std::string>(); }
+std::string DocumentViewerBase::document() const { return Get(PropertyId::of("Document","DocumentViewerBase")).get<std::string>(); }
 VAML_CORE_EXPORT
 Size DocumentViewerBase::MeasureOverride(const Size& available) const
 {
@@ -4104,9 +4104,9 @@ FlowDocumentReader::FlowDocumentReader() { ensure_documentviewerbase_properties_
 VAML_CORE_EXPORT
 SinglePageViewer::SinglePageViewer() { ensure_singlepageviewer_properties_registered(); }
 VAML_CORE_EXPORT
-SetResult SinglePageViewer::set_document(std::string v) { return Set(PropertyId::of("SinglePageViewer.Document"), Value::String(std::move(v))); }
+SetResult SinglePageViewer::set_document(std::string v) { return Set(PropertyId::of("Document","SinglePageViewer"), Value::String(std::move(v))); }
 VAML_CORE_EXPORT
-std::string SinglePageViewer::document() const { return Get(PropertyId::of("SinglePageViewer.Document")).get<std::string>(); }
+std::string SinglePageViewer::document() const { return Get(PropertyId::of("Document","SinglePageViewer")).get<std::string>(); }
 VAML_CORE_EXPORT
 Size SinglePageViewer::MeasureOverride(const Size& available) const
 {
@@ -4139,10 +4139,10 @@ namespace {
 void register_label_properties()
 {
     (void)DependencyProperty::Register(
-        "Label.Content", ValueType::String, "Label",
+        "Content", ValueType::String, "Label",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Label.Foreground", ValueType::Brush, "Label",
+        "Foreground", ValueType::Brush, "Label",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
 }
 
@@ -4168,39 +4168,39 @@ Label::Label()
 VAML_CORE_EXPORT
 SetResult Label::set_content(std::string value)
 {
-    return Set(PropertyId::of("Label.Content"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Content","Label"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string Label::content() const
 {
-    return Get(PropertyId::of("Label.Content")).get<std::string>();
+    return Get(PropertyId::of("Content","Label")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult Label::set_font_size(double value)
 {
     // 11j-5: FontSize is the shared Control base DP (bare name, owner "Control").
-    return Set(PropertyId::of("FontSize"), Value::Double(value));
+    return Set(PropertyId::of("FontSize", "Control"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Label::font_size() const
 {
-    return Get(PropertyId::of("FontSize")).get<double>();
+    return Get(PropertyId::of("FontSize", "Control")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Label::set_font_family(std::string value)
 {
     // 11j-5: FontFamily is the shared Control base DP (bare name, owner "Control").
-    return Set(PropertyId::of("FontFamily"), Value::String(std::move(value)));
+    return Set(PropertyId::of("FontFamily", "Control"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string Label::font_family() const
 {
-    return Get(PropertyId::of("FontFamily")).get<std::string>();
+    return Get(PropertyId::of("FontFamily", "Control")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -4208,13 +4208,13 @@ SetResult Label::set_foreground(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Label.Foreground"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Foreground","Label"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Label::foreground() const
 {
-    const Value v = Get(PropertyId::of("Label.Foreground"));
+    const Value v = Get(PropertyId::of("Foreground","Label"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4224,13 +4224,13 @@ VAML_CORE_EXPORT
 SetResult Label::set_horizontal_content_alignment(std::int32_t value)
 {
     // 11j-5: HorizontalContentAlignment is the shared Control base DP (bare).
-    return Set(PropertyId::of("HorizontalContentAlignment"), Value::Int32(value));
+    return Set(PropertyId::of("HorizontalContentAlignment", "Control"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Label::horizontal_content_alignment() const
 {
-    return Get(PropertyId::of("HorizontalContentAlignment")).get<std::int32_t>();
+    return Get(PropertyId::of("HorizontalContentAlignment", "Control")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -4257,13 +4257,13 @@ namespace {
 void register_border_properties()
 {
     (void)DependencyProperty::Register(
-        "Border.BorderBrush", ValueType::Brush, "Border",
+        "BorderBrush", ValueType::Brush, "Border",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Border.BorderThickness", ValueType::Thickness, "Border",
+        "BorderThickness", ValueType::Thickness, "Border",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Border.CornerRadius", ValueType::Thickness, "Border",
+        "CornerRadius", ValueType::Thickness, "Border",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
     // (11j-5) Border.Padding is REMOVED — Padding is the shared Control base DP
     // (bare "Padding", owner "Control"); Border re-points its padding accessor.
@@ -4293,13 +4293,13 @@ SetResult Border::set_border_brush(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Border.BorderBrush"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("BorderBrush","Border"), Value::Brush(std::move(brush)));
 }
 
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Border::border_brush() const
 {
-    const Value v = Get(PropertyId::of("Border.BorderBrush"));
+    const Value v = Get(PropertyId::of("BorderBrush","Border"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4308,38 +4308,38 @@ std::shared_ptr<Brush> Border::border_brush() const
 VAML_CORE_EXPORT
 SetResult Border::set_border_thickness(vaml::Thickness value)
 {
-    return Set(PropertyId::of("Border.BorderThickness"), Value::Thickness(value));
+    return Set(PropertyId::of("BorderThickness","Border"), Value::Thickness(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Thickness Border::border_thickness() const
 {
-    return Get(PropertyId::of("Border.BorderThickness")).get<vaml::Thickness>();
+    return Get(PropertyId::of("BorderThickness","Border")).get<vaml::Thickness>();
 }
 
 VAML_CORE_EXPORT
 SetResult Border::set_corner_radius(vaml::Thickness value)
 {
-    return Set(PropertyId::of("Border.CornerRadius"), Value::Thickness(value));
+    return Set(PropertyId::of("CornerRadius","Border"), Value::Thickness(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Thickness Border::corner_radius() const
 {
-    return Get(PropertyId::of("Border.CornerRadius")).get<vaml::Thickness>();
+    return Get(PropertyId::of("CornerRadius","Border")).get<vaml::Thickness>();
 }
 
 VAML_CORE_EXPORT
 SetResult Border::set_padding(vaml::Thickness value)
 {
     // 11j-5: Padding is the shared Control base DP (bare "Padding").
-    return Set(PropertyId::of("Padding"), Value::Thickness(value));
+    return Set(PropertyId::of("Padding", "Control"), Value::Thickness(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Thickness Border::padding() const
 {
-    return Get(PropertyId::of("Padding")).get<vaml::Thickness>();
+    return Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>();
 }
 
 VAML_CORE_EXPORT
@@ -4413,13 +4413,13 @@ namespace {
 void register_rectangle_properties()
 {
     (void)DependencyProperty::Register(
-        "Rectangle.Fill", ValueType::Brush, "Rectangle",
+        "Fill", ValueType::Brush, "Rectangle",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Rectangle.Stroke", ValueType::Brush, "Rectangle",
+        "Stroke", ValueType::Brush, "Rectangle",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Rectangle.StrokeThickness", ValueType::Double, "Rectangle",
+        "StrokeThickness", ValueType::Double, "Rectangle",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     // Width/Height ride the BASE UIElement S123 layout DPs (auto/NaN), NOT a
     // duplicate custom DP (recorded NO-GAP — the shape box is the inherited
@@ -4449,12 +4449,12 @@ SetResult Rectangle::set_fill(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Rectangle.Fill"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Fill","Rectangle"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Rectangle::fill() const
 {
-    const Value v = Get(PropertyId::of("Rectangle.Fill"));
+    const Value v = Get(PropertyId::of("Fill","Rectangle"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4464,12 +4464,12 @@ SetResult Rectangle::set_stroke(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Rectangle.Stroke"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Stroke","Rectangle"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Rectangle::stroke() const
 {
-    const Value v = Get(PropertyId::of("Rectangle.Stroke"));
+    const Value v = Get(PropertyId::of("Stroke","Rectangle"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4477,12 +4477,12 @@ std::shared_ptr<Brush> Rectangle::stroke() const
 VAML_CORE_EXPORT
 SetResult Rectangle::set_stroke_thickness(double value)
 {
-    return Set(PropertyId::of("Rectangle.StrokeThickness"), Value::Double(value));
+    return Set(PropertyId::of("StrokeThickness","Rectangle"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double Rectangle::stroke_thickness() const
 {
-    return Get(PropertyId::of("Rectangle.StrokeThickness")).get<double>();
+    return Get(PropertyId::of("StrokeThickness","Rectangle")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -4505,13 +4505,13 @@ namespace {
 void register_ellipse_properties()
 {
     (void)DependencyProperty::Register(
-        "Ellipse.Fill", ValueType::Brush, "Ellipse",
+        "Fill", ValueType::Brush, "Ellipse",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Ellipse.Stroke", ValueType::Brush, "Ellipse",
+        "Stroke", ValueType::Brush, "Ellipse",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Ellipse.StrokeThickness", ValueType::Double, "Ellipse",
+        "StrokeThickness", ValueType::Double, "Ellipse",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     // Width/Height ride the base UIElement S123 layout DPs (auto/NaN).
 }
@@ -4539,12 +4539,12 @@ SetResult Ellipse::set_fill(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Ellipse.Fill"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Fill","Ellipse"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Ellipse::fill() const
 {
-    const Value v = Get(PropertyId::of("Ellipse.Fill"));
+    const Value v = Get(PropertyId::of("Fill","Ellipse"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4554,12 +4554,12 @@ SetResult Ellipse::set_stroke(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Ellipse.Stroke"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Stroke","Ellipse"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Ellipse::stroke() const
 {
-    const Value v = Get(PropertyId::of("Ellipse.Stroke"));
+    const Value v = Get(PropertyId::of("Stroke","Ellipse"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4567,12 +4567,12 @@ std::shared_ptr<Brush> Ellipse::stroke() const
 VAML_CORE_EXPORT
 SetResult Ellipse::set_stroke_thickness(double value)
 {
-    return Set(PropertyId::of("Ellipse.StrokeThickness"), Value::Double(value));
+    return Set(PropertyId::of("StrokeThickness","Ellipse"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double Ellipse::stroke_thickness() const
 {
-    return Get(PropertyId::of("Ellipse.StrokeThickness")).get<double>();
+    return Get(PropertyId::of("StrokeThickness","Ellipse")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -4592,13 +4592,13 @@ namespace {
 void register_line_properties()
 {
     (void)DependencyProperty::Register(
-        "Line.Fill", ValueType::Brush, "Line",
+        "Fill", ValueType::Brush, "Line",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Line.Stroke", ValueType::Brush, "Line",
+        "Stroke", ValueType::Brush, "Line",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Line.StrokeThickness", ValueType::Double, "Line",
+        "StrokeThickness", ValueType::Double, "Line",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
     // Width/Height ride the base UIElement S123 layout DPs (auto/NaN).
 }
@@ -4626,12 +4626,12 @@ SetResult Line::set_fill(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Line.Fill"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Fill","Line"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Line::fill() const
 {
-    const Value v = Get(PropertyId::of("Line.Fill"));
+    const Value v = Get(PropertyId::of("Fill","Line"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4641,12 +4641,12 @@ SetResult Line::set_stroke(std::shared_ptr<Brush> brush)
 {
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Line.Stroke"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Stroke","Line"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Line::stroke() const
 {
-    const Value v = Get(PropertyId::of("Line.Stroke"));
+    const Value v = Get(PropertyId::of("Stroke","Line"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4654,12 +4654,12 @@ std::shared_ptr<Brush> Line::stroke() const
 VAML_CORE_EXPORT
 SetResult Line::set_stroke_thickness(double value)
 {
-    return Set(PropertyId::of("Line.StrokeThickness"), Value::Double(value));
+    return Set(PropertyId::of("StrokeThickness","Line"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double Line::stroke_thickness() const
 {
-    return Get(PropertyId::of("Line.StrokeThickness")).get<double>();
+    return Get(PropertyId::of("StrokeThickness","Line")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -4683,13 +4683,13 @@ namespace {
 void register_shape_properties()
 {
     (void)DependencyProperty::Register(
-        "Shape.Fill", ValueType::Brush, "Shape",
+        "Fill", ValueType::Brush, "Shape",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Shape.Stroke", ValueType::Brush, "Shape",
+        "Stroke", ValueType::Brush, "Shape",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Shape.StrokeThickness", ValueType::Double, "Shape",
+        "StrokeThickness", ValueType::Double, "Shape",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
 }
 
@@ -4707,10 +4707,10 @@ void register_path_properties()
 {
     ensure_shape_properties_registered();
     (void)DependencyProperty::Register(
-        "Path.Data", ValueType::String, "Path",
+        "Data", ValueType::String, "Path",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Path.FillRule", ValueType::Int32, "Path",
+        "FillRule", ValueType::Int32, "Path",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -4728,10 +4728,10 @@ void register_polygon_properties()
 {
     ensure_shape_properties_registered();
     (void)DependencyProperty::Register(
-        "Polygon.Points", ValueType::String, "Polygon",
+        "Points", ValueType::String, "Polygon",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Polygon.FillRule", ValueType::Int32, "Polygon",
+        "FillRule", ValueType::Int32, "Polygon",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -4749,7 +4749,7 @@ void register_polyline_properties()
 {
     ensure_shape_properties_registered();
     (void)DependencyProperty::Register(
-        "Polyline.Points", ValueType::String, "Polyline",
+        "Points", ValueType::String, "Polyline",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 
@@ -4792,13 +4792,13 @@ std::vector<std::pair<float, float>> parse_points(const std::string& s, bool* ok
 void register_track_properties()
 {
     (void)DependencyProperty::Register(
-        "Track.Minimum", ValueType::Double, "Track",
+        "Minimum", ValueType::Double, "Track",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Track.Maximum", ValueType::Double, "Track",
+        "Maximum", ValueType::Double, "Track",
         PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Track.Value", ValueType::Double, "Track",
+        "Value", ValueType::Double, "Track",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
 }
 
@@ -4815,16 +4815,16 @@ void ensure_track_properties_registered()
 void register_tickbar_properties()
 {
     (void)DependencyProperty::Register(
-        "TickBar.Minimum", ValueType::Double, "TickBar",
+        "Minimum", ValueType::Double, "TickBar",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TickBar.Maximum", ValueType::Double, "TickBar",
+        "Maximum", ValueType::Double, "TickBar",
         PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TickBar.Frequency", ValueType::Double, "TickBar",
+        "Frequency", ValueType::Double, "TickBar",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TickBar.IsDirectionReversed", ValueType::Int32, "TickBar",
+        "IsDirectionReversed", ValueType::Int32, "TickBar",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -4849,12 +4849,12 @@ SetResult Shape::set_fill(std::shared_ptr<Brush> brush)
     ensure_shape_properties_registered();
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Shape.Fill"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Fill","Shape"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Shape::fill() const
 {
-    const Value v = Get(PropertyId::of("Shape.Fill"));
+    const Value v = Get(PropertyId::of("Fill","Shape"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4865,12 +4865,12 @@ SetResult Shape::set_stroke(std::shared_ptr<Brush> brush)
     ensure_shape_properties_registered();
     if (!brush)
         brush = default_black_brush();
-    return Set(PropertyId::of("Shape.Stroke"), Value::Brush(std::move(brush)));
+    return Set(PropertyId::of("Stroke","Shape"), Value::Brush(std::move(brush)));
 }
 VAML_CORE_EXPORT
 std::shared_ptr<Brush> Shape::stroke() const
 {
-    const Value v = Get(PropertyId::of("Shape.Stroke"));
+    const Value v = Get(PropertyId::of("Stroke","Shape"));
     if (v.type() == ValueType::Brush)
         return v.get<std::shared_ptr<::vaml::Brush>>();
     return default_black_brush();
@@ -4879,12 +4879,12 @@ VAML_CORE_EXPORT
 SetResult Shape::set_stroke_thickness(double value)
 {
     ensure_shape_properties_registered();
-    return Set(PropertyId::of("Shape.StrokeThickness"), Value::Double(value));
+    return Set(PropertyId::of("StrokeThickness","Shape"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double Shape::stroke_thickness() const
 {
-    return Get(PropertyId::of("Shape.StrokeThickness")).get<double>();
+    return Get(PropertyId::of("StrokeThickness","Shape")).get<double>();
 }
 VAML_CORE_EXPORT
 Size Shape::MeasureShape(const Size& available) const
@@ -4944,12 +4944,12 @@ bool Path::parsed() const noexcept
 VAML_CORE_EXPORT
 SetResult Path::set_fill_rule(std::int32_t rule)
 {
-    return Set(PropertyId::of("Path.FillRule"), Value::Int32(rule));
+    return Set(PropertyId::of("FillRule","Path"), Value::Int32(rule));
 }
 VAML_CORE_EXPORT
 std::int32_t Path::fill_rule() const
 {
-    return Get(PropertyId::of("Path.FillRule")).get<int>();
+    return Get(PropertyId::of("FillRule","Path")).get<int>();
 }
 VAML_CORE_EXPORT
 Size Path::MeasureOverride(const Size& available) const
@@ -4998,12 +4998,12 @@ bool Polygon::parsed() const noexcept
 VAML_CORE_EXPORT
 SetResult Polygon::set_fill_rule(std::int32_t rule)
 {
-    return Set(PropertyId::of("Polygon.FillRule"), Value::Int32(rule));
+    return Set(PropertyId::of("FillRule","Polygon"), Value::Int32(rule));
 }
 VAML_CORE_EXPORT
 std::int32_t Polygon::fill_rule() const
 {
-    return Get(PropertyId::of("Polygon.FillRule")).get<int>();
+    return Get(PropertyId::of("FillRule","Polygon")).get<int>();
 }
 VAML_CORE_EXPORT
 Size Polygon::MeasureOverride(const Size& available) const
@@ -5064,32 +5064,32 @@ Track::Track()
 VAML_CORE_EXPORT
 SetResult Track::set_minimum(double value)
 {
-    return Set(PropertyId::of("Track.Minimum"), Value::Double(value));
+    return Set(PropertyId::of("Minimum","Track"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double Track::minimum() const
 {
-    return Get(PropertyId::of("Track.Minimum")).get<double>();
+    return Get(PropertyId::of("Minimum","Track")).get<double>();
 }
 VAML_CORE_EXPORT
 SetResult Track::set_maximum(double value)
 {
-    return Set(PropertyId::of("Track.Maximum"), Value::Double(value));
+    return Set(PropertyId::of("Maximum","Track"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double Track::maximum() const
 {
-    return Get(PropertyId::of("Track.Maximum")).get<double>();
+    return Get(PropertyId::of("Maximum","Track")).get<double>();
 }
 VAML_CORE_EXPORT
 SetResult Track::set_value(double value)
 {
-    return Set(PropertyId::of("Track.Value"), Value::Double(value));
+    return Set(PropertyId::of("Value","Track"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double Track::value() const
 {
-    return Get(PropertyId::of("Track.Value")).get<double>();
+    return Get(PropertyId::of("Value","Track")).get<double>();
 }
 VAML_CORE_EXPORT
 Size Track::MeasureOverride(const Size& available) const
@@ -5108,42 +5108,42 @@ TickBar::TickBar()
 VAML_CORE_EXPORT
 SetResult TickBar::set_minimum(double value)
 {
-    return Set(PropertyId::of("TickBar.Minimum"), Value::Double(value));
+    return Set(PropertyId::of("Minimum","TickBar"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double TickBar::minimum() const
 {
-    return Get(PropertyId::of("TickBar.Minimum")).get<double>();
+    return Get(PropertyId::of("Minimum","TickBar")).get<double>();
 }
 VAML_CORE_EXPORT
 SetResult TickBar::set_maximum(double value)
 {
-    return Set(PropertyId::of("TickBar.Maximum"), Value::Double(value));
+    return Set(PropertyId::of("Maximum","TickBar"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double TickBar::maximum() const
 {
-    return Get(PropertyId::of("TickBar.Maximum")).get<double>();
+    return Get(PropertyId::of("Maximum","TickBar")).get<double>();
 }
 VAML_CORE_EXPORT
 SetResult TickBar::set_frequency(double value)
 {
-    return Set(PropertyId::of("TickBar.Frequency"), Value::Double(value));
+    return Set(PropertyId::of("Frequency","TickBar"), Value::Double(value));
 }
 VAML_CORE_EXPORT
 double TickBar::frequency() const
 {
-    return Get(PropertyId::of("TickBar.Frequency")).get<double>();
+    return Get(PropertyId::of("Frequency","TickBar")).get<double>();
 }
 VAML_CORE_EXPORT
 SetResult TickBar::set_is_direction_reversed(bool value)
 {
-    return Set(PropertyId::of("TickBar.IsDirectionReversed"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsDirectionReversed","TickBar"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool TickBar::is_direction_reversed() const
 {
-    return Get(PropertyId::of("TickBar.IsDirectionReversed")).get<int>() != 0;
+    return Get(PropertyId::of("IsDirectionReversed","TickBar")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 Size TickBar::MeasureOverride(const Size& available) const
@@ -5172,13 +5172,10 @@ void register_image_properties()
         "Source", ValueType::String, "Image",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Image.Source", ValueType::String, "Image",
+        "IconKey", ValueType::String, "Image",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Image.IconKey", ValueType::String, "Image",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Image.Stretch", ValueType::Int32, "Image",
+        "Stretch", ValueType::Int32, "Image",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // Width/Height ride the base UIElement S123 layout DPs (auto/NaN) — the
     // image box is the inherited WPF-style Width/Height the reconciler applies.
@@ -5212,8 +5209,8 @@ SetResult Image::set_source(std::string value)
     // name breaks the other authored form (the pre-S640 `Image.Source=` read
     // broke when S640 flipped the accessor to the bare name). Write BOTH so no
     // matter which form the reader resolved, `source()` reads it back.
-    const SetResult r = Set(PropertyId::of("Source"), Value::String(value));
-    (void)Set(PropertyId::of("Image.Source"), Value::String(std::move(value)));
+    const SetResult r = Set(PropertyId::of("Source", "Image"), Value::String(value));
+    (void)Set(PropertyId::of("Source","Image"), Value::String(std::move(value)));
     return r;
 }
 VAML_CORE_EXPORT
@@ -5222,10 +5219,10 @@ std::string Image::source() const
     // Read the BARE first (the S640 canonical name), then fall back to the
     // DOTTED (the S483/S486 authored form). Both forms resolve the same logical
     // value — the S640 NO-GAP alias.
-    const vaml::Value bare = Get(PropertyId::of("Source"));
+    const vaml::Value bare = Get(PropertyId::of("Source", "Image"));
     if (bare.isNull() || bare.get<std::string>().empty())
     {
-        const vaml::Value dotted = Get(PropertyId::of("Image.Source"));
+        const vaml::Value dotted = Get(PropertyId::of("Source","Image"));
         if (dotted.isNull() || dotted.get<std::string>().empty())
             return std::string{};
         return dotted.get<std::string>();
@@ -5235,22 +5232,22 @@ std::string Image::source() const
 VAML_CORE_EXPORT
 SetResult Image::set_icon_key(std::string value)
 {
-    return Set(PropertyId::of("Image.IconKey"), Value::String(std::move(value)));
+    return Set(PropertyId::of("IconKey","Image"), Value::String(std::move(value)));
 }
 VAML_CORE_EXPORT
 std::string Image::icon_key() const
 {
-    return Get(PropertyId::of("Image.IconKey")).get<std::string>();
+    return Get(PropertyId::of("IconKey","Image")).get<std::string>();
 }
 VAML_CORE_EXPORT
 SetResult Image::set_stretch(std::int32_t value)
 {
-    return Set(PropertyId::of("Image.Stretch"), Value::Int32(value));
+    return Set(PropertyId::of("Stretch","Image"), Value::Int32(value));
 }
 VAML_CORE_EXPORT
 std::int32_t Image::stretch() const
 {
-    return Get(PropertyId::of("Image.Stretch")).get<std::int32_t>();
+    return Get(PropertyId::of("Stretch","Image")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -5275,13 +5272,13 @@ namespace {
 void register_progressbar_properties()
 {
     (void)DependencyProperty::Register(
-        "ProgressBar.Value", ValueType::Double, "ProgressBar",
+        "Value", ValueType::Double, "ProgressBar",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ProgressBar.Minimum", ValueType::Double, "ProgressBar",
+        "Minimum", ValueType::Double, "ProgressBar",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ProgressBar.Maximum", ValueType::Double, "ProgressBar",
+        "Maximum", ValueType::Double, "ProgressBar",
         PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
     (void)RoutedEvent::registered("ValueChanged", RouteEventDirection::Bubble);
 }
@@ -5310,10 +5307,10 @@ SetResult ProgressBar::set_value(double v)
     const double lo = std::min(minimum(), maximum());
     const double hi = std::max(minimum(), maximum());
     const double clamped = std::clamp(v, lo, hi);
-    const double old = Get(PropertyId::of("ProgressBar.Value")).get<double>();
+    const double old = Get(PropertyId::of("Value","ProgressBar")).get<double>();
     if (old == clamped)
         return vaml::SetResult::NO_CHANGE;
-    const SetResult r = Set(PropertyId::of("ProgressBar.Value"), Value::Double(clamped));
+    const SetResult r = Set(PropertyId::of("Value","ProgressBar"), Value::Double(clamped));
     if (r == vaml::SetResult::APPLIED)
         apply_change(clamped);
     return r;
@@ -5322,31 +5319,31 @@ SetResult ProgressBar::set_value(double v)
 VAML_CORE_EXPORT
 double ProgressBar::value() const
 {
-    return Get(PropertyId::of("ProgressBar.Value")).get<double>();
+    return Get(PropertyId::of("Value","ProgressBar")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult ProgressBar::set_minimum(double v)
 {
-    return Set(PropertyId::of("ProgressBar.Minimum"), Value::Double(v));
+    return Set(PropertyId::of("Minimum","ProgressBar"), Value::Double(v));
 }
 
 VAML_CORE_EXPORT
 double ProgressBar::minimum() const
 {
-    return Get(PropertyId::of("ProgressBar.Minimum")).get<double>();
+    return Get(PropertyId::of("Minimum","ProgressBar")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult ProgressBar::set_maximum(double v)
 {
-    return Set(PropertyId::of("ProgressBar.Maximum"), Value::Double(v));
+    return Set(PropertyId::of("Maximum","ProgressBar"), Value::Double(v));
 }
 
 VAML_CORE_EXPORT
 double ProgressBar::maximum() const
 {
-    return Get(PropertyId::of("ProgressBar.Maximum")).get<double>();
+    return Get(PropertyId::of("Maximum","ProgressBar")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -5381,13 +5378,13 @@ namespace {
 void register_passwordbox_properties()
 {
     (void)DependencyProperty::Register(
-        "PasswordBox.Password", ValueType::String, "PasswordBox",
+        "Password", ValueType::String, "PasswordBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "PasswordBox.MaxLength", ValueType::Int32, "PasswordBox",
+        "MaxLength", ValueType::Int32, "PasswordBox",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "PasswordBox.PasswordChar", ValueType::String, "PasswordBox",
+        "PasswordChar", ValueType::String, "PasswordBox",
         PropertyMetadata::WithDefault(Value::String(std::string("*")), PropertyFlags::None));
     (void)RoutedEvent::registered("TextChanged", RouteEventDirection::Bubble);
 }
@@ -5413,37 +5410,37 @@ PasswordBox::PasswordBox()
 VAML_CORE_EXPORT
 SetResult PasswordBox::set_password(std::string value)
 {
-    return Set(PropertyId::of("PasswordBox.Password"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Password","PasswordBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string PasswordBox::password() const
 {
-    return Get(PropertyId::of("PasswordBox.Password")).get<std::string>();
+    return Get(PropertyId::of("Password","PasswordBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult PasswordBox::set_max_length(std::int32_t value)
 {
-    return Set(PropertyId::of("PasswordBox.MaxLength"), Value::Int32(value));
+    return Set(PropertyId::of("MaxLength","PasswordBox"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t PasswordBox::max_length() const
 {
-    return Get(PropertyId::of("PasswordBox.MaxLength")).get<std::int32_t>();
+    return Get(PropertyId::of("MaxLength","PasswordBox")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult PasswordBox::set_password_char(std::string value)
 {
-    return Set(PropertyId::of("PasswordBox.PasswordChar"), Value::String(std::move(value)));
+    return Set(PropertyId::of("PasswordChar","PasswordBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string PasswordBox::password_char() const
 {
-    return Get(PropertyId::of("PasswordBox.PasswordChar")).get<std::string>();
+    return Get(PropertyId::of("PasswordChar","PasswordBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -5515,7 +5512,7 @@ bool PasswordBox::handle_key(vaml::KeyCode key, bool isDown, bool shift)
         return false; // an unhandled key is not an edit
     }
 
-    (void)Set(PropertyId::of("PasswordBox.Password"), Value::String(s));
+    (void)Set(PropertyId::of("Password","PasswordBox"), Value::String(s));
     if (password() != before)
         raise_password_changed();
     return true;
@@ -5540,7 +5537,7 @@ namespace {
 void register_groupbox_properties()
 {
     (void)DependencyProperty::Register(
-        "GroupBox.Header", ValueType::String, "GroupBox",
+        "Header", ValueType::String, "GroupBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     // The S452 property-element grammar resolves `<GroupBox.Content>` against
     // the bare "Content" name; the content child is the S121 visual child list,
@@ -5569,13 +5566,13 @@ GroupBox::GroupBox()
 VAML_CORE_EXPORT
 SetResult GroupBox::set_header(std::string value)
 {
-    return Set(PropertyId::of("GroupBox.Header"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Header","GroupBox"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string GroupBox::header() const
 {
-    return Get(PropertyId::of("GroupBox.Header")).get<std::string>();
+    return Get(PropertyId::of("Header","GroupBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -5641,10 +5638,10 @@ namespace {
 void register_expander_properties()
 {
     (void)DependencyProperty::Register(
-        "Expander.Header", ValueType::String, "Expander",
+        "Header", ValueType::String, "Expander",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Expander.IsExpanded", ValueType::Int32, "Expander",
+        "IsExpanded", ValueType::Int32, "Expander",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -5669,26 +5666,26 @@ Expander::Expander()
 VAML_CORE_EXPORT
 SetResult Expander::set_header(std::string value)
 {
-    return Set(PropertyId::of("Expander.Header"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Header","Expander"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string Expander::header() const
 {
-    return Get(PropertyId::of("Expander.Header")).get<std::string>();
+    return Get(PropertyId::of("Header","Expander")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult Expander::set_is_expanded(std::int32_t value)
 {
     const int v = value ? 1 : 0;
-    return Set(PropertyId::of("Expander.IsExpanded"), Value::Int32(v));
+    return Set(PropertyId::of("IsExpanded","Expander"), Value::Int32(v));
 }
 
 VAML_CORE_EXPORT
 bool Expander::is_expanded() const
 {
-    return Get(PropertyId::of("Expander.IsExpanded")).get<int>() != 0;
+    return Get(PropertyId::of("IsExpanded","Expander")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -5753,7 +5750,7 @@ namespace {
 void register_separator_properties()
 {
     (void)DependencyProperty::Register(
-        "Separator.Thickness", ValueType::Double, "Separator",
+        "Thickness", ValueType::Double, "Separator",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
 }
 
@@ -5778,13 +5775,13 @@ Separator::Separator()
 VAML_CORE_EXPORT
 SetResult Separator::set_thickness(double value)
 {
-    return Set(PropertyId::of("Separator.Thickness"), Value::Double(value));
+    return Set(PropertyId::of("Thickness","Separator"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Separator::thickness() const
 {
-    return Get(PropertyId::of("Separator.Thickness")).get<double>();
+    return Get(PropertyId::of("Thickness","Separator")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -5806,7 +5803,7 @@ void register_statusbar_properties()
     // The attached StatusBar.Dock edge (Left=0 / Right=1), stored on the child
     // via the S043 attached-aware path (mirrors DockPanel.Dock).
     (void)DependencyProperty::Register(
-        "StatusBar.Dock", ValueType::Int32, "StatusBar",
+        "Dock", ValueType::Int32, "StatusBar",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -5831,13 +5828,13 @@ StatusBar::StatusBar()
 VAML_CORE_EXPORT
 SetResult StatusBar::set_dock(DependencyObject& obj, std::int32_t value)
 {
-    return obj.Set(PropertyId::of("StatusBar.Dock"), Value::Int32(value));
+    return obj.Set(PropertyId::of("Dock","StatusBar"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t StatusBar::dock(const DependencyObject& obj)
 {
-    return obj.Get(PropertyId::of("StatusBar.Dock")).get<std::int32_t>();
+    return obj.Get(PropertyId::of("Dock","StatusBar")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -5959,10 +5956,10 @@ SetResult ScrollBar::set_value(double v)
     const double lo = std::min(minimum(), maximum());
     const double hi = std::max(minimum(), maximum());
     const double clamped = std::clamp(v, lo, hi);
-    const double old = Get(PropertyId::of("Value")).get<double>();
+    const double old = Get(PropertyId::of("Value", "ScrollBar")).get<double>();
     if (old == clamped)
         return vaml::SetResult::NO_CHANGE;
-    const SetResult r = Set(PropertyId::of("Value"), Value::Double(clamped));
+    const SetResult r = Set(PropertyId::of("Value", "ScrollBar"), Value::Double(clamped));
     if (r == vaml::SetResult::APPLIED)
         apply_change(clamped);
     return r;
@@ -5971,31 +5968,31 @@ SetResult ScrollBar::set_value(double v)
 VAML_CORE_EXPORT
 double ScrollBar::value() const
 {
-    return Get(PropertyId::of("Value")).get<double>();
+    return Get(PropertyId::of("Value", "ScrollBar")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult ScrollBar::set_minimum(double v)
 {
-    return Set(PropertyId::of("Minimum"), Value::Double(v));
+    return Set(PropertyId::of("Minimum", "ScrollBar"), Value::Double(v));
 }
 
 VAML_CORE_EXPORT
 double ScrollBar::minimum() const
 {
-    return Get(PropertyId::of("Minimum")).get<double>();
+    return Get(PropertyId::of("Minimum", "ScrollBar")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult ScrollBar::set_maximum(double v)
 {
-    return Set(PropertyId::of("Maximum"), Value::Double(v));
+    return Set(PropertyId::of("Maximum", "ScrollBar"), Value::Double(v));
 }
 
 VAML_CORE_EXPORT
 double ScrollBar::maximum() const
 {
-    return Get(PropertyId::of("Maximum")).get<double>();
+    return Get(PropertyId::of("Maximum", "ScrollBar")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -6003,26 +6000,26 @@ SetResult ScrollBar::set_orientation(Orientation o)
 {
     // Reuses the SHARED GLOBAL bare "Orientation" property (StackPanel-owner;
     // see register_scrollbar_properties — no ScrollBar.Orientation registration).
-    return Set(PropertyId::of("Orientation"),
+    return Set(PropertyId::of("Orientation", "StackPanel"),
                Value::Int32(static_cast<std::int32_t>(o)));
 }
 
 VAML_CORE_EXPORT
 Orientation ScrollBar::orientation() const
 {
-    return static_cast<Orientation>(Get(PropertyId::of("Orientation")).get<std::int32_t>());
+    return static_cast<Orientation>(Get(PropertyId::of("Orientation", "StackPanel")).get<std::int32_t>());
 }
 
 VAML_CORE_EXPORT
 SetResult ScrollBar::set_viewport_size(double v)
 {
-    return Set(PropertyId::of("ViewportSize"), Value::Double(v));
+    return Set(PropertyId::of("ViewportSize", "ScrollBar"), Value::Double(v));
 }
 
 VAML_CORE_EXPORT
 double ScrollBar::viewport_size() const
 {
-    return Get(PropertyId::of("ViewportSize")).get<double>();
+    return Get(PropertyId::of("ViewportSize", "ScrollBar")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -6096,13 +6093,13 @@ void register_repeatbutton_properties()
     // Same Command (UntypedPtr -> ICommand*) / CommandParameter (String)/
     // CommandTarget (UntypedPtr) shape as Button, owner "RepeatButton".
     (void)DependencyProperty::Register(
-        "RepeatButton.Command", ValueType::UntypedPtr, "RepeatButton",
+        "Command", ValueType::UntypedPtr, "RepeatButton",
         PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "RepeatButton.CommandParameter", ValueType::String, "RepeatButton",
+        "CommandParameter", ValueType::String, "RepeatButton",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "RepeatButton.CommandTarget", ValueType::UntypedPtr, "RepeatButton",
+        "CommandTarget", ValueType::UntypedPtr, "RepeatButton",
         PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
 }
 
@@ -6158,20 +6155,20 @@ vaml::Value RepeatButton::source_command_parameter() const
 VAML_CORE_EXPORT
 DependencyObject* RepeatButton::source_command_target() const noexcept
 {
-    const Value v = Get(PropertyId::of("RepeatButton.CommandTarget"));
+    const Value v = Get(PropertyId::of("CommandTarget","RepeatButton"));
     return v.isNull() ? nullptr : static_cast<DependencyObject*>(v.get<void*>());
 }
 
 VAML_CORE_EXPORT
 SetResult RepeatButton::set_command(vaml::ICommand* cmd)
 {
-    return Set(PropertyId::of("RepeatButton.Command"), Value::UntypedPtr(cmd));
+    return Set(PropertyId::of("Command","RepeatButton"), Value::UntypedPtr(cmd));
 }
 
 VAML_CORE_EXPORT
 vaml::ICommand* RepeatButton::command() const noexcept
 {
-    const Value v = Get(PropertyId::of("RepeatButton.Command"));
+    const Value v = Get(PropertyId::of("Command","RepeatButton"));
     return v.isNull() ? nullptr : static_cast<vaml::ICommand*>(v.get<void*>());
 }
 
@@ -6179,51 +6176,51 @@ VAML_CORE_EXPORT
 SetResult RepeatButton::set_command_parameter(vaml::Value value)
 {
     if (value.type() == vaml::ValueType::String)
-        return Set(PropertyId::of("RepeatButton.CommandParameter"), value);
-    return Set(PropertyId::of("RepeatButton.CommandParameter"),
+        return Set(PropertyId::of("CommandParameter","RepeatButton"), value);
+    return Set(PropertyId::of("CommandParameter","RepeatButton"),
                vaml::Value::String(std::string{}));
 }
 
 VAML_CORE_EXPORT
 vaml::Value RepeatButton::command_parameter() const
 {
-    return Get(PropertyId::of("RepeatButton.CommandParameter"));
+    return Get(PropertyId::of("CommandParameter","RepeatButton"));
 }
 
 VAML_CORE_EXPORT
 SetResult RepeatButton::set_delay(std::int32_t v)
 {
-    return Set(PropertyId::of("Delay"), Value::Int32(v));
+    return Set(PropertyId::of("Delay", "RepeatButton"), Value::Int32(v));
 }
 
 VAML_CORE_EXPORT
 std::int32_t RepeatButton::delay() const
 {
-    return Get(PropertyId::of("Delay")).get<std::int32_t>();
+    return Get(PropertyId::of("Delay", "RepeatButton")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult RepeatButton::set_interval(std::int32_t v)
 {
-    return Set(PropertyId::of("Interval"), Value::Int32(v));
+    return Set(PropertyId::of("Interval", "RepeatButton"), Value::Int32(v));
 }
 
 VAML_CORE_EXPORT
 std::int32_t RepeatButton::interval() const
 {
-    return Get(PropertyId::of("Interval")).get<std::int32_t>();
+    return Get(PropertyId::of("Interval", "RepeatButton")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult RepeatButton::set_is_pressed(bool value)
 {
-    return Set(PropertyId::of("IsPressed"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsPressed", "RepeatButton"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool RepeatButton::is_pressed() const
 {
-    return Get(PropertyId::of("IsPressed")).get<int>() != 0;
+    return Get(PropertyId::of("IsPressed", "RepeatButton")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -6277,25 +6274,25 @@ Viewbox::Viewbox()
 VAML_CORE_EXPORT
 SetResult Viewbox::set_stretch(std::int32_t value)
 {
-    return Set(PropertyId::of("Stretch"), Value::Int32(value));
+    return Set(PropertyId::of("Stretch", "Viewbox"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Viewbox::stretch() const
 {
-    return Get(PropertyId::of("Stretch")).get<std::int32_t>();
+    return Get(PropertyId::of("Stretch", "Viewbox")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult Viewbox::set_stretch_direction(std::int32_t value)
 {
-    return Set(PropertyId::of("StretchDirection"), Value::Int32(value));
+    return Set(PropertyId::of("StretchDirection", "Viewbox"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Viewbox::stretch_direction() const
 {
-    return Get(PropertyId::of("StretchDirection")).get<std::int32_t>();
+    return Get(PropertyId::of("StretchDirection", "Viewbox")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -6415,62 +6412,62 @@ SetResult ToolBar::set_orientation(Orientation o)
 {
     // Reuses the SHARED GLOBAL bare "Orientation" property (StackPanel-owner;
     // see register_toolbar_properties — no ToolBar.Orientation registration).
-    return Set(PropertyId::of("Orientation"),
+    return Set(PropertyId::of("Orientation", "StackPanel"),
                Value::Int32(static_cast<std::int32_t>(o)));
 }
 
 VAML_CORE_EXPORT
 Orientation ToolBar::orientation() const
 {
-    return static_cast<Orientation>(Get(PropertyId::of("Orientation")).get<std::int32_t>());
+    return static_cast<Orientation>(Get(PropertyId::of("Orientation", "StackPanel")).get<std::int32_t>());
 }
 
 VAML_CORE_EXPORT
 SetResult ToolBar::set_band(std::int32_t v)
 {
-    return Set(PropertyId::of("Band"), Value::Int32(v));
+    return Set(PropertyId::of("Band", "ToolBar"), Value::Int32(v));
 }
 
 VAML_CORE_EXPORT
 std::int32_t ToolBar::band() const
 {
-    return Get(PropertyId::of("Band")).get<std::int32_t>();
+    return Get(PropertyId::of("Band", "ToolBar")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult ToolBar::set_band_index(std::int32_t v)
 {
-    return Set(PropertyId::of("BandIndex"), Value::Int32(v));
+    return Set(PropertyId::of("BandIndex", "ToolBar"), Value::Int32(v));
 }
 
 VAML_CORE_EXPORT
 std::int32_t ToolBar::band_index() const
 {
-    return Get(PropertyId::of("BandIndex")).get<std::int32_t>();
+    return Get(PropertyId::of("BandIndex", "ToolBar")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
 SetResult ToolBar::set_is_overflow_open(bool value)
 {
-    return Set(PropertyId::of("IsOverflowOpen"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsOverflowOpen", "ToolBar"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool ToolBar::is_overflow_open() const
 {
-    return Get(PropertyId::of("IsOverflowOpen")).get<int>() != 0;
+    return Get(PropertyId::of("IsOverflowOpen", "ToolBar")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult ToolBar::set_has_overflow_items(bool value)
 {
-    return Set(PropertyId::of("HasOverflowItems"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("HasOverflowItems", "ToolBar"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool ToolBar::has_overflow_items() const
 {
-    return Get(PropertyId::of("HasOverflowItems")).get<int>() != 0;
+    return Get(PropertyId::of("HasOverflowItems", "ToolBar")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -6586,26 +6583,26 @@ VAML_CORE_EXPORT
 SetResult ToolBarTray::set_orientation(Orientation o)
 {
     // Reuses the SHARED GLOBAL bare "Orientation" property (StackPanel-owner).
-    return Set(PropertyId::of("Orientation"),
+    return Set(PropertyId::of("Orientation", "StackPanel"),
                Value::Int32(static_cast<std::int32_t>(o)));
 }
 
 VAML_CORE_EXPORT
 Orientation ToolBarTray::orientation() const
 {
-    return static_cast<Orientation>(Get(PropertyId::of("Orientation")).get<std::int32_t>());
+    return static_cast<Orientation>(Get(PropertyId::of("Orientation", "StackPanel")).get<std::int32_t>());
 }
 
 VAML_CORE_EXPORT
 SetResult ToolBarTray::set_is_locked(bool value)
 {
-    return Set(PropertyId::of("IsLocked"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsLocked", "ToolBarTray"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool ToolBarTray::is_locked() const
 {
-    return Get(PropertyId::of("IsLocked")).get<int>() != 0;
+    return Get(PropertyId::of("IsLocked", "ToolBarTray")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -6687,13 +6684,13 @@ namespace {
 void register_tabitem_properties()
 {
     (void)DependencyProperty::Register(
-        "TabItem.Header", ValueType::String, "TabItem",
+        "Header", ValueType::String, "TabItem",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TabItem.IsSelected", ValueType::Int32, "TabItem",
+        "IsSelected", ValueType::Int32, "TabItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TabItem.TabStripPlacement", ValueType::Int32, "TabItem",
+        "TabStripPlacement", ValueType::Int32, "TabItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -6718,37 +6715,37 @@ TabItem::TabItem()
 VAML_CORE_EXPORT
 SetResult TabItem::set_header(std::string value)
 {
-    return Set(PropertyId::of("TabItem.Header"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Header","TabItem"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string TabItem::header() const
 {
-    return Get(PropertyId::of("TabItem.Header")).get<std::string>();
+    return Get(PropertyId::of("Header","TabItem")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult TabItem::set_is_selected(bool value)
 {
-    return Set(PropertyId::of("TabItem.IsSelected"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsSelected","TabItem"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool TabItem::is_selected() const
 {
-    return Get(PropertyId::of("TabItem.IsSelected")).get<int>() != 0;
+    return Get(PropertyId::of("IsSelected","TabItem")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult TabItem::set_tab_strip_placement(std::int32_t value)
 {
-    return Set(PropertyId::of("TabItem.TabStripPlacement"), Value::Int32(value));
+    return Set(PropertyId::of("TabStripPlacement","TabItem"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t TabItem::tab_strip_placement() const
 {
-    return Get(PropertyId::of("TabItem.TabStripPlacement")).get<int>();
+    return Get(PropertyId::of("TabStripPlacement","TabItem")).get<int>();
 }
 
 VAML_CORE_EXPORT
@@ -6808,13 +6805,13 @@ namespace {
 void register_tabcontrol_properties()
 {
     (void)DependencyProperty::Register(
-        "TabControl.SelectedIndex", ValueType::Int32, "TabControl",
+        "SelectedIndex", ValueType::Int32, "TabControl",
         PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TabControl.SelectedItem", ValueType::String, "TabControl",
+        "SelectedItem", ValueType::String, "TabControl",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "TabControl.TabStripPlacement", ValueType::Int32, "TabControl",
+        "TabStripPlacement", ValueType::Int32, "TabControl",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble);
 }
@@ -6840,16 +6837,16 @@ TabControl::TabControl()
 VAML_CORE_EXPORT
 SetResult TabControl::set_selected_index(std::int32_t index)
 {
-    const std::int32_t old = Get(PropertyId::of("TabControl.SelectedIndex")).get<int>();
+    const std::int32_t old = Get(PropertyId::of("SelectedIndex","TabControl")).get<int>();
     const std::int32_t clamped = std::max<std::int32_t>(-1, index);
-    const SetResult r = Set(PropertyId::of("TabControl.SelectedIndex"), Value::Int32(clamped));
+    const SetResult r = Set(PropertyId::of("SelectedIndex","TabControl"), Value::Int32(clamped));
     // Keep SelectedItem in sync (the selected TabItem's Header).
     std::string item;
     if (clamped >= 0 && static_cast<std::size_t>(clamped) < tab_count())
     {
         item = tab_at(static_cast<std::size_t>(clamped))->header();
     }
-    (void)Set(PropertyId::of("TabControl.SelectedItem"), Value::String(item));
+    (void)Set(PropertyId::of("SelectedItem","TabControl"), Value::String(item));
     // Mark each TabItem's IsSelected to reflect the selection.
     for (std::size_t i = 0; i < tab_count(); ++i)
     {
@@ -6868,25 +6865,25 @@ SetResult TabControl::set_selected_index(std::int32_t index)
 VAML_CORE_EXPORT
 std::int32_t TabControl::selected_index() const
 {
-    return Get(PropertyId::of("TabControl.SelectedIndex")).get<int>();
+    return Get(PropertyId::of("SelectedIndex","TabControl")).get<int>();
 }
 
 VAML_CORE_EXPORT
 std::string TabControl::selected_item() const
 {
-    return Get(PropertyId::of("TabControl.SelectedItem")).get<std::string>();
+    return Get(PropertyId::of("SelectedItem","TabControl")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult TabControl::set_tab_strip_placement(std::int32_t value)
 {
-    return Set(PropertyId::of("TabControl.TabStripPlacement"), Value::Int32(value));
+    return Set(PropertyId::of("TabStripPlacement","TabControl"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t TabControl::tab_strip_placement() const
 {
-    return Get(PropertyId::of("TabControl.TabStripPlacement")).get<int>();
+    return Get(PropertyId::of("TabStripPlacement","TabControl")).get<int>();
 }
 
 VAML_CORE_EXPORT
@@ -6982,35 +6979,35 @@ namespace {
 void register_menuitem_properties()
 {
     (void)DependencyProperty::Register(
-        "MenuItem.Header", ValueType::String, "MenuItem",
+        "Header", ValueType::String, "MenuItem",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.Command", ValueType::String, "MenuItem",
+        "Command", ValueType::String, "MenuItem",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.CommandParameter", ValueType::String, "MenuItem",
+        "CommandParameter", ValueType::String, "MenuItem",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     // --- ICommandSource (11n-2): the REAL command object DP (DECISION-1). ---
     (void)DependencyProperty::Register(
-        "MenuItem.CommandObject", ValueType::UntypedPtr, "MenuItem",
+        "CommandObject", ValueType::UntypedPtr, "MenuItem",
         PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.CommandParameterObject", ValueType::String, "MenuItem",
+        "CommandParameterObject", ValueType::String, "MenuItem",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.CommandTarget", ValueType::UntypedPtr, "MenuItem",
+        "CommandTarget", ValueType::UntypedPtr, "MenuItem",
         PropertyMetadata::WithDefault(Value::UntypedPtr(nullptr), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.IsCheckable", ValueType::Int32, "MenuItem",
+        "IsCheckable", ValueType::Int32, "MenuItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.IsChecked", ValueType::Int32, "MenuItem",
+        "IsChecked", ValueType::Int32, "MenuItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.IsSubmenuOpen", ValueType::Int32, "MenuItem",
+        "IsSubmenuOpen", ValueType::Int32, "MenuItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "MenuItem.Role", ValueType::Int32, "MenuItem",
+        "Role", ValueType::Int32, "MenuItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)RoutedEvent::registered("Click", RouteEventDirection::Bubble);
 }
@@ -7037,37 +7034,37 @@ MenuItem::MenuItem()
 VAML_CORE_EXPORT
 SetResult MenuItem::set_header(std::string value)
 {
-    return Set(PropertyId::of("MenuItem.Header"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Header","MenuItem"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string MenuItem::header() const
 {
-    return Get(PropertyId::of("MenuItem.Header")).get<std::string>();
+    return Get(PropertyId::of("Header","MenuItem")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult MenuItem::set_command(std::string value)
 {
-    return Set(PropertyId::of("MenuItem.Command"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Command","MenuItem"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string MenuItem::command() const
 {
-    return Get(PropertyId::of("MenuItem.Command")).get<std::string>();
+    return Get(PropertyId::of("Command","MenuItem")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult MenuItem::set_command_parameter(std::string value)
 {
-    return Set(PropertyId::of("MenuItem.CommandParameter"), Value::String(std::move(value)));
+    return Set(PropertyId::of("CommandParameter","MenuItem"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string MenuItem::command_parameter() const
 {
-    return Get(PropertyId::of("MenuItem.CommandParameter")).get<std::string>();
+    return Get(PropertyId::of("CommandParameter","MenuItem")).get<std::string>();
 }
 
 // --- MenuItem : ICommandSource (11n-2) -------------------------------------
@@ -7077,26 +7074,26 @@ vaml::ICommand* MenuItem::source_command() const noexcept { return command_objec
 VAML_CORE_EXPORT
 vaml::Value MenuItem::source_command_parameter() const
 {
-    return Get(PropertyId::of("MenuItem.CommandParameterObject"));
+    return Get(PropertyId::of("CommandParameterObject","MenuItem"));
 }
 
 VAML_CORE_EXPORT
 DependencyObject* MenuItem::source_command_target() const noexcept
 {
-    const Value v = Get(PropertyId::of("MenuItem.CommandTarget"));
+    const Value v = Get(PropertyId::of("CommandTarget","MenuItem"));
     return v.isNull() ? nullptr : static_cast<DependencyObject*>(v.get<void*>());
 }
 
 VAML_CORE_EXPORT
 SetResult MenuItem::set_command_object(vaml::ICommand* cmd)
 {
-    return Set(PropertyId::of("MenuItem.CommandObject"), Value::UntypedPtr(cmd));
+    return Set(PropertyId::of("CommandObject","MenuItem"), Value::UntypedPtr(cmd));
 }
 
 VAML_CORE_EXPORT
 vaml::ICommand* MenuItem::command_object() const noexcept
 {
-    const Value v = Get(PropertyId::of("MenuItem.CommandObject"));
+    const Value v = Get(PropertyId::of("CommandObject","MenuItem"));
     return v.isNull() ? nullptr : static_cast<vaml::ICommand*>(v.get<void*>());
 }
 
@@ -7104,57 +7101,57 @@ VAML_CORE_EXPORT
 SetResult MenuItem::set_command_parameter_object(vaml::Value value)
 {
     if (value.type() == vaml::ValueType::String)
-        return Set(PropertyId::of("MenuItem.CommandParameterObject"), value);
-    return Set(PropertyId::of("MenuItem.CommandParameterObject"),
+        return Set(PropertyId::of("CommandParameterObject","MenuItem"), value);
+    return Set(PropertyId::of("CommandParameterObject","MenuItem"),
                vaml::Value::String(std::string{}));
 }
 
 VAML_CORE_EXPORT
 SetResult MenuItem::set_is_checkable(bool value)
 {
-    return Set(PropertyId::of("MenuItem.IsCheckable"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsCheckable","MenuItem"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool MenuItem::is_checkable() const
 {
-    return Get(PropertyId::of("MenuItem.IsCheckable")).get<int>() != 0;
+    return Get(PropertyId::of("IsCheckable","MenuItem")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult MenuItem::set_is_checked(bool value)
 {
-    return Set(PropertyId::of("MenuItem.IsChecked"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsChecked","MenuItem"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool MenuItem::is_checked() const
 {
-    return Get(PropertyId::of("MenuItem.IsChecked")).get<int>() != 0;
+    return Get(PropertyId::of("IsChecked","MenuItem")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult MenuItem::set_is_submenu_open(bool value)
 {
-    return Set(PropertyId::of("MenuItem.IsSubmenuOpen"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsSubmenuOpen","MenuItem"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool MenuItem::is_submenu_open() const
 {
-    return Get(PropertyId::of("MenuItem.IsSubmenuOpen")).get<int>() != 0;
+    return Get(PropertyId::of("IsSubmenuOpen","MenuItem")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult MenuItem::set_role(std::int32_t value)
 {
-    return Set(PropertyId::of("MenuItem.Role"), Value::Int32(value));
+    return Set(PropertyId::of("Role","MenuItem"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t MenuItem::role() const
 {
-    return Get(PropertyId::of("MenuItem.Role")).get<int>();
+    return Get(PropertyId::of("Role","MenuItem")).get<int>();
 }
 
 VAML_CORE_EXPORT
@@ -7233,7 +7230,7 @@ namespace {
 void register_menu_properties()
 {
     (void)DependencyProperty::Register(
-        "Menu.IsMainMenu", ValueType::Int32, "Menu",
+        "IsMainMenu", ValueType::Int32, "Menu",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
@@ -7258,13 +7255,13 @@ Menu::Menu()
 VAML_CORE_EXPORT
 SetResult Menu::set_is_main_menu(bool value)
 {
-    return Set(PropertyId::of("Menu.IsMainMenu"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsMainMenu","Menu"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool Menu::is_main_menu() const
 {
-    return Get(PropertyId::of("Menu.IsMainMenu")).get<int>() != 0;
+    return Get(PropertyId::of("IsMainMenu","Menu")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -7318,16 +7315,16 @@ namespace {
 void register_contextmenu_properties()
 {
     (void)DependencyProperty::Register(
-        "ContextMenu.IsOpen", ValueType::Int32, "ContextMenu",
+        "IsOpen", ValueType::Int32, "ContextMenu",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ContextMenu.Placement", ValueType::Int32, "ContextMenu",
+        "Placement", ValueType::Int32, "ContextMenu",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ContextMenu.HorizontalOffset", ValueType::Double, "ContextMenu",
+        "HorizontalOffset", ValueType::Double, "ContextMenu",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ContextMenu.VerticalOffset", ValueType::Double, "ContextMenu",
+        "VerticalOffset", ValueType::Double, "ContextMenu",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
     (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
@@ -7354,8 +7351,8 @@ ContextMenu::ContextMenu()
 VAML_CORE_EXPORT
 SetResult ContextMenu::set_is_open(bool value)
 {
-    const bool old = Get(PropertyId::of("ContextMenu.IsOpen")).get<int>() != 0;
-    const SetResult r = Set(PropertyId::of("ContextMenu.IsOpen"), Value::Int32(value ? 1 : 0));
+    const bool old = Get(PropertyId::of("IsOpen","ContextMenu")).get<int>() != 0;
+    const SetResult r = Set(PropertyId::of("IsOpen","ContextMenu"), Value::Int32(value ? 1 : 0));
     if (r == vaml::SetResult::APPLIED && old != value)
     {
         apply_open(value);
@@ -7366,19 +7363,19 @@ SetResult ContextMenu::set_is_open(bool value)
 VAML_CORE_EXPORT
 bool ContextMenu::is_open() const
 {
-    return Get(PropertyId::of("ContextMenu.IsOpen")).get<int>() != 0;
+    return Get(PropertyId::of("IsOpen","ContextMenu")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult ContextMenu::set_placement(std::int32_t value)
 {
-    return Set(PropertyId::of("ContextMenu.Placement"), Value::Int32(value));
+    return Set(PropertyId::of("Placement","ContextMenu"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t ContextMenu::placement() const
 {
-    return Get(PropertyId::of("ContextMenu.Placement")).get<int>();
+    return Get(PropertyId::of("Placement","ContextMenu")).get<int>();
 }
 
 VAML_CORE_EXPORT
@@ -7396,25 +7393,25 @@ UIElement* ContextMenu::placement_target() const noexcept
 VAML_CORE_EXPORT
 SetResult ContextMenu::set_horizontal_offset(double value)
 {
-    return Set(PropertyId::of("ContextMenu.HorizontalOffset"), Value::Double(value));
+    return Set(PropertyId::of("HorizontalOffset","ContextMenu"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double ContextMenu::horizontal_offset() const
 {
-    return Get(PropertyId::of("ContextMenu.HorizontalOffset")).get<double>();
+    return Get(PropertyId::of("HorizontalOffset","ContextMenu")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult ContextMenu::set_vertical_offset(double value)
 {
-    return Set(PropertyId::of("ContextMenu.VerticalOffset"), Value::Double(value));
+    return Set(PropertyId::of("VerticalOffset","ContextMenu"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double ContextMenu::vertical_offset() const
 {
-    return Get(PropertyId::of("ContextMenu.VerticalOffset")).get<double>();
+    return Get(PropertyId::of("VerticalOffset","ContextMenu")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -7482,16 +7479,16 @@ namespace {
 void register_tooltip_properties()
 {
     (void)DependencyProperty::Register(
-        "ToolTip.IsOpen", ValueType::Int32, "ToolTip",
+        "IsOpen", ValueType::Int32, "ToolTip",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ToolTip.Placement", ValueType::Int32, "ToolTip",
+        "Placement", ValueType::Int32, "ToolTip",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ToolTip.HorizontalOffset", ValueType::Double, "ToolTip",
+        "HorizontalOffset", ValueType::Double, "ToolTip",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ToolTip.VerticalOffset", ValueType::Double, "ToolTip",
+        "VerticalOffset", ValueType::Double, "ToolTip",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
     (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
@@ -7518,49 +7515,49 @@ ToolTip::ToolTip()
 VAML_CORE_EXPORT
 SetResult ToolTip::set_is_open(bool value)
 {
-    return Set(PropertyId::of("ToolTip.IsOpen"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsOpen","ToolTip"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool ToolTip::is_open() const
 {
-    return Get(PropertyId::of("ToolTip.IsOpen")).get<int>() != 0;
+    return Get(PropertyId::of("IsOpen","ToolTip")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult ToolTip::set_placement(std::int32_t value)
 {
-    return Set(PropertyId::of("ToolTip.Placement"), Value::Int32(value));
+    return Set(PropertyId::of("Placement","ToolTip"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t ToolTip::placement() const
 {
-    return Get(PropertyId::of("ToolTip.Placement")).get<int>();
+    return Get(PropertyId::of("Placement","ToolTip")).get<int>();
 }
 
 VAML_CORE_EXPORT
 SetResult ToolTip::set_horizontal_offset(double value)
 {
-    return Set(PropertyId::of("ToolTip.HorizontalOffset"), Value::Double(value));
+    return Set(PropertyId::of("HorizontalOffset","ToolTip"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double ToolTip::horizontal_offset() const
 {
-    return Get(PropertyId::of("ToolTip.HorizontalOffset")).get<double>();
+    return Get(PropertyId::of("HorizontalOffset","ToolTip")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult ToolTip::set_vertical_offset(double value)
 {
-    return Set(PropertyId::of("ToolTip.VerticalOffset"), Value::Double(value));
+    return Set(PropertyId::of("VerticalOffset","ToolTip"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double ToolTip::vertical_offset() const
 {
-    return Get(PropertyId::of("ToolTip.VerticalOffset")).get<double>();
+    return Get(PropertyId::of("VerticalOffset","ToolTip")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -7642,19 +7639,19 @@ namespace {
 void register_popup_properties()
 {
     (void)DependencyProperty::Register(
-        "Popup.IsOpen", ValueType::Int32, "Popup",
+        "IsOpen", ValueType::Int32, "Popup",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Popup.Placement", ValueType::Int32, "Popup",
+        "Placement", ValueType::Int32, "Popup",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Popup.HorizontalOffset", ValueType::Double, "Popup",
+        "HorizontalOffset", ValueType::Double, "Popup",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Popup.VerticalOffset", ValueType::Double, "Popup",
+        "VerticalOffset", ValueType::Double, "Popup",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "Popup.StaysOpen", ValueType::Int32, "Popup",
+        "StaysOpen", ValueType::Int32, "Popup",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
     (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
     (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
@@ -7681,61 +7678,61 @@ Popup::Popup()
 VAML_CORE_EXPORT
 SetResult Popup::set_is_open(bool value)
 {
-    return Set(PropertyId::of("Popup.IsOpen"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsOpen","Popup"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool Popup::is_open() const
 {
-    return Get(PropertyId::of("Popup.IsOpen")).get<int>() != 0;
+    return Get(PropertyId::of("IsOpen","Popup")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult Popup::set_placement(std::int32_t value)
 {
-    return Set(PropertyId::of("Popup.Placement"), Value::Int32(value));
+    return Set(PropertyId::of("Placement","Popup"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t Popup::placement() const
 {
-    return Get(PropertyId::of("Popup.Placement")).get<int>();
+    return Get(PropertyId::of("Placement","Popup")).get<int>();
 }
 
 VAML_CORE_EXPORT
 SetResult Popup::set_horizontal_offset(double value)
 {
-    return Set(PropertyId::of("Popup.HorizontalOffset"), Value::Double(value));
+    return Set(PropertyId::of("HorizontalOffset","Popup"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Popup::horizontal_offset() const
 {
-    return Get(PropertyId::of("Popup.HorizontalOffset")).get<double>();
+    return Get(PropertyId::of("HorizontalOffset","Popup")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Popup::set_vertical_offset(double value)
 {
-    return Set(PropertyId::of("Popup.VerticalOffset"), Value::Double(value));
+    return Set(PropertyId::of("VerticalOffset","Popup"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double Popup::vertical_offset() const
 {
-    return Get(PropertyId::of("Popup.VerticalOffset")).get<double>();
+    return Get(PropertyId::of("VerticalOffset","Popup")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult Popup::set_stays_open(bool value)
 {
-    return Set(PropertyId::of("Popup.StaysOpen"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("StaysOpen","Popup"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool Popup::stays_open() const
 {
-    return Get(PropertyId::of("Popup.StaysOpen")).get<int>() != 0;
+    return Get(PropertyId::of("StaysOpen","Popup")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -7814,16 +7811,16 @@ namespace {
 void register_gridsplitter_properties()
 {
     (void)DependencyProperty::Register(
-        "GridSplitter.ResizeDirection", ValueType::Int32, "GridSplitter",
+        "ResizeDirection", ValueType::Int32, "GridSplitter",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "GridSplitter.ResizeBehavior", ValueType::Int32, "GridSplitter",
+        "ResizeBehavior", ValueType::Int32, "GridSplitter",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "GridSplitter.DragIncrement", ValueType::Double, "GridSplitter",
+        "DragIncrement", ValueType::Double, "GridSplitter",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "GridSplitter.KeyboardIncrement", ValueType::Double, "GridSplitter",
+        "KeyboardIncrement", ValueType::Double, "GridSplitter",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
 }
 
@@ -7848,49 +7845,49 @@ GridSplitter::GridSplitter()
 VAML_CORE_EXPORT
 SetResult GridSplitter::set_resize_direction(std::int32_t value)
 {
-    return Set(PropertyId::of("GridSplitter.ResizeDirection"), Value::Int32(value));
+    return Set(PropertyId::of("ResizeDirection","GridSplitter"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t GridSplitter::resize_direction() const
 {
-    return Get(PropertyId::of("GridSplitter.ResizeDirection")).get<int>();
+    return Get(PropertyId::of("ResizeDirection","GridSplitter")).get<int>();
 }
 
 VAML_CORE_EXPORT
 SetResult GridSplitter::set_resize_behavior(std::int32_t value)
 {
-    return Set(PropertyId::of("GridSplitter.ResizeBehavior"), Value::Int32(value));
+    return Set(PropertyId::of("ResizeBehavior","GridSplitter"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t GridSplitter::resize_behavior() const
 {
-    return Get(PropertyId::of("GridSplitter.ResizeBehavior")).get<int>();
+    return Get(PropertyId::of("ResizeBehavior","GridSplitter")).get<int>();
 }
 
 VAML_CORE_EXPORT
 SetResult GridSplitter::set_drag_increment(double value)
 {
-    return Set(PropertyId::of("GridSplitter.DragIncrement"), Value::Double(value));
+    return Set(PropertyId::of("DragIncrement","GridSplitter"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double GridSplitter::drag_increment() const
 {
-    return Get(PropertyId::of("GridSplitter.DragIncrement")).get<double>();
+    return Get(PropertyId::of("DragIncrement","GridSplitter")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult GridSplitter::set_keyboard_increment(double value)
 {
-    return Set(PropertyId::of("GridSplitter.KeyboardIncrement"), Value::Double(value));
+    return Set(PropertyId::of("KeyboardIncrement","GridSplitter"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double GridSplitter::keyboard_increment() const
 {
-    return Get(PropertyId::of("GridSplitter.KeyboardIncrement")).get<double>();
+    return Get(PropertyId::of("KeyboardIncrement","GridSplitter")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -7929,28 +7926,28 @@ namespace {
 void register_datagrid_properties()
 {
     (void)DependencyProperty::Register(
-        "DataGrid.Items", ValueType::String, "DataGrid",
+        "Items", ValueType::String, "DataGrid",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DataGrid.ItemsSource", ValueType::String, "DataGrid",
+        "ItemsSource", ValueType::String, "DataGrid",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DataGrid.SelectedIndex", ValueType::Int32, "DataGrid",
+        "SelectedIndex", ValueType::Int32, "DataGrid",
         PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DataGrid.SelectedItem", ValueType::String, "DataGrid",
+        "SelectedItem", ValueType::String, "DataGrid",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DataGrid.SelectionUnit", ValueType::Int32, "DataGrid",
+        "SelectionUnit", ValueType::Int32, "DataGrid",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DataGrid.IsReadOnly", ValueType::Int32, "DataGrid",
+        "IsReadOnly", ValueType::Int32, "DataGrid",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DataGrid.HeadersVisibility", ValueType::Int32, "DataGrid",
+        "HeadersVisibility", ValueType::Int32, "DataGrid",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "DataGrid.AutoGenerateColumns", ValueType::Int32, "DataGrid",
+        "AutoGenerateColumns", ValueType::Int32, "DataGrid",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
     (void)RoutedEvent::registered("SelectionChanged", RouteEventDirection::Bubble);
 }
@@ -8002,25 +7999,25 @@ DataGrid::DataGrid()
 VAML_CORE_EXPORT
 SetResult DataGrid::set_items(std::string value)
 {
-    return Set(PropertyId::of("DataGrid.Items"), Value::String(std::move(value)));
+    return Set(PropertyId::of("Items","DataGrid"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string DataGrid::items() const
 {
-    return Get(PropertyId::of("DataGrid.Items")).get<std::string>();
+    return Get(PropertyId::of("Items","DataGrid")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult DataGrid::set_items_source(std::string value)
 {
-    return Set(PropertyId::of("DataGrid.ItemsSource"), Value::String(std::move(value)));
+    return Set(PropertyId::of("ItemsSource","DataGrid"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string DataGrid::items_source() const
 {
-    return Get(PropertyId::of("DataGrid.ItemsSource")).get<std::string>();
+    return Get(PropertyId::of("ItemsSource","DataGrid")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
@@ -8049,11 +8046,11 @@ SetResult DataGrid::set_selected_index(std::int32_t index)
 {
     const std::string itemSource = items().empty() ? items_source() : items();
     const auto itemList = split_datagrid_items(itemSource);
-    const std::int32_t old = Get(PropertyId::of("DataGrid.SelectedIndex")).get<int>();
+    const std::int32_t old = Get(PropertyId::of("SelectedIndex","DataGrid")).get<int>();
     const std::int32_t clamped =
         itemList.empty() ? -1 : std::clamp<std::int32_t>(index, -1, static_cast<std::int32_t>(itemList.size()) - 1);
-    const SetResult r = Set(PropertyId::of("DataGrid.SelectedIndex"), Value::Int32(clamped));
-    (void)Set(PropertyId::of("DataGrid.SelectedItem"),
+    const SetResult r = Set(PropertyId::of("SelectedIndex","DataGrid"), Value::Int32(clamped));
+    (void)Set(PropertyId::of("SelectedItem","DataGrid"),
               Value::String(clamped >= 0 && static_cast<std::size_t>(clamped) < itemList.size()
                                 ? itemList[static_cast<std::size_t>(clamped)]
                                 : std::string{}));
@@ -8067,61 +8064,61 @@ SetResult DataGrid::set_selected_index(std::int32_t index)
 VAML_CORE_EXPORT
 std::int32_t DataGrid::selected_index() const
 {
-    return Get(PropertyId::of("DataGrid.SelectedIndex")).get<int>();
+    return Get(PropertyId::of("SelectedIndex","DataGrid")).get<int>();
 }
 
 VAML_CORE_EXPORT
 std::string DataGrid::selected_item() const
 {
-    return Get(PropertyId::of("DataGrid.SelectedItem")).get<std::string>();
+    return Get(PropertyId::of("SelectedItem","DataGrid")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult DataGrid::set_selection_unit(std::int32_t value)
 {
-    return Set(PropertyId::of("DataGrid.SelectionUnit"), Value::Int32(value));
+    return Set(PropertyId::of("SelectionUnit","DataGrid"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t DataGrid::selection_unit() const
 {
-    return Get(PropertyId::of("DataGrid.SelectionUnit")).get<int>();
+    return Get(PropertyId::of("SelectionUnit","DataGrid")).get<int>();
 }
 
 VAML_CORE_EXPORT
 SetResult DataGrid::set_is_read_only(bool value)
 {
-    return Set(PropertyId::of("DataGrid.IsReadOnly"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsReadOnly","DataGrid"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool DataGrid::is_read_only() const
 {
-    return Get(PropertyId::of("DataGrid.IsReadOnly")).get<int>() != 0;
+    return Get(PropertyId::of("IsReadOnly","DataGrid")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult DataGrid::set_headers_visibility(std::int32_t value)
 {
-    return Set(PropertyId::of("DataGrid.HeadersVisibility"), Value::Int32(value));
+    return Set(PropertyId::of("HeadersVisibility","DataGrid"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t DataGrid::headers_visibility() const
 {
-    return Get(PropertyId::of("DataGrid.HeadersVisibility")).get<int>();
+    return Get(PropertyId::of("HeadersVisibility","DataGrid")).get<int>();
 }
 
 VAML_CORE_EXPORT
 SetResult DataGrid::set_auto_generate_columns(bool value)
 {
-    return Set(PropertyId::of("DataGrid.AutoGenerateColumns"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("AutoGenerateColumns","DataGrid"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool DataGrid::auto_generate_columns() const
 {
-    return Get(PropertyId::of("DataGrid.AutoGenerateColumns")).get<int>() != 0;
+    return Get(PropertyId::of("AutoGenerateColumns","DataGrid")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
@@ -8197,25 +8194,25 @@ void register_richtextbox_properties()
 {
     // The TextBoxBase TextEntry surface (rides the TextBox value path).
     (void)DependencyProperty::Register(
-        "RichTextBox.Text", ValueType::String, "RichTextBox",
+        "Text", ValueType::String, "RichTextBox",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     // AcceptsReturn / IsReadOnly / IsDocumentEnabled: Bool via Int32.
     (void)DependencyProperty::Register(
-        "RichTextBox.AcceptsReturn", ValueType::Int32, "RichTextBox",
+        "AcceptsReturn", ValueType::Int32, "RichTextBox",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     (void)DependencyProperty::Register(
-        "RichTextBox.IsReadOnly", ValueType::Int32, "RichTextBox",
+        "IsReadOnly", ValueType::Int32, "RichTextBox",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     // IsDocumentEnabled: the ONLY own DP in WPF RichTextBox (audited).
     (void)DependencyProperty::Register(
-        "RichTextBox.IsDocumentEnabled", ValueType::Int32, "RichTextBox",
+        "IsDocumentEnabled", ValueType::Int32, "RichTextBox",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     // MaxLength: Int32, default 0 = unlimited (TextBoxBase surface).
     (void)DependencyProperty::Register(
-        "RichTextBox.MaxLength", ValueType::Int32, "RichTextBox",
+        "MaxLength", ValueType::Int32, "RichTextBox",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // TextChanged (Bubbling, the TextBoxBase surface).
     (void)RoutedEvent::registered("TextChanged", RouteEventDirection::Bubble);
@@ -8259,7 +8256,7 @@ FlowDocument* RichTextBox::document() const noexcept
 VAML_CORE_EXPORT
 SetResult RichTextBox::set_text(std::string value)
 {
-    const SetResult r = Set(PropertyId::of("RichTextBox.Text"), Value::String(std::move(value)));
+    const SetResult r = Set(PropertyId::of("Text","RichTextBox"), Value::String(std::move(value)));
     if (r == vaml::SetResult::APPLIED)
     {
         // A real Text change fires the TextChanged notification (TextBoxBase
@@ -8276,55 +8273,55 @@ SetResult RichTextBox::set_text(std::string value)
 VAML_CORE_EXPORT
 std::string RichTextBox::text() const
 {
-    return Get(PropertyId::of("RichTextBox.Text")).get<std::string>();
+    return Get(PropertyId::of("Text","RichTextBox")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult RichTextBox::set_accepts_return(bool value)
 {
-    return Set(PropertyId::of("RichTextBox.AcceptsReturn"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("AcceptsReturn","RichTextBox"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool RichTextBox::accepts_return() const
 {
-    return Get(PropertyId::of("RichTextBox.AcceptsReturn")).get<int>() != 0;
+    return Get(PropertyId::of("AcceptsReturn","RichTextBox")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult RichTextBox::set_is_read_only(bool value)
 {
-    return Set(PropertyId::of("RichTextBox.IsReadOnly"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsReadOnly","RichTextBox"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool RichTextBox::is_read_only() const
 {
-    return Get(PropertyId::of("RichTextBox.IsReadOnly")).get<int>() != 0;
+    return Get(PropertyId::of("IsReadOnly","RichTextBox")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult RichTextBox::set_is_document_enabled(bool value)
 {
-    return Set(PropertyId::of("RichTextBox.IsDocumentEnabled"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsDocumentEnabled","RichTextBox"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool RichTextBox::is_document_enabled() const
 {
-    return Get(PropertyId::of("RichTextBox.IsDocumentEnabled")).get<int>() != 0;
+    return Get(PropertyId::of("IsDocumentEnabled","RichTextBox")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT
 SetResult RichTextBox::set_max_length(std::int32_t value)
 {
-    return Set(PropertyId::of("RichTextBox.MaxLength"), Value::Int32(value));
+    return Set(PropertyId::of("MaxLength","RichTextBox"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t RichTextBox::max_length() const
 {
-    return Get(PropertyId::of("RichTextBox.MaxLength")).get<std::int32_t>();
+    return Get(PropertyId::of("MaxLength","RichTextBox")).get<std::int32_t>();
 }
 
 VAML_CORE_EXPORT
@@ -8334,7 +8331,7 @@ Size RichTextBox::MeasureOverride(const Size& available) const
     // TextBox precedent); the S123 finalizer applies the stretch-vs-wrap. The
     // rendered chrome is the vulkan classifier (Solid); the document text via
     // the SDF glyph path is the S409_1/S400 render lane (recorded NO-GAP).
-    const float fs = static_cast<float>(Get(PropertyId::of("FontSize")).get<double>());
+    const float fs = static_cast<float>(Get(PropertyId::of("FontSize", "Control")).get<double>());
     const float lineH = 1.2f * fs;
     // A single-paragraph "glyph box" basis: the Document's text height estimate
     // (the flow measure — the RichTextBox sizes to its content lines).

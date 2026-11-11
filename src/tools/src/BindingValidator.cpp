@@ -85,7 +85,9 @@ BindingValidationResult validate_bindings(const CompiledProgram& prog, VamlcCoun
             //    Every binding (static OR dynamic root) targets a DP. S801:
             //    guarded unique-name resolve (dotted key resolved by the tool
             //    via its own helper where it carries an owner).
-            if (vaml::DependencyProperty::TryGetByName(a.key) == nullptr)
+            // S803 composite: the target must resolve on the element's declared
+            // owner-chain (never a bare-name lookup).
+            if (vaml::DependencyProperty::ResolveForElement(a.key, e.typeToken) == nullptr)
             {
                 v.error = BindingCompileError::UnknownTargetProperty;
                 out.bindings.push_back(v);
@@ -134,8 +136,10 @@ BindingValidationResult validate_bindings(const CompiledProgram& prog, VamlcCoun
             for (std::size_t i = 1; i < segs.size(); ++i)
             {
                 const vaml::PropertySegment& seg = segs[i];
+                // S803 composite: the hop must resolve on the ROOT element
+                // type's declared owner-chain (never a bare-name lookup).
                 if (seg.kind == vaml::PropertySegmentKind::Property &&
-                    vaml::DependencyProperty::TryGetByName(seg.name) == nullptr)
+                    vaml::DependencyProperty::ResolveForElement(seg.name, root) == nullptr)
                 {
                     v.error = BindingCompileError::WrongHopType;
                     out.bindings.push_back(v);

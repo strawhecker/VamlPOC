@@ -92,7 +92,7 @@ const DependencyProperty& registerS11k3Global(const std::string& name, ValueType
         return DependencyProperty::Register(name, type, "11k3_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "11k3_Owner");
 }
 
 void registerS11k3()

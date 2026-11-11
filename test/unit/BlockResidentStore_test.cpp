@@ -87,7 +87,7 @@ TEST_CASE("S142: inline path — properties within kInline register/Set/Get with
         SHOULD(ShouldlyString(obj.Get(PropertyId::of("P" + std::to_string(i)))).ShouldBe(v));
     }
     // NO_CHANGE on a redundant write still works (real-change only).
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("P0"), Value::Int32(100)))
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("P0", "S142Owner"), Value::Int32(100)))
                .ShouldBe(SetResult::NO_CHANGE));
 }
 
@@ -124,7 +124,7 @@ TEST_CASE("S142: overflow growth — >kInline properties all work through the re
         (void)obj.register_property(int32Key("OverflowP0"), int32Md(9));
     }));
     // Store untouched (the local override set earlier survives).
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP0"))).ShouldBe(Value::Int32(1)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP0", "S142Owner"))).ShouldBe(Value::Int32(1)));
 }
 
 TEST_CASE("S142: stable key — register_property's returned ref survives overflow growth")
@@ -146,23 +146,23 @@ TEST_CASE("S142: stable key — register_property's returned ref survives overfl
     // The reference is still valid + intact after the growth.
     SHOULD(ShouldlyString(stable.name()).ShouldBe(std::string("Stable0")));
     // And the property still resolves through the now-grown store.
-    (void)obj.Set(PropertyId::of("Stable0"), Value::Int32(42));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Stable0"))).ShouldBe(Value::Int32(42)));
+    (void)obj.Set(PropertyId::of("Stable0", "S142Owner"), Value::Int32(42));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Stable0", "S142Owner"))).ShouldBe(Value::Int32(42)));
 }
 
 TEST_CASE("S142: move preserves values + stable key (Store is move-aware)")
 {
     DependencyObject src;
     const PropertyKey& srcStable = src.register_property(int32Key("Move0"), int32Md(0));
-    (void)src.Set(PropertyId::of("Move0"), Value::Int32(5));
+    (void)src.Set(PropertyId::of("Move0", "S142Owner"), Value::Int32(5));
     src.register_property(int32Key("Move1"), int32Md(1));
-    (void)src.Set(PropertyId::of("Move1"), Value::Int32(6));
+    (void)src.Set(PropertyId::of("Move1", "S142Owner"), Value::Int32(6));
 
     DependencyObject dst(std::move(src));
 
     // Values moved over intact (inline slots_ copied, overflow taken).
-    SHOULD(ShouldlyString(dst.Get(PropertyId::of("Move0"))).ShouldBe(Value::Int32(5)));
-    SHOULD(ShouldlyString(dst.Get(PropertyId::of("Move1"))).ShouldBe(Value::Int32(6)));
+    SHOULD(ShouldlyString(dst.Get(PropertyId::of("Move0", "S142Owner"))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(dst.Get(PropertyId::of("Move1", "S142Owner"))).ShouldBe(Value::Int32(6)));
 
     // The stable key node is heap-owned, so the reference it returned is still
     // valid after the move AND still resolves through the destination's store.
@@ -175,23 +175,23 @@ TEST_CASE("S142: single PD — owned (object-scoped) + borrowed (attached/global
     // OBJECT-SCOPED (owned) registration on the object.
     DependencyObject obj;
     obj.register_property(int32Key("LocalProp"), int32Md(3));
-    (void)obj.Set(PropertyId::of("LocalProp"), Value::Int32(30));
+    (void)obj.Set(PropertyId::of("LocalProp", "S142Owner"), Value::Int32(30));
 
     // BORROWED (attached/global): a UIElement self-registers its DPs globally.
     // Opacity resolves via the borrowed/global path (no local store entry until
     // a Set materializes one) — coexisting with the owned local prop on the same
     // single-PD store.
     UIElement element;
-    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity"))).ShouldBe(Value::Double(1.0)));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp"))).ShouldBe(Value::Int32(30)));
+    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "S142Owner"))).ShouldBe(Value::Double(1.0)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp", "S142Owner"))).ShouldBe(Value::Int32(30)));
 
     // Materializing a borrowed entry (a Set on the global property) works.
-    SHOULD(ShouldlyString(element.Set(PropertyId::of("Opacity"), Value::Double(0.5)))
+    SHOULD(ShouldlyString(element.Set(PropertyId::of("Opacity", "S142Owner"), Value::Double(0.5)))
                .ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity"))).ShouldBe(Value::Double(0.5)));
+    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "S142Owner"))).ShouldBe(Value::Double(0.5)));
 
     // The owned local prop is untouched by the borrowed materialization.
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp"))).ShouldBe(Value::Int32(30)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp", "S142Owner"))).ShouldBe(Value::Int32(30)));
 }
 
 TEST_CASE("S142: UIElement collapsed unit — a panel still lays out (layout data is inline, same block)")

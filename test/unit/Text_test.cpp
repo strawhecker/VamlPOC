@@ -214,13 +214,13 @@ TEST_CASE("S400: TextBlock is a real UIElement (S087 seed re-based) + DPs round-
         SHOULD(ShouldlyString(t.foreground()->color().b).ShouldBe(30));
     }
 
-    // Resolves globally on a PLAIN DependencyObject (the S043 attached-aware
-    // read): "Text" is globally registered, so a plain DO reads the global
-    // default ("" ) without a local registration.
+    // S803: composite identity. "Text" is owned by the declaring types; the
+    // canonical owner used for the plain-DO read is "TextBlock" (owner of the
+    // non-interactive Text affordance). There is no bare-name global lookup.
     vaml::DependencyObject plain;
-    const auto dp = vaml::DependencyProperty::TryGetByName("Text");
+    const auto dp = vaml::DependencyProperty::TryGet("Text", "TextBlock");
     SHOULD(ShouldlyIntegral(dp != nullptr).ShouldBe(true));
-    const vaml::Value v = plain.Get(vaml::PropertyId::of("Text"));
+    const vaml::Value v = plain.Get(vaml::PropertyId::of("Text", "TextBlock"));
     SHOULD(ShouldlyString(v.type() == vaml::ValueType::String).ShouldBe(true));
     SHOULD(ShouldlyString(v.get<std::string>()).ShouldBe(std::string("")));
 }

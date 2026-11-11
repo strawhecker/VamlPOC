@@ -84,12 +84,12 @@ TEST_CASE("S039: non-inheriting property — local ?? default (S036 semantics un
                                 PropertyMetadata::WithDefault(Value::Int32(7), PropertyFlags::None));
 
     // No parent, default applied.
-    SHOULD(ShouldlyString(obj.GetEffectiveValue(PropertyId::of("Plain"))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(obj.GetEffectiveValue(PropertyId::of("Plain", "TestOwner"))).ShouldBe(Value::Int32(7)));
     // Local override wins.
-    (void)obj.Set(PropertyId::of("Plain"), Value::Int32(50));
-    SHOULD(ShouldlyString(obj.GetEffectiveValue(PropertyId::of("Plain"))).ShouldBe(Value::Int32(50)));
+    (void)obj.Set(PropertyId::of("Plain", "TestOwner"), Value::Int32(50));
+    SHOULD(ShouldlyString(obj.GetEffectiveValue(PropertyId::of("Plain", "TestOwner"))).ShouldBe(Value::Int32(50)));
     // Get() delegates -> same value.
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Plain"))).ShouldBe(Value::Int32(50)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Plain", "TestOwner"))).ShouldBe(Value::Int32(50)));
 }
 
 TEST_CASE("S039: plain Inherits, one level — child inherits parent's local override")
@@ -194,6 +194,6 @@ TEST_CASE("S039: GetEffectiveValue throws PropertyNotFound for an unregistered p
 {
     DependencyObject obj;
     SHOULD(ShouldThrow<PropertyNotFound>([&] {
-        (void)obj.GetEffectiveValue(PropertyId::of("NoSuch_S039"));
+        (void)obj.GetEffectiveValue(PropertyId::of("NoSuch_S039", "TestOwner"));
     }));
 }

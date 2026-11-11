@@ -94,7 +94,7 @@ const DependencyProperty& registerGlobal(const std::string& name, ValueType type
         return DependencyProperty::Register(name, type, "S501_Converter_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "S501_Converter_Owner");
 }
 
 void registerS501Properties()

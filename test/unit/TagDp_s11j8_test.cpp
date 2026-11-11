@@ -32,15 +32,15 @@ using namespace vaml;
 TEST_CASE("11j-8: Tag is a registered element-base DP (default: empty/no tag)")
 {
     Button b; // ensures the UIElement base props (incl. Tag) are registered
-    const DependencyProperty* tag = DependencyProperty::TryGetByName("Tag");
+    const DependencyProperty* tag = DependencyProperty::TryGet("Tag", "UIElement");
     REQUIRE(tag != nullptr);
 
     // Default is the empty String (no tag).
-    CHECK(b.Get(PropertyId::of("Tag")).get<std::string>() == std::string{});
+    CHECK(b.Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string{});
 
     // Literal attribute -> String value (the corpus's PRIMARY Tag use).
-    (void)b.Set(PropertyId::of("Tag"), Value::String(std::string("ghostBrush")));
-    CHECK(b.Get(PropertyId::of("Tag")).get<std::string>() == std::string("ghostBrush"));
+    (void)b.Set(PropertyId::of("Tag", "UIElement"), Value::String(std::string("ghostBrush")));
+    CHECK(b.Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string("ghostBrush"));
 }
 
 TEST_CASE("11j-8: <X Tag=...> as an ATTRIBUTE loads through the reader (literal String)")
@@ -50,7 +50,7 @@ TEST_CASE("11j-8: <X Tag=...> as an ATTRIBUTE loads through the reader (literal 
     REQUIRE(root != nullptr);
     Button* btn = dynamic_cast<Button*>(root.get());
     REQUIRE(btn != nullptr);
-    CHECK(btn->Get(PropertyId::of("Tag")).get<std::string>() == std::string("ghostBrush"));
+    CHECK(btn->Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string("ghostBrush"));
 }
 
 TEST_CASE("11j-8: an OBJECT <X.Tag><SomeObject/></X.Tag> loads WITHOUT throwing (parsed + retained)")
@@ -64,6 +64,6 @@ TEST_CASE("11j-8: an OBJECT <X.Tag><SomeObject/></X.Tag> loads WITHOUT throwing 
     CHECK(dynamic_cast<Button*>(root.get()) != nullptr);
     // No throw occurred; the scalar Tag slot stays at its default.
     Button* btn = dynamic_cast<Button*>(root.get());
-    CHECK(btn->Get(PropertyId::of("Tag")).get<std::string>() == std::string{});
+    CHECK(btn->Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string{});
 }
 

@@ -73,20 +73,28 @@ public:
     [[nodiscard]] static const DependencyProperty& Get(std::string_view name,
                                                        std::string_view owner);
 
-    // [MINIMAL REAL] UNIQUE-NAME bridge — RESOLVED BY S803 (the reader's
-    // element-type->owner inference and the full dotted-key authoring form).
-    // Do NOT extend silently; do NOT backfill. Returns the global
-    // DependencyProperty when EXACTLY ONE distinct (owner) registration has
-    // this `name`, else nullptr. This is the ONLY sanctioned place a bare-name
-    // read reaches the composite store, and it is GUARDED (never picks among
-    // ambiguous names). S803 removes this surface when no call site can lack an
-    // owner.
-    [[nodiscard]] static const DependencyProperty* TryGetByName(std::string_view name) noexcept;
+    // S803 — the COMPOSITE owner-chain resolver (the permanent replacement for
+    // the S803-removed unique-name bridge). Resolves a property attribute key
+    // against an element TYPE-NAME:
+    //   * a BARE name walks that element's DECLARED OWNER-CHAIN (WPF's XAML
+    //     type-inheritance DP resolution: a DP's owner is its declaring type, so
+    //     `Padding` on a Button hits owner "Control", `Text` on a TextBlock hits
+    //     owner "TextBlock"), calling TryGet(name, owner) at each level
+    //     (most-derived first);
+    //   * a DOTTED `Owner.Property` key is split on the last dot and resolved as
+    //     TryGet(tail, owner) directly (the owner is stated — NO chain walk),
+    //     exactly as the reader's authored `<Owner.Property>` form.
+    // `elementTypeName` is the authored element's type-name (the concrete owner
+    // root) and is unused for the dotted form. Shared by the S2 reader, the S7
+    // compiler/validators, and the release VBamlReader (single authority for the
+    // owner-chain table; see DependencyProperty.cpp). Returns nullptr when no
+    // owner resolves the key. No bare-name global lookup survives; never
+    // silently picks among ambiguous names.
+    [[nodiscard]] static const DependencyProperty* ResolveForElement(
+        std::string_view name, std::string_view elementTypeName) noexcept;
 
-    // [MINIMAL REAL] UNIQUE-NAME Get — RESOLVED BY S803. Throws
-    // PropertyNotFound when no registration has this name OR more than one does
-    // (guarded — never silently picks among ambiguous names). See TryGetByName.
-    [[nodiscard]] static const DependencyProperty& GetByName(std::string_view name);
+    // Returns the global DependencyProperty for the (name, owner) PAIR, or
+    // throws PropertyNotFound.
 
     // --- Immutable accessors -------------------------------------------
     [[nodiscard]] PropertyId property_id() const noexcept;            // id derived from (name, owner)

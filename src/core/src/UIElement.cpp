@@ -391,25 +391,25 @@ ResourceDictionary* UIElement::resources() noexcept
 VAML_CORE_EXPORT
 SetResult UIElement::set_visibility(Visibility v)
 {
-    return Set(PropertyId::of("Visibility"), Value::Int32(static_cast<std::int32_t>(v)));
+    return Set(PropertyId::of("Visibility", "UIElement"), Value::Int32(static_cast<std::int32_t>(v)));
 }
 
 VAML_CORE_EXPORT
 Visibility UIElement::visibility() const
 {
-    return static_cast<Visibility>(Get(PropertyId::of("Visibility")).get<std::int32_t>());
+    return static_cast<Visibility>(Get(PropertyId::of("Visibility", "UIElement")).get<std::int32_t>());
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_focusable(bool value)
 {
-    return Set(PropertyId::of("Focusable"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("Focusable", "UIElement"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool UIElement::focusable() const
 {
-    return Get(PropertyId::of("Focusable")).get<std::int32_t>() != 0;
+    return Get(PropertyId::of("Focusable", "UIElement")).get<std::int32_t>() != 0;
 }
 
 // S595a — IsHitTestVisible (Bool DP, default true, NOT inherited). Mirrors the
@@ -419,25 +419,25 @@ bool UIElement::focusable() const
 VAML_CORE_EXPORT
 SetResult UIElement::set_is_hit_test_visible(bool value)
 {
-    return Set(PropertyId::of("IsHitTestVisible"), Value::Bool(value));
+    return Set(PropertyId::of("IsHitTestVisible", "UIElement"), Value::Bool(value));
 }
 
 VAML_CORE_EXPORT
 bool UIElement::is_hit_test_visible() const
 {
-    return Get(PropertyId::of("IsHitTestVisible")).get<bool>();
+    return Get(PropertyId::of("IsHitTestVisible", "UIElement")).get<bool>();
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_opacity(double value)
 {
-    return Set(PropertyId::of("Opacity"), Value::Double(value));
+    return Set(PropertyId::of("Opacity", "UIElement"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double UIElement::opacity() const
 {
-    return Get(PropertyId::of("Opacity")).get<double>();
+    return Get(PropertyId::of("Opacity", "UIElement")).get<double>();
 }
 
 // --- S208 RenderTransform (the S120 transform-owner resolution) ---------------
@@ -449,7 +449,7 @@ SetResult UIElement::set_render_transform(const vaml::Matrix2D& value)
     // triggers InvalidateArrange: a render transform is a visual change the
     // encoder re-emits, so the arrange-dirty flag (plus its ancestor chain)
     // marks the element for a fresh encode pass.
-    const SetResult r = Set(PropertyId::of("RenderTransform"), Value::Matrix2D(value));
+    const SetResult r = Set(PropertyId::of("RenderTransform", "UIElement"), Value::Matrix2D(value));
     if (r == SetResult::APPLIED)
     {
         InvalidateArrange();
@@ -460,7 +460,7 @@ SetResult UIElement::set_render_transform(const vaml::Matrix2D& value)
 VAML_CORE_EXPORT
 vaml::Matrix2D UIElement::render_transform() const
 {
-    return Get(PropertyId::of("RenderTransform")).get<vaml::Matrix2D>();
+    return Get(PropertyId::of("RenderTransform", "UIElement")).get<vaml::Matrix2D>();
 }
 
 // --- S500 DataContext (per-element inheritable context, WPF-faithful) --------
@@ -538,39 +538,39 @@ const vaml::Rect& UIElement::final_rect() const noexcept
 VAML_CORE_EXPORT
 SetResult UIElement::set_margin(const vaml::Thickness& value)
 {
-    return Set(PropertyId::of("Margin"), Value::Thickness(value));
+    return Set(PropertyId::of("Margin", "UIElement"), Value::Thickness(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Thickness UIElement::margin() const
 {
-    return Get(PropertyId::of("Margin")).get<vaml::Thickness>();
+    return Get(PropertyId::of("Margin", "UIElement")).get<vaml::Thickness>();
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_horizontal_alignment(vaml::HorizontalAlignment value)
 {
-    return Set(PropertyId::of("HorizontalAlignment"), Value::Int32(static_cast<std::int32_t>(value)));
+    return Set(PropertyId::of("HorizontalAlignment", "UIElement"), Value::Int32(static_cast<std::int32_t>(value)));
 }
 
 VAML_CORE_EXPORT
 vaml::HorizontalAlignment UIElement::horizontal_alignment() const
 {
     return static_cast<vaml::HorizontalAlignment>(
-        Get(PropertyId::of("HorizontalAlignment")).get<std::int32_t>());
+        Get(PropertyId::of("HorizontalAlignment", "UIElement")).get<std::int32_t>());
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_vertical_alignment(vaml::VerticalAlignment value)
 {
-    return Set(PropertyId::of("VerticalAlignment"), Value::Int32(static_cast<std::int32_t>(value)));
+    return Set(PropertyId::of("VerticalAlignment", "UIElement"), Value::Int32(static_cast<std::int32_t>(value)));
 }
 
 VAML_CORE_EXPORT
 vaml::VerticalAlignment UIElement::vertical_alignment() const
 {
     return static_cast<vaml::VerticalAlignment>(
-        Get(PropertyId::of("VerticalAlignment")).get<std::int32_t>());
+        Get(PropertyId::of("VerticalAlignment", "UIElement")).get<std::int32_t>());
 }
 
 // --- Width / Height accessors (WPF-style explicit size DPs) -----------------
@@ -578,25 +578,25 @@ vaml::VerticalAlignment UIElement::vertical_alignment() const
 VAML_CORE_EXPORT
 SetResult UIElement::set_width(double value)
 {
-    return Set(PropertyId::of("Width"), Value::Double(value));
+    return Set(PropertyId::of("Width", "UIElement"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double UIElement::width() const
 {
-    return Get(PropertyId::of("Width")).get<double>();
+    return Get(PropertyId::of("Width", "UIElement")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_height(double value)
 {
-    return Set(PropertyId::of("Height"), Value::Double(value));
+    return Set(PropertyId::of("Height", "UIElement"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double UIElement::height() const
 {
-    return Get(PropertyId::of("Height")).get<double>();
+    return Get(PropertyId::of("Height", "UIElement")).get<double>();
 }
 
 // Applies an EXPLICIT Width/Height to an axis's natural measured extent.

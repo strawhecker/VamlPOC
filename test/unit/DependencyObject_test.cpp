@@ -75,7 +75,7 @@ TEST_CASE("S036: default is applied with no local override (Get returns defaultV
     DependencyObject obj;
     obj.register_property(int32Key("Width"), int32Md(7, false, false));
 
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width"))).ShouldBe(Value::Int32(7))); // "default applied"
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(7))); // "default applied"
 }
 
 TEST_CASE("S036: type coherence — key type must match metadata bound type")
@@ -91,8 +91,8 @@ TEST_CASE("S036: type coherence — key type must match metadata bound type")
 TEST_CASE("S036: Get/Set on an unregistered property throws PropertyNotFound")
 {
     DependencyObject obj;
-    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)obj.Get(PropertyId::of("Nope")); }));
-    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)obj.Set(PropertyId::of("Nope"), Value::Int32(1)); }));
+    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)obj.Get(PropertyId::of("Nope", "TestOwner")); }));
+    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)obj.Set(PropertyId::of("Nope", "TestOwner"), Value::Int32(1)); }));
 }
 
 TEST_CASE("S036 apply: coerce is applied — stored value is the coerced value, cb sees coerced new")
@@ -148,8 +148,8 @@ TEST_CASE("S036 apply: coerce runs BEFORE validate — validate sees the coerced
 
     // Raw -3 would fail validate (>= 0) on its own; coerce turns it into 5 and
     // validate(5) passes -> APPLIED with a real change (default 0 -> 5).
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Fixed"), Value::Int32(-3))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Fixed"))).ShouldBe(Value::Int32(5))); // the COERCED value stored
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Fixed", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Fixed", "TestOwner"))).ShouldBe(Value::Int32(5))); // the COERCED value stored
 }
 
 TEST_CASE("S036 apply: validate rejects — store unchanged, cb NOT fired")
@@ -159,14 +159,14 @@ TEST_CASE("S036 apply: validate rejects — store unchanged, cb NOT fired")
 
     // -3 rejected: current stays 1 (default), no cb (no recorder => passthrough;
     // we assert store-unchanged).
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age"), Value::Int32(-3))).ShouldBe(SetResult::REJECTED));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age"))).ShouldBe(Value::Int32(1)));
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age"), Value::Int32(0))).ShouldBe(SetResult::REJECTED));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age"))).ShouldBe(Value::Int32(1)));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::REJECTED));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1)));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(0))).ShouldBe(SetResult::REJECTED));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1)));
 
     // Valid 5 -> applied.
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age"), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age"))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(5)));
 }
 
 TEST_CASE("S036 apply: cb fires ONLY on a real change")
@@ -183,24 +183,24 @@ TEST_CASE("S036 apply: cb fires ONLY on a real change")
                 ++fire;
             }));
 
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(fire).ShouldBe(1));
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count"), Value::Int32(9))).ShouldBe(SetResult::NO_CHANGE));
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count"), Value::Int32(9))).ShouldBe(SetResult::NO_CHANGE));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::NO_CHANGE));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::NO_CHANGE));
     SHOULD(ShouldlyString(fire).ShouldBe(1));
 
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count"), Value::Int32(11))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(11))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(fire).ShouldBe(2));
     SHOULD(ShouldlyString(oldV).ShouldBe(9));
     SHOULD(ShouldlyString(newV).ShouldBe(11));
 
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count"), Value::Int32(15))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(15))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(fire).ShouldBe(3));
     SHOULD(ShouldlyString(oldV).ShouldBe(11));
     SHOULD(ShouldlyString(newV).ShouldBe(15));
 
     // Round-trip back to a previously held value is still a real change.
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(fire).ShouldBe(4));
     SHOULD(ShouldlyString(oldV).ShouldBe(15));
     SHOULD(ShouldlyString(newV).ShouldBe(9));
@@ -211,10 +211,10 @@ TEST_CASE("S036 apply: absent callbacks = passthrough, store-as-given")
     DependencyObject obj;
     obj.register_property(int32Key("Raw"), int32Md(10, false, false));
 
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Raw"), Value::Int32(42))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Raw"))).ShouldBe(Value::Int32(42)));
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Raw"), Value::Int32(42))).ShouldBe(SetResult::NO_CHANGE));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Raw"))).ShouldBe(Value::Int32(42)));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Raw", "TestOwner"), Value::Int32(42))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Raw", "TestOwner"))).ShouldBe(Value::Int32(42)));
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Raw", "TestOwner"), Value::Int32(42))).ShouldBe(SetResult::NO_CHANGE));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Raw", "TestOwner"))).ShouldBe(Value::Int32(42)));
 }
 
 TEST_CASE("S036: harness stays type-bound — wrong-tag input throws, store untouched")
@@ -224,9 +224,9 @@ TEST_CASE("S036: harness stays type-bound — wrong-tag input throws, store unto
 
     // Wrong tag on a valid pipeline path surfaces ValueTypeMismatch (S030/S034).
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
-        (void)obj.Set(PropertyId::of("W"), Value::Double(2.5));
+        (void)obj.Set(PropertyId::of("W", "TestOwner"), Value::Double(2.5));
     }));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W"))).ShouldBe(Value::Int32(0))); // store untouched
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(0))); // store untouched
 }
 
 TEST_CASE("S036: per-prop mastery — two properties coexist independently")
@@ -235,23 +235,23 @@ TEST_CASE("S036: per-prop mastery — two properties coexist independently")
     obj.register_property(int32Key("Width"), int32Md(1, false, false));
     obj.register_property(int32Key("Height"), int32Md(2, false, false));
 
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width"))).ShouldBe(Value::Int32(1)));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height"))).ShouldBe(Value::Int32(2)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(1)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height", "TestOwner"))).ShouldBe(Value::Int32(2)));
 
-    (void)obj.Set(PropertyId::of("Width"), Value::Int32(100));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width"))).ShouldBe(Value::Int32(100)));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height"))).ShouldBe(Value::Int32(2))); // untouched
+    (void)obj.Set(PropertyId::of("Width", "TestOwner"), Value::Int32(100));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(100)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height", "TestOwner"))).ShouldBe(Value::Int32(2))); // untouched
 
-    (void)obj.Set(PropertyId::of("Height"), Value::Int32(200));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width"))).ShouldBe(Value::Int32(100))); // untouched
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height"))).ShouldBe(Value::Int32(200)));
+    (void)obj.Set(PropertyId::of("Height", "TestOwner"), Value::Int32(200));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(100))); // untouched
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height", "TestOwner"))).ShouldBe(Value::Int32(200)));
 }
 
 TEST_CASE("S036: dedupe — re-registering a name throws PropertyAlreadyRegistered, store unchanged")
 {
     DependencyObject obj;
     obj.register_property(int32Key("Width"), int32Md(1, false, false));
-    (void)obj.Set(PropertyId::of("Width"), Value::Int32(50)); // take a local override
+    (void)obj.Set(PropertyId::of("Width", "TestOwner"), Value::Int32(50)); // take a local override
 
     // Re-registering the same NAME must throw and leave the store unchanged.
     SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] {
@@ -259,7 +259,7 @@ TEST_CASE("S036: dedupe — re-registering a name throws PropertyAlreadyRegister
     }));
 
     // Store (and the local override) are untouched.
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width"))).ShouldBe(Value::Int32(50)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(50)));
 }
 
 TEST_CASE("S036: Get returns by value — mutating the source Value cannot corrupt the store")
@@ -271,11 +271,11 @@ TEST_CASE("S036: Get returns by value — mutating the source Value cannot corru
     obj.register_property(
         PropertyKey("Label", ValueType::String, "TestOwner", PropertyFlags::None),
         PropertyMetadata::WithDefault(Value::String("init"), PropertyFlags::None));
-    (void)obj.Set(PropertyId::of("Label"), Value::String("hello"));
+    (void)obj.Set(PropertyId::of("Label", "TestOwner"), Value::String("hello"));
 
     // Get returns BY VALUE: copies of the same string are independent.
-    Value a = obj.Get(PropertyId::of("Label"));
-    Value b = obj.Get(PropertyId::of("Label"));
+    Value a = obj.Get(PropertyId::of("Label", "TestOwner"));
+    Value b = obj.Get(PropertyId::of("Label", "TestOwner"));
     SHOULD(ShouldlyString(a).ShouldBe(Value::String("hello")));
     SHOULD(ShouldlyString(b).ShouldBe(Value::String("hello")));
     SHOULD(ShouldlyString(a).ShouldBe(b));

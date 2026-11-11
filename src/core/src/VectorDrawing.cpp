@@ -52,13 +52,13 @@ VAML_CORE_EXPORT
 SetResult Geometry::set_transform(const vaml::Matrix2D& m)
 {
     (void)kGeometryRegistered;
-    return Set(PropertyId::of("Transform"), Value::Matrix2D(m));
+    return Set(PropertyId::of("Transform", "Geometry"), Value::Matrix2D(m));
 }
 
 VAML_CORE_EXPORT
 vaml::Matrix2D Geometry::transform() const
 {
-    const Value v = Get(PropertyId::of("Transform"));
+    const Value v = Get(PropertyId::of("Transform", "Geometry"));
     return v.type() == ValueType::Matrix2D ? v.get<vaml::Matrix2D>()
                                            : vaml::Matrix2D::identity();
 }
@@ -117,13 +117,13 @@ VAML_CORE_EXPORT
 SetResult PathGeometry::set_fill_rule(std::int32_t rule)
 {
     (void)kPathGeometryRegistered;
-    return Set(PropertyId::of("FillRule"), Value::Int32(rule));
+    return Set(PropertyId::of("FillRule", "PathGeometry"), Value::Int32(rule));
 }
 
 VAML_CORE_EXPORT
 std::int32_t PathGeometry::fill_rule() const
 {
-    const Value v = Get(PropertyId::of("FillRule"));
+    const Value v = Get(PropertyId::of("FillRule", "PathGeometry"));
     return v.type() == ValueType::Int32 ? v.get<std::int32_t>() : 0;
 }
 

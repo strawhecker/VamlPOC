@@ -75,13 +75,13 @@ SetResult SolidColorBrush::set_color(const vaml::Color& value)
     // S643b-4 (D3): a FROZEN brush is immutable — reject the write exactly as
     // WPF's "cannot change a frozen Freezable" (Freezable.cpp throw_if_frozen).
     throw_if_frozen("SolidColorBrush.Color");
-    return Set(PropertyId::of("Color"), Value::Color(value));
+    return Set(PropertyId::of("Color", "SolidColorBrush"), Value::Color(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Color SolidColorBrush::color() const
 {
-    const Value v = Get(PropertyId::of("Color"));
+    const Value v = Get(PropertyId::of("Color", "SolidColorBrush"));
     return v.type() == ValueType::Color ? v.get<vaml::Color>() : vaml::Color{ 0, 0, 0, 255 };
 }
 
@@ -156,26 +156,26 @@ GradientStopHost::~GradientStopHost() = default;
 VAML_CORE_EXPORT
 SetResult GradientStopHost::set_color(const vaml::Color& value)
 {
-    return Set(PropertyId::of("Color"), Value::Color(value));
+    return Set(PropertyId::of("Color", "SolidColorBrush"), Value::Color(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Color GradientStopHost::color() const
 {
-    const Value v = Get(PropertyId::of("Color"));
+    const Value v = Get(PropertyId::of("Color", "SolidColorBrush"));
     return v.type() == ValueType::Color ? v.get<vaml::Color>() : vaml::Color{ 0, 0, 0, 255 };
 }
 
 VAML_CORE_EXPORT
 SetResult GradientStopHost::set_offset(double value)
 {
-    return Set(PropertyId::of("Offset"), Value::Double(value));
+    return Set(PropertyId::of("Offset", "GradientStop"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double GradientStopHost::offset() const
 {
-    return Get(PropertyId::of("Offset")).get<double>();
+    return Get(PropertyId::of("Offset", "GradientStop")).get<double>();
 }
 
 // ---------------------------------------------------------------------------

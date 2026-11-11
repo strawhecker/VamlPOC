@@ -27,19 +27,19 @@ namespace {
 void register_automation_properties()
 {
     (void)DependencyProperty::Register(
-        "AutomationProperties.Name", ValueType::String, "AutomationProperties",
+        "Name", ValueType::String, "AutomationProperties",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "AutomationProperties.AutomationId", ValueType::String, "AutomationProperties",
+        "AutomationId", ValueType::String, "AutomationProperties",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "AutomationProperties.HelpText", ValueType::String, "AutomationProperties",
+        "HelpText", ValueType::String, "AutomationProperties",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "AutomationProperties.ItemStatus", ValueType::String, "AutomationProperties",
+        "ItemStatus", ValueType::String, "AutomationProperties",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "AutomationProperties.IsOffscreenBehavior", ValueType::Int32, "AutomationProperties",
+        "IsOffscreenBehavior", ValueType::Int32, "AutomationProperties",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) {
                 const int x = v.get<int>();
@@ -66,70 +66,70 @@ VAML_CORE_EXPORT
 SetResult AutomationProperties::set_name(DependencyObject& obj, std::string value)
 {
     ensure_automation_properties_registered();
-    return obj.Set(PropertyId::of("AutomationProperties.Name"), Value::String(std::move(value)));
+    return obj.Set(PropertyId::of("Name","AutomationProperties"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string AutomationProperties::name(const DependencyObject& obj)
 {
     ensure_automation_properties_registered();
-    return obj.Get(PropertyId::of("AutomationProperties.Name")).get<std::string>();
+    return obj.Get(PropertyId::of("Name","AutomationProperties")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult AutomationProperties::set_automation_id(DependencyObject& obj, std::string value)
 {
     ensure_automation_properties_registered();
-    return obj.Set(PropertyId::of("AutomationProperties.AutomationId"), Value::String(std::move(value)));
+    return obj.Set(PropertyId::of("AutomationId","AutomationProperties"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string AutomationProperties::automation_id(const DependencyObject& obj)
 {
     ensure_automation_properties_registered();
-    return obj.Get(PropertyId::of("AutomationProperties.AutomationId")).get<std::string>();
+    return obj.Get(PropertyId::of("AutomationId","AutomationProperties")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult AutomationProperties::set_help_text(DependencyObject& obj, std::string value)
 {
     ensure_automation_properties_registered();
-    return obj.Set(PropertyId::of("AutomationProperties.HelpText"), Value::String(std::move(value)));
+    return obj.Set(PropertyId::of("HelpText","AutomationProperties"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string AutomationProperties::help_text(const DependencyObject& obj)
 {
     ensure_automation_properties_registered();
-    return obj.Get(PropertyId::of("AutomationProperties.HelpText")).get<std::string>();
+    return obj.Get(PropertyId::of("HelpText","AutomationProperties")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult AutomationProperties::set_item_status(DependencyObject& obj, std::string value)
 {
     ensure_automation_properties_registered();
-    return obj.Set(PropertyId::of("AutomationProperties.ItemStatus"), Value::String(std::move(value)));
+    return obj.Set(PropertyId::of("ItemStatus","AutomationProperties"), Value::String(std::move(value)));
 }
 
 VAML_CORE_EXPORT
 std::string AutomationProperties::item_status(const DependencyObject& obj)
 {
     ensure_automation_properties_registered();
-    return obj.Get(PropertyId::of("AutomationProperties.ItemStatus")).get<std::string>();
+    return obj.Get(PropertyId::of("ItemStatus","AutomationProperties")).get<std::string>();
 }
 
 VAML_CORE_EXPORT
 SetResult AutomationProperties::set_is_offscreen_behavior(DependencyObject& obj, std::int32_t value)
 {
     ensure_automation_properties_registered();
-    return obj.Set(PropertyId::of("AutomationProperties.IsOffscreenBehavior"), Value::Int32(value));
+    return obj.Set(PropertyId::of("IsOffscreenBehavior","AutomationProperties"), Value::Int32(value));
 }
 
 VAML_CORE_EXPORT
 std::int32_t AutomationProperties::is_offscreen_behavior(const DependencyObject& obj)
 {
     ensure_automation_properties_registered();
-    return obj.Get(PropertyId::of("AutomationProperties.IsOffscreenBehavior")).get<std::int32_t>();
+    return obj.Get(PropertyId::of("IsOffscreenBehavior","AutomationProperties")).get<std::int32_t>();
 }
 
 } // namespace vaml

@@ -88,7 +88,7 @@ const DependencyProperty& registerGlobal(const std::string& name, ValueType type
         return DependencyProperty::Register(name, type, "S221_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "S221_Owner");
 }
 
 // The S221-unique global DPs the golden fixture sets from text — a small

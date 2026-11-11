@@ -128,10 +128,10 @@ void ensure_comboboxitem_properties_registered()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "ComboBoxItem.IsSelected", ValueType::Int32, "ComboBoxItem",
+        "IsSelected", ValueType::Int32, "ComboBoxItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ComboBoxItem.IsHighlighted", ValueType::Int32, "ComboBoxItem",
+        "IsHighlighted", ValueType::Int32, "ComboBoxItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 } // namespace
@@ -142,22 +142,22 @@ ComboBoxItem::ComboBoxItem() { ensure_comboboxitem_properties_registered(); }
 VAML_CORE_EXPORT
 SetResult ComboBoxItem::set_is_selected(bool value)
 {
-    return Set(PropertyId::of("ComboBoxItem.IsSelected"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsSelected","ComboBoxItem"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool ComboBoxItem::is_selected() const
 {
-    return Get(PropertyId::of("ComboBoxItem.IsSelected")).get<int>() != 0;
+    return Get(PropertyId::of("IsSelected","ComboBoxItem")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 SetResult ComboBoxItem::set_is_highlighted(bool value)
 {
-    return Set(PropertyId::of("ComboBoxItem.IsHighlighted"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsHighlighted","ComboBoxItem"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool ComboBoxItem::is_highlighted() const
 {
-    return Get(PropertyId::of("ComboBoxItem.IsHighlighted")).get<int>() != 0;
+    return Get(PropertyId::of("IsHighlighted","ComboBoxItem")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 void ComboBoxItem::set_content(std::unique_ptr<UIElement> child)
@@ -198,10 +198,10 @@ void ensure_listboxitem_properties_registered()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "ListBoxItem.IsSelected", ValueType::Int32, "ListBoxItem",
+        "IsSelected", ValueType::Int32, "ListBoxItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     (void)DependencyProperty::Register(
-        "ListBoxItem.IsHighlighted", ValueType::Int32, "ListBoxItem",
+        "IsHighlighted", ValueType::Int32, "ListBoxItem",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 } // namespace
@@ -212,22 +212,22 @@ ListBoxItem::ListBoxItem() { ensure_listboxitem_properties_registered(); }
 VAML_CORE_EXPORT
 SetResult ListBoxItem::set_is_selected(bool value)
 {
-    return Set(PropertyId::of("ListBoxItem.IsSelected"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsSelected","ListBoxItem"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool ListBoxItem::is_selected() const
 {
-    return Get(PropertyId::of("ListBoxItem.IsSelected")).get<int>() != 0;
+    return Get(PropertyId::of("IsSelected","ListBoxItem")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 SetResult ListBoxItem::set_is_highlighted(bool value)
 {
-    return Set(PropertyId::of("ListBoxItem.IsHighlighted"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsHighlighted","ListBoxItem"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool ListBoxItem::is_highlighted() const
 {
-    return Get(PropertyId::of("ListBoxItem.IsHighlighted")).get<int>() != 0;
+    return Get(PropertyId::of("IsHighlighted","ListBoxItem")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 void ListBoxItem::set_content(std::unique_ptr<UIElement> child)
@@ -308,7 +308,7 @@ void ensure_groupitem_properties_registered()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "GroupItem.IsExpanded", ValueType::Int32, "GroupItem",
+        "IsExpanded", ValueType::Int32, "GroupItem",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
 }
 } // namespace
@@ -319,12 +319,12 @@ GroupItem::GroupItem() { ensure_groupitem_properties_registered(); }
 VAML_CORE_EXPORT
 SetResult GroupItem::set_is_expanded(bool value)
 {
-    return Set(PropertyId::of("GroupItem.IsExpanded"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsExpanded","GroupItem"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool GroupItem::is_expanded() const
 {
-    return Get(PropertyId::of("GroupItem.IsExpanded")).get<int>() != 0;
+    return Get(PropertyId::of("IsExpanded","GroupItem")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 void GroupItem::set_content(std::unique_ptr<UIElement> child)
@@ -550,7 +550,7 @@ void ensure_gridviewcolumnheader_properties_registered()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "GridViewColumnHeader.ColumnHeaderRole", ValueType::Int32, "GridViewColumnHeader",
+        "ColumnHeaderRole", ValueType::Int32, "GridViewColumnHeader",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 } // namespace
@@ -560,12 +560,12 @@ GridViewColumnHeader::GridViewColumnHeader() { ensure_gridviewcolumnheader_prope
 VAML_CORE_EXPORT
 SetResult GridViewColumnHeader::set_column_header_role(std::int32_t value)
 {
-    return Set(PropertyId::of("GridViewColumnHeader.ColumnHeaderRole"), Value::Int32(value));
+    return Set(PropertyId::of("ColumnHeaderRole","GridViewColumnHeader"), Value::Int32(value));
 }
 VAML_CORE_EXPORT
 std::int32_t GridViewColumnHeader::column_header_role() const
 {
-    return Get(PropertyId::of("GridViewColumnHeader.ColumnHeaderRole")).get<int>();
+    return Get(PropertyId::of("ColumnHeaderRole","GridViewColumnHeader")).get<int>();
 }
 VAML_CORE_EXPORT
 void GridViewColumnHeader::set_content(std::unique_ptr<UIElement> child)
@@ -603,7 +603,7 @@ void ensure_gridview_properties_registered()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "GridView.ColumnHeaderContainerStyle", ValueType::String, "GridView",
+        "ColumnHeaderContainerStyle", ValueType::String, "GridView",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 } // namespace
@@ -622,12 +622,12 @@ const GridViewColumnCollection& GridView::columns() const noexcept { return cols
 VAML_CORE_EXPORT
 SetResult GridView::set_column_header_container_style(std::string value)
 {
-    return Set(PropertyId::of("GridView.ColumnHeaderContainerStyle"), Value::String(std::move(value)));
+    return Set(PropertyId::of("ColumnHeaderContainerStyle","GridView"), Value::String(std::move(value)));
 }
 VAML_CORE_EXPORT
 std::string GridView::column_header_container_style() const
 {
-    return Get(PropertyId::of("GridView.ColumnHeaderContainerStyle")).get<std::string>();
+    return Get(PropertyId::of("ColumnHeaderContainerStyle","GridView")).get<std::string>();
 }
 
 // ---------------------------------------------------------------------------
@@ -645,7 +645,7 @@ void ensure_virtualizingstackpanel_properties_registered()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "VirtualizingStackPanel.IsVirtualizing", ValueType::Int32, "VirtualizingStackPanel",
+        "IsVirtualizing", ValueType::Int32, "VirtualizingStackPanel",
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
 }
 } // namespace
@@ -655,12 +655,12 @@ VirtualizingStackPanel::VirtualizingStackPanel() { ensure_virtualizingstackpanel
 VAML_CORE_EXPORT
 SetResult VirtualizingStackPanel::set_is_virtualizing(bool value)
 {
-    return Set(PropertyId::of("VirtualizingStackPanel.IsVirtualizing"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsVirtualizing","VirtualizingStackPanel"), Value::Int32(value ? 1 : 0));
 }
 VAML_CORE_EXPORT
 bool VirtualizingStackPanel::is_virtualizing() const
 {
-    return Get(PropertyId::of("VirtualizingStackPanel.IsVirtualizing")).get<int>() != 0;
+    return Get(PropertyId::of("IsVirtualizing","VirtualizingStackPanel")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
 Size VirtualizingStackPanel::MeasureOverride(const Size& available) const
@@ -700,7 +700,7 @@ void ensure_selectivescrollinggrid_properties_registered()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "SelectiveScrollingGrid.SelectiveScrollingOrientation", ValueType::Int32, "SelectiveScrollingGrid",
+        "SelectiveScrollingOrientation", ValueType::Int32, "SelectiveScrollingGrid",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 } // namespace
@@ -710,13 +710,13 @@ SelectiveScrollingGrid::SelectiveScrollingGrid() { ensure_selectivescrollinggrid
 VAML_CORE_EXPORT
 SetResult SelectiveScrollingGrid::set_selective_scrolling_orientation(std::int32_t value)
 {
-    return Set(PropertyId::of("SelectiveScrollingGrid.SelectiveScrollingOrientation"),
+    return Set(PropertyId::of("SelectiveScrollingOrientation","SelectiveScrollingGrid"),
                Value::Int32(value));
 }
 VAML_CORE_EXPORT
 std::int32_t SelectiveScrollingGrid::selective_scrolling_orientation() const
 {
-    return Get(PropertyId::of("SelectiveScrollingGrid.SelectiveScrollingOrientation")).get<int>();
+    return Get(PropertyId::of("SelectiveScrollingOrientation","SelectiveScrollingGrid")).get<int>();
 }
 
 } // namespace vaml

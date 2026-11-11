@@ -23,7 +23,7 @@ void register_adorner_properties()
     if (registered) return;
     registered = true;
     (void)DependencyProperty::Register(
-        "Adorner.IsClipEnabled", ValueType::Int32, "Adorner",
+        "IsClipEnabled", ValueType::Int32, "Adorner",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 } // namespace
@@ -47,13 +47,13 @@ vaml::Matrix2D Adorner::GetDesiredTransform(const vaml::Matrix2D& offered) const
 VAML_CORE_EXPORT
 SetResult Adorner::set_is_clip_enabled(bool value)
 {
-    return Set(PropertyId::of("Adorner.IsClipEnabled"), Value::Int32(value ? 1 : 0));
+    return Set(PropertyId::of("IsClipEnabled","Adorner"), Value::Int32(value ? 1 : 0));
 }
 
 VAML_CORE_EXPORT
 bool Adorner::is_clip_enabled() const
 {
-    return Get(PropertyId::of("Adorner.IsClipEnabled")).get<int>() != 0;
+    return Get(PropertyId::of("IsClipEnabled","Adorner")).get<int>() != 0;
 }
 
 VAML_CORE_EXPORT

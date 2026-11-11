@@ -87,7 +87,7 @@ vbaml::Schema build_schema(const CompiledProgram& prog)
 // property-table knownProperty, value-table valueType, and binding
 // classification via the S252 BindingMarkup parser). `index` is the attribute's
 // index (for diagnostics line/col — carried by the element, not per-attribute).
-void annotate_attribute(AttributeRecord& ar)
+void annotate_attribute(AttributeRecord& ar, std::string_view elementType)
 {
     if (ar.isExtension)
     {
@@ -100,7 +100,12 @@ void annotate_attribute(AttributeRecord& ar)
     }
     else
     {
-        ar.knownProperty = vaml::DependencyProperty::TryGetByName(ar.key) != nullptr;
+        // S803: annotate `knownProperty` via the COMPOSITE owner-chain resolver
+        // against the element's type (never a bare-name lookup).
+        ar.knownProperty =
+            elementType.empty()
+                ? false
+                : vaml::DependencyProperty::ResolveForElement(ar.key, elementType) != nullptr;
         std::string inferred;
         ar.valueType = vaml::ValueConverterRegistry::global()
                            .try_infer_type(ar.value, &inferred)
@@ -122,6 +127,10 @@ void emit_elements(const ParsedElement& node, CompiledProgram& prog, std::size_t
     // S088-style resolution key: local_name fallback tagName.
     rec.typeToken = node.local_name.empty() ? std::string(node.tagName)
                                             : std::string(node.local_name);
+    // S803: capture the element type-name (rec.typeToken is moved into
+    // prog.elements before the property-element loop) for composite attribute
+    // annotation.
+    const std::string elementType = rec.typeToken;
     if (!ElementFactoryRegistry::global().is_registered(rec.typeToken))
     {
         throw VamlcException(VamlcError::ResolveFailed,
@@ -141,7 +150,7 @@ void emit_elements(const ParsedElement& node, CompiledProgram& prog, std::size_t
         ar.key = std::string(pa.key);
         ar.value = std::string(pa.value);
         ar.isExtension = pa.isExtension;
-        annotate_attribute(ar);
+        annotate_attribute(ar, elementType);
         rec.attributes.push_back(std::move(ar));
     }
 
@@ -211,7 +220,7 @@ void emit_elements(const ParsedElement& node, CompiledProgram& prog, std::size_t
                     ar.value.size() >= 2 && ar.value.front() == '{' && ar.value.back() == '}';
                 ar.isExtension = looksLikeExtension;
                 ar.propertyElement = true;
-                annotate_attribute(ar);
+                annotate_attribute(ar, elementType);
                 prog.elements[id].attributes.push_back(std::move(ar));
             }
             // An empty property-element `<Owner.Prop/>` = degenerate zero case:

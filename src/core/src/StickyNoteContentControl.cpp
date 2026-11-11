@@ -33,7 +33,7 @@ namespace {
 void register_stickynote_richbox_properties()
 {
     (void)DependencyProperty::Register(
-        "StickyNoteRichTextBox.Text", ValueType::String, "StickyNoteRichTextBox",
+        "Text", ValueType::String, "StickyNoteRichTextBox",
         PropertyMetadata::WithDefault(Value::String(""), PropertyFlags::None));
 }
 
@@ -56,7 +56,7 @@ StickyNoteRichTextBox::StickyNoteRichTextBox()
 
 SetResult StickyNoteRichTextBox::set_text(const std::string& value)
 {
-    const SetResult r = Set(PropertyId::of("StickyNoteRichTextBox.Text"), Value::String(value));
+    const SetResult r = Set(PropertyId::of("Text","StickyNoteRichTextBox"), Value::String(value));
     if (r == SetResult::APPLIED)
     {
         text_ = value;   // keep the host's owned body in lock-step
@@ -98,7 +98,7 @@ bool StickyNoteRichTextBox::Save(std::string& out, std::size_t maxBufferSize) co
 bool StickyNoteRichTextBox::Load(const std::string& body)
 {
     text_ = body;
-    (void)Set(PropertyId::of("StickyNoteRichTextBox.Text"), Value::String(body));
+    (void)Set(PropertyId::of("Text","StickyNoteRichTextBox"), Value::String(body));
     InvalidateMeasure();
     InvalidateArrange();
     return true;
@@ -140,7 +140,7 @@ namespace {
 void register_stickynote_ink_properties()
 {
     (void)DependencyProperty::Register(
-        "StickyNoteInkCanvas.Strokes", ValueType::String, "StickyNoteInkCanvas",
+        "Strokes", ValueType::String, "StickyNoteInkCanvas",
         PropertyMetadata::WithDefault(Value::String(""), PropertyFlags::None));
 }
 
@@ -163,7 +163,7 @@ StickyNoteInkCanvas::StickyNoteInkCanvas()
 
 SetResult StickyNoteInkCanvas::set_strokes(const std::string& value)
 {
-    const SetResult r = Set(PropertyId::of("StickyNoteInkCanvas.Strokes"), Value::String(value));
+    const SetResult r = Set(PropertyId::of("Strokes","StickyNoteInkCanvas"), Value::String(value));
     if (r == SetResult::APPLIED)
     {
         strokes_ = value;
@@ -191,7 +191,7 @@ bool StickyNoteInkCanvas::Save(std::string& out, std::size_t maxBufferSize) cons
 bool StickyNoteInkCanvas::Load(const std::string& body)
 {
     strokes_ = body;
-    (void)Set(PropertyId::of("StickyNoteInkCanvas.Strokes"), Value::String(body));
+    (void)Set(PropertyId::of("Strokes","StickyNoteInkCanvas"), Value::String(body));
     InvalidateMeasure();
     InvalidateArrange();
     return true;

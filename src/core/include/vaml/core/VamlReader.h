@@ -161,6 +161,10 @@ struct DeferredExtension
     const DependencyObject* target = nullptr;
     std::string_view key;    // S140: interned (pool-backed, no owned churn)
     std::string_view source; // S140: interned
+    // S803: the AUTHORED ELEMENT's type-name (the target's declaring owner
+    // chain root) so a deferred marker (x:Static/x:Type/resource) can resolve
+    // the (name, owner) composite it was authored on. S140 interned.
+    std::string_view elementTypeName; // S140: interned
 };
 
 // S092 (Strand C) — ONE deferred event handler on a built object. `target` is

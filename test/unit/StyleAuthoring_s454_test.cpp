@@ -76,7 +76,7 @@ const DependencyProperty& registerS454Int(std::string_view name)
         return DependencyProperty::Register(name, ValueType::Int32, "S454_Owner",
                                             PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "S454_Owner");
 }
 
 void registerS454()

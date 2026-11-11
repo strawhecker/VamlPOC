@@ -94,7 +94,7 @@ const DependencyProperty& registerS366Global(const std::string& name, ValueType 
         return DependencyProperty::Register(name, type, "S366_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "S366_Owner");
 }
 
 void registerS366Properties()

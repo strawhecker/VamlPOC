@@ -150,7 +150,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
         // engine. A Button with no template applied falls back to a neutral
         // fill.
         vaml::Color bg{ 200, 200, 205, 255 };
-        const vaml::Value bv = element.Get(vaml::PropertyId::of("Background"));
+        const vaml::Value bv = element.Get(vaml::PropertyId::of("Background", "Control"));
         // S643b-1: the DP holds a Brush OBJECT (or the legacy BrushId seam);
         // resolve through the object resolver (handles both).
         if (bv.type() == vaml::ValueType::Brush || bv.type() == vaml::ValueType::BrushId)
@@ -920,7 +920,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     v.kind = vaml::vulkan::ui::MaterialKind::Solid;
     const vaml::Rect r = element.final_rect();
     vaml::Color bg{ 191, 204, 229, 255 };  // the neutral 0.75/0.80/0.90 fill, alpha 1.0
-    const vaml::Value bv = element.Get(vaml::PropertyId::of("Background"));
+    const vaml::Value bv = element.Get(vaml::PropertyId::of("Background", "Control"));
     if (bv.type() == vaml::ValueType::Brush || bv.type() == vaml::ValueType::BrushId)
     {
         bg = vaml::resolve_foreground_brush(element, bv)->color();
@@ -1127,17 +1127,17 @@ bool VamlRenderer::record_draw(vaml::presentation::Presenter& self,
     clear::ClearValue decided{ 0.0f, 0.0f, 0.0f, 0.0f };
     if (const auto* windowRoot = dynamic_cast<const vaml::Window*>(root_))
     {
-        const bool allows = windowRoot->Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
+        const bool allows = windowRoot->Get(vaml::PropertyId::of("AllowsTransparency", "Window")).get<bool>();
         // The WPF null-Background mirror: a Window.Background is "resolved" only
         // when AUTHORED (a local value) — the shared "Background" Color DP's
         // default opaque black is NOT a resolved background (WPF Window.Background
         // defaults null). `has_local_value` detects the authored-local case; an
         // inherited/template value is beyond this horizontal slice (recorded NO-GAP).
-        const vaml::Value wbg = windowRoot->Get(vaml::PropertyId::of("Background"));
+        const vaml::Value wbg = windowRoot->Get(vaml::PropertyId::of("Background", "Control"));
         // S643b-1: an authored Background is a Brush OBJECT (or the legacy
         // BrushId seam) — use the object resolver for both.
         const bool authored =
-            windowRoot->has_local_value(vaml::PropertyId::of("Background")) &&
+            windowRoot->has_local_value(vaml::PropertyId::of("Background", "Control")) &&
             (wbg.type() == vaml::ValueType::Brush || wbg.type() == vaml::ValueType::BrushId);
         vaml::Color bgColor{ 0, 0, 0, 0 };
         const vaml::Color* resolved = nullptr;

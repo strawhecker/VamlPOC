@@ -91,15 +91,15 @@ private:
     std::unordered_set<std::string> hadLocal_;
 };
 
-// Applies a resolved Value to `element`'s `prop`, honoring LOCAL-WINS via the
-// pre-pass locals snapshot (see LocalsSnapshot). Returns (applied, value).
-[[nodiscard]] StyleApply apply_value_to(UIElement& element, std::string_view prop,
+// Applies a resolved Value to `element`'s `id` (the setter's composite
+// (name, owner) PropertyId), honoring LOCAL-WINS via the pre-pass locals
+// snapshot (see LocalsSnapshot). Returns (applied, value).
+[[nodiscard]] StyleApply apply_value_to(UIElement& element, const PropertyId& id,
                                         const Value& value, const LocalsSnapshot& locals)
 {
     StyleApply out;
-    out.property = PropertyId::of(prop);
+    out.property = id;
     out.value = value;
-    const PropertyId id = PropertyId::of(prop);
     // LOCAL-WINS: an authored local value from BEFORE the pass wins over the style.
     if (locals.had_local(id.name()))
     {
@@ -114,7 +114,8 @@ private:
     // S643b object conversion) registered a fresh id instead. Now that the
     // enumerated + shared paint DPs are Brush objects, the object path is
     // primary; a numeric BrushId or a non-paint value passes through unchanged.
-    const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(prop);
+    const vaml::DependencyProperty* dp =
+        vaml::DependencyProperty::TryGet(id.name(), id.owner());
     if (dp && dp->metadata().boundType() == vaml::ValueType::Brush &&
         value.type() == vaml::ValueType::Color)
     {
@@ -191,7 +192,7 @@ StyleApplier::apply_style(UIElement& element, const Style& style,
             {
                 case SetterValue::Kind::Literal:
                 {
-                    StyleApply a = apply_value_to(element, setter.targetProperty.name(),
+                    StyleApply a = apply_value_to(element, setter.targetProperty,
                                                   setter.value.literal(), locals);
                     if (a.applied)
                     {
@@ -285,7 +286,7 @@ StyleApplier::apply_style(UIElement& element, const Style& style,
         {
             if (setter.value.kind() == SetterValue::Kind::Literal)
             {
-                StyleApply a = apply_value_to(element, setter.targetProperty.name(),
+                StyleApply a = apply_value_to(element, setter.targetProperty,
                                               setter.value.literal(), locals);
                 if (a.applied)
                 {
@@ -325,7 +326,7 @@ StyleApplier::apply_style_base(UIElement& element, const Style& style,
             {
                 continue;
             }
-            StyleApply a = apply_value_to(element, setter.targetProperty.name(),
+            StyleApply a = apply_value_to(element, setter.targetProperty,
                                           setter.value.literal(), locals);
             if (a.applied)
             {

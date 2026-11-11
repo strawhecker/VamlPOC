@@ -389,7 +389,8 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
             {
                 continue; // Strand C (already emitted a DeferredEventHandler)
             }
-            const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(a.key);
+            const vaml::DependencyProperty* dp =
+                vaml::DependencyProperty::ResolveForElement(a.key, rec.typeToken);
             if (dp == nullptr)
             {
                 throw VBamlException(VBamlError::UnknownProperty,
@@ -405,7 +406,7 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
                     (bt == vaml::ValueType::Brush || bt == vaml::ValueType::BrushId)
                         ? convertBrushIdLiteral(nodes[id].get(), bt, a.value)
                         : convertLiterals(*dp, a.value);
-                (void)nodes[id]->Set(vaml::PropertyId::of(a.key), v);
+                (void)nodes[id]->Set(dp->property_id(), v);
             }
             catch (const vaml::ValueConversionException& e)
             {
@@ -453,7 +454,8 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
             if (!prog.elements[cid].propertyElementTarget.empty())
             {
                 const std::string& prop = prog.elements[cid].propertyElementTarget;
-                const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(prop);
+                const vaml::DependencyProperty* dp =
+                    vaml::DependencyProperty::ResolveForElement(prop, prog.elements[id].typeToken);
                 if (dp == nullptr)
                 {
                     throw VBamlException(VBamlError::UnknownProperty,
@@ -461,7 +463,7 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
                                              "' (object property-element)",
                                          cid, prop);
                 }
-                (void)nodes[id]->Set(vaml::PropertyId::of(prop),
+                (void)nodes[id]->Set(dp->property_id(),
                                      vaml::Value::UntypedPtr(nodes[cid].get()));
                 property_element_children_.insert(nodes[cid].get());
             }

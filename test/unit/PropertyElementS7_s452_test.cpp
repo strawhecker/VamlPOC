@@ -68,7 +68,7 @@ const DependencyProperty& registerS7S452Global(const std::string& name, ValueTyp
         return DependencyProperty::Register(name, type, "S452_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::GetByName(name);
+    return DependencyProperty::Get(name, "S452_Owner");
 }
 
 // Same prop names as the S2 test (PropertyElement_s452_test.cpp) so the two

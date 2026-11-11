@@ -258,7 +258,7 @@ TEST_CASE("S510: a REAL Storyboard animates Opacity + RenderTransform via tick")
     Storyboard sb;
     auto fade = std::make_unique<DoubleAnimation>();
     fade->set_target_name("");
-    fade->set_target_property(vaml::PropertyId::of("Opacity"));
+    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fade->set_from(1.0);
     fade->set_to(0.0);
     fade->set_duration(2.0);
@@ -312,7 +312,7 @@ TEST_CASE("S510: tick BEFORE start is a no-op")
     Storyboard sb;
     auto fade = std::make_unique<DoubleAnimation>();
     fade->set_target_name("");
-    fade->set_target_property(vaml::PropertyId::of("Opacity"));
+    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fade->set_from(0.7);
     fade->set_to(0.0);
     fade->set_duration(1.0);
@@ -332,7 +332,7 @@ TEST_CASE("S510: FillBehavior HoldEnd holds the end value; Stop restores the bas
     Storyboard hold;
     auto fadeHold = std::make_unique<DoubleAnimation>();
     fadeHold->set_target_name("");
-    fadeHold->set_target_property(vaml::PropertyId::of("Opacity"));
+    fadeHold->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fadeHold->set_to(0.1);               // no From -> From defaults to base .5
     fadeHold->set_duration(1.0);
     fadeHold->set_fill_behavior(vaml::FillBehavior::HoldEnd);
@@ -350,7 +350,7 @@ TEST_CASE("S510: FillBehavior HoldEnd holds the end value; Stop restores the bas
     Storyboard stop;
     auto fadeStop = std::make_unique<DoubleAnimation>();
     fadeStop->set_target_name("");
-    fadeStop->set_target_property(vaml::PropertyId::of("Opacity"));
+    fadeStop->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fadeStop->set_to(0.1);
     fadeStop->set_duration(1.0);
     fadeStop->set_fill_behavior(vaml::FillBehavior::Stop);
@@ -398,7 +398,7 @@ TEST_CASE("S510: AutoReverse DoubleAnimation ping-pongs the value")
     Storyboard sb;
     auto fade = std::make_unique<DoubleAnimation>();
     fade->set_target_name("");
-    fade->set_target_property(vaml::PropertyId::of("Opacity"));
+    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fade->set_from(0.0);
     fade->set_to(1.0);
     fade->set_duration(2.0);
@@ -423,7 +423,7 @@ TEST_CASE("S510: RepeatBehavior Forever cycles the value continuously")
     Storyboard sb;
     auto fade = std::make_unique<DoubleAnimation>();
     fade->set_target_name("");
-    fade->set_target_property(vaml::PropertyId::of("Opacity"));
+    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fade->set_from(0.0);
     fade->set_to(1.0);
     fade->set_duration(1.0);

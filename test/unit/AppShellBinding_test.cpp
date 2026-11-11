@@ -96,7 +96,7 @@ TEST_CASE("S443: {Binding Status} — one-way first-transfer lands the VM status
     // The VM's initial Status is empty; the S242 first-transfer landed it onto
     // the bound StatusText.Text target DP.
     SHOULD(ShouldlyString(plan.vm->Status()).ShouldBe(std::string("")));
-    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("")));
 }
 
@@ -114,11 +114,11 @@ TEST_CASE("S443: a later VM set_Status re-pushes the bound StatusText (live one-
     // The retained reader keeps the {Binding Status} live binding armed; a real
     // VM change re-pushes through the S243 one-way wire to the target DP.
     (void)plan.vm->set_Status("S443 live");
-    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("S443 live")));
 
     (void)plan.vm->set_Status("S443 live 2");
-    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("S443 live 2")));
 }
 
@@ -196,7 +196,7 @@ TEST_CASE("S443: a Click on the RunButton runs handler → VM RunCommand → Sta
     SHOULD(ShouldlyIntegral(plan.vm->service().counter()).ShouldBe(1));
     SHOULD(ShouldlyString(plan.vm->Status()).ShouldBe(std::string("ran #1")));
     // The one-way binding repainted the target DP.
-    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("ran #1")));
 }
 

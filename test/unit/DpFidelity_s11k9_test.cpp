@@ -34,9 +34,9 @@ using namespace vaml;
 namespace {
 
 // Asserts a DP is registered (TryGet != nullptr) — the per-row audit-pin.
-bool dp_exists(const char* name)
+bool dp_exists(const char* name, const char* owner)
 {
-    return DependencyProperty::TryGetByName(name) != nullptr;
+    return DependencyProperty::TryGet(name, owner) != nullptr;
 }
 
 } // namespace
@@ -47,57 +47,57 @@ TEST_CASE("11k-9 full closure: the audited base-class surface registers")
     vaml::register_builtin_elements();
 
     // UIElement base (the 11k-8 audit rows).
-    CHECK(dp_exists("AllowDrop"));
-    CHECK(dp_exists("ClipToBounds"));
-    CHECK(dp_exists("SnapsToDevicePixels"));
-    CHECK(dp_exists("IsHitTestVisible"));
-    CHECK(dp_exists("IsManipulationEnabled"));
-    CHECK(dp_exists("Uid"));
-    CHECK(dp_exists("OpacityMask"));
-    CHECK(dp_exists("RenderTransformOrigin"));
+    CHECK(dp_exists("AllowDrop", "UIElement"));
+    CHECK(dp_exists("ClipToBounds", "UIElement"));
+    CHECK(dp_exists("SnapsToDevicePixels", "UIElement"));
+    CHECK(dp_exists("IsHitTestVisible", "UIElement"));
+    CHECK(dp_exists("IsManipulationEnabled", "UIElement"));
+    CHECK(dp_exists("Uid", "UIElement"));
+    CHECK(dp_exists("OpacityMask", "UIElement"));
+    CHECK(dp_exists("RenderTransformOrigin", "UIElement"));
 
     // FrameworkElement base.
-    CHECK(dp_exists("DataContext"));
-    CHECK(dp_exists("Language"));
-    CHECK(dp_exists("InputScope"));
-    CHECK(dp_exists("FlowDirection"));
-    CHECK(dp_exists("UseLayoutRounding"));
-    CHECK(dp_exists("OverridesDefaultStyle"));
-    CHECK(dp_exists("Cursor"));
-    CHECK(dp_exists("ForceCursor"));
-    CHECK(dp_exists("ToolTip"));
-    CHECK(dp_exists("ContextMenu"));
+    CHECK(dp_exists("DataContext", "FrameworkElement"));
+    CHECK(dp_exists("Language", "FrameworkElement"));
+    CHECK(dp_exists("InputScope", "FrameworkElement"));
+    CHECK(dp_exists("FlowDirection", "FrameworkElement"));
+    CHECK(dp_exists("UseLayoutRounding", "FrameworkElement"));
+    CHECK(dp_exists("OverridesDefaultStyle", "FrameworkElement"));
+    CHECK(dp_exists("Cursor", "FrameworkElement"));
+    CHECK(dp_exists("ForceCursor", "FrameworkElement"));
+    CHECK(dp_exists("ToolTip", "FrameworkElement"));
+    CHECK(dp_exists("ContextMenu", "FrameworkElement"));
 
     // Control base (the 11k-8 rows beyond the 11j-5 bundle).
-    CHECK(dp_exists("BorderBrush"));
-    CHECK(dp_exists("BorderThickness"));
-    CHECK(dp_exists("Background"));
-    CHECK(dp_exists("TabIndex"));
-    CHECK(dp_exists("IsTabStop"));
-    CHECK(dp_exists("Template"));
+    CHECK(dp_exists("BorderBrush", "Control"));
+    CHECK(dp_exists("BorderThickness", "Control"));
+    CHECK(dp_exists("Background", "Control"));
+    CHECK(dp_exists("TabIndex", "Control"));
+    CHECK(dp_exists("IsTabStop", "Control"));
+    CHECK(dp_exists("Template", "Control"));
 
     // ContentControl base.
-    CHECK(dp_exists("HasContent"));
-    CHECK(dp_exists("ContentTemplate"));
-    CHECK(dp_exists("ContentTemplateSelector"));
-    CHECK(dp_exists("ContentStringFormat"));
+    CHECK(dp_exists("HasContent", "ContentControl"));
+    CHECK(dp_exists("ContentTemplate", "ContentControl"));
+    CHECK(dp_exists("ContentTemplateSelector", "ContentControl"));
+    CHECK(dp_exists("ContentStringFormat", "ContentControl"));
 
     // RangeBase + ButtonBase + Selector + ToggleButton + Thumb + Headered.
-    CHECK(dp_exists("LargeChange"));
-    CHECK(dp_exists("SmallChange"));
-    CHECK(dp_exists("Command"));
-    CHECK(dp_exists("CommandParameter"));
-    CHECK(dp_exists("CommandTarget"));
-    CHECK(dp_exists("ClickMode"));
-    CHECK(dp_exists("IsSynchronizedWithCurrentItem"));
-    CHECK(dp_exists("SelectedValue"));
-    CHECK(dp_exists("SelectedValuePath"));
-    CHECK(dp_exists("IsDragging"));
-    CHECK(dp_exists("HasHeader"));
-    CHECK(dp_exists("HeaderTemplate"));
-    CHECK(dp_exists("HeaderStringFormat"));
-    CHECK(dp_exists("HasItems"));
-    CHECK(dp_exists("DisplayMemberPath"));
+    CHECK(dp_exists("LargeChange", "RangeBase"));
+    CHECK(dp_exists("SmallChange", "RangeBase"));
+    CHECK(dp_exists("Command", "ButtonBase"));
+    CHECK(dp_exists("CommandParameter", "ButtonBase"));
+    CHECK(dp_exists("CommandTarget", "ButtonBase"));
+    CHECK(dp_exists("ClickMode", "ButtonBase"));
+    CHECK(dp_exists("IsSynchronizedWithCurrentItem", "Selector"));
+    CHECK(dp_exists("SelectedValue", "Selector"));
+    CHECK(dp_exists("SelectedValuePath", "Selector"));
+    CHECK(dp_exists("IsDragging", "Thumb"));
+    CHECK(dp_exists("HasHeader", "HeaderedContentControl"));
+    CHECK(dp_exists("HeaderTemplate", "HeaderedContentControl"));
+    CHECK(dp_exists("HeaderStringFormat", "HeaderedContentControl"));
+    CHECK(dp_exists("HasItems", "ItemsControl"));
+    CHECK(dp_exists("DisplayMemberPath", "ItemsControl"));
 }
 
 TEST_CASE("11k-9 full closure: the audited per-control OWN surface registers")
@@ -105,96 +105,96 @@ TEST_CASE("11k-9 full closure: the audited per-control OWN surface registers")
     vaml::register_builtin_elements();
 
     // Button own.
-    CHECK(dp_exists("IsDefault"));
-    CHECK(dp_exists("IsCancel"));
-    CHECK(dp_exists("IsDefaulted"));
+    CHECK(dp_exists("IsDefault", "Button"));
+    CHECK(dp_exists("IsCancel", "Button"));
+    CHECK(dp_exists("IsDefaulted", "Button"));
 
     // TextBox own.
-    CHECK(dp_exists("TextWrapping"));
-    CHECK(dp_exists("MinLines"));
-    CHECK(dp_exists("MaxLines"));
-    CHECK(dp_exists("CharacterCasing"));
-    CHECK(dp_exists("MaxLength"));
-    CHECK(dp_exists("TextAlignment"));
-    CHECK(dp_exists("TextDecorations"));
+    CHECK(dp_exists("TextWrapping", "TextBox"));
+    CHECK(dp_exists("MinLines", "TextBox"));
+    CHECK(dp_exists("MaxLines", "TextBox"));
+    CHECK(dp_exists("CharacterCasing", "TextBox"));
+    CHECK(dp_exists("MaxLength", "TextBox"));
+    CHECK(dp_exists("TextAlignment", "TextBox"));
+    CHECK(dp_exists("TextDecorations", "TextBox"));
 
     // Slider own.
-    CHECK(dp_exists("IsDirectionReversed"));
-    CHECK(dp_exists("IsSnapToTickEnabled"));
-    CHECK(dp_exists("TickPlacement"));
-    CHECK(dp_exists("TickFrequency"));
-    CHECK(dp_exists("Ticks"));
-    CHECK(dp_exists("IsSelectionRangeEnabled"));
-    CHECK(dp_exists("SelectionStart"));
-    CHECK(dp_exists("SelectionEnd"));
-    CHECK(dp_exists("IsMoveToPointEnabled"));
+    CHECK(dp_exists("IsDirectionReversed", "Slider"));
+    CHECK(dp_exists("IsSnapToTickEnabled", "Slider"));
+    CHECK(dp_exists("TickPlacement", "Slider"));
+    CHECK(dp_exists("TickFrequency", "Slider"));
+    CHECK(dp_exists("Ticks", "Slider"));
+    CHECK(dp_exists("IsSelectionRangeEnabled", "Slider"));
+    CHECK(dp_exists("SelectionStart", "Slider"));
+    CHECK(dp_exists("SelectionEnd", "Slider"));
+    CHECK(dp_exists("IsMoveToPointEnabled", "Slider"));
 
     // ScrollViewer.
-    CHECK(dp_exists("HorizontalScrollBarVisibility"));
-    CHECK(dp_exists("VerticalScrollBarVisibility"));
-    CHECK(dp_exists("CanContentScroll"));
-    CHECK(dp_exists("IsDeferredScrollingEnabled"));
-    CHECK(dp_exists("PanningMode"));
+    CHECK(dp_exists("HorizontalScrollBarVisibility", "ScrollViewer"));
+    CHECK(dp_exists("VerticalScrollBarVisibility", "ScrollViewer"));
+    CHECK(dp_exists("CanContentScroll", "ScrollViewer"));
+    CHECK(dp_exists("IsDeferredScrollingEnabled", "ScrollViewer"));
+    CHECK(dp_exists("PanningMode", "ScrollViewer"));
     // ScrollChanged is a ROUTED EVENT (S405), not a DP — registered via
     // RoutedEvent::registered (the shared identity), asserted separately below.
 
     // Label.
-    CHECK(dp_exists("Target"));
+    CHECK(dp_exists("Target", "Label"));
 
     // ProgressBar.
-    CHECK(dp_exists("IsIndeterminate"));
+    CHECK(dp_exists("IsIndeterminate", "ProgressBar"));
 
     // ComboBox.
-    CHECK(dp_exists("MaxDropDownHeight"));
-    CHECK(dp_exists("IsEditable"));
-    CHECK(dp_exists("IsReadOnly"));
-    CHECK(dp_exists("StaysOpenOnEdit"));
+    CHECK(dp_exists("MaxDropDownHeight", "ComboBox"));
+    CHECK(dp_exists("IsEditable", "ComboBox"));
+    CHECK(dp_exists("IsReadOnly", "ComboBox"));
+    CHECK(dp_exists("StaysOpenOnEdit", "ComboBox"));
 
     // ListBox/ListView.
-    CHECK(dp_exists("SelectionMode"));
-    CHECK(dp_exists("View"));
+    CHECK(dp_exists("SelectionMode", "ListBox"));
+    CHECK(dp_exists("View", "ListView"));
 
     // ToolBar.
-    CHECK(dp_exists("IsOverflowItem"));
-    CHECK(dp_exists("OverflowMode"));
+    CHECK(dp_exists("IsOverflowItem", "ToolBar"));
+    CHECK(dp_exists("OverflowMode", "ToolBar"));
 
     // Expander / ToolTip / Popup / Window / TextBlock / DockPanel /
     // RadioButton / Image / DataGrid / TreeView / DatePicker / GridSplitter.
-    CHECK(dp_exists("ExpandDirection"));
-    CHECK(dp_exists("HasDropShadow"));
-    CHECK(dp_exists("StaysOpen"));
-    CHECK(dp_exists("PopupAnimation"));
-    CHECK(dp_exists("Title"));
-    CHECK(dp_exists("SizeToContent"));
-    CHECK(dp_exists("WindowState"));
-    CHECK(dp_exists("ShowInTaskbar"));
-    CHECK(dp_exists("ShowActivated"));
-    CHECK(dp_exists("FontStyle"));
-    CHECK(dp_exists("FontStretch"));
-    CHECK(dp_exists("LineHeight"));
-    CHECK(dp_exists("LineStackingStrategy"));
-    CHECK(dp_exists("BaselineOffset"));
-    CHECK(dp_exists("TextEffects"));
-    CHECK(dp_exists("IsHyphenationEnabled"));
-    CHECK(dp_exists("TextTrimming"));
-    CHECK(dp_exists("LastChildFill"));
-    CHECK(dp_exists("GroupName"));
-    CHECK(dp_exists("ClipGeometry"));
-    CHECK(dp_exists("GuidelineSet"));
-    CHECK(dp_exists("CanUserResizeColumns"));
-    CHECK(dp_exists("ColumnWidth"));
-    CHECK(dp_exists("GridLinesVisibility"));
-    CHECK(dp_exists("CanUserSortColumns"));
-    CHECK(dp_exists("FrozenColumnCount"));
-    CHECK(dp_exists("CanUserReorderColumns"));
-    CHECK(dp_exists("ClipboardCopyMode"));
-    CHECK(dp_exists("EnableRowVirtualization"));
-    CHECK(dp_exists("IsExpanded"));
-    CHECK(dp_exists("SelectedItem"));
-    CHECK(dp_exists("SelectedDate"));
-    CHECK(dp_exists("FirstDayOfWeek"));
-    CHECK(dp_exists("IsTodayHighlighted"));
-    CHECK(dp_exists("ShowsPreview"));
+    CHECK(dp_exists("ExpandDirection", "Expander"));
+    CHECK(dp_exists("HasDropShadow", "ToolTip"));
+    CHECK(dp_exists("StaysOpen", "Popup"));
+    CHECK(dp_exists("PopupAnimation", "Popup"));
+    CHECK(dp_exists("Title", "Window"));
+    CHECK(dp_exists("SizeToContent", "Window"));
+    CHECK(dp_exists("WindowState", "Window"));
+    CHECK(dp_exists("ShowInTaskbar", "Window"));
+    CHECK(dp_exists("ShowActivated", "Window"));
+    CHECK(dp_exists("FontStyle", "TextBlock"));
+    CHECK(dp_exists("FontStretch", "TextBlock"));
+    CHECK(dp_exists("LineHeight", "TextBlock"));
+    CHECK(dp_exists("LineStackingStrategy", "TextBlock"));
+    CHECK(dp_exists("BaselineOffset", "TextBlock"));
+    CHECK(dp_exists("TextEffects", "TextBlock"));
+    CHECK(dp_exists("IsHyphenationEnabled", "TextBlock"));
+    CHECK(dp_exists("TextTrimming", "TextBlock"));
+    CHECK(dp_exists("LastChildFill", "DockPanel"));
+    CHECK(dp_exists("GroupName", "RadioButton"));
+    CHECK(dp_exists("ClipGeometry", "DrawingGroup"));
+    CHECK(dp_exists("GuidelineSet", "DrawingGroup"));
+    CHECK(dp_exists("CanUserResizeColumns", "DataGrid"));
+    CHECK(dp_exists("ColumnWidth", "DataGrid"));
+    CHECK(dp_exists("GridLinesVisibility", "DataGrid"));
+    CHECK(dp_exists("CanUserSortColumns", "DataGrid"));
+    CHECK(dp_exists("FrozenColumnCount", "DataGrid"));
+    CHECK(dp_exists("CanUserReorderColumns", "DataGrid"));
+    CHECK(dp_exists("ClipboardCopyMode", "DataGrid"));
+    CHECK(dp_exists("EnableRowVirtualization", "DataGrid"));
+    CHECK(dp_exists("IsExpanded", "Expander"));
+    CHECK(dp_exists("SelectedItem", "TreeView"));
+    CHECK(dp_exists("SelectedDate", "DatePicker"));
+    CHECK(dp_exists("FirstDayOfWeek", "DatePicker"));
+    CHECK(dp_exists("IsTodayHighlighted", "DatePicker"));
+    CHECK(dp_exists("ShowsPreview", "GridSplitter"));
 }
 
 TEST_CASE("11k-9 full closure: idempotent (no duplicate-Register throw) + shared names intact")
@@ -216,11 +216,11 @@ TEST_CASE("11k-9 full closure: idempotent (no duplicate-Register throw) + shared
     CHECK_NOTHROW(TextBlock());
 
     // The shared Control-base names (11j-5) still resolve (not re-registered).
-    CHECK(dp_exists("FontSize"));
-    CHECK(dp_exists("FontFamily"));
-    CHECK(dp_exists("Padding"));
-    CHECK(dp_exists("HorizontalContentAlignment"));
-    CHECK(dp_exists("VerticalContentAlignment"));
+    CHECK(dp_exists("FontSize", "Control"));
+    CHECK(dp_exists("FontFamily", "Control"));
+    CHECK(dp_exists("Padding", "Control"));
+    CHECK(dp_exists("HorizontalContentAlignment", "Control"));
+    CHECK(dp_exists("VerticalContentAlignment", "Control"));
 }
 
 TEST_CASE("11k-9 the VIEWER-GROWTH corpus spread authors + resolves end-to-end (never UnknownProperty)")

@@ -219,32 +219,58 @@ void ensure_startup_registrations()
     return n;
 }
 
-// S801 COMPOSITE reader lookup. The registry + GlobalTable are (name, owner)-
-// keyed. A DOTTED attribute key (`Grid.Row`, `Canvas.Left`) carries its OWNER
-// in the prefix before the LAST dot (`Grid`, `Canvas`) and the registered NAME
-// is the full dotted key — resolve natively as the (name, owner) composite.
-// A BARE key (`Orientation`, `FontSize`) has no owner segment in the markup; it
-// resolves via the GUARDED unique-name bridge (returns the DP only when exactly
-// one (owner) registration has that name — never silently picks among ambiguous
-// names). This is the A2-sanctioned transitional surface (MINIMAL REAL,
-// S803-resolved when the reader's element-type->owner inference lands).
-[[nodiscard]] const vaml::DependencyProperty* lookup_dp_for_attr(std::string_view key)
+// S803 COMPOSITE owner-chain lookup. A DOTTED attribute key (`Grid.Row`,
+// `Canvas.Left`, `Button.Command`) splits at the LAST dot into
+// `(name = tail, owner = prefix)` and resolves natively as the (name, owner)
+// composite — WPF-faithful (`RegisterAttached("Row", ..., typeof(Grid))`: owner
+// is the declaring type, name is the bare tail; the dot is split-only, never
+// stored). A BARE key (`Padding`, `Orientation`, `Text`, `Command`) has no
+// owner segment in the markup; it resolves by walking the ELEMENT's DECLARED
+// OWNER-CHAIN (WPF's XAML type-inheritance resolution — a DP's owner is its
+// declaring type and a bare key resolves against the element's type hierarchy,
+// so `Padding=5` on a Button hits owner "Control", `Text=...` on a TextBlock
+// hits owner "TextBlock"). The chain is a static per-element-type table keyed
+// on the element TYPE-NAME string (authored alongside the S087 factory table,
+// no runtime reflection, no concrete-type header dependency), walked
+// most-derived-first calling TryGet(name, owner) at each level. NO TryGetByName,
+// NO name-flatten.
+
+// S803 — resolve an OWNED attribute key to its global DependencyProperty.
+//   * DOTTED key -> TryGet(tail, prefix) — explicit (name, owner), NO chain
+//     (the dot is split-only; WPF-faithful: owner is the declaring type, name
+//     is the bare tail).
+//   * BARE key  -> DependencyProperty::ResolveForElement(name, elementTypeName)
+//     walks the element-type's DECLARED OWNER-CHAIN (the SINGLE shared
+//     authority in DependencyProperty.cpp) calling TryGet(name, owner) at each
+//     level — WPF's XAML type-inheritance DP resolution. NO TryGetByName, NO
+//     name-flatten, NO duplicated table.
+// `elementTypeName` is the authored/type-name of the built element. Returns
+// nullptr when the (key, element) pair has no registered owner-level DP (the
+// caller reports UnknownProperty).
+[[nodiscard]] const vaml::DependencyProperty* lookup_dp_for_attr(
+    std::string_view key, std::string_view elementTypeName)
 {
     const std::size_t dot = key.rfind('.');
     if (dot != std::string_view::npos)
     {
-        // Dotted (attached) key: owner = prefix before the last dot; name = the
-        // full key (registrations author the full "Grid.Row" string under owner
-        // "Grid", matching how they were authored in Element.cpp).
+        // Dotted (attached) key: owner = prefix before the last dot; name = tail.
         const std::string_view owner = key.substr(0, dot);
-        const DependencyProperty* dp = DependencyProperty::TryGet(key, owner);
-        if (dp != nullptr)
-        {
-            return dp;
-        }
+        const std::string_view name  = key.substr(dot + 1);
+        return DependencyProperty::TryGet(name, owner);
     }
-    // Bare key (no owner segment): guarded unique-name bridge.
-    return DependencyProperty::TryGetByName(key);
+    // Bare key: delegate to the shared owner-chain resolver.
+    return vaml::DependencyProperty::ResolveForElement(key, elementTypeName);
+}
+
+// S803 — a DOUBLE math-literal converter for the drawing/geometry resource
+// builders that ONLY need to parse an "x,y" / scalar Double pair (never a DP to
+// SET on): converts the literal via the Double value converter, throwing
+// ValueConversionException on a bad literal (the same contract the DP-based
+// convertLiteral would impose). No fake DP, no bare-name lookup, no owner.
+// int32 parse helper reused by the numeric brush-id path.
+[[nodiscard]] Value convert_double_literal(std::string_view literal)
+{
+    return ValueConverterRegistry::global().convert("Double", literal);
 }
 
 } // namespace
@@ -675,8 +701,9 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         // records ("S2 tag: resolved by S252"). Never converted/set here.
         if (attr.isExtension)
         {
-            deferred_extensions_.push_back(
-                DeferredExtension{obj.get(), attr.key, attr.value});
+            deferred_extensions_.push_back(DeferredExtension{
+                obj.get(), attr.key, attr.value,
+                element.local_name.empty() ? element.tagName : element.local_name});
             continue;
         }
 
@@ -690,7 +717,9 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         // An attribute naming a property with no global DependencyProperty ->
         // VamlReaderException (S091's unknown-property baseline; S094 owns the
         // full taxonomy).
-        const DependencyProperty* dp = lookup_dp_for_attr(attr.key);
+        const std::string_view typeName = element.local_name.empty() ? element.tagName
+                                                                     : element.local_name;
+        const DependencyProperty* dp = lookup_dp_for_attr(attr.key, typeName);
         if (dp == nullptr)
         {
             report_unknown_property(
@@ -712,7 +741,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
             (bt == ValueType::Brush || bt == ValueType::BrushId)
                 ? convertBrushIdLiteral(*dp, obj.get(), attr.value)
                 : convertLiteral(*dp, attr.value);
-        (void)obj->Set(PropertyId(attr.key), value); // S043 attached-aware by name
+        (void)obj->Set(dp->property_id(), value); // S803 composite (name, owner)
     }
 
     // 11k-11 (dep:11k-1) — GENERAL CONTENT-OWNER ROUTING. 11k-1's TextBlock-
@@ -742,7 +771,9 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
 
         if (contentDpName != nullptr)
         {
-            const DependencyProperty* dp = lookup_dp_for_attr(contentDpName);
+            const std::string_view typeName = element.local_name.empty() ? element.tagName
+                                                                         : element.local_name;
+            const DependencyProperty* dp = lookup_dp_for_attr(contentDpName, typeName);
             if (dp != nullptr)
             {
                 // Build the routed text from the ORDERED contentRuns (the lossless
@@ -778,7 +809,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                 if (!orderedText.empty())
                 {
                     const Value value = convertLiteral(*dp, orderedText);
-                    (void)obj->Set(PropertyId::of(contentDpName), value);
+                    (void)obj->Set(dp->property_id(), value);
                 }
             }
         }
@@ -901,7 +932,11 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                                 value = a.value;
                             }
                         }
-                        const DependencyProperty* tdp = DependencyProperty::TryGetByName(prop);
+                        // S803: resolve the trigger's Property against the OWNER
+                        // element's type (the `<Owner.Triggers>` authoring target).
+                        const std::string_view ownerType =
+                            element.local_name.empty() ? element.tagName : element.local_name;
+                        const DependencyProperty* tdp = lookup_dp_for_attr(prop, ownerType);
                         if (tdp == nullptr)
                         {
                             throw VamlReaderException(
@@ -909,14 +944,14 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                                 "unknown PropertyTrigger target property '" + prop + "'");
                         }
                         PropertyTrigger pt;
-                        pt.property = PropertyId(vaml::intern(prop));
+                        pt.property = tdp->property_id();
                         pt.value = convertLiteral(*tdp, value);
                         for (const ParsedElement& ts : trig.children)
                         {
                             if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
                             {
                                 Setter s;
-                                parse_setter(ts, "PropertyTrigger", s);
+                                parse_setter(ts, std::string(ownerType), s);
                                 pt.setters.push_back(std::move(s));
                             }
                         }
@@ -946,12 +981,14 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                         DataTrigger dt;
                         dt.path = PropertyPath::parse(binding);
                         dt.value = Value::String(value);
+                        const std::string_view ownerType =
+                            element.local_name.empty() ? element.tagName : element.local_name;
                         for (const ParsedElement& ts : trig.children)
                         {
                             if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
                             {
                                 Setter s;
-                                parse_setter(ts, "DataTrigger", s);
+                                parse_setter(ts, std::string(ownerType), s);
                                 dt.setters.push_back(std::move(s));
                             }
                         }
@@ -1168,9 +1205,11 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
             // "S452_Owner"). `ownerName` above is the authoring ELEMENT's type,
             // NOT the registration owner, so it must not be prepended. Resolve
             // the propName: a dotted propName carries its own owner (composite
-            // try); a bare propName falls back to the guarded unique-name
-            // bridge.
-            const DependencyProperty* dp = lookup_dp_for_attr(propName);
+            // try); a bare propName walks the parent element's declared owner-
+            // chain.
+            const std::string_view typeName = element.local_name.empty() ? element.tagName
+                                                                         : element.local_name;
+            const DependencyProperty* dp = lookup_dp_for_attr(propName, typeName);
             if (dp == nullptr)
             {
                 throw VamlReaderException(
@@ -1202,7 +1241,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                 // scalar on the DP and the object as reader-retained state.
                 if (propName != "Tag")
                 {
-                    (void)obj->Set(PropertyId(propName), Value::UntypedPtr(raw));
+                    (void)obj->Set(dp->property_id(), Value::UntypedPtr(raw));
                 }
             }
             else if (!child.content.empty())
@@ -1224,7 +1263,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                 if (!lit.empty())
                 {
                     const Value value = convertLiteral(*dp, lit);
-                    (void)obj->Set(PropertyId(propName), value);
+                    (void)obj->Set(dp->property_id(), value);
                 }
                 // An extension authored as element content (e.g. a multiline
                 // {StaticResource}) is recorded as a deferred extension on the
@@ -1233,8 +1272,9 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                 const std::string_view contentView = child.content;
                 if (!contentView.empty() && contentView.front() == '{' && contentView.back() == '}')
                 {
-                    deferred_extensions_.push_back(
-                        DeferredExtension{obj.get(), propName, vaml::intern(contentView)});
+                    deferred_extensions_.push_back(DeferredExtension{
+                        obj.get(), propName, vaml::intern(contentView),
+                        element.local_name.empty() ? element.tagName : element.local_name});
                 }
             }
             // An empty property-element `<Owner.Property/>` is the degenerate
@@ -1445,7 +1485,9 @@ void VamlReader::build_gradient_stop(GradientStopHost& stop, const ParsedElement
                 "a <GradientStop> attribute cannot be a markup extension ('" +
                     std::string(attr.key) + "')");
         }
-        const DependencyProperty* dp = lookup_dp_for_attr(attr.key);
+        const std::string_view typeName = element.local_name.empty() ? element.tagName
+                                                                     : element.local_name;
+        const DependencyProperty* dp = lookup_dp_for_attr(attr.key, typeName);
         if (dp == nullptr)
         {
             throw VamlReaderException(
@@ -1453,7 +1495,7 @@ void VamlReader::build_gradient_stop(GradientStopHost& stop, const ParsedElement
                 "unknown <GradientStop> attribute '" + std::string(attr.key) + "'");
         }
         const Value value = convertLiteral(*dp, attr.value);
-        (void)stop.Set(PropertyId(attr.key), value);
+        (void)stop.Set(dp->property_id(), value);
     }
     if (!element.children.empty())
     {
@@ -1500,11 +1542,9 @@ void VamlReader::build_linear_gradient(LinearGradientBrush& brush, const ParsedE
                     VamlReaderError::UnknownProperty, std::string("StartPoint"),
                     "StartPoint must be a 'x,y' Double pair");
             }
-            const Value x = convertLiteral(
-                DependencyProperty::GetByName("Offset"), // a bound Double DP
+            const Value x = convert_double_literal(
                 v.substr(0, comma));
-            const Value y = convertLiteral(
-                DependencyProperty::GetByName("Offset"),
+            const Value y = convert_double_literal(
                 v.substr(comma + 1));
             brush.set_start_point(x.get<double>(), y.get<double>());
         }
@@ -1518,11 +1558,9 @@ void VamlReader::build_linear_gradient(LinearGradientBrush& brush, const ParsedE
                     VamlReaderError::UnknownProperty, std::string("EndPoint"),
                     "EndPoint must be a 'x,y' Double pair");
             }
-            const Value x = convertLiteral(
-                DependencyProperty::GetByName("Offset"),
+            const Value x = convert_double_literal(
                 v.substr(0, comma));
-            const Value y = convertLiteral(
-                DependencyProperty::GetByName("Offset"),
+            const Value y = convert_double_literal(
                 v.substr(comma + 1));
             brush.set_end_point(x.get<double>(), y.get<double>());
         }
@@ -1645,7 +1683,10 @@ void VamlReader::build_path_geometry(PathGeometry& geom, const ParsedElement& el
         }
         else if (attr.key == "FillRule")
         {
-            const Value v = convertLiteral(DependencyProperty::GetByName("FillRule"), attr.value);
+            // S803 composite: FillRule is registered under "PathGeometry" (the
+            // authored element type) — resolve via the standard owner-chain.
+            const DependencyProperty* dp = lookup_dp_for_attr("FillRule", "PathGeometry");
+            const Value v = convertLiteral(*dp, attr.value);
             (void)geom.set_fill_rule(v.type() == ValueType::Int32 ? v.get<std::int32_t>() : 0);
         }
     }
@@ -1737,12 +1778,12 @@ void VamlReader::build_ellipse_geometry(EllipseGeometry& geom, const ParsedEleme
         }
         if (attr.key == "RadiusX")
         {
-            const Value v = convertLiteral(DependencyProperty::GetByName("Offset"), attr.value);
+            const Value v = convert_double_literal(attr.value);
             (void)geom.set_radius_x(v.get<double>());
         }
         else if (attr.key == "RadiusY")
         {
-            const Value v = convertLiteral(DependencyProperty::GetByName("Offset"), attr.value);
+            const Value v = convert_double_literal(attr.value);
             (void)geom.set_radius_y(v.get<double>());
         }
     }
@@ -1801,7 +1842,9 @@ void VamlReader::build_geometry_drawing(GeometryDrawing& drawing, const ParsedEl
         }
         else if (attr.key == "PenThickness")
         {
-            const Value v = convertLiteral(DependencyProperty::GetByName("PenThickness"), attr.value);
+            // S803 composite: PenThickness is registered under "GeometryDrawing".
+            const DependencyProperty* dp = lookup_dp_for_attr("PenThickness", "GeometryDrawing");
+            const Value v = convertLiteral(*dp, attr.value);
             (void)drawing.set_pen_thickness(v.get<double>());
         }
     }
@@ -2359,7 +2402,7 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
             "a <Setter> must name a 'Property' (in " + owner + ")");
     }
 
-    const DependencyProperty* dp = DependencyProperty::TryGetByName(prop);
+    const DependencyProperty* dp = lookup_dp_for_attr(prop, owner);
     if (dp == nullptr)
     {
         throw VamlReaderException(
@@ -2373,12 +2416,12 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
     {
         if (rm.kind == ResourceReferenceKind::Static)
         {
-            out = Setter{PropertyId(vaml::intern(prop)), SetterValue::StaticResource(rm.key)};
+            out = Setter{dp->property_id(), SetterValue::StaticResource(rm.key)};
             return;
         }
         if (rm.kind == ResourceReferenceKind::Dynamic)
         {
-            out = Setter{PropertyId(vaml::intern(prop)), SetterValue::DynamicResource(rm.key)};
+            out = Setter{dp->property_id(), SetterValue::DynamicResource(rm.key)};
             return;
         }
     }
@@ -2390,7 +2433,7 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
     {
         const std::string_view inner =
             sv.substr(tbMark.size(), sv.size() - tbMark.size() - 1);
-        out = Setter{PropertyId(vaml::intern(prop)), SetterValue::TemplateBinding(inner)};
+        out = Setter{dp->property_id(), SetterValue::TemplateBinding(inner)};
         return;
     }
 
@@ -2406,11 +2449,11 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
         std::int32_t bid = 0;
         if (parse_int32(value, bid))
         {
-            out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(Value::BrushId(bid))};
+            out = Setter{dp->property_id(), SetterValue::Literal(Value::BrushId(bid))};
             return;
         }
         const Color deferred = parse_color(value); // throws MalformedValue on a bad literal
-        out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(Value::Color(deferred))};
+        out = Setter{dp->property_id(), SetterValue::Literal(Value::Color(deferred))};
         return;
     }
 
@@ -2424,12 +2467,12 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
     if (dp->metadata().boundType() == ValueType::Brush)
     {
         const Color deferred = parse_color(value); // throws MalformedValue on a bad literal
-        out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(Value::Color(deferred))};
+        out = Setter{dp->property_id(), SetterValue::Literal(Value::Color(deferred))};
         return;
     }
 
     // A plain literal (converted to the property's bound type).
-    out = Setter{PropertyId(vaml::intern(prop)), SetterValue::Literal(convertLiteral(*dp, value))};
+    out = Setter{dp->property_id(), SetterValue::Literal(convertLiteral(*dp, value))};
 }
 
 VAML_CORE_EXPORT
@@ -2550,6 +2593,8 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
     // the live S362 data model (TargetType, BasedOn, Setters, Triggers); a
     // Style has NO visual children (it is a resource), so this replaces the
     // generic build() attr/child handling for Style.
+    std::string targetType; // S803: the Style's TargetType — the owner-chain
+                            // root for every Setter/Trigger Property resolution
     for (const ParsedAttribute& attr : element.attributes)
     {
         if (attr.directive != XmlDirectiveType::None)
@@ -2558,7 +2603,8 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
         }
         if (attr.key == "TargetType")
         {
-            style.set_target_type(std::string(attr.value));
+            targetType = std::string(attr.value);
+            style.set_target_type(targetType);
         }
         else if (attr.key == "BasedOn")
         {
@@ -2586,7 +2632,7 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
         if (childLocal == "Setter")
         {
             Setter s;
-            parse_setter(child, "Style", s);
+            parse_setter(child, targetType, s);
             style.add_setter(std::move(s));
             continue;
         }
@@ -2613,7 +2659,7 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
                             value = a.value;
                         }
                     }
-                    const DependencyProperty* dp = DependencyProperty::TryGetByName(prop);
+                    const DependencyProperty* dp = lookup_dp_for_attr(prop, targetType);
                     if (dp == nullptr)
                     {
                         throw VamlReaderException(
@@ -2621,7 +2667,7 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
                             "unknown PropertyTrigger target property '" + prop + "'");
                     }
                     PropertyTrigger pt;
-                    pt.property = PropertyId(vaml::intern(prop));
+                    pt.property = dp->property_id();
                     pt.value = convertLiteral(*dp, value);
                     // child <Setter>s (triggering setters).
                     for (const ParsedElement& ts : trig.children)
@@ -2629,7 +2675,7 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
                         if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
                         {
                             Setter s;
-                            parse_setter(ts, "PropertyTrigger", s);
+                            parse_setter(ts, targetType, s);
                             pt.setters.push_back(std::move(s));
                         }
                     }
@@ -2671,7 +2717,7 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
                         if ((ts.local_name.empty() ? ts.tagName : ts.local_name) == "Setter")
                         {
                             Setter s;
-                            parse_setter(ts, "DataTrigger", s);
+                            parse_setter(ts, targetType, s);
                             dt.setters.push_back(std::move(s));
                         }
                     }
@@ -3364,7 +3410,17 @@ std::size_t VamlReader::ResolveStaticTypeExtensions()
         {
             try
             {
-                (void)target->Set(PropertyId(ext.key), value);
+                // S803 composite: resolve the target DP on the authored element's
+                // owner-chain, then Set the canonical (name, owner) id.
+                const DependencyProperty* dp =
+                    lookup_dp_for_attr(ext.key, ext.elementTypeName);
+                if (dp == nullptr)
+                {
+                    throw VamlReaderException(
+                        VamlReaderError::UnknownProperty, std::string(ext.key),
+                        "unknown property '" + std::string(ext.key) + "' (x:Static/x:Type target)");
+                }
+                (void)target->Set(dp->property_id(), value);
             }
             catch (...)
             {

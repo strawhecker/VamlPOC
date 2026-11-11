@@ -150,7 +150,7 @@ TEST_CASE("S143 PartA: S037 wrong-thread Set QUEUED + affinity drain applies FIF
     for (std::int32_t v : {5, 7})
     {
         SetResult r = SetResult::NO_CHANGE;
-        setFromOtherThread(obj, PropertyId::of("Counter"), Value::Int32(v), &r);
+        setFromOtherThread(obj, PropertyId::of("Counter", "S143Owner"), Value::Int32(v), &r);
         SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
     }
     SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(2u));
@@ -158,7 +158,7 @@ TEST_CASE("S143 PartA: S037 wrong-thread Set QUEUED + affinity drain applies FIF
 
     obj.ProcessPendingChanges(); // affinity (this) thread
 
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Counter"))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Counter", "S143Owner"))).ShouldBe(Value::Int32(7)));
     SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(0u));
     // FIFO effective chain: cb(0->5) then cb(5->7).
     SHOULD(ShouldlyString(seen.size()).ShouldBe(2u));
@@ -174,7 +174,7 @@ TEST_CASE("S143 PartA: ProcessPendingChanges from a non-affine thread throws (gu
     obj.register_property(int32Key("W"), PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 
     SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(obj, PropertyId::of("W"), Value::Int32(9), &r);
+    setFromOtherThread(obj, PropertyId::of("W", "S143Owner"), Value::Int32(9), &r);
     SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
     SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(1u));
 
@@ -193,7 +193,7 @@ TEST_CASE("S143 PartA: ProcessPendingChanges from a non-affine thread throws (gu
 
     SHOULD(ShouldlyString(caught).ShouldBe(true));
     SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(1u)); // still pending
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W"))).ShouldBe(Value::Int32(0))); // store unchanged
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "S143Owner"))).ShouldBe(Value::Int32(0))); // store unchanged
 }
 
 TEST_CASE("S143 PartA: swap-out preserved — concurrent value-writes during a drain land in a fresh deque")
@@ -221,7 +221,7 @@ TEST_CASE("S143 PartA: a value-write and a notification coexist in the same queu
 {
     ChangeQueue q; // one queue, one mutex, two families
     q.enqueue_value("Width", "", Value::Int32(5));
-    q.enqueue(PropertyId::of("Height"), Value::Int32(0), Value::Int32(9));
+    q.enqueue(PropertyId::of("Height", "S143Owner"), Value::Int32(0), Value::Int32(9));
 
     // The two families have independent depths...
     SHOULD(ShouldlyString(q.value_pending_count()).ShouldBe(1u));

@@ -36,7 +36,7 @@ using namespace vaml;
 
 namespace {
 
-bool dp_exists(const char* name) { return DependencyProperty::TryGetByName(name) != nullptr; }
+bool dp_exists(const char* name, const char* owner) { return DependencyProperty::TryGet(name, owner) != nullptr; }
 
 } // namespace
 
@@ -103,11 +103,11 @@ TEST_CASE("11k_12: the audited RichTextBox + TextBoxBase DP surface registers (W
     register_builtin_elements();
     // The TextBoxBase surface (TextEntry): Text / AcceptsReturn / IsReadOnly /
     // MaxLength. The OWN surface (WPF RichTextBox.cs audited): IsDocumentEnabled.
-    CHECK(dp_exists("RichTextBox.Text"));
-    CHECK(dp_exists("RichTextBox.AcceptsReturn"));
-    CHECK(dp_exists("RichTextBox.IsReadOnly"));
-    CHECK(dp_exists("RichTextBox.MaxLength"));
-    CHECK(dp_exists("RichTextBox.IsDocumentEnabled"));
+    CHECK(dp_exists("Text", "RichTextBox"));
+    CHECK(dp_exists("AcceptsReturn", "RichTextBox"));
+    CHECK(dp_exists("IsReadOnly", "RichTextBox"));
+    CHECK(dp_exists("MaxLength", "RichTextBox"));
+    CHECK(dp_exists("IsDocumentEnabled", "RichTextBox"));
 }
 
 TEST_CASE("11k_12: the RichTextBox DPs round-trip through the value path")

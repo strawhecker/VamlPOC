@@ -465,33 +465,21 @@ DependencyObject* DependencyObject::parent() const noexcept
     return parent_;
 }
 
-// S802 resolution helper: the per-object store entry for `id`.
+// S802 resolution helper: the per-object store entry for `id` on the composite
+// (name, owner) pair. S803: owner-less ids are GONE (total removal) — the owner
+// is always carried, so the per-object store is reached strictly by the pair.
 const DependencyObject::PD* DependencyObject::resolve_entry(PropertyId id) const noexcept
 {
-    if (id.owner().empty())
-    {
-        // Legacy owner-less id: guarded unique-name bridge (never silently
-        // picks among an ambiguous same-name/different-owner coexist pair).
-        return store_.find_unique_name(vaml::intern(id.name()));
-    }
     return store_.find(vaml::intern(id.name()), vaml::intern(id.owner()));
 }
 
 DependencyObject::PD* DependencyObject::resolve_entry(PropertyId id) noexcept
 {
-    if (id.owner().empty())
-    {
-        return store_.find_unique_name(vaml::intern(id.name()));
-    }
     return store_.find(vaml::intern(id.name()), vaml::intern(id.owner()));
 }
 
 const DependencyProperty* DependencyObject::resolve_global(PropertyId id) const noexcept
 {
-    if (id.owner().empty())
-    {
-        return DependencyProperty::TryGetByName(id.name());
-    }
     return DependencyProperty::TryGet(id.name(), id.owner());
 }
 
@@ -514,8 +502,7 @@ Value DependencyObject::nearest_ancestor_local(
     const DependencyObject* cur = self.parent();
     while (cur != nullptr)
     {
-        const PD* entry = owner.empty() ? cur->store_.find_unique_name(intern(name))
-                                        : cur->store_.find(intern(name), intern(owner));
+        const PD* entry = cur->store_.find(intern(name), intern(owner));
         if (entry != nullptr && !entry->local.isNull())
         {
             return entry->local;
@@ -614,11 +601,9 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     entry = resolve_entry(id);
     if (entry == nullptr)
     {
-        // Resolve the global descriptor by the composite pair (owner) or the
-        // guarded unique-name bridge (legacy owner-less id).
-        const DependencyProperty& globalDp =
-            owner.empty() ? DependencyProperty::GetByName(name)
-                          : DependencyProperty::Get(name, owner);
+        // Resolve the global descriptor by the composite pair (owner always
+        // carried — S803).
+        const DependencyProperty& globalDp = DependencyProperty::Get(name, owner);
         const std::string_view canonicalOwner = vaml::intern(globalDp.owner_type_id());
         // PropertyKey owns its name (std::string); the store KEY is the
         // INTERNED string_view (canonical, stable for the affinity thread —
@@ -723,10 +708,9 @@ void DependencyObject::ProcessPendingChanges()
     // the affinity thread. drain_values also re-interns each name to the
     // canonical view (S143 B2).
     queue_.drain_values([this](std::string_view name, std::string_view owner, const Value& coerced) {
-        // S802 composite: resolve the store entry by (name, owner) when the owner
-        // is carried, else the guarded unique-name bridge (legacy owner-less
-        // value-write).
-        PD* entry = owner.empty() ? store_.find_unique_name(name) : store_.find(name, owner);
+        // S802/S803 composite: resolve the store entry by the (name, owner) pair
+        // (owner always carried).
+        PD* entry = store_.find(name, owner);
 
         // S045 DEFENSIVE guard at apply time: resolve the metadata provider
         // BEFORE materializing anything, and skip a write to a property that is
@@ -743,8 +727,7 @@ void DependencyObject::ProcessPendingChanges()
         }
         else
         {
-            globalDpDrain = owner.empty() ? DependencyProperty::TryGetByName(name)
-                                          : DependencyProperty::TryGet(name, owner);
+            globalDpDrain = DependencyProperty::TryGet(name, owner);
             if (globalDpDrain == nullptr)
             {
                 return; // unregistered after the write was queued; skip
@@ -791,8 +774,7 @@ void DependencyObject::ProcessPendingChanges()
         // BORROWED — owned == nullptr), also capture purely passive descendants
         // with no local store entry (broadened walk). An object-scoped Inherits
         // property keeps the S041 behavior. S802: composite pair throughout.
-        const DependencyProperty* dp = owner.empty() ? DependencyProperty::TryGetByName(name)
-                                                     : DependencyProperty::TryGet(name, owner);
+        const DependencyProperty* dp = DependencyProperty::TryGet(name, owner);
         const bool inherits =
             has_flag(md.flags(), PropertyFlags::Inherits)
             || (dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits));
@@ -1070,8 +1052,7 @@ void DependencyObject::visit_scope(
         // property (S044). The descendant's store is affinity-keyed on interned
         // views; intern `name` + `owner` to the canonical (content-equal) views
         // for the composite lookup.
-        const PD* entry = owner.empty() ? child->store_.find_unique_name(intern(name))
-                                        : child->store_.find(intern(name), intern(owner));
+        const PD* entry = child->store_.find(intern(name), intern(owner));
         if (entry != nullptr || captureAttachedInherits)
         {
             out.emplace_back(child, child->GetEffectiveValue(PropertyId::of(name, owner)));
