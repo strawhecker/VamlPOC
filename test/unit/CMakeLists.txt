@@ -18,6 +18,7 @@ add_executable(vaml-core-tests
     PropertyKeyRegistry_test.cpp
     PropertyId_test.cpp
     PropertyRegistryExhaustive_test.cpp
+    S802_composite_store_test.cpp
     MutexRelocation_rekey_test.cpp
     PropertyMetadata_test.cpp
     PropertyMetadata_semantics_test.cpp

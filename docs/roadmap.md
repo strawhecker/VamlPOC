@@ -3829,6 +3829,31 @@ Why: the WPF StickyNote is NOT an authored control — it is an ANNOTATION-ANCHO
       property-changed subscriber registry, the S037 marshalling queue) onto the composite `PropertyId`. `get_effective_value`
       and marshalling key on `(name, owner)`. Update the S037/S038/S041 + marshalling suites (each object's DP store now
       distinct per (name, owner)). Both CI lanes green.
+      **[DONE - S802 implemented + BOTH CI LANES GREEN from first principles (build/verify_s802.cmd ran to "S802 GREEN")]
+      - Store: `PD` now carries an interned `owner` view alongside `name`; `Store::find(name, owner)` + a GUARDED
+        `find_unique_name` (MINIMAL REAL, S803-resolved) resolve the composite identity.
+      - `register_property(PropertyKey, ...)` interned BOTH `key.name()` AND `key.ownerTypeId()`; a same-pair re-register
+        throws, a same-name/different-owner key registers a DISTINCT per-object store entry (coexistence).
+      - `Get/Set/GetEffectiveValue/has_local_value` + `nearest_ancestor_local` + the descendant-push walk
+        (`collect_descendant_effectives`/`visit_scope`/`notify_descendants`) + `fire_self_subscribers` all key on the
+        composite pair; the global descriptor read moved from `TryGetByName` to `DependencyProperty::TryGet(name, owner)`
+        when the id carries an owner (owner-less ids keep the GUARDED `TryGetByName`/`find_unique_name` bridge).
+      - The S041 property-changed subscriber registry (`subs_`) is re-keyed from interned name to a (name, owner) `SubKey`
+        (pair-keyed hash); `add_property_changed`/`fire_self_subscribers`/`ProcessNotificationQueue` are all composite;
+        a MINIMAL REAL owner-less legacy subscription fallback (S803-resolved) keeps bare-name bindings firing.
+      - `ChangeQueue` + `ChangeProcessor` carry BOTH `name` AND `owner` (owned strings in the cross-thread Item/ValueWrite,
+        re-interned to canonical views on drain); `ChangeRecorder` is re-keyed to `K = CompositeKey` (per-pair coalescing).
+      - `ObjectPool.h` slot nudged 1216 -> 1344 (the composite owner per inline PD slot + SubKey map membership grew the
+        worst-case element; the sanctioned "RAISE it" path in the S145 comment).
+      - Tests: `MutexRelocation_rekey_test` + the S037/S041 marshalling surface re-keyed to the composite drain signature;
+        NEW `S802_composite_store_test.cpp` (coexistence headline: two same-name/different-owner DPs on ONE object coexist
+        + resolve independently + pair-keyed subscribers). Both CI lanes green (windows-msvc via verify_s802.cmd's msvc-debug
+        + ctest, ubuntu-clang via /mnt/hgfs/VamlPOC clang-debug).**
+      - NO-GAP: S803 (reader dotted-key → first-class composite) + S804 (coexistence live-proof) + S805 (un-revert) are the
+        named continuations; the owner-less [`Store::find_unique_name`, `DependencyProperty::TryGetByName/GetByName`,
+        `DependencyObject` owner-less resolution bridges + subscriber fallback] are all MINIMAL REAL, S803-resolved, never
+        extended, never backfilled. 11t/11u thread-affinity + synchronous-callback corrections (S810+/S811) are NOT this
+        step's scope (S802 only re-keys the existing surface).**
 - S803 dep:S802  **READER DOTTED-KEY → FIRST-CLASS COMPOSITE (drop the flatten).** In `VamlReader.cpp`, replace the
       literal-name flattening of dotted `owner.name` keys with native `(name, owner)` composite lookup. `"Label.Content"`,
       `"Border.Padding"`, `"Grid.Row"`, `"S091Grid.Row=3"`, the S092/S093/S094/S095 golden DPs, the S384 attached-DP

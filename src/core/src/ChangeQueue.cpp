@@ -71,9 +71,10 @@ ChangeQueue& ChangeQueue::operator=(ChangeQueue&& other) noexcept
 VAML_CORE_EXPORT
 void ChangeQueue::enqueue(PropertyId id, const Value& oldValue, const Value& newValue)
 {
-    // Own the name (S036/S037/S038 gotcha): copy the view into a stable item.
+    // Own the name AND owner (S036/S037/S038 gotcha): copy the views into a
+    // stable item (S802 composite).
     std::lock_guard<std::mutex> lock(queue_mutex);
-    pending.emplace_back(std::string(id.name()), oldValue, newValue);
+    pending.emplace_back(std::string(id.name()), std::string(id.owner()), oldValue, newValue);
 }
 
 VAML_CORE_EXPORT
@@ -102,11 +103,12 @@ std::size_t ChangeQueue::process(const NotifyFn& notify)
         snapshot.swap(pending);
     }
 
-    // FIFO replay in enqueue order (a deque, never unordered_map order).
+    // FIFO replay in enqueue order (a deque, never unordered_map order). The
+    // composite (name, owner) is carried into the replayed id (S802).
     std::size_t emitted = 0;
     for (auto& item : snapshot)
     {
-        notify(PropertyId::of(item.name), item.oldValue, item.newValue);
+        notify(PropertyId::of(item.name, item.owner), item.oldValue, item.newValue);
         ++emitted;
     }
     return emitted;
@@ -126,13 +128,14 @@ void ChangeQueue::clear()
 // === S143: S037 value-write family (same single mutex + affinity marker) ======
 
 VAML_CORE_EXPORT
-void ChangeQueue::enqueue_value(std::string_view name, const Value& coerced)
+void ChangeQueue::enqueue_value(std::string_view name, std::string_view owner, const Value& coerced)
 {
-    // Own the name (S037 cross-thread marshal): a wrong-thread writer can never
-    // hold/intern into the owner's pool. Same queue_mutex as the notification
-    // family — the relocated per-object pending mutex (ADR-018, zero new locks).
+    // Own the name AND owner (S037 cross-thread marshal): a wrong-thread writer
+    // can never hold/intern into the owner's pool. Same queue_mutex as the
+    // notification family — the relocated per-object pending mutex (ADR-018,
+    // zero new locks). S802 carries the composite pair.
     std::lock_guard<std::mutex> lock(queue_mutex);
-    pendingWrites.emplace_back(std::string(name), coerced);
+    pendingWrites.emplace_back(std::string(name), std::string(owner), coerced);
 }
 
 VAML_CORE_EXPORT
@@ -163,15 +166,15 @@ std::size_t ChangeQueue::drain_values(const ValueDrainFn& fn)
         snapshot.swap(pendingWrites);
     }
 
-    // FIFO replay in enqueue order. Each drained name is RE-INTERNED on the
-    // owner (affinity) thread to its canonical view (S143 B2): the store keyed
-    // on interned string_views, and the queued owned name re-interns to an
-    // equal-content view — so the callback always receives a stable canonical
-    // view, never a transient one.
+    // FIFO replay in enqueue order. Each drained name AND owner is RE-INTERNED
+    // on the owner (affinity) thread to its canonical view (S143 B2): the store
+    // keys on interned string_views, and the queued owned strings re-intern to
+    // equal-content views — so the callback always receives stable canonical
+    // views, never a transient one. S802 carries both into the drain.
     std::size_t emitted = 0;
     for (auto& write : snapshot)
     {
-        fn(vaml::intern(write.name), write.coerced);
+        fn(vaml::intern(write.name), vaml::intern(write.owner), write.coerced);
         ++emitted;
     }
     return emitted;

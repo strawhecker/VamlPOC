@@ -77,7 +77,8 @@ struct ValueWriteTrace
 
     ChangeQueue::ValueDrainFn fn()
     {
-        return [this](std::string_view n, const Value& v) {
+        // S802: the drained value-write now carries (name, owner, coerced).
+        return [this](std::string_view n, std::string_view, const Value& v) {
             names.emplace_back(n);
             values.push_back(v.get<std::int32_t>());
         };
@@ -100,7 +101,7 @@ TEST_CASE("S143 PartA: S037 value-write family lives in the single ChangeQueue (
 
     // Cross-thread value-write enqueue (relocated S037 postbox; same mutex as
     // the notification family).
-    std::thread t([&] { q.enqueue_value("Width", Value::Int32(10)); });
+    std::thread t([&] { q.enqueue_value("Width", "", Value::Int32(10)); });
     t.join();
     SHOULD(ShouldlyString(q.value_pending_count()).ShouldBe(1u));
 
@@ -114,14 +115,14 @@ TEST_CASE("S143 PartA: S037 value-write family lives in the single ChangeQueue (
 TEST_CASE("S143 PartA: drain_values from a non-affine thread throws WrongThreadException (guard moved with the queue)")
 {
     ChangeQueue q;
-    q.enqueue_value("W", Value::Int32(7));
+    q.enqueue_value("W", "", Value::Int32(7));
     SHOULD(ShouldlyString(q.value_pending_count()).ShouldBe(1u));
 
     bool caught = false;
     std::thread t([&] {
         try
         {
-            q.drain_values([](std::string_view, const Value&) {});
+            q.drain_values([](std::string_view, std::string_view, const Value&) {});
         }
         catch (WrongThreadException const&)
         {
@@ -198,14 +199,14 @@ TEST_CASE("S143 PartA: ProcessPendingChanges from a non-affine thread throws (gu
 TEST_CASE("S143 PartA: swap-out preserved — concurrent value-writes during a drain land in a fresh deque")
 {
     ChangeQueue q;
-    q.enqueue_value("A", Value::Int32(1));
+    q.enqueue_value("A", "", Value::Int32(1));
 
     int emitted = 0;
-    auto fn = [&](std::string_view n, const Value&) {
+    auto fn = [&](std::string_view n, std::string_view o, const Value&) {
         ++emitted;
         if (emitted == 1)
         {
-            q.enqueue_value(n, Value::Int32(2)); // re-enqueue during drain
+            q.enqueue_value(n, o, Value::Int32(2)); // re-enqueue during drain
         }
     };
 
@@ -219,7 +220,7 @@ TEST_CASE("S143 PartA: swap-out preserved — concurrent value-writes during a d
 TEST_CASE("S143 PartA: a value-write and a notification coexist in the same queue without cross-drain interference")
 {
     ChangeQueue q; // one queue, one mutex, two families
-    q.enqueue_value("Width", Value::Int32(5));
+    q.enqueue_value("Width", "", Value::Int32(5));
     q.enqueue(PropertyId::of("Height"), Value::Int32(0), Value::Int32(9));
 
     // The two families have independent depths...
@@ -250,13 +251,13 @@ TEST_CASE("S143 PartB: ChangeQueue drain re-interns to the affinity thread's can
     // A value-write enqueued from ANOTHER thread carries an owned std::string;
     // drain_values re-interns it on THIS (affinity) thread to a canonical view.
     ChangeQueue q;
-    std::thread t([&] { q.enqueue_value("Foreground", Value::Int32(3)); });
+    std::thread t([&] { q.enqueue_value("Foreground", "", Value::Int32(3)); });
     t.join();
 
     std::string_view drained;
     std::thread::id affinity = std::this_thread::get_id(); // the queue's affinity
     ValueWriteTrace trace;
-    auto fn = [&](std::string_view n, const Value& v) {
+    auto fn = [&](std::string_view n, std::string_view, const Value& v) {
         drained = n;
         trace.names.emplace_back(n);
         trace.values.push_back(v.get<std::int32_t>());

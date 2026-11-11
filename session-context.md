@@ -1,61 +1,81 @@
 # session-context.md
 
-last_command: implementit (S801 — COMPOSITE-KEYED KEY STORE — the single most central edit; dep:S800)
-plan_digest: S801 re-keys the DP identity at its STORE onto the WPF-ground-truth composite `(name, ownerType)` pair
-(resolving the S033/S039 name-only contract drift at its source). `detail/NameTable<T,K>` is TEMPLATED on its key
-(K=std::string default so ChangeRecorder/ChangeQueue + every string-keyed store stay BYTE-IDENTICAL — NOT
-blanket-rewritten) + a new `detail::CompositeKey` (owned (name,owner) content key, strict pair ==, S141 fold over
-BOTH members, no-transient-string borrowed find; never empty-owner in a live path). PropertyRegistry + 
-DependencyProperty::GlobalTable + Register/TryGet/Get RE-KEYED onto the composite — dedupe throws
-PropertyAlreadyRegistered ONLY on a SAME-PAIR collision (type/flags not key identity); same-name/different-owner
-coexists as DISTINCT DPs. A [MINIMAL REAL] guarded UNIQUE-NAME read bridge (TryGetByName/GetByName, RESOLVED BY
-S803) is the sanctioned transitional read for the reader's bare-name attrs (a READ surface, never name-only KEYING).
-Call-site migration (DependencyObject — store stays name-keyed this step, per-object composite is S802 —,
-VamlReader NEW lookup_dp_for_attr: dotted key → native (name,owner) / bare → guarded bridge, ElementDpFidelity,
-StyleApplier, AutomationProperties, EnumDomainRegistry, the tools BindingValidator/Vamlc/VBamlReader,
-viewer_seed_context). Tests rewritten to COEXISTENCE semantics (PropertyRegistryExhaustive + PropertyKeyRegistry +
-the S242–S245 binding suites re-keyed to pair lookups; the S283 cross-TU S280_1Text aligned to ONE canonical owner).
-SESSION: CompositeKey.h + NameTable templating + registry/GlobalTable re-key + the guarded bridge + call-site
-migration + coexistence test rewrite + both CI lanes green via build/verify_s801.cmd + roadmap S801 [DONE] +
-progress.md S801 record + session-context updated. NO MINIMAL REAL introduced (the bridge is tagged
-[MINIMAL REAL] RESOLVED BY S803, recorded not silent). ADR-018 ZERO new locks.
+last_command: implementit (S802 — PER-OBJECT STORE + RESOLUTION over the composite id; dep:S801)
+plan_digest: S802 re-keys the per-object DP store + EVERY resolution path in DependencyObject.{h,cpp} onto the
+WPF-ground-truth composite `(name, owner)` pair (DependencyProperty.cs FromNameKey(name, ownerType)), delivering
+S801's recorded NO-GAP at the object layer. Two same-name/different-owner DPs now COEXIST as distinct per-object
+store entries and resolve independently. Store: PD carries an interned `owner` view + `Store::find(name, owner)`
++ a GUARDED `find_unique_name` (MINIMAL REAL, S803); register_property interns BOTH name AND owner (same-pair
+re-register throws; same-name/different-owner registers a DISTINCT entry). Get/Set/GetEffectiveValue/has_local_value/
+nearest_ancestor_local + the descendant-push walk + fire_self_subscribers all key on the pair; global descriptor read
+uses TryGet(name, owner) (owner-less ids keep the guarded TryGetByName). The S041 subscriber registry subs_ is re-keyed
+to a (name, owner) SubKey (pair-keyed hash) with a MINIMAL REAL owner-less legacy fallback (S803) that keeps bare-name
+bindings firing. ChangeQueue/ChangeProcessor carry BOTH name+owner (owned strings, re-interned on drain;
+enqueue_value/drain_values/ValueDrainFn take (name, owner, value)); ChangeRecorder re-keyed to K=CompositeKey
+(per-pair coalescing). ObjectPool.h slot 1216 -> 1344 (composite owner per inline slot + SubKey membership grew the
+worst case; the sanctioned RAISE-it path). Tests: MutexRelocation_rekey_test re-keyed to the composite drain signature
++ NEW S802_composite_store_test.cpp (the coexistence headline). SESSION: both CI lanes green via build/verify_s802.cmd,
+roadmap S802 [DONE], progress.md S802 record, session-context updated.
 
-## files_touched — S801 (this session)
-- src/core/include/vaml/core/detail/CompositeKey.h (NEW): the owned `(name, owner)` content key — strict PAIR == / equal(name,owner), S141 content fold over BOTH members, static fold_of for the store's borrowed-view lookup.
-- src/core/include/vaml/core/detail/NameTable.h (MOD): TEMPLATED `<T, K = std::string>` — the string-keyed stores (ChangeRecorder/ChangeQueue/string consumers) stay byte-identical; the K=CompositeKey forms expose insert/find/find_key overloads on `(name, owner)` + the guarded `find_unique_name(name, &matches)` bridge.
-- src/core/include/vaml/core/PropertyRegistry.h + src/core/src/PropertyRegistry.cpp (MOD): re-keyed — register_key dedupes on the (name, ownerTypeId) PAIR; try_find/find/id_of/try_id take (name, owner); the error message names BOTH fields.
-- src/core/include/vaml/core/DependencyProperty.h + src/core/src/DependencyProperty.cpp (MOD): GlobalTable + Register/TryGet/Get re-keyed onto the (name, owner) pair; NEW [MINIMAL REAL] `TryGetByName`/`GetByName` guarded unique-name bridge (RESOLVED BY S803).
-- src/core/src/DependencyObject.cpp / ElementDpFidelity.cpp / StyleApplier.cpp / AutomationProperties.cpp / EnumDomainRegistry.cpp (MOD): call-site migration to the guarded bridge / composite pair.
-- src/core/src/VamlReader.cpp (MOD): NEW `lookup_dp_for_attr` — dotted key → native composite (name, owner) (owner = last-dot prefix); bare key → the guarded unique-name bridge; 9 read sites migrated.
-- src/tools/src/BindingValidator.cpp / Vamlc.cpp / VBamlReader.cpp (MOD): bare-name reads → TryGetByName/GetByName.
-- vaml_viewer/viewer_seed_context.h (MOD): → TryGetByName.
-- test/unit/PropertyRegistryExhaustive_test.cpp + PropertyKeyRegistry_test.cpp (REWRITE): coexistence semantics.
-- test/unit/PropertyId_test.cpp / MutexRelocation_rekey_test.cpp / DependencyProperty_test.cpp / AttachedProperty_test.cpp / ReadOnlyAndValidation_test.cpp / AttachedInheritanceNotification_test.cpp / HeapChurn_test.cpp + the S242–S245 binding suites (MOD): re-keyed to pair lookups.
-- test/unit/Vamlc_s283_test.cpp (MOD): S280_1Text aligned to the ONE canonical owner (S280_1_Owner) so the shared DP stays a single unambiguous (name, owner) registration.
-- build/verify_s801.cmd (NEW): the S801 gate (both CI lanes + new-files present).
-- docs/roadmap.md (MOD): S801 [DONE] + the guarded-bridge MINIMAL REAL mark (→ S803) added to the active-marks list.
-- progress.md (MOD): S801 record + checkpoint advanced to S802.
+## files_touched — S802 (this session)
+- src/core/include/vaml/core/DependencyObject.h (MOD): PD now carries an interned `owner` view; Store::find(name, owner)
+  composite overload + guarded find_unique_name bridge (MINIMAL REAL, S803); resolve_entry/resolve_global helpers;
+  nearest_ancestor_local + descendant-push + fire_self_subscribers/fire_subscribers_for signatures carry the owner;
+  subs_ re-keyed to a (name, owner) SubKey + SubKeyHash; forward-declared DependencyProperty.
+- src/core/src/DependencyObject.cpp (MOD): register_property (interns name+owner, same-pair throw), Get/GetEffectiveValue/
+  has_local_value/Set (composite resolve_entry + resolve_global + canonical-owner materialization), nearest_ancestor_local,
+  ProcessPendingChanges (drain resolves (name, owner)), add_property_changed/remove_property_changed/fire_self_subscribers/
+  fire_subscribers_for/ProcessNotificationQueue (composite + owner-less legacy fallback), collect_descendant_effectives/
+  visit_scope/notify_descendants (composite).
+- src/core/include/vaml/core/ChangeQueue.h + src/core/src/ChangeQueue.cpp (MOD): Item + ValueWrite carry BOTH name AND
+  owner (owned strings); enqueue_value(name, owner, value) / drain_values callback (name, owner, value); process/enqueue
+  carry the composite PropertyId.
+- src/core/include/vaml/core/ChangeRecorder.h + src/core/src/ChangeRecorder.cpp (MOD): re-keyed to K=CompositeKey —
+  Pending carries owner, order/byName are composite-keyed, per-pair coalescing.
+- src/core/src/ChangeProcessor.cpp (MOD): process passes the composite PropertyId through the recorder.
+- src/core/src/ObjectPool.h (MOD): kSlotSize 1216 -> 1344, kLargestElement 1168 -> 1344 (S802 composite-identity growth;
+  the sanctioned RAISE-it path).
+- test/unit/MutexRelocation_rekey_test.cpp (MOD): the S037/S041 marshalling value-write family re-keyed to
+  (name, owner, value) enqueue/drain signatures.
+- test/unit/S802_composite_store_test.cpp (NEW): the coexistence headline — one object registers "Prop" under ownerA/
+  ownerB -> both coexist + independent defaults + Set on one pair never touches the other + same-pair re-register throws
+  + pair-keyed subscribers fire independently.
+- test/unit/CMakeLists.txt (MOD): added S802_composite_store_test.cpp to vaml-core-tests.
+- build/verify_s802.cmd (NEW): the S802 gate (both CI lanes + new-files present).
+- docs/roadmap.md (MOD): S802 [DONE] + the owner-less bridge/subscriber-fallback MINIMAL REAL marks (→ S803).
+- progress.md (MOD): S802 record + checkpoint advanced to S803.
 - session-context.md (MOD): this record.
 
-## build_status (S801 — from first principles)
-- windows-msvc: build/verify_s801.cmd -> S801 GREEN. msvc-debug configure clean + build warning-as-error clean + ctest 4/4 PASS (the coexistence-rewritten suites + all prior suites no-regression).
-- ubuntu-clang (VM /mnt/hgfs/VamlPOC, clang 21): S801 GREEN -> UBUNTU-GREEN; clang-debug configure + build (warnings 0) + ctest 4/4 PASS.
-- Audits: the store-level name-only uniqueness is GONE from PropertyRegistry.cpp + DependencyProperty.cpp (the composite key is the only registry/GlobalTable identity); the unique-name bridge is a [MINIMAL REAL] READ surface (never name-only KEYING) resolved by S803; ADR-018 ZERO new locks.
+## build_status (S802 — from first principles)
+- windows-msvc: build/verify_s802.cmd -> S802 GREEN. msvc-debug configure clean + build warning-as-error clean + ctest
+  4/4 PASS (100% tests passed; the new S802_composite_store tests + all prior suites no-regression; the lone "1 failed"
+  assertion is the intentional S036_1 should_fail() demonstration).
+- ubuntu-clang (VM /mnt/hgfs/VamlPOC, clang 21): S802 GREEN -> UBUNTU-GREEN; clang-debug configure + build (warnings 0)
+  + ctest 4/4 PASS.
+- Audits: the per-object store + subscriber registry + marshalling queue no longer hold any name-only per-object identity
+  (composite (name, owner) is the only per-object identity when an owner is known); the owner-less read paths
+  (DependencyObject find_unique_name / DependencyProperty::TryGetByName / the subscriber owner-less fallback) are all
+  [MINIMAL REAL] GUARDED bridges, RESOLVED BY S803, never silently picking among ambiguous coexist pairs. ADR-018 ZERO
+  new locks (the sole kept lock is the S037/S041 ChangeQueue mutex, unchanged).
 - windows-clang-debug: NOT a CI lane (pre-existing /Zc:preprocessor clang-cl failure; CI does not run it).
 
-## next_step — S801 implemented (BOTH CI LANES GREEN via verify_s801.cmd)
-- S801 done: the composite (name, owner) key store landed end-to-end at the registry + GlobalTable (dedupe on the pair;
-  coexistence). The [MINIMAL REAL] unique-name bridge + the reader's dotted-key native composite lookup are in place.
-- Next per the 11s roadmap chain = **S802 (PER-OBJECT STORE + RESOLUTION over the composite id)** — re-key the per-object
-  DP store + all DependencyObject resolution (register_property/Get/Set/GetEffectiveValue/has_local_value/subscribers/
-  marshalling) onto the composite PropertyId, so an object's DPs are distinct per (name, owner). S803 then makes the
-  reader dotted-key first-class composite and RETIRES the unique-name bridge.
+## next_step — S802 implemented (BOTH CI LANES GREEN via verify_s802.cmd)
+- S802 done: the per-object store + all DependencyObject resolution (register_property/Get/Set/GetEffectiveValue/
+  has_local_value/subscribers/marshalling) re-keyed onto the composite (name, owner); coexistence proven by the new
+  S802_composite_store_test.
+- Next per the 11s roadmap chain = **S803 (READER DOTTED-KEY → FIRST-CLASS COMPOSITE)** — make the reader's dotted-key
+  authoring native (name, owner) composite (drop the flatten) and RETIRE the owner-less bridges
+  (DependencyObject::find_unique_name / DependencyProperty::TryGetByName/GetByName / the DependencyObject subscriber
+  owner-less fallback). S804 then adds the coexistence live-proof and S805 the un-revert.
 - Commit is outstanding (standing directive — commitit fires only on your explicit command; driver's seat is yours).
 
 ## notes
-- The guarded UNIQUE-NAME bridge (TryGetByName/GetByName) is the driver-approved A2 decision: the store is
-  composite-only; a bare-name READ resolves only when exactly ONE (owner) registration has the name (never silently
-  picks among ambiguous ones), and S803 retires it when no call site can lack an owner.
-- The composite owner follows the S800 encoding: a fully-qualified declaring-type string; the same-name/different-owner
-  coexistence is the WPF ground truth (DependencyProperty.cs FromNameKey(name, ownerType)).
-- No commit made (standing directive — commitit outstanding on your command).
+- Every owner-less read path added by S802 is a guarded [MINIMAL REAL] bridge RESOLVED BY S803 (DependencyObject
+  Store::find_unique_name, DependencyProperty::TryGetByName/GetByName already, + the DependencyObject subscriber owner-less
+  legacy fallback). Each is tagged with the sentinel; none is extended or backfilled.
+- The composite owner follows the S800/S801 encoding (a fully-qualified declaring-type string). The same-name/different-
+  owner coexistence at the PER-OBJECT layer is the WPF ground truth (DependencyProperty.cs FromNameKey(name, ownerType)).
+- The ObjectPool slot grew 1216 -> 1344 as the sanctioned S145 "RAISE it" consequence of the composite per-object identity
+  (the `owner` view per inline PD slot + the SubKey map membership). This is recorded, not silent.
+- 11t/11u thread-affinity + synchronous-callback corrections (S810+/S811) are NOT this step's scope — S802 only re-keys
+  the existing surface. No commit made (standing directive — commitit outstanding on your command).

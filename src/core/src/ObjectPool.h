@@ -44,19 +44,26 @@ public:
     // collapsing the element pimpls inlined the owned runtime state (Grid's two
     // definition vectors, the ChangeQueue's two item deques + the S037 mutex,
     // the ChangeRecorder's probe store + order list, the registries' NameTable
-    // probes) directly into the public types. sizeof(Grid) is now 1168 in the
-    // msvc-debug lane (/MTd checked iterators inflate the inline vectors — the
-    // WORST case; release Linux clang is ~1040) — the LARGEST poolable element —
-    // so kSlotSize = align_up(1168, 64) = 1216. 1216 % 64 == 0 (cache line) and
-    // 1216 % 16 == 0 (Linux max_align_t). A slot holds the object AND its
-    // inline S142 store with no per-object heap hop.
-    static constexpr std::size_t kSlotSize = 1216;
+    // probes) directly into the public types.
+    //
+    // S802 GREW it AGAIN: re-keying the per-object DP store onto the composite
+    // (name, owner) pair adds one interned `owner` std::string_view to EACH of
+    // the store's kInline=8 PD slots (+64B) and re-keys the property-changed
+    // subscriber map from a single interned-name key to a (name, owner) SubKey
+    // (+one view per map bucket/node). This is the unavoidable, WPF-faithful
+    // cost of composite per-object identity. In the msvc-debug lane (/MTd
+    // checked iterators inflate the inline vectors — the WORST case; release
+    // Linux clang is ~1040) sizeof(Grid) is now 1344 — the LARGEST poolable
+    // element — so kSlotSize = align_up(1344, 64) = 1344. 1344 % 64 == 0
+    // (cache line) and 1344 % 16 == 0 (Linux max_align_t). A slot holds the
+    // object AND its inline S142 store with no per-object heap hop.
+    static constexpr std::size_t kSlotSize = 1344;
 
     // Guard: the pool doles elements of ANY type that fits; derived element
     // classes larger than this worst case would over-run a slot. The largest
-    // current element is Grid (1168 in the msvc-debug lane, the worst case). If
+    // current element is Grid (1344 in the msvc-debug lane, the worst case). If
     // a future control exceeds this, RAISE it (compile-time constant, cheap).
-    static constexpr std::size_t kLargestElement = 1168;
+    static constexpr std::size_t kLargestElement = 1344;
 
     ObjectPool() = default;
     ~ObjectPool();

@@ -101,25 +101,30 @@ public:
     struct Pending
     {
         std::string_view name;
+        std::string_view owner;      // S802: composite declaring-type identity
         Value            oldValue;
         Value            newValue;
     };
 
 private:
-    // One pending notification per DISTINCT property. `name` is an INTERNED
-    // std::string_view (thread-local retain-forever pool, S140/ADR-018): the
-    // recorder is single-threaded and its per-thread interned views are stable
-    // for the thread's life, content-equal across re-interns.
+    // One pending notification per DISTINCT (name, owner) pair. S802 re-keys
+    // the recorder onto the COMPOSITE pair (WPF ground truth): a same-name/
+    // different-owner pair is a DISTINCT pending record (coalescing stays per-
+    // pair). `name` AND `owner` are INTERNED std::string_views (thread-local
+    // retain-forever pool, S140/ADR-018): the recorder is single-threaded and
+    // its per-thread interned views are stable for the thread's life,
+    // content-equal across re-interns.
 
     // S146: pimpl collapsed. The insertion-ordered index becomes BY-VALUE
-    // members: `order` stores interned names in first-record order; `byName`
-    // (a vaml::detail::NameTable<Pending>, S141-pattern content-keyed probe
-    // store, no hash, equality by content) maps each interned view to its
+    // members: `order` stores interned CompositeKeys in first-record order;
+    // `byName` (a vaml::detail::NameTable<Pending>, S141-pattern content-keyed
+    // probe store, no hash, equality by content) is now COMPOSITE-keyed
+    // (K = vaml::detail::CompositeKey) and maps each (name, owner) pair to its
     // pending record. pending_count() == order.size() (== byName.size()).
     // flush() swaps the table out for snapshot-then-emit. No Impl heap node, no
     // impl_-> trampoline.
-    std::vector<std::string_view>    order;
-    vaml::detail::NameTable<Pending> byName;
+    std::vector<vaml::detail::CompositeKey> order;
+    vaml::detail::NameTable<Pending, vaml::detail::CompositeKey> byName;
 };
 
 } // namespace vaml

@@ -118,6 +118,12 @@
 
 namespace vaml {
 
+// Forward declaration of the global dependency-property descriptor (S039/S043).
+// DependencyObject resolves an attached/global property's canonical flags +
+// default from this type; the full definition lives in DependencyProperty.h
+// (included only by DependencyObject.cpp to avoid a heavier public dependency).
+class DependencyProperty;
+
 // Set() outcome, mirroring the S035 MiniStore pipeline + the S037 marshalling
 // extension. The first three mirror S035 exactly; QUEUED is S037's addition
 // (backward-compatible — the three original values are unshifted).
@@ -360,13 +366,27 @@ private:
     //     NON-OWNING pointer to the process-lifetime global DependencyProperty's
     //     metadata. Safe (never dangles).
     // md() returns whichever is active (exactly one set for a live entry).
+    //
+    // S802 (dep:S801) — the per-object store identity is the COMPOSITE
+    // (name, owner) pair (WPF ground truth: DependencyProperty.cs
+    // `FromNameKey(name, ownerType)`). `name` AND `owner` are both INTERNED
+    // canonical views (S140/ADR-018, content-equal, stable for the affinity
+    // thread's life). Two same-name/different-owner DPs are DISTINCT store
+    // entries that resolve independently.
     struct PD
     {
         std::string_view         name;       // interned canonical key (S140, content-equal)
+        std::string_view         owner;      // S802: interned canonical DECLARING-TYPE identity (empty ONLY on a legacy bridge entry)
         Value                    local = Value::Null(); // Value::Null == no local override
         PropertyMetadata*        owned  = nullptr; // object-scoped owned metadata (heap-stable)
         const PropertyMetadata*  borrowed = nullptr; // attached/global borrowed metadata
         PropertyKey*             stableKey = nullptr; // stable heap key copy (register_property returned ref)
+
+        // Composite identity helper — equal IFF name AND owner are equal.
+        [[nodiscard]] bool matches(std::string_view n, std::string_view o) const noexcept
+        {
+            return owner == o && name == n;
+        }
 
         // Returns whichever provider is active (exactly one for a live entry).
         const PropertyMetadata& md() const noexcept { return owned != nullptr ? *owned : *borrowed; }
@@ -393,13 +413,15 @@ private:
         [[nodiscard]] std::size_t size() const noexcept { return count_; }
         [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
 
-        // Linear scan over inline-then-overflow by interned name (content-equal).
-        [[nodiscard]] PD* find(std::string_view name) noexcept
+        // S802 composite lookup: linear scan over inline-then-overflow by the
+        // interned (name, owner) PAIR (content-equal). Two same-name/
+        // different-owner entries are distinct.
+        [[nodiscard]] PD* find(std::string_view name, std::string_view owner) noexcept
         {
             const std::size_t inlineN = (count_ < kInline) ? count_ : kInline;
             for (std::size_t i = 0; i < inlineN; ++i)
             {
-                if (slots_[i].name == name)
+                if (slots_[i].matches(name, owner))
                 {
                     return &slots_[i];
                 }
@@ -408,7 +430,7 @@ private:
             {
                 for (std::size_t i = 0; i < count_ - kInline; ++i)
                 {
-                    if (overflow_[i].name == name)
+                    if (overflow_[i].matches(name, owner))
                     {
                         return &overflow_[i];
                     }
@@ -416,12 +438,12 @@ private:
             }
             return nullptr;
         }
-        [[nodiscard]] const PD* find(std::string_view name) const noexcept
+        [[nodiscard]] const PD* find(std::string_view name, std::string_view owner) const noexcept
         {
             const std::size_t inlineN = (count_ < kInline) ? count_ : kInline;
             for (std::size_t i = 0; i < inlineN; ++i)
             {
-                if (slots_[i].name == name)
+                if (slots_[i].matches(name, owner))
                 {
                     return &slots_[i];
                 }
@@ -430,13 +452,83 @@ private:
             {
                 for (std::size_t i = 0; i < count_ - kInline; ++i)
                 {
-                    if (overflow_[i].name == name)
+                    if (overflow_[i].matches(name, owner))
                     {
                         return &overflow_[i];
                     }
                 }
             }
             return nullptr;
+        }
+
+        // [MINIMAL REAL] LEGACY UNIQUE-NAME bridge — RESOLVED BY S803. Legacy
+        // S036 object-scoped call sites (PropertyId::of(name) with empty owner)
+        // still read + write by bare name. This GUARDED bridge resolves a NAME
+        // to the store's SINGLE entry carrying that name (across owners); it
+        // returns nullptr when the name is AMBIGUOUS (>1 distinct owner, the S802
+        // coexistence case) — it NEVER silently picks among them. S803 removes
+        // this surface when no call site lacks an owner.
+        [[nodiscard]] PD* find_unique_name(std::string_view name) noexcept
+        {
+            PD* hit = nullptr;
+            const std::size_t inlineN = (count_ < kInline) ? count_ : kInline;
+            for (std::size_t i = 0; i < inlineN; ++i)
+            {
+                if (slots_[i].name == name)
+                {
+                    if (hit != nullptr)
+                    {
+                        return nullptr; // ambiguous — two distinct entries share the name
+                    }
+                    hit = &slots_[i];
+                }
+            }
+            if (count_ > kInline)
+            {
+                for (std::size_t i = 0; i < count_ - kInline; ++i)
+                {
+                    if (overflow_[i].name == name)
+                    {
+                        if (hit != nullptr)
+                        {
+                            return nullptr; // ambiguous
+                        }
+                        hit = &overflow_[i];
+                    }
+                }
+            }
+            return hit; // nullptr (absent) or the unique entry
+        }
+        [[nodiscard]] const PD* find_unique_name(std::string_view name) const noexcept
+        {
+            const PD* hit = nullptr;
+            const std::size_t inlineN = (count_ < kInline) ? count_ : kInline;
+            for (std::size_t i = 0; i < inlineN; ++i)
+            {
+                if (slots_[i].name == name)
+                {
+                    if (hit != nullptr)
+                    {
+                        return nullptr; // ambiguous
+                    }
+                    hit = &slots_[i];
+                }
+            }
+            if (count_ > kInline)
+            {
+                for (std::size_t i = 0; i < count_ - kInline; ++i)
+                {
+                    if (overflow_[i].name == name)
+                    {
+                        if (hit != nullptr)
+                        {
+                            return nullptr; // ambiguous
+                        }
+                        hit = &overflow_[i];
+                    }
+                }
+            }
+            return hit;
         }
 
         // Appends `pd` (which must not already be present) and returns the stored
@@ -455,11 +547,26 @@ private:
     };
 
     // S039 tolerant ancestor walk: returns the NEAREST ancestor of `self` with a
-    // non-null LOCAL override for `name`, else Value::Null. Never throws (an
-    // ancestor that does not register the property, or has no local, contributes
-    // nothing). A same-class member so it may read the private store of any
-    // instance on the parent chain.
-    static Value nearest_ancestor_local(const DependencyObject& self, std::string_view name);
+    // non-null LOCAL override for the (name, owner) PAIR, else Value::Null. Never
+    // throws (an ancestor that does not register the property, or has no local,
+    // contributes nothing). A same-class member so it may read the private store
+    // of any instance on the parent chain.
+    static Value nearest_ancestor_local(
+        const DependencyObject& self, std::string_view name, std::string_view owner);
+
+    // S802 resolution helpers. Chosen so a legacy owner-less id (PropertyId::of
+    // (name)) still resolves through the GUARDED unique-name store bridge while
+    // a composite id resolves on its (name, owner) pair.
+    //   - resolve_entry(id): the per-object store entry for `id`, or nullptr —
+    //     composite pair when id.owner() != "", else find_unique_name (guarded:
+    //     nullptr on an ambiguous same-name/different-owner coexist pair).
+    //   - resolve_global(id): the global DependencyProperty for `id`, or
+    //     nullptr — DependencyProperty::TryGet(name, owner) when the id carries
+    //     an owner, else the GUARDED TryGetByName (unique-name bridge,
+    //     MINIMAL REAL, S803-resolved).
+    [[nodiscard]] const PD* resolve_entry(PropertyId id) const noexcept;
+    [[nodiscard]] PD* resolve_entry(PropertyId id) noexcept;
+    [[nodiscard]] const DependencyProperty* resolve_global(PropertyId id) const noexcept;
 
     // S041 §2.4 descendant push, driven by S039's pull model so each descendant
     // receives its OWN effective-old -> effective-new delta (never the parent's
@@ -485,10 +592,11 @@ private:
     // descendant's OWN notification queue ONLY when old != new (local-wins /
     // inherited-unchanged descendants produce no notification).
     static void collect_descendant_effectives(
-        const DependencyObject& root, std::string_view name, bool captureAttachedInherits,
+        const DependencyObject& root, std::string_view name, std::string_view owner,
+        bool captureAttachedInherits,
         std::vector<std::pair<DependencyObject*, Value>>& out);
     void notify_descendants(
-        std::string_view name,
+        std::string_view name, std::string_view owner,
         const std::vector<std::pair<DependencyObject*, Value>>& before);
 
     // S245: fires THIS object's registered destruction handlers (copy-before-
@@ -509,17 +617,24 @@ private:
     // Copy-before-invoke (a handler that (un)subscribes mid-fire is safe) —
     // same discipline as ProcessNotificationQueue.
     void fire_self_subscribers(
-        std::string_view name, const Value& oldEffective, const Value& newEffective);
+        std::string_view name, std::string_view owner, const Value& oldEffective, const Value& newEffective);
+
+    // S802: fires the registration-ordered subscribers for the (name, owner)
+    // pair, ALSO falling back to the [MINIMAL REAL] owner-less legacy
+    // subscription list (S803-resolved). Used by both the on-affine self-fire
+    // and the pushed-notification drain.
+    void fire_subscribers_for(
+        std::string_view name, std::string_view owner, const Value& oldEffective, const Value& newEffective);
 
     // Recursive scope walker used by collect_descendant_effectives(): walks
     // `this`'s inheritance-scope, capturing each descendant with its current
     // effective value (recursing into each child's scope). A descendant is
-    // captured when it REGISTERS `name` (local store entry) or, when
-    // `captureAttachedInherits` is set, whenever the property is a globally
+    // captured when it REGISTERS the (name, owner) pair (local store entry) or,
+    // when `captureAttachedInherits` is set, whenever the property is a globally
     // registered attached Inherits/InheritOnly property (S044: passive attached
     // descendants must be notified even without a local store entry).
     void visit_scope(
-        std::string_view name,
+        std::string_view name, std::string_view owner,
         std::vector<std::pair<DependencyObject*, Value>>& out,
         bool captureAttachedInherits) const;
 
@@ -532,9 +647,32 @@ private:
     std::thread::id       affinity_ = std::this_thread::get_id();
     DependencyObject*     parent_ = nullptr; // S039 loose non-owning parent link
 
-    // S041 §2.3 registration-ordered subscribers (keyed by interned name).
-    std::unordered_map<std::string_view,
-        std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>>> subs_;
+    // S041 §2.3 registration-ordered subscribers, S802-re-keyed onto the
+    // composite (name, owner) pair — BOTH interned canonical views (content-
+    // equal, thread-affine). A same-name/different-owner pair has its own
+    // subscription list, exactly like the per-object store. SubKey is a tiny
+    // (name, owner) key with pair-keyed equality + hash.
+    struct SubKey
+    {
+        std::string_view name;
+        std::string_view owner;
+
+        bool operator==(const SubKey& o) const noexcept
+        {
+            return name == o.name && owner == o.owner;
+        }
+    };
+    struct SubKeyHash
+    {
+        std::size_t operator()(const SubKey& k) const noexcept
+        {
+            std::size_t h = std::hash<std::string_view>{}(k.name);
+            h ^= std::hash<std::string_view>{}(k.owner) + 0x9e3779b9U + (h << 6U) + (h >> 2U);
+            return h;
+        }
+    };
+    std::unordered_map<SubKey,
+        std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>>, SubKeyHash> subs_;
     PropertyChangedToken  next_sub_token_ = 1;
 
     // S245 destruction-lifecycle subscribers (registration order). A monotonic

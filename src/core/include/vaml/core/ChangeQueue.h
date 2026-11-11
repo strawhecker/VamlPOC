@@ -95,8 +95,8 @@ public:
     // The callback shape for a drained notification: (id, old, new).
     using NotifyFn = std::function<void(PropertyId, const Value&, const Value&)>;
 
-    // Posts a pending notification. Cross-thread safe (mutex). The id's NAME is
-    // copied (owned), so the item outlives the registering key.
+    // Posts a pending notification. Cross-thread safe (mutex). The id's NAME
+    // AND OWNER are copied (owned), so the item outlives the registering key.
     void enqueue(PropertyId id, const Value& oldValue, const Value& newValue);
 
     // Number of pending notifications currently queued. Cross-thread safe.
@@ -119,25 +119,28 @@ public:
     [[nodiscard]] std::thread::id thread_affinity_id() const noexcept;
 
     // === S143: S037 value-write family (relocated into the queue) ==========
-    // The callback shape for a drained value-write: (ownedName, coerced value).
-    using ValueDrainFn = std::function<void(std::string_view, const Value&)>;
+    // The callback shape for a drained value-write: (ownedName, ownedOwner,
+    // coerced value).
+    using ValueDrainFn = std::function<void(std::string_view, std::string_view, const Value&)>;
 
-    // Posts a pending S037 value-write from a NON-affine thread. The NAME is
-    // copied (owned) — a wrong-thread writer can never hold/intern into the
+    // Posts a pending S037 value-write from a NON-affine thread. NAME AND OWNER
+    // are copied (owned) — a wrong-thread writer can never hold/intern into the
     // owner's pool (S140 DECISION 1). Cross-thread safe (same single mutex as
     // the notification family). The coerced value was already coerce+validated
-    // at queue time by the caller.
-    void enqueue_value(std::string_view name, const Value& coerced);
+    // at queue time by the caller. `owner` may be an owning code point (empty)
+    // for a legacy owner-less write.
+    void enqueue_value(std::string_view name, std::string_view owner, const Value& coerced);
 
     // Number of value-writes currently queued (queued-not-applied). Cross-thread safe.
     [[nodiscard]] std::size_t value_pending_count() const noexcept;
 
     // Owner-thread drain: swaps out the value-write deque (S037 snapshot-then-run)
-    // and replays each {name, coerced} FIFO, returning the count. Must be called
-    // from the queue's affinity thread — otherwise throws WrongThreadException. Each
-    // drained `name` is RE-INTERNED on the owner thread to its canonical view before
-    // the callback (S143 B2), so the callback always receives a content-equal
-    // canonical interned view, never a transient/foreign one.
+    // and replays each {name, owner, coerced} FIFO, returning the count. Must be
+    // called from the queue's affinity thread — otherwise throws WrongThreadException.
+    // Each drained `name` AND `owner` is RE-INTERNED on the owner thread to its
+    // canonical view before the callback (S143 B2), so the callback always receives
+    // content-equal canonical interned views, never a transient/foreign one. The
+    // drained `owner` is also carried so the drain resolves the composite store key.
     std::size_t drain_values(const ValueDrainFn& fn);
 
 private:
@@ -147,26 +150,33 @@ private:
     // the sole kept, approved lock (ADR-018). The mutex is NOT moved (it stays
     // in place); only the protected data is moved under lock in the move ctor.
     //
-    // One pending NOTIFICATION (S041). `name` is an OWNED std::string copied
-    // from the PropertyId so the item outlives the registering key.
+    // One pending NOTIFICATION (S041). `name` AND `owner` are OWNED std::strings
+    // copied from the PropertyId so the item outlives the registering key. S802:
+    // the composite (name, owner) is carried so a pushed notification resolves
+    // the correct per-object store pair.
     struct Item
     {
         std::string name;
+        std::string owner;
         Value       oldValue;
         Value       newValue;
 
-        Item(std::string n, Value o, Value v)
-            : name(std::move(n)), oldValue(std::move(o)), newValue(std::move(v)) {}
+        Item(std::string n, std::string o, Value ov, Value nv)
+            : name(std::move(n)), owner(std::move(o)), oldValue(std::move(ov)), newValue(std::move(nv)) {}
     };
 
-    // One pending VALUE WRITE (S037, relocated). `name` is OWNED (cross-thread
-    // marshal: a wrong-thread writer cannot hold a thread-local intern view).
+    // One pending VALUE WRITE (S037, relocated). `name` AND `owner` are OWNED
+    // (cross-thread marshal: a wrong-thread writer cannot hold a thread-local
+    // intern view). S802: the composite pair is carried so the drain resolves
+    // the correct per-object store entry.
     struct ValueWrite
     {
         std::string name;
+        std::string owner;
         Value       coerced;
 
-        ValueWrite(std::string n, Value v) : name(std::move(n)), coerced(std::move(v)) {}
+        ValueWrite(std::string n, std::string o, Value v)
+            : name(std::move(n)), owner(std::move(o)), coerced(std::move(v)) {}
     };
 
     // TWO FIFO pending deques — one per item family — protected by the SAME
