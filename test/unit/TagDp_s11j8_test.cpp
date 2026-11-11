@@ -32,7 +32,7 @@ using namespace vaml;
 TEST_CASE("11j-8: Tag is a registered element-base DP (default: empty/no tag)")
 {
     Button b; // ensures the UIElement base props (incl. Tag) are registered
-    const DependencyProperty* tag = DependencyProperty::TryGet("Tag");
+    const DependencyProperty* tag = DependencyProperty::TryGetByName("Tag");
     REQUIRE(tag != nullptr);
 
     // Default is the empty String (no tag).

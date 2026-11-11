@@ -99,7 +99,7 @@ const DependencyProperty& registerGlobal(const char* name, PropertyFlags flags,
         return DependencyProperty::Register(name, ValueType::Int32, "AttachedOwner_A",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::Get(name, "AttachedOwner_A");
 }
 
 } // namespace

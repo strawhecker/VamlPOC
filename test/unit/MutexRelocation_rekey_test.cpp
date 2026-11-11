@@ -271,19 +271,18 @@ TEST_CASE("S143 PartB: ChangeQueue drain re-interns to the affinity thread's can
     SHOULD(ShouldlyString(trace.values[0]).ShouldBe(3));
 }
 
-TEST_CASE("S143 PartB: PropertyRegistry content lookup — no transient std::string, dedupe unchanged, key stability")
+TEST_CASE("S143/S801 PartB: PropertyRegistry content lookup — no transient std::string, dedupe unchanged, key stability")
 {
     PropertyRegistry reg;
     const PropertyKey& w = reg.register_key(int32Key("S143_Width"));
     const PropertyKey& m = reg.register_key(int32Key("S143_Margin"));
 
-    // Lookup by string_view content (the previous const std::string& overloads
-    // bound implicitly; string_view materializes no transient std::string).
-    SHOULD(ShouldlyString(reg.try_find(std::string_view("S143_Width"))).ShouldBe(&w));
-    SHOULD(ShouldlyString(reg.find(std::string_view("S143_Margin")).name()).ShouldBe(std::string("S143_Margin")));
-    SHOULD(ShouldlyString(reg.id_of("S143_Width")).ShouldBe(PropertyId::of("S143_Width")));
-    SHOULD(ShouldlyString(reg.try_id("S143_Width").valid()).ShouldBe(true));
-    SHOULD(ShouldlyString(reg.try_id("S143_Missing").valid()).ShouldBe(false));
+    // Lookup by (name, owner) string_view content — no transient std::string.
+    SHOULD(ShouldlyString(reg.try_find(std::string_view("S143_Width"), std::string_view("S143Owner"))).ShouldBe(&w));
+    SHOULD(ShouldlyString(reg.find(std::string_view("S143_Margin"), std::string_view("S143Owner")).name()).ShouldBe(std::string("S143_Margin")));
+    SHOULD(ShouldlyString(reg.id_of("S143_Width", "S143Owner")).ShouldBe(PropertyId::of("S143_Width", "S143Owner")));
+    SHOULD(ShouldlyString(reg.try_id("S143_Width", "S143Owner").valid()).ShouldBe(true));
+    SHOULD(ShouldlyString(reg.try_id("S143_Missing", "S143Owner").valid()).ShouldBe(false));
 
     // Dedupe throws + leaves the registry unchanged.
     SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] {
@@ -292,7 +291,7 @@ TEST_CASE("S143 PartB: PropertyRegistry content lookup — no transient std::str
     SHOULD(ShouldlyString(reg.size()).ShouldBe(2u));
 
     // Returned key reference remains stable (the NameTable owns the key node).
-    SHOULD(ShouldlyString(reg.try_find("S143_Width")).ShouldBe(&w));
+    SHOULD(ShouldlyString(reg.try_find("S143_Width", "S143Owner")).ShouldBe(&w));
     (void)m;
 
     // Register many to force the node-vector relocation; stored key refs stay valid.
@@ -308,12 +307,12 @@ TEST_CASE("S143 PartB: PropertyRegistry content lookup — no transient std::str
         for (int i = 0; i < n; ++i)
         {
             // Every earlier reference is still valid + content-resolvable.
-            SHOULD(ShouldlyString(big.try_find("S143_Bulk_" + std::to_string(i))).ShouldBe(refs[i]));
+            SHOULD(ShouldlyString(big.try_find("S143_Bulk_" + std::to_string(i), "S143Owner")).ShouldBe(refs[i]));
         }
     }
 }
 
-TEST_CASE("S143 PartB: DependencyProperty content lookup — Register/TryGet/Get, dedupe throws, views stay valid")
+TEST_CASE("S143/S801 PartB: DependencyProperty content lookup — Register/TryGet/Get, dedupe throws, views stay valid")
 {
     // Unique names to avoid cross-TEST_CASE interference in the global table.
     const std::string name = "S143_Dp_ThemeColor";
@@ -326,27 +325,27 @@ TEST_CASE("S143 PartB: DependencyProperty content lookup — Register/TryGet/Get
     const std::string& owner = dp.owner_type_id();
     SHOULD(ShouldlyString(owner).ShouldBe(std::string("S143Owner")));
 
-    // TryGet/Get by content (string_view) — no transient std::string.
-    const DependencyProperty* got = DependencyProperty::TryGet(std::string_view(name));
+    // TryGet/Get by composite (name, owner) — no transient std::string.
+    const DependencyProperty* got = DependencyProperty::TryGet(std::string_view(name), std::string_view("S143Owner"));
     SHOULD(ShouldlyString(got != nullptr).ShouldBe(true));
     if (got != nullptr)
     {
         SHOULD(ShouldlyString(got->metadata().defaultValue()).ShouldBe(Value::Int32(3)));
     }
-    SHOULD(ShouldlyString(DependencyProperty::Get(name).property_id().name()).ShouldBe(name));
+    SHOULD(ShouldlyString(DependencyProperty::Get(name, "S143Owner").property_id().name()).ShouldBe(name));
 
-    // Duplicate-name Register throws + stores nothing (existing kept).
+    // Duplicate (name, owner) PAIR Register throws + stores nothing (existing kept).
     SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] {
         (void)DependencyProperty::Register(
             name, ValueType::Int32, "S143Owner",
             PropertyMetadata::WithDefault(Value::Int32(99), PropertyFlags::None));
     }));
-    const DependencyProperty& still = DependencyProperty::Get(name);
+    const DependencyProperty& still = DependencyProperty::Get(name, "S143Owner");
     SHOULD(ShouldlyString(still.metadata().defaultValue()).ShouldBe(Value::Int32(3))); // original kept
 
-    // Missing name -> null / throw.
-    SHOULD(ShouldlyString(DependencyProperty::TryGet("S143_NoSuch") == nullptr).ShouldBe(true));
+    // Missing pair -> null / throw.
+    SHOULD(ShouldlyString(DependencyProperty::TryGet("S143_NoSuch", "S143Owner") == nullptr).ShouldBe(true));
     SHOULD(ShouldThrow<PropertyNotFound>([&] {
-        (void)DependencyProperty::Get("S143_NoSuch");
+        (void)DependencyProperty::Get("S143_NoSuch", "S143Owner");
     }));
 }

@@ -85,7 +85,7 @@ const DependencyProperty& registerGlobal(const std::string& name, ValueType type
         return DependencyProperty::Register(name, type, "S091_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 // S091 fixture: registers the S091-unique global DPs the docs use in tests.

@@ -36,7 +36,7 @@ namespace {
 // Asserts a DP is registered (TryGet != nullptr) — the per-row audit-pin.
 bool dp_exists(const char* name)
 {
-    return DependencyProperty::TryGet(name) != nullptr;
+    return DependencyProperty::TryGetByName(name) != nullptr;
 }
 
 } // namespace

@@ -103,7 +103,7 @@ const DependencyProperty& registerAttachedGlobal(const std::string& name, const 
         return DependencyProperty::Register(name, ValueType::Int32, owner,
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::Get(name, owner);
 }
 
 constexpr PropertyFlags kInh = PropertyFlags::Inherits;

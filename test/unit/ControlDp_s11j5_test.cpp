@@ -32,7 +32,7 @@ namespace {
 
 void expectInt32(DependencyObject& o, const char* name, std::int32_t want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGet(name);
+    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
     REQUIRE(dp != nullptr);
     (void)o.Set(PropertyId::of(name), Value::Int32(want));
     CHECK(o.Get(PropertyId::of(name)).get<std::int32_t>() == want);
@@ -40,7 +40,7 @@ void expectInt32(DependencyObject& o, const char* name, std::int32_t want)
 
 void expectDouble(DependencyObject& o, const char* name, double want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGet(name);
+    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
     REQUIRE(dp != nullptr);
     (void)o.Set(PropertyId::of(name), Value::Double(want));
     CHECK(o.Get(PropertyId::of(name)).get<double>() == want);
@@ -48,7 +48,7 @@ void expectDouble(DependencyObject& o, const char* name, double want)
 
 void expectString(DependencyObject& o, const char* name, const std::string& want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGet(name);
+    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
     REQUIRE(dp != nullptr);
     (void)o.Set(PropertyId::of(name), Value::String(want));
     CHECK(o.Get(PropertyId::of(name)).get<std::string>() == want);
@@ -64,7 +64,7 @@ TEST_CASE("11j-5: the shared Control base names resolve UNPREFIXED on a plain De
     TextBlock text0; // ensure the bundle is registered (Text ctor depends on it)
     DependencyObject o;
 
-    const DependencyProperty* pPadding = DependencyProperty::TryGet("Padding");
+    const DependencyProperty* pPadding = DependencyProperty::TryGetByName("Padding");
     REQUIRE(pPadding != nullptr);
     CHECK(pPadding->metadata().boundType() == ValueType::Thickness);
     (void)o.Set(PropertyId::of("Padding"), Value::Thickness(vaml::Thickness{1, 2, 3, 4}));

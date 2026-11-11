@@ -79,7 +79,7 @@ const DependencyProperty& registerS284Global(const std::string& name, ValueType 
         return DependencyProperty::Register(name, type, "S284_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 // The S284-unique global DPs the golden document sets from text. Registered

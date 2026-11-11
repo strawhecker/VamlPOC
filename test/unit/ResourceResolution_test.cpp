@@ -82,7 +82,7 @@ const DependencyProperty& registerS361Tint()
         return DependencyProperty::Register("S361Tint", ValueType::Int32, "S361_Owner",
                                             PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     }
-    return DependencyProperty::Get("S361Tint");
+    return DependencyProperty::GetByName("S361Tint");
 }
 
 } // namespace

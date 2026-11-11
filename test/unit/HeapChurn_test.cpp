@@ -98,24 +98,31 @@ TEST_CASE("S146: public API accepts string_view literals and intern() views (reg
     StackPanel auditPanel;
 
     // The name-keyed DP read paths take a bare string_view literal AND an
-    // intern()-produced view — both must resolve (S039/S043).
+    // intern()-produced view — both must resolve (S039/S043). S801: the global
+    // table is (name, owner)-composite; the bare-name audit uses the GUARDED
+    // unique-name bridge (MINIMAL REAL, S803-resolved) — Opacity is a single
+    // (owner) registration, so it resolves unambiguously.
     const std::string_view lit = "Opacity";
     const std::string_view interned = intern(lit);
 
-    SHOULD(ShouldlyPointer(DependencyProperty::TryGet(lit)).ShouldNotBeNull());
-    SHOULD(ShouldlyPointer(DependencyProperty::TryGet(interned)).ShouldNotBeNull());
-    (void)DependencyProperty::Get(lit); // Compilation proof: a string_view enters Get().
+    SHOULD(ShouldlyPointer(DependencyProperty::TryGetByName(lit)).ShouldNotBeNull());
+    SHOULD(ShouldlyPointer(DependencyProperty::TryGetByName(interned)).ShouldNotBeNull());
+    (void)DependencyProperty::GetByName(lit); // Compilation proof: a string_view enters GetByName().
 
-    // PropertyRegistry (S032/S039) name-keyed loads — literal + intern view.
+    // PropertyRegistry (S032/S039) composite loads need a real (name, owner)
+    // pair — audit against the registered Opacity owner via the global DP.
     const PropertyRegistry& reg = PropertyRegistry::global();
-    SHOULD(ShouldlyPointer(reg.try_find(lit)).ShouldNotBeNull());
-    SHOULD(ShouldlyPointer(reg.try_find(interned)).ShouldNotBeNull());
-    (void)reg.find(lit);       // Compilation proof.
-    (void)reg.id_of(lit);      // Compilation proof.
-    (void)reg.try_id(interned);// Compilation proof.
+    const vaml::DependencyProperty* opDp = DependencyProperty::TryGetByName("Opacity");
+    REQUIRE(opDp != nullptr);
+    const std::string_view opOwner = opDp->owner_type_id();
+    SHOULD(ShouldlyPointer(reg.try_find("Opacity", opOwner)).ShouldNotBeNull());
+    SHOULD(ShouldlyPointer(reg.try_find("Opacity", opOwner)).ShouldNotBeNull());
+    (void)reg.find("Opacity", opOwner);       // Compilation proof.
+    (void)reg.id_of("Opacity", opOwner);      // Compilation proof.
+    (void)reg.try_id("Opacity", opOwner);     // Compilation proof.
 
     // PropertyId's .name() round-trips a string_view without owning it.
-    SHOULD(ShouldlyString(std::string(reg.id_of(lit).name())).ShouldBe(std::string("Opacity")));
+    SHOULD(ShouldlyString(std::string(reg.id_of("Opacity", opOwner).name())).ShouldBe(std::string("Opacity")));
 
     // VamlReader::Load takes a string_view (this kMarkup is exactly that) and
     // named()/names() take string_view. Compilation + runtime proof.

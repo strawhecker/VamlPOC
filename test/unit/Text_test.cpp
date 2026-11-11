@@ -218,7 +218,7 @@ TEST_CASE("S400: TextBlock is a real UIElement (S087 seed re-based) + DPs round-
     // read): "Text" is globally registered, so a plain DO reads the global
     // default ("" ) without a local registration.
     vaml::DependencyObject plain;
-    const auto dp = vaml::DependencyProperty::TryGet("Text");
+    const auto dp = vaml::DependencyProperty::TryGetByName("Text");
     SHOULD(ShouldlyIntegral(dp != nullptr).ShouldBe(true));
     const vaml::Value v = plain.Get(vaml::PropertyId::of("Text"));
     SHOULD(ShouldlyString(v.type() == vaml::ValueType::String).ShouldBe(true));

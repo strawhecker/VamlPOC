@@ -65,7 +65,7 @@ const DependencyProperty& registerK5Int(std::string_view name)
         return DependencyProperty::Register(name, ValueType::Int32, "11k5_Owner",
                                             PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 void registerK5()

@@ -100,7 +100,7 @@ void annotate_attribute(AttributeRecord& ar)
     }
     else
     {
-        ar.knownProperty = vaml::DependencyProperty::TryGet(ar.key) != nullptr;
+        ar.knownProperty = vaml::DependencyProperty::TryGetByName(ar.key) != nullptr;
         std::string inferred;
         ar.valueType = vaml::ValueConverterRegistry::global()
                            .try_infer_type(ar.value, &inferred)

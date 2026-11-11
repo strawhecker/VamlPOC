@@ -1,20 +1,23 @@
-// S032 + S143 (B3, dep:S140/S141) + S146 — PropertyRegistry out-of-line
-// definitions. Maps property NAME -> PropertyKey and enforces name uniqueness
-// (dedupe).
+// S032 + S143 (B3, dep:S140/S141) + S146 + S801 — PropertyRegistry out-of-line
+// definitions. Maps the (NAME, OWNER) COMPOSITE key -> PropertyKey and enforces
+// PAIR uniqueness (dedupe) — the S801 central re-key that resolves the S033/S039
+// name-only contract drift at its source (WPF `FromNameKey(name, ownerType)`:
+// strict pair identity; same-name/different-owner is DISTINCT, same-pair throws).
 //
-// S143 re-keyed the internal index OFF std::unordered_map<std::string,...> and
-// ONTO the S141-pattern content-keyed probe store (vaml::detail::NameTable).
-// Lookup takes std::string_view and materializes NO transient std::string.
-// The registry OWNS its key storage (the NameTable's stable key nodes, process
-// lifetime for the global registry) and keys by CONTENT — never pointer. This
-// is the S140 DECISION 1 resolution for the global dedupe master: a global /
-// cross-thread table cannot hold thread-local intern views, so it stays
-// content-keyed with self-owned stable storage. ADR-018: no lock added.
+// S143 re-keyed the internal index OFF std::unordered_map and ONTO the
+// S141-pattern content-keyed probe store (vaml::detail::NameTable). S801 re-keys
+// that store's key from a single string to the (name, owner) composite. Lookup
+// takes (std::string_view name, std::string_view owner) and materializes NO
+// transient std::string. The registry OWNS its key storage (the NameTable's
+// stable composite nodes, process lifetime for the global registry) and keys by
+// CONTENT — never pointer. This is the S140 DECISION 1 resolution for the global
+// dedupe master: a global / cross-thread table cannot hold thread-local intern
+// views, so it stays content-keyed with self-owned stable storage. ADR-018: no
+// lock added.
 //
 // S146 (refactor gate): the pimpl (class Impl + impl_) is COLLAPSED — the
-// NameTable<PropertyKey> member is now held BY VALUE in the registry (see
-// PropertyRegistry.h). The delegating methods here call table_ directly (no
-// impl_-> trampoline, no per-object heap hop, no Impl heap node).
+// NameTable<PropertyKey, CompositeKey> member is now held BY VALUE in the
+// registry (see PropertyRegistry.h).
 
 #include "vaml/core/PropertyRegistry.h"
 
@@ -38,64 +41,66 @@ PropertyRegistry& PropertyRegistry::operator=(PropertyRegistry&&) noexcept = def
 VAML_CORE_EXPORT
 const PropertyKey& PropertyRegistry::register_key(PropertyKey key)
 {
-    // Capture the name up front for a clear error message AND because the
-    // NameTable insert() would otherwise re-copy the name from the key's live
-    // buffer while `key` is simultaneously being MOVED as the value (the order
+    // Capture name + owner up front for a clear error message AND because the
+    // NameTable insert() would otherwise re-copy them from the key's live
+    // buffers while `key` is simultaneously being MOVED as the value (the order
     // of argument evaluation is unspecified — the copy could see a moved-from
-    // empty key). Copying first keeps the NameTable's owned key correct.
-    // S146: the NameTable is now the BY-VALUE member (no pimpl).
-    // Capture the name up front + a copy for the error path (the insert MOVES
-    // the owned `name`; the message must keep the real name, not a moved-from
-    // empty '' black hole — fixed, not silent).
+    // empty key). Copying first keeps the NameTable's owned composite key
+    // correct. (S146: the NameTable is the BY-VALUE member; S801: composite.)
     std::string name     = key.name();
+    std::string owner    = key.ownerTypeId();
     std::string original = name;
+    std::string origOwner = owner;
 
-    const PropertyKey* stored = table_.insert(std::move(name), std::move(key));
+    const PropertyKey* stored = table_.insert(std::move(name), std::move(owner), std::move(key));
     if (stored == nullptr)
     {
-        std::string msg = "property already registered: '" + original + "'";
+        std::string msg = "property already registered: '" + original + "' owned by '" + origOwner + "'";
         throw PropertyAlreadyRegistered(msg.c_str());
     }
     return *stored;
 }
 
 VAML_CORE_EXPORT
-const PropertyKey* PropertyRegistry::try_find(std::string_view name) const noexcept
+const PropertyKey* PropertyRegistry::try_find(std::string_view name,
+                                              std::string_view owner) const noexcept
 {
-    return table_.find(name);
+    return table_.find(name, owner);
 }
 
 VAML_CORE_EXPORT
-const PropertyKey& PropertyRegistry::find(std::string_view name) const
+const PropertyKey& PropertyRegistry::find(std::string_view name,
+                                          std::string_view owner) const
 {
-    const PropertyKey* stored = table_.find(name);
+    const PropertyKey* stored = table_.find(name, owner);
     if (stored == nullptr)
     {
-        std::string msg = "property not found: '" + std::string(name) + "'";
+        std::string msg = "property not found: '" + std::string(name) + "' owned by '" + std::string(owner) + "'";
         throw PropertyNotFound(msg.c_str());
     }
     return *stored;
 }
 
 VAML_CORE_EXPORT
-PropertyId PropertyRegistry::id_of(std::string_view name) const
+PropertyId PropertyRegistry::id_of(std::string_view name, std::string_view owner) const
 {
-    const PropertyKey* stored = table_.find(name);
+    const PropertyKey* stored = table_.find(name, owner);
     if (stored == nullptr)
     {
-        std::string msg = "property not found: '" + std::string(name) + "'";
+        std::string msg = "property not found: '" + std::string(name) + "' owned by '" + std::string(owner) + "'";
         throw PropertyNotFound(msg.c_str());
     }
-    return PropertyId::of(stored->name());
+    return PropertyId::of(stored->name(), stored->ownerTypeId());
 }
 
 VAML_CORE_EXPORT
-PropertyId PropertyRegistry::try_id(std::string_view name) const noexcept
+PropertyId PropertyRegistry::try_id(std::string_view name, std::string_view owner) const noexcept
 {
-    const PropertyKey* stored = table_.find(name);
-    // Unregistered name -> invalid (empty) id; caller distinguishes via
+    const PropertyKey* stored = table_.find(name, owner);
+    // Unregistered pair -> invalid (empty) id; caller distinguishes via
     // PropertyId::valid().
-    return stored == nullptr ? PropertyId{} : PropertyId::of(stored->name());
+    return stored == nullptr ? PropertyId{}
+                             : PropertyId::of(stored->name(), stored->ownerTypeId());
 }
 
 VAML_CORE_EXPORT
@@ -109,9 +114,8 @@ PropertyRegistry& PropertyRegistry::global() noexcept
 {
     // Meyers singleton: function-local static is constructed on first use and
     // destroyed in reverse construction order at program exit. This is the
-    // global name -> key dedupe master consumed by DependencyProperty::Register
-    // (S039). No static-init-order fiasco (function-local static init is
-    // thread-safe in C++11+).
+    // global (name, owner) -> key dedupe master consumed by
+    // DependencyProperty::Register (S039). No static-init-order fiasco.
     static PropertyRegistry instance;
     return instance;
 }

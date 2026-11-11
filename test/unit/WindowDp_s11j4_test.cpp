@@ -25,7 +25,7 @@ namespace {
 
 void expectInt32(DependencyObject& o, const char* name, std::int32_t want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGet(name);
+    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
     REQUIRE(dp != nullptr);
     (void)o.Set(PropertyId::of(name), Value::Int32(want));
     CHECK(o.Get(PropertyId::of(name)).get<std::int32_t>() == want);
@@ -33,7 +33,7 @@ void expectInt32(DependencyObject& o, const char* name, std::int32_t want)
 
 void expectBool(DependencyObject& o, const char* name, std::int32_t want)
 {
-    const DependencyProperty* dp = DependencyProperty::TryGet(name);
+    const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
     REQUIRE(dp != nullptr);
     (void)o.Set(PropertyId::of(name), Value::Bool(want != 0));
     CHECK(o.Get(PropertyId::of(name)).get<bool>() == (want != 0));
@@ -61,7 +61,7 @@ TEST_CASE("11j-4: the Window-owner DPs resolve UNPREFIXED on a plain DependencyO
 TEST_CASE("11j-4: the Window-owner DPs carry the WPF-faithful DEFAULTS")
 {
     Window window;
-    const DependencyProperty* p = DependencyProperty::TryGet("WindowStartupLocation");
+    const DependencyProperty* p = DependencyProperty::TryGetByName("WindowStartupLocation");
     REQUIRE(p != nullptr);
     CHECK(window.Get(PropertyId::of("AllowsTransparency")).get<bool>() == false);
     CHECK(window.Get(PropertyId::of("WindowStartupLocation")).get<std::int32_t>() == 0); // Manual

@@ -36,7 +36,7 @@ using namespace vaml;
 
 namespace {
 
-bool dp_exists(const char* name) { return DependencyProperty::TryGet(name) != nullptr; }
+bool dp_exists(const char* name) { return DependencyProperty::TryGetByName(name) != nullptr; }
 
 } // namespace
 

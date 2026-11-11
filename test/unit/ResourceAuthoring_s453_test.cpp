@@ -76,7 +76,7 @@ const DependencyProperty& registerS453Global(const std::string& name, ValueType 
         return DependencyProperty::Register(name, type, "S453_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 void registerS453()

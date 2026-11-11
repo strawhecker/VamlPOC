@@ -60,7 +60,7 @@ const DependencyProperty& registerGlobal(const std::string& name, vaml::ValueTyp
         return DependencyProperty::Register(name, type, "S280_1_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 // Registers the S280_1-unique global DPs (a target + a hop) so bindings have a

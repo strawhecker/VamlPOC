@@ -1,12 +1,14 @@
 // S039 — DependencyProperty out-of-line definitions: the Register landing
 // site + global companion table + the read path. This is the authored,
 // resolved S036-re-scope global static registry surface (recorded NOT silent).
+// S801 re-keys the companion GlobalTable + read path onto the COMPOSITE
+// (name, owner) pair (WPF `FromNameKey(name, ownerType)` ground truth; S033/S039
+// name-only drift resolved at its source).
 //
 // S146 (refactor gate): the pimpl (class Impl) is COLLAPSED — DependencyProperty
-// now holds its definitional data (name_, type_, metadata_, ownerTypeId_) as
-// plain by-value members. The companion GlobalTable below (name -> unique_ptr<
-// DependencyProperty>) keeps the S143 content-keyed vaml::detail::NameTable
-// (promoted to the public detail tree, vaml/core/detail/NameTable.h).
+// now holds its definitional data (name_, metadata_, ownerTypeId_) as plain
+// by-value members. The companion GlobalTable below keeps the S143 content-keyed
+// vaml::detail::NameTable, re-keyed S801 onto the (name, owner) composite.
 
 #include "vaml/core/DependencyProperty.h"
 
@@ -36,23 +38,22 @@ DependencyProperty& DependencyProperty::operator=(DependencyProperty&&) noexcept
 VAML_CORE_EXPORT
 DependencyProperty::~DependencyProperty() = default;
 
-// The companion static table: name -> the full DependencyProperty definition.
-// Lives for the process lifetime alongside PropertyRegistry::global().
-// Function-local static => no static-init-order fiasco; constructed on first
-// Register/TryGet/Get.
+// The companion static table: (name, owner) -> the full DependencyProperty
+// definition. Lives for the process lifetime alongside PropertyRegistry::global().
+// Function-local static => no static-init-order fiasco.
 //
-// S143 (B4) re-keys GlobalTable OFF std::unordered_map<std::string,...> and ONTO
-// the S141-pattern content-keyed probe store (NameTable), which OWNS its stable
-// key nodes (process lifetime) and matches BY CONTENT with NO transient
-// std::string materialized on lookup. This is the S140 DECISION 1 resolution for
-// a GLOBAL table — it cannot hold thread-local intern views, so it stays
-// content-keyed with self-owned stable storage. ADR-018: no lock added (the
-// single-threaded-registration-then-read contract is unchanged).
+// S143 (B4) re-keys GlobalTable OFF std::unordered_map and ONTO the S141-pattern
+// content-keyed probe store (NameTable), which OWNS its stable key nodes (process
+// lifetime) and matches BY CONTENT with NO transient std::string materialized on
+// lookup. S801 re-keys that store's key onto the (name, owner) COMPOSITE (the
+// S140 DECISION 1 resolution for a GLOBAL table — self-owned stable composite
+// storage, content-keyed, ADR-018: no lock added).
 namespace {
 
 struct GlobalTable
 {
-    vaml::detail::NameTable<std::unique_ptr<DependencyProperty>> byName;
+    vaml::detail::NameTable<std::unique_ptr<DependencyProperty>,
+                            vaml::detail::CompositeKey> byName;
 
     static GlobalTable& instance()
     {
@@ -75,27 +76,31 @@ const DependencyProperty& DependencyProperty::Register(
     }
 
     const std::string ownedName(name);
+    const std::string ownedOwner(ownerTypeId);
 
-    // Dedupe on NAME globally (WPF-style). register_key throws
-    // PropertyAlreadyRegistered on a collision and leaves the registry (and
-    // thus our companion table) unchanged.
+    // Dedupe on the (name, ownerTypeId) PAIR globally (WPF-style). register_key
+    // throws PropertyAlreadyRegistered only on a SAME-PAIR collision and leaves
+    // the registry (and thus our companion table) unchanged. A same-name/
+    // different-owner pair is DISTINCT.
     PropertyRegistry& registry = PropertyRegistry::global();
-    PropertyKey key(ownedName, type, std::string(ownerTypeId), metadata.flags());
+    PropertyKey key(ownedName, type, ownedOwner, metadata.flags());
     (void)registry.register_key(std::move(key));
 
-    // Insert the full (name+metadata) definition into the companion table. If
-    // `name` is somehow already present here (cannot happen given registry
-    // dedupe above), keep the EXISTING registration (store unchanged).
+    // Insert the full (name+metadata) definition into the companion table under
+    // the (name, owner) pair. If the pair is somehow already present here
+    // (cannot happen given registry dedupe above), keep the EXISTING
+    // registration (store unchanged).
     GlobalTable& table = GlobalTable::instance();
     auto owner = std::unique_ptr<DependencyProperty>(
-        new DependencyProperty(ownedName, std::move(metadata), std::string(ownerTypeId)));
+        new DependencyProperty(ownedName, std::move(metadata), ownedOwner));
     std::unique_ptr<DependencyProperty>* stored =
-        table.byName.insert(ownedName, std::move(owner));
+        table.byName.insert(ownedName, ownedOwner, std::move(owner));
     if (stored == nullptr)
     {
         // Already present (defensive, cannot happen given the registry dedupe
         // above): keep the EXISTING registration (store unchanged).
-        const std::unique_ptr<DependencyProperty>* existing = table.byName.find(ownedName);
+        const std::unique_ptr<DependencyProperty>* existing =
+            table.byName.find(ownedName, ownedOwner);
         return *existing->get();
     }
     return **stored;
@@ -108,11 +113,13 @@ const std::string& DependencyProperty::owner_type_id() const noexcept
 }
 
 VAML_CORE_EXPORT
-const DependencyProperty* DependencyProperty::TryGet(std::string_view name) noexcept
+const DependencyProperty* DependencyProperty::TryGet(std::string_view name,
+                                                     std::string_view owner) noexcept
 {
-    // S143 B4: content lookup with NO transient std::string materialized.
+    // S143 B4 + S801 composite: content lookup with NO transient std::string
+    // materialized. NEVER an owner-less lookup — the owner is always carried.
     GlobalTable& table = GlobalTable::instance();
-    const std::unique_ptr<DependencyProperty>* found = table.byName.find(name);
+    const std::unique_ptr<DependencyProperty>* found = table.byName.find(name, owner);
     if (found == nullptr || *found == nullptr)
     {
         return nullptr;
@@ -121,12 +128,42 @@ const DependencyProperty* DependencyProperty::TryGet(std::string_view name) noex
 }
 
 VAML_CORE_EXPORT
-const DependencyProperty& DependencyProperty::Get(std::string_view name)
+const DependencyProperty* DependencyProperty::TryGetByName(std::string_view name) noexcept
 {
-    const DependencyProperty* dp = TryGet(name);
+    // [MINIMAL REAL] S803-resolved. Guarded unique-name read: only a name held
+    // by EXACTLY ONE distinct (owner) registration resolves; ambiguity returns
+    // nullptr (the caller must not silently pick). The store stays
+    // composite-keyed; this never materializes an owner-less key.
+    GlobalTable& table = GlobalTable::instance();
+    std::size_t matches = 0;
+    const std::unique_ptr<DependencyProperty>* found =
+        table.byName.find_unique_name(name, &matches);
+    if (found == nullptr || *found == nullptr || matches != 1)
+    {
+        return nullptr;
+    }
+    return found->get();
+}
+
+VAML_CORE_EXPORT
+const DependencyProperty& DependencyProperty::GetByName(std::string_view name)
+{
+    const DependencyProperty* dp = TryGetByName(name);
     if (dp == nullptr)
     {
-        throw PropertyNotFound("DependencyProperty::Get: no property registered with this name");
+        throw PropertyNotFound("DependencyProperty::GetByName: no property registered with exactly this name (absent or ambiguous)");
+    }
+    return *dp;
+}
+
+VAML_CORE_EXPORT
+const DependencyProperty& DependencyProperty::Get(std::string_view name,
+                                                  std::string_view owner)
+{
+    const DependencyProperty* dp = TryGet(name, owner);
+    if (dp == nullptr)
+    {
+        throw PropertyNotFound("DependencyProperty::Get: no property registered for this (name, owner) pair");
     }
     return *dp;
 }
@@ -134,9 +171,10 @@ const DependencyProperty& DependencyProperty::Get(std::string_view name)
 VAML_CORE_EXPORT
 PropertyId DependencyProperty::property_id() const noexcept
 {
-    // The id wraps the OWNED name as a string_view. The owner is this object's
-    // name_ permanent std::string, so the view is valid for the process lifetime.
-    return PropertyId::of(name_);
+    // The id wraps the OWNED name + owner as string_views. Both back the
+    // object's OWNED name_ / ownerTypeId_ permanent std::strings, so the views
+    // are valid for the process lifetime.
+    return PropertyId::of(name_, ownerTypeId_);
 }
 
 VAML_CORE_EXPORT

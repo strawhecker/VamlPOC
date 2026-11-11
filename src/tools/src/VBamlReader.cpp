@@ -389,7 +389,7 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
             {
                 continue; // Strand C (already emitted a DeferredEventHandler)
             }
-            const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGet(a.key);
+            const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(a.key);
             if (dp == nullptr)
             {
                 throw VBamlException(VBamlError::UnknownProperty,
@@ -453,7 +453,7 @@ VBamlReader::Load(const std::vector<std::uint8_t>& bytes)
             if (!prog.elements[cid].propertyElementTarget.empty())
             {
                 const std::string& prop = prog.elements[cid].propertyElementTarget;
-                const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGet(prop);
+                const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(prop);
                 if (dp == nullptr)
                 {
                     throw VBamlException(VBamlError::UnknownProperty,

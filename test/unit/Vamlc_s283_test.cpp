@@ -38,8 +38,13 @@ using vaml::tools::vbaml::VbamlMalformedBuffer;
 namespace {
 
 // S280_1Text is registered per-process once (the S039 discipline); this TU
-// registers it so the S280_1 binding target check passes for the compiled doc
-// (idempotent across TUs — a second register of the same name is a no-op).
+// registers it so the S280_1 binding target check passes for the compiled doc.
+// S801 COEXISTENCE: the key is the (name, owner) PAIR, so a bare-name re-register
+// under a DIFFERENT owner would create a DISTINCT (ambiguous) property and every
+// bare-name binding-target lookup would fail. To keep the shared DP a SINGLE
+// unambiguous (name, owner) registration, this TU uses the SAME canonical owner
+// ("S280_1_Owner") as Vamlc_s280_1_test.cpp; re-registering the identical pair is
+// a harmless no-op (PropertyAlreadyRegistered → nothing stored, original kept).
 void registerS283Properties()
 {
     static bool done = false;
@@ -51,12 +56,13 @@ void registerS283Properties()
     try
     {
         (void)DependencyProperty::Register("S280_1Text", vaml::ValueType::String,
-                                           "S283_Owner",
+                                           "S280_1_Owner",
                                            PropertyMetadata::WithDefault(Value::String(""), PropertyFlags::None));
     }
     catch (const vaml::PropertyAlreadyRegistered&)
     {
-        // Already registered by another TU — fine (the name is globally unique).
+        // Already registered by another TU with the same (name, owner) pair —
+        // fine under S801 coexistence (the single registration is kept).
     }
 }
 

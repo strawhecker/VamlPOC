@@ -345,7 +345,13 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
     //      local store entry to read an attached property.
     //   3. in NEITHER (no local entry, no global descriptor): PropertyNotFound
     //      (unchanged — an unregistered/unresolvable name still throws).
-    const DependencyProperty* globalDp = DependencyProperty::TryGet(id.name());
+    // S801 composite store: the object resolves its value by NAME (its store
+    // stays name-keyed; S802 re-keys it), so the global metadata read uses the
+    // GUARDED unique-name bridge — returns the DP only when exactly one (owner)
+    // registration has this name, never silently picking among ambiguous ones
+    // (MINIMAL REAL, S803-resolved). The global descriptor supplies the
+    // canonical flags + default for an attached/purely-global property.
+    const DependencyProperty* globalDp = DependencyProperty::TryGetByName(id.name());
 
     const PropertyMetadata* mdPtr = nullptr;
     Value local = Value::Null();
@@ -495,7 +501,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     }
     else
     {
-        const DependencyProperty* globalDp = DependencyProperty::TryGet(name);
+        const DependencyProperty* globalDp = DependencyProperty::TryGetByName(name);
         if (globalDp == nullptr)
         {
             throw PropertyNotFound("DependencyObject::Set: no property registered with this id");
@@ -547,7 +553,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     entry = store_.find(name);
     if (entry == nullptr)
     {
-        const DependencyProperty& globalDp = DependencyProperty::Get(name);
+        const DependencyProperty& globalDp = DependencyProperty::GetByName(name);
         // PropertyKey owns its name (std::string); the store KEY is the
         // INTERNED string_view (canonical, stable for the affinity thread —
         // S140). The caller's id.name() may point into transient parser
@@ -578,7 +584,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // descendant's CURRENT effective value (BEFORE the store) so the push can
     // carry each descendant's own old->new delta after the store (S039 pull
     // model, S040 local-wins respected through an intermediate).
-    const DependencyProperty* dp = DependencyProperty::TryGet(id.name());
+    const DependencyProperty* dp = DependencyProperty::TryGetByName(id.name());
     const bool inherits =
         has_flag(md.flags(), PropertyFlags::Inherits)
         || (dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits));
@@ -663,7 +669,7 @@ void DependencyObject::ProcessPendingChanges()
         }
         else
         {
-            globalDpDrain = DependencyProperty::TryGet(name);
+            globalDpDrain = DependencyProperty::TryGetByName(name);
             if (globalDpDrain == nullptr)
             {
                 return; // unregistered after the write was queued; skip
@@ -707,7 +713,7 @@ void DependencyObject::ProcessPendingChanges()
         // BORROWED — owned == nullptr), also capture purely passive descendants
         // with no local store entry (broadened walk). An object-scoped Inherits
         // property keeps the S041 behavior.
-        const DependencyProperty* dp = DependencyProperty::TryGet(name);
+        const DependencyProperty* dp = DependencyProperty::TryGetByName(name);
         const bool inherits =
             has_flag(md.flags(), PropertyFlags::Inherits)
             || (dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits));

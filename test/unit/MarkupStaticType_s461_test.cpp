@@ -71,7 +71,7 @@ const DependencyProperty& registerS461Global(const std::string& name)
                                             PropertyMetadata::WithDefault(
                                                 Value::String(std::string{}), PropertyFlags::None));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 } // namespace

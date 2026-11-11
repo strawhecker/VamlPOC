@@ -114,7 +114,7 @@ private:
     // S643b object conversion) registered a fresh id instead. Now that the
     // enumerated + shared paint DPs are Brush objects, the object path is
     // primary; a numeric BrushId or a non-paint value passes through unchanged.
-    const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGet(prop);
+    const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(prop);
     if (dp && dp->metadata().boundType() == vaml::ValueType::Brush &&
         value.type() == vaml::ValueType::Color)
     {

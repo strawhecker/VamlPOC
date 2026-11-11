@@ -51,7 +51,11 @@ inline const DependencyProperty& dp_register_guard(
     const char* name, ValueType type, std::string_view owner,
     PropertyMetadata metadata)
 {
-    if (const DependencyProperty* p = DependencyProperty::TryGet(name))
+    // S801 composite store: idempotence check by NAME via the guarded unique-
+    // name bridge (MINIMAL REAL, S803-resolved) — a shared bare name with one
+    // registration resolves, and a never-registered name returns null. This
+    // never silently picks among ambiguous names.
+    if (const DependencyProperty* p = DependencyProperty::TryGetByName(name))
     {
         return *p;
     }

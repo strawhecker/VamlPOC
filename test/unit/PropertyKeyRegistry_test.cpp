@@ -125,7 +125,7 @@ TEST_CASE("S032 PropertyKey: describe() renders a human-readable line")
     SHOULD(ShouldlyString(d.find("ReadOnly") != std::string::npos).ShouldBe(true));
 }
 
-TEST_CASE("S032 PropertyRegistry: register then find/try_find/size")
+TEST_CASE("S032/S801 PropertyRegistry: register then find/try_find/size")
 {
     PropertyRegistry reg;
     SHOULD(ShouldlyString(reg.empty()).ShouldBe(true));
@@ -137,32 +137,33 @@ TEST_CASE("S032 PropertyRegistry: register then find/try_find/size")
     // register_key returns a live reference to the stored key.
     SHOULD(ShouldlyString(std::string(stored.name())).ShouldBe(std::string("Width")));
 
-    // try_find finds by name; find throws nothing.
-    const PropertyKey* p = reg.try_find("Width");
+    // try_find finds by (name, owner); find throws nothing.
+    const PropertyKey* p = reg.try_find("Width", "Button");
     REQUIRE(p != nullptr); // precondition guard before deref
     SHOULD(ShouldlyString(std::string(p->ownerTypeId())).ShouldBe(std::string("Button")));
-    SHOULD(ShouldlyString(reg.find("Width").type()).ShouldBe(ValueType::Int32));
+    SHOULD(ShouldlyString(reg.find("Width", "Button").type()).ShouldBe(ValueType::Int32));
 
-    // Missing names: try_find -> nullptr, find -> throws PropertyNotFound.
-    SHOULD(ShouldlyString(reg.try_find("Missing") == nullptr).ShouldBe(true));
-    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)reg.find("Missing"); }));
+    // Missing pairs: try_find -> nullptr, find -> throws PropertyNotFound.
+    SHOULD(ShouldlyString(reg.try_find("Missing", "Button") == nullptr).ShouldBe(true));
+    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)reg.find("Missing", "Button"); }));
 }
 
-TEST_CASE("S032 PropertyRegistry: dedupe — duplicate name throws and leaves map unchanged")
+TEST_CASE("S032/S801 PropertyRegistry: dedupe — SAME-PAIR throws and leaves map unchanged")
 {
     PropertyRegistry reg;
     const PropertyKey& first = reg.register_key(make_key("Width", ValueType::Int32, "Button"));
 
-    // Same name, even with a different owner/type/flags -> rejection on NAME.
-    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)reg.register_key(make_key("Width", ValueType::Double, "Panel")); }));
+    // Same (name, owner) PAIR, even with a different type/flags -> rejection
+    // (the pair is the identity, WPF-style). A DIFFERENT owner coexists.
+    SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] { (void)reg.register_key(make_key("Width", ValueType::Double, "Button")); }));
 
     // Registry unchanged: size stable and the original key still findable.
     SHOULD(ShouldlyString(reg.size()).ShouldBe(1));
-    SHOULD(ShouldlyString(reg.try_find("Width")).ShouldBe(&first));
-    SHOULD(ShouldlyString(reg.find("Width").type()).ShouldBe(ValueType::Int32));
+    SHOULD(ShouldlyString(reg.try_find("Width", "Button")).ShouldBe(&first));
+    SHOULD(ShouldlyString(reg.find("Width", "Button").type()).ShouldBe(ValueType::Int32));
 }
 
-TEST_CASE("S032 PropertyRegistry: multiple distinct names coexist")
+TEST_CASE("S032/S801 PropertyRegistry: multiple distinct names coexist")
 {
     PropertyRegistry reg;
     (void)reg.register_key(make_key("Width", ValueType::Int32, "Button"));
@@ -170,6 +171,6 @@ TEST_CASE("S032 PropertyRegistry: multiple distinct names coexist")
     (void)reg.register_key(make_key("Margin", ValueType::Thickness, "Control"));
 
     SHOULD(ShouldlyString(reg.size()).ShouldBe(3));
-    SHOULD(ShouldlyString(std::string(reg.find("Width").ownerTypeId())).ShouldBe(std::string("Button")));
-    SHOULD(ShouldlyString(reg.find("Margin").type()).ShouldBe(ValueType::Thickness));
+    SHOULD(ShouldlyString(std::string(reg.find("Width", "Button").ownerTypeId())).ShouldBe(std::string("Button")));
+    SHOULD(ShouldlyString(reg.find("Margin", "Control").type()).ShouldBe(ValueType::Thickness));
 }

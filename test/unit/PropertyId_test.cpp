@@ -112,21 +112,21 @@ TEST_CASE("S033 PropertyId: std::hash is consistent with equality")
     SHOULD(ShouldlyString(h(PropertyId::of("Width"))).ShouldNotBe(h(PropertyId::of("Height"))));
 }
 
-TEST_CASE("S033 PropertyId: registry id_of/try_id round the name-keyed store")
+TEST_CASE("S033/S801 PropertyId: registry id_of/try_id round the composite store")
 {
     PropertyRegistry reg;
     (void)reg.register_key(make_key("Width", ValueType::Int32, "Button"));
 
-    // id_of of a registered name equals the compile-time id of that literal.
-    SHOULD(ShouldlyString(reg.id_of("Width")).ShouldBe(PropertyId::of("Width")));
-    SHOULD(ShouldlyString(reg.id_of("Width").valid()).ShouldBe(true));
+    // id_of of a registered (name, owner) pair equals the compile-time id.
+    SHOULD(ShouldlyString(reg.id_of("Width", "Button")).ShouldBe(PropertyId::of("Width", "Button")));
+    SHOULD(ShouldlyString(reg.id_of("Width", "Button").valid()).ShouldBe(true));
 
     // try_id agrees.
-    SHOULD(ShouldlyString(reg.try_id("Width")).ShouldBe(PropertyId::of("Width")));
-    SHOULD(ShouldlyString(reg.try_id("Width").valid()).ShouldBe(true));
+    SHOULD(ShouldlyString(reg.try_id("Width", "Button")).ShouldBe(PropertyId::of("Width", "Button")));
+    SHOULD(ShouldlyString(reg.try_id("Width", "Button").valid()).ShouldBe(true));
 }
 
-TEST_CASE("S033 PropertyId: id_of/try_id on an unregistered name")
+TEST_CASE("S033/S801 PropertyId: id_of/try_id on an unregistered pair")
 {
     PropertyRegistry reg;
     (void)reg.register_key(make_key("Width", ValueType::Int32, "Button"));
@@ -134,14 +134,18 @@ TEST_CASE("S033 PropertyId: id_of/try_id on an unregistered name")
     // id_of throws PropertyNotFound; try_id never throws and yields an
     // invalid id. (ShouldThrow OUT-EXPOSES doctest: wrong/missing throw
     // reports the actual type + message.)
-    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] { (void)reg.id_of("Missing"); }));
-    SHOULD(ShouldlyString(reg.try_id("Missing").valid()).ShouldNotBe(true));
-    SHOULD(ShouldlyString(reg.try_id("Missing").name().empty()).ShouldBe(true));
+    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] { (void)reg.id_of("Missing", "Button"); }));
+    SHOULD(ShouldlyString(reg.try_id("Missing", "Button").valid()).ShouldNotBe(true));
+    SHOULD(ShouldlyString(reg.try_id("Missing", "Button").name().empty()).ShouldBe(true));
+
+    // A registered NAME under a different owner is a distinct (absent) pair.
+    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] { (void)reg.id_of("Width", "Panel"); }));
+    SHOULD(ShouldlyString(reg.try_id("Width", "Panel").valid()).ShouldNotBe(true));
 
     // On an empty registry the same holds.
     PropertyRegistry empty;
-    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] { (void)empty.id_of("Anything"); }));
-    SHOULD(ShouldlyString(empty.try_id("Anything").valid()).ShouldNotBe(true));
+    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] { (void)empty.id_of("Anything", "X"); }));
+    SHOULD(ShouldlyString(empty.try_id("Anything", "X").valid()).ShouldNotBe(true));
 }
 
 // ===========================================================================

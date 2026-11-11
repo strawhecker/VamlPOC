@@ -68,7 +68,7 @@ const DependencyProperty& registerS288Global(const std::string& name, ValueType 
         return DependencyProperty::Register(name, type, "S288_Owner",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 void registerS288Properties()

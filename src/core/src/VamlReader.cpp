@@ -219,6 +219,34 @@ void ensure_startup_registrations()
     return n;
 }
 
+// S801 COMPOSITE reader lookup. The registry + GlobalTable are (name, owner)-
+// keyed. A DOTTED attribute key (`Grid.Row`, `Canvas.Left`) carries its OWNER
+// in the prefix before the LAST dot (`Grid`, `Canvas`) and the registered NAME
+// is the full dotted key — resolve natively as the (name, owner) composite.
+// A BARE key (`Orientation`, `FontSize`) has no owner segment in the markup; it
+// resolves via the GUARDED unique-name bridge (returns the DP only when exactly
+// one (owner) registration has that name — never silently picks among ambiguous
+// names). This is the A2-sanctioned transitional surface (MINIMAL REAL,
+// S803-resolved when the reader's element-type->owner inference lands).
+[[nodiscard]] const vaml::DependencyProperty* lookup_dp_for_attr(std::string_view key)
+{
+    const std::size_t dot = key.rfind('.');
+    if (dot != std::string_view::npos)
+    {
+        // Dotted (attached) key: owner = prefix before the last dot; name = the
+        // full key (registrations author the full "Grid.Row" string under owner
+        // "Grid", matching how they were authored in Element.cpp).
+        const std::string_view owner = key.substr(0, dot);
+        const DependencyProperty* dp = DependencyProperty::TryGet(key, owner);
+        if (dp != nullptr)
+        {
+            return dp;
+        }
+    }
+    // Bare key (no owner segment): guarded unique-name bridge.
+    return DependencyProperty::TryGetByName(key);
+}
+
 } // namespace
 
 VAML_CORE_EXPORT
@@ -653,12 +681,16 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
         }
 
         // --- Ordinary plain-literal property (S091, unchanged). -------------
-        // Resolve the property definition globally. An attribute naming a
-        // property with no global DependencyProperty -> VamlReaderException
-        // (S091's unknown-property baseline; S094 owns the full taxonomy).
-        // 11d-DEBUG: strict = the throw (unchanged); collect = record + keep
-        // scanning the document so ALL unknown properties surface in one pass.
-        const DependencyProperty* dp = DependencyProperty::TryGet(attr.key);
+        // Resolve the property definition globally. S801 composite: a DOTTED
+        // attribute key (`Grid.Row`) carries its OWNER in the last-dot prefix —
+        // resolve natively as (name, owner). A BARE key (`Orientation`) has no
+        // owner segment; it resolves via the GUARDED unique-name bridge (returns
+        // the DP only when exactly one registration owns the name — MINIMAL
+        // REAL, S803-resolved, never silently picks among ambiguous names).
+        // An attribute naming a property with no global DependencyProperty ->
+        // VamlReaderException (S091's unknown-property baseline; S094 owns the
+        // full taxonomy).
+        const DependencyProperty* dp = lookup_dp_for_attr(attr.key);
         if (dp == nullptr)
         {
             report_unknown_property(
@@ -710,7 +742,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
 
         if (contentDpName != nullptr)
         {
-            const DependencyProperty* dp = DependencyProperty::TryGet(contentDpName);
+            const DependencyProperty* dp = lookup_dp_for_attr(contentDpName);
             if (dp != nullptr)
             {
                 // Build the routed text from the ORDERED contentRuns (the lossless
@@ -869,7 +901,7 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
                                 value = a.value;
                             }
                         }
-                        const DependencyProperty* tdp = DependencyProperty::TryGet(prop);
+                        const DependencyProperty* tdp = DependencyProperty::TryGetByName(prop);
                         if (tdp == nullptr)
                         {
                             throw VamlReaderException(
@@ -1128,7 +1160,17 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
 
             // Resolve the named property's global definition. An unknown dotted
             // property -> the S091 UnknownProperty reader error naming the key.
-            const DependencyProperty* dp = DependencyProperty::TryGet(std::string(propName));
+            // S801 composite: the registered NAME is what the DP was authored
+            // under — for an attached/property-element DP that is the FULL
+            // dotted string (e.g. "Grid.Row" owner "Grid", "RichTextBox.Text"
+            // owner "RichTextBox"); for a plain instance DP it is a BARE name
+            // (e.g. "Padding" owner "Control", the test "S452Content" owner
+            // "S452_Owner"). `ownerName` above is the authoring ELEMENT's type,
+            // NOT the registration owner, so it must not be prepended. Resolve
+            // the propName: a dotted propName carries its own owner (composite
+            // try); a bare propName falls back to the guarded unique-name
+            // bridge.
+            const DependencyProperty* dp = lookup_dp_for_attr(propName);
             if (dp == nullptr)
             {
                 throw VamlReaderException(
@@ -1403,7 +1445,7 @@ void VamlReader::build_gradient_stop(GradientStopHost& stop, const ParsedElement
                 "a <GradientStop> attribute cannot be a markup extension ('" +
                     std::string(attr.key) + "')");
         }
-        const DependencyProperty* dp = DependencyProperty::TryGet(attr.key);
+        const DependencyProperty* dp = lookup_dp_for_attr(attr.key);
         if (dp == nullptr)
         {
             throw VamlReaderException(
@@ -1459,10 +1501,10 @@ void VamlReader::build_linear_gradient(LinearGradientBrush& brush, const ParsedE
                     "StartPoint must be a 'x,y' Double pair");
             }
             const Value x = convertLiteral(
-                DependencyProperty::Get("Offset"), // a bound Double DP
+                DependencyProperty::GetByName("Offset"), // a bound Double DP
                 v.substr(0, comma));
             const Value y = convertLiteral(
-                DependencyProperty::Get("Offset"),
+                DependencyProperty::GetByName("Offset"),
                 v.substr(comma + 1));
             brush.set_start_point(x.get<double>(), y.get<double>());
         }
@@ -1477,10 +1519,10 @@ void VamlReader::build_linear_gradient(LinearGradientBrush& brush, const ParsedE
                     "EndPoint must be a 'x,y' Double pair");
             }
             const Value x = convertLiteral(
-                DependencyProperty::Get("Offset"),
+                DependencyProperty::GetByName("Offset"),
                 v.substr(0, comma));
             const Value y = convertLiteral(
-                DependencyProperty::Get("Offset"),
+                DependencyProperty::GetByName("Offset"),
                 v.substr(comma + 1));
             brush.set_end_point(x.get<double>(), y.get<double>());
         }
@@ -1603,7 +1645,7 @@ void VamlReader::build_path_geometry(PathGeometry& geom, const ParsedElement& el
         }
         else if (attr.key == "FillRule")
         {
-            const Value v = convertLiteral(DependencyProperty::Get("FillRule"), attr.value);
+            const Value v = convertLiteral(DependencyProperty::GetByName("FillRule"), attr.value);
             (void)geom.set_fill_rule(v.type() == ValueType::Int32 ? v.get<std::int32_t>() : 0);
         }
     }
@@ -1695,12 +1737,12 @@ void VamlReader::build_ellipse_geometry(EllipseGeometry& geom, const ParsedEleme
         }
         if (attr.key == "RadiusX")
         {
-            const Value v = convertLiteral(DependencyProperty::Get("Offset"), attr.value);
+            const Value v = convertLiteral(DependencyProperty::GetByName("Offset"), attr.value);
             (void)geom.set_radius_x(v.get<double>());
         }
         else if (attr.key == "RadiusY")
         {
-            const Value v = convertLiteral(DependencyProperty::Get("Offset"), attr.value);
+            const Value v = convertLiteral(DependencyProperty::GetByName("Offset"), attr.value);
             (void)geom.set_radius_y(v.get<double>());
         }
     }
@@ -1759,7 +1801,7 @@ void VamlReader::build_geometry_drawing(GeometryDrawing& drawing, const ParsedEl
         }
         else if (attr.key == "PenThickness")
         {
-            const Value v = convertLiteral(DependencyProperty::Get("PenThickness"), attr.value);
+            const Value v = convertLiteral(DependencyProperty::GetByName("PenThickness"), attr.value);
             (void)drawing.set_pen_thickness(v.get<double>());
         }
     }
@@ -2317,7 +2359,7 @@ void VamlReader::parse_setter(const ParsedElement& el, std::string owner, Setter
             "a <Setter> must name a 'Property' (in " + owner + ")");
     }
 
-    const DependencyProperty* dp = DependencyProperty::TryGet(prop);
+    const DependencyProperty* dp = DependencyProperty::TryGetByName(prop);
     if (dp == nullptr)
     {
         throw VamlReaderException(
@@ -2571,7 +2613,7 @@ void VamlReader::build_style(Style& style, const ParsedElement& element)
                             value = a.value;
                         }
                     }
-                    const DependencyProperty* dp = DependencyProperty::TryGet(prop);
+                    const DependencyProperty* dp = DependencyProperty::TryGetByName(prop);
                     if (dp == nullptr)
                     {
                         throw VamlReaderException(

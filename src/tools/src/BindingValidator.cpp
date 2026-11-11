@@ -82,8 +82,10 @@ BindingValidationResult validate_bindings(const CompiledProgram& prog, VamlcCoun
 
             // 1. The TARGET attribute key must be a registered DP — a typo in
             //    the target property is a compile-time UnknownTargetProperty.
-            //    Every binding (static OR dynamic root) targets a DP.
-            if (vaml::DependencyProperty::TryGet(a.key) == nullptr)
+            //    Every binding (static OR dynamic root) targets a DP. S801:
+            //    guarded unique-name resolve (dotted key resolved by the tool
+            //    via its own helper where it carries an owner).
+            if (vaml::DependencyProperty::TryGetByName(a.key) == nullptr)
             {
                 v.error = BindingCompileError::UnknownTargetProperty;
                 out.bindings.push_back(v);
@@ -133,7 +135,7 @@ BindingValidationResult validate_bindings(const CompiledProgram& prog, VamlcCoun
             {
                 const vaml::PropertySegment& seg = segs[i];
                 if (seg.kind == vaml::PropertySegmentKind::Property &&
-                    vaml::DependencyProperty::TryGet(seg.name) == nullptr)
+                    vaml::DependencyProperty::TryGetByName(seg.name) == nullptr)
                 {
                     v.error = BindingCompileError::WrongHopType;
                     out.bindings.push_back(v);

@@ -101,7 +101,7 @@ const DependencyProperty& registerGlobal(const char* name,
         }
         return DependencyProperty::Register(name, ValueType::Int32, "AttachedOwner_A", std::move(md));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::Get(name, "AttachedOwner_A");
 }
 
 // A non-affine Set() on an Int32 property, executed on a fresh thread, the

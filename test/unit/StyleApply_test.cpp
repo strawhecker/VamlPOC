@@ -79,7 +79,7 @@ const DependencyProperty& registerS363Int(std::string_view name)
         return DependencyProperty::Register(name, ValueType::Int32, "S363_Owner",
                                             PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     }
-    return DependencyProperty::Get(name);
+    return DependencyProperty::GetByName(name);
 }
 
 } // namespace

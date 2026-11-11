@@ -316,7 +316,7 @@ seed_typed_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
         }
         // The FIRST target that binds this leaf determines the seed's bound type.
         vaml::ValueType boundType = vaml::ValueType::String;   // B1 default
-        if (const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGet(ext.key))
+        if (const vaml::DependencyProperty* dp = vaml::DependencyProperty::TryGetByName(ext.key))
         {
             boundType = dp->metadata().boundType();
         }
