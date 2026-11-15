@@ -138,9 +138,9 @@ TEST_CASE("S443: TextBox.Text two-way — a target edit writes back to the VM Te
     // binding reads/writes — the S247_1 bindable-store sync contract). The FIRST
     // transfer then pushes that value onto the TextBox.Text target DP.
     (void)plan.vm->set_Text("Hello, VAML");
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("Hello, VAML")));
-    SHOULD(ShouldlyString(inputBox->Get(vaml::PropertyId::of("TextBox.Text")))
+    SHOULD(ShouldlyString(inputBox->Get(vaml::PropertyId::of("Text", "TextBox")))
                .ShouldBe(vaml::Value::String("Hello, VAML")));
 
     // A TARGET EDIT: simulate a user typing into the TextBox — the edit lands on
@@ -149,7 +149,7 @@ TEST_CASE("S443: TextBox.Text two-way — a target edit writes back to the VM Te
     // observable Value store (the S240/S241 store the S242 binding writes via the
     // base ObservableObject::Set — the S252-markup two-way contract).
     (void)inputBox->set_text("typed by the user");
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("typed by the user")));
 }
 
@@ -206,12 +206,16 @@ TEST_CASE("S443: a Click on the RunButton runs handler → VM RunCommand → Sta
 
 TEST_CASE("S443: a malformed {Binding} reports a structured, non-silent detail")
 {
-    // A malformed {Binding} in the shell markup (empty path) is a Class A
-    // authoring error surfaced by the plan's structured detail (never silent).
+    // A malformed {Binding} in the shell markup is a Class A authoring error
+    // surfaced by the plan's structured detail (never silent). NOTE: an EMPTY
+    // path is NO LONGER malformed (Sprint 11af re-baselined `{Binding}` as a
+    // VALID Direct self-binding, WPF PathParser.cs:83-89); a leading comma
+    // with no path (`{Binding ,Mode=TwoWay}`) IS a malformed inner syntax, so
+    // it is the honest Class A authoring error this test demonstrates.
     const char* bad =
         R"VAML(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root">
   <Grid x:Name="RootGrid">
-    <TextBlock x:Name="StatusText" Text="{Binding}" FontSize="12"/>
+    <TextBlock x:Name="StatusText" Text="{Binding ,Mode=TwoWay}" FontSize="12"/>
   </Grid>
 </Window>
 )VAML";

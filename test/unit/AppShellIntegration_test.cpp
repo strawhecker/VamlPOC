@@ -188,12 +188,12 @@ TEST_CASE("S447: integration — click + type + slide + check drive the SAME VM 
 
     // TYPE — the TextBox.Text two-way write-back (S244) lands in the VM store.
     (void)inputBox->set_text("integration text");
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("integration text")));
 
     // SLIDE — the Slider.Value two-way wire (S445) moves the ratio into the VM.
     (void)dimSlider->set_value_from_ratio(0.6);
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(60.0)));
 
     // CLICK — the RunCommand runs (gate checked, counter under cap) + the
@@ -201,13 +201,13 @@ TEST_CASE("S447: integration — click + type + slide + check drive the SAME VM 
     (void)runButton->raise_click();
     SHOULD(ShouldlyIntegral(plan.vm->service().counter()).ShouldBe(1));
     SHOULD(ShouldlyString(plan.vm->Status()).ShouldBe(std::string("ran #1")));
-    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("ran #1")));
 
     // The type + slide writes survived alongside the click (one shared VM).
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("integration text")));
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(60.0)));
 }
 
@@ -404,13 +404,13 @@ TEST_CASE("S447: integration — reload re-wires the app-shell bindings (edit �
     // RE-ARM PROOF 1 — the S243 one-way wire still re-pushes the bound StatusText
     // on the RELOADED tree (a post-reload VM set flows to the target DP).
     (void)p.vm->set_Status("post-reload live");
-    SHOULD(ShouldlyString(postStatus->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(postStatus->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("post-reload live")));
 
     // RE-ARM PROOF 2 — the S244 TextBox two-way write-back still reaches the VM
     // store on the RELOADED tree.
     (void)postInput->set_text("post-reload typed");
-    SHOULD(ShouldlyString(p.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(p.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("post-reload typed")));
 
     std::remove(tmpPath.c_str());

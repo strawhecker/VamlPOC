@@ -174,7 +174,7 @@ TEST_CASE("S121: take_child unwinds the inheritance-scope edge — parent no lon
     auto handler = [&trace](PropertyId, const Value&, const Value&) {
         ++trace.notified;
     };
-    (void)child->add_property_changed(PropertyId::of("Opacity"), handler);
+    (void)child->add_property_changed(PropertyId::of("Opacity", "UIElement"), handler);
 
     // Attached: parent's Opacity change should push to the child (edge live).
     (void)parent.set_opacity(0.5);

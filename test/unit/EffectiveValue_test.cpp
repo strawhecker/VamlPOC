@@ -100,11 +100,11 @@ TEST_CASE("S039: plain Inherits, one level — child inherits parent's local ove
     hostInherited(parent, name, PropertyFlags::Inherits, Value::Int32(0));
     hostInherited(child, name, PropertyFlags::Inherits, Value::Int32(0));
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
     child.set_parent(&parent);
 
     // Child has no local -> inherits parent's local 5.
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(5)));
 }
 
 TEST_CASE("S039: plain Inherits, multi-level — child inherits from a great-grandparent")
@@ -116,12 +116,12 @@ TEST_CASE("S039: plain Inherits, multi-level — child inherits from a great-gra
         hostInherited(*o, name, PropertyFlags::Inherits, Value::Int32(0));
     }
 
-    (void)g1.Set(PropertyId::of(name), Value::Int32(42));
+    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(42));
     g2.set_parent(&g1);
     g3.set_parent(&g2);
     leaf.set_parent(&g3);
 
-    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(42)));
+    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(42)));
 }
 
 TEST_CASE("S039: nearest-ancestor-with-value — intermediate empty local defers to ITS ancestor")
@@ -134,14 +134,14 @@ TEST_CASE("S039: nearest-ancestor-with-value — intermediate empty local defers
     }
 
     // grandparent holds a local; parent has NO local; child inherits.
-    (void)grandparent.Set(PropertyId::of(name), Value::Int32(9));
+    (void)grandparent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
     parent.set_parent(&grandparent);
     child.set_parent(&parent);
 
     // parent's effective = grandparent's 9; child's effective = parent's 9
     // (which itself is inherited from grandparent).
-    SHOULD(ShouldlyString(parent.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(9)));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(9)));
+    SHOULD(ShouldlyString(parent.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(9)));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(9)));
 }
 
 TEST_CASE("S039: InheritOnly ignores own local override and still inherits from the chain")
@@ -151,13 +151,13 @@ TEST_CASE("S039: InheritOnly ignores own local override and still inherits from 
     hostInherited(parent, name, PropertyFlags::Inherits | PropertyFlags::InheritOnly, Value::Int32(0));
     hostInherited(child, name, PropertyFlags::Inherits | PropertyFlags::InheritOnly, Value::Int32(0));
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(7));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
     child.set_parent(&parent);
 
     // Child SETS its own local override ... but InheritOnly means it must be
     // IGNORED — the value comes from the parent's chain instead.
-    (void)child.Set(PropertyId::of(name), Value::Int32(100));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
 }
 
 TEST_CASE("S039: InheritOnly with no ancestor value falls back to default")
@@ -166,8 +166,8 @@ TEST_CASE("S039: InheritOnly with no ancestor value falls back to default")
     const std::string name = "InhOnly_S039_5";
     hostInherited(child, name, PropertyFlags::Inherits | PropertyFlags::InheritOnly, Value::Int32(3));
     // Set a local override — ignored (InheritOnly) — and there is no parent.
-    (void)child.Set(PropertyId::of(name), Value::Int32(77));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(3))); // default
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(77));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3))); // default
 }
 
 TEST_CASE("S039: empty parent chain — inheriting property resolves to default")
@@ -175,7 +175,7 @@ TEST_CASE("S039: empty parent chain — inheriting property resolves to default"
     DependencyObject orphan;
     const std::string name = "InhColor_S039_6";
     hostInherited(orphan, name, PropertyFlags::Inherits, Value::Int32(4));
-    SHOULD(ShouldlyString(orphan.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(4)));
+    SHOULD(ShouldlyString(orphan.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(4)));
 }
 
 TEST_CASE("S039: Get() delegates to GetEffectiveValue for an inheriting property")
@@ -185,9 +185,9 @@ TEST_CASE("S039: Get() delegates to GetEffectiveValue for an inheriting property
     hostInherited(parent, name, PropertyFlags::Inherits, Value::Int32(0));
     hostInherited(child, name, PropertyFlags::Inherits, Value::Int32(0));
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(13));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(13));
     child.set_parent(&parent);
-    SHOULD(ShouldlyString(child.Get(PropertyId::of(name))).ShouldBe(Value::Int32(13)));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(13)));
 }
 
 TEST_CASE("S039: GetEffectiveValue throws PropertyNotFound for an unregistered property")

@@ -113,7 +113,7 @@ TEST_CASE("S036 apply: coerce is applied — stored value is the coerced value, 
                 newV = n.get<std::int32_t>();
                 ++fire;
             }));
-    PropertyId id("Width");
+    const PropertyId id = PropertyId::of("Width", "TestOwner");
 
     // Raw -5 coerced to 0; store already holds default 0 -> NO_CHANGE.
     SHOULD(ShouldlyString(obj.Set(id, Value::Int32(-5))).ShouldBe(SetResult::NO_CHANGE));

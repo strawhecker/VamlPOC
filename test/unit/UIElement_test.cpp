@@ -108,7 +108,7 @@ TEST_CASE("S120: Visibility — default Visible; typed round-trip of all three s
 TEST_CASE("S120: Visibility — standard Set/Get(PropertyId) path reads the same value")
 {
     UIElement el;
-    const PropertyId id = PropertyId::of("Visibility"); // string literal -> static lifetime
+    const PropertyId id = PropertyId::of("Visibility", "UIElement"); // string literal -> static lifetime
 
     // The generic Set/Get path and the typed accessor agree.
     SHOULD(ShouldlyString(el.Set(id, Value::Int32(1))).ShouldBe(SetResult::APPLIED));
@@ -119,7 +119,7 @@ TEST_CASE("S120: Visibility — standard Set/Get(PropertyId) path reads the same
 TEST_CASE("S120: Visibility — wrong-tag write throws ValueTypeMismatch")
 {
     UIElement el;
-    const PropertyId id = PropertyId::of("Visibility");
+    const PropertyId id = PropertyId::of("Visibility", "UIElement");
 
     // Opacity is a Double; writing its payload value to an Int32-typed DP is
     // a wrong-tag write -> ValueTypeMismatch (S030/S037 contract), store
@@ -171,7 +171,7 @@ TEST_CASE("S120: Opacity — out-of-range Set is REJECTED, store unchanged")
 TEST_CASE("S120: Opacity — standard Set/Get(PropertyId) path agrees with typed accessor")
 {
     UIElement el;
-    const PropertyId id = PropertyId::of("Opacity"); // string literal
+    const PropertyId id = PropertyId::of("Opacity", "UIElement"); // string literal
 
     SHOULD(ShouldlyString(el.Set(id, Value::Double(0.8))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(el.Get(id).get<double>()).ShouldBe(0.8));
@@ -225,7 +225,7 @@ TEST_CASE("S120: Opacity descendant push — a parent opacity change notifies an
                                // has no local store entry of its own (passive)
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of("Opacity"), trace.opacity_handler());
+    (void)child.add_property_changed(PropertyId::of("Opacity", "UIElement"), trace.opacity_handler());
 
     // Parent's inherited Opacity write pushes to the passive child.
     SHOULD(ShouldlyString(parent.set_opacity(0.6)).ShouldBe(SetResult::APPLIED));
@@ -248,11 +248,11 @@ TEST_CASE("S120: Visibility + Opacity resolve globally against plain DependencyO
     DependencyObject plain;
 
     // Plain object writes Visibility through the global descriptor.
-    (void)plain.Set(PropertyId::of("Visibility"), Value::Int32(1));
-    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Visibility")).get<std::int32_t>()).ShouldBe(1));
+    (void)plain.Set(PropertyId::of("Visibility", "UIElement"), Value::Int32(1));
+    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Visibility", "UIElement")).get<std::int32_t>()).ShouldBe(1));
 
     // Plain object writes Opacity; validate [0,1] still applies globally.
-    (void)plain.Set(PropertyId::of("Opacity"), Value::Double(0.3));
-    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Opacity")).get<double>()).ShouldBe(0.3));
-    SHOULD(ShouldlyString(plain.Set(PropertyId::of("Opacity"), Value::Double(5.0))).ShouldBe(SetResult::REJECTED));
+    (void)plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(0.3));
+    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Opacity", "UIElement")).get<double>()).ShouldBe(0.3));
+    SHOULD(ShouldlyString(plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(5.0))).ShouldBe(SetResult::REJECTED));
 }

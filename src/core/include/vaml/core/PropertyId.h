@@ -68,25 +68,11 @@ public:
     // Default id: empty name + empty owner (no property). "not found" token.
     constexpr PropertyId() noexcept = default;
 
-    // [S800 LEGACY BRIDGE — deprecated, eliminated at S801–S803] Adopt an
-    // existing name with an EMPTY owner. `name` must refer to storage that
-    // outlives the id (a string literal is the canonical source). Prefer
-    // of(name, owner) so every id carries its declaring type.
-    constexpr explicit PropertyId(std::string_view name) noexcept : name_(name) {}
-
     // S800 COMPOSITE: adopt a property name + its fully-qualified declaring
     // type-name. Both must outlive the id (string literals are canonical).
     constexpr PropertyId(std::string_view name, std::string_view owner) noexcept
         : name_(name), owner_(owner)
     {
-    }
-
-    // [S800 LEGACY BRIDGE — deprecated, eliminated at S801–S803] Bind a bare
-    // property name to an id with empty owner. Kept ONLY so existing runtime
-    // consumers compile + behave unchanged this step. See LEGACY BRIDGE note.
-    [[nodiscard]] static constexpr PropertyId of(std::string_view name) noexcept
-    {
-        return PropertyId(name);
     }
 
     // S800 COMPOSITE FACTORY: bind a property name + fully-qualified declaring

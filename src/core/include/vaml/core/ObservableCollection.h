@@ -87,8 +87,8 @@ public:
     [[nodiscard]] bool empty() const noexcept { return items_.empty(); }
     [[nodiscard]] Value at(std::size_t i) const { return items_.at(i); }
     [[nodiscard]] const std::vector<Value>& items() const noexcept { return items_; }
-    [[nodiscard]] PropertyId count_property() const { return PropertyId::of("Count"); }
-    [[nodiscard]] PropertyId item_property() const { return PropertyId::of("Item[]"); }
+    [[nodiscard]] PropertyId count_property() const { return PropertyId::of("Count", "ObservableCollectionBase"); }
+    [[nodiscard]] PropertyId item_property() const { return PropertyId::of("Item[]", "ObservableCollectionBase"); }
 
     // --- Mutations (each raises PropertyChanged + CollectionChanged) -------
     void Add(Value item);

@@ -317,7 +317,7 @@ ViewerApp::create_impl(const ViewerAppConfig& config,
         if (const auto* winRoot = dynamic_cast<const vaml::Window*>(uiRoot))
         {
             winConfig.transparentFramebuffer =
-                winRoot->Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
+                winRoot->Get(vaml::PropertyId::of("AllowsTransparency", "Window")).get<bool>();
         }
         app->window_ = vaml::vulkan::PlatformWindow::create(winConfig, std::move(winCallbacks));
         if (!app->window_)

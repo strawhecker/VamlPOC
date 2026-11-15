@@ -79,13 +79,15 @@ PropertyMetadata string_default(const char* def)
     return PropertyMetadata::WithDefault(Value::String(def), PropertyFlags::None);
 }
 
-// RAII guard: swaps in the recorder, restores the previous sink at scope exit.
+// RAII guard: swaps in the recorder, restores the PERMANENT default sink at
+// scope exit. Restoring to default_binding_diagnostics() — never a captured
+// `previous` reference — guarantees the restored sink outlives every test (a
+// captured reference can dangle into a prior test's freed stack RecordingSink,
+// the use-after-free that surfaces as a stray `reasons[0]` crash in full runs).
 struct SinkGuard
 {
-    IBindingDiagnostics& previous;
-    explicit SinkGuard(IBindingDiagnostics& sink)
-        : previous(set_binding_diagnostics(sink)) {}
-    ~SinkGuard() { (void)set_binding_diagnostics(previous); }
+    explicit SinkGuard(IBindingDiagnostics& sink) { (void)set_binding_diagnostics(sink); }
+    ~SinkGuard() { (void)set_binding_diagnostics(vaml::default_binding_diagnostics()); }
 };
 
 struct RecordingSink final : IBindingDiagnostics
@@ -105,6 +107,7 @@ std::unique_ptr<BindingExpression> make_twoway(ObservableObject& vm, DependencyO
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245Test";
     spec.mode = BindingMode::TwoWay;
     return BindingExpression::create(spec);
 }
@@ -117,6 +120,7 @@ std::unique_ptr<BindingExpression> make_oneway(ObservableObject& vm, DependencyO
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245Test";
     spec.mode = BindingMode::OneWay;
     return BindingExpression::create(spec);
 }
@@ -129,6 +133,7 @@ std::unique_ptr<BindingExpression> make_onetime(ObservableObject& vm, Dependency
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245Test";
     spec.mode = BindingMode::OneTime;
     return BindingExpression::create(spec);
 }
@@ -142,7 +147,7 @@ std::unique_ptr<BindingExpression> make_onetime(ObservableObject& vm, Dependency
 TEST_CASE("S245 fresh binding is not detached; wires armed")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("Hello"));
     DependencyObject target;
     (void)target.register_property(key(kText, ValueType::String), string_default("DEFAULT"));
 
@@ -160,7 +165,7 @@ TEST_CASE("S245 fresh binding is not detached; wires armed")
 TEST_CASE("S245 explicit Detach() -> detached + both wires unsubscribed + no emission")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("Hello"));
     DependencyObject target;
     (void)target.register_property(key(kText, ValueType::String), string_default("DEFAULT"));
 
@@ -189,7 +194,7 @@ TEST_CASE("S245 explicit Detach() -> detached + both wires unsubscribed + no emi
 TEST_CASE("S245 HEADLINE: destroying the target auto-detaches; later source change emits Detached once + no write")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("initial"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("initial"));
     RecordingSink sink;
     SinkGuard guard(sink);
 
@@ -214,7 +219,7 @@ TEST_CASE("S245 HEADLINE: destroying the target auto-detaches; later source chan
     // suppressed + the lifecycle observed. We can't Set on the (destroyed)
     // source subscription (it fired into a detached handler), so drive the write
     // attempt via TransferSourceToTarget directly.
-    (void)vm.Set(PropertyId::of(kText), Value::String("after-destroy"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("after-destroy"));
     (void)expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(rc_int(BindingReasonCode::Detached)).ShouldBe(rc(BindingReasonCode::Detached)));
     // Detached emitted exactly once.
@@ -230,7 +235,7 @@ TEST_CASE("S245 HEADLINE: destroying the target auto-detaches; later source chan
 TEST_CASE("S245 a source change after explicit Detach() emits Detached once + target untouched")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("before"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("before"));
     DependencyObject target;
     (void)target.register_property(key(kText, ValueType::String), string_default("DEFAULT"));
     RecordingSink sink;
@@ -238,14 +243,14 @@ TEST_CASE("S245 a source change after explicit Detach() emits Detached once + ta
 
     auto expr = make_twoway(vm, target);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("before")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("before")));
 
     expr->Detach();
-    (void)vm.Set(PropertyId::of(kText), Value::String("after"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("after"));
     (void)expr->TransferSourceToTarget();
 
     // Target is NOT written (still the pre-detach value).
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("before")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("before")));
     int detachedCount = 0;
     for (auto r : sink.reasons) if (r == BindingReasonCode::Detached) ++detachedCount;
     SHOULD(ShouldlyIntegral(detachedCount).ShouldBe(1));
@@ -258,7 +263,7 @@ TEST_CASE("S245 a source change after explicit Detach() emits Detached once + ta
 TEST_CASE("S245 a target edit after Detach() emits Detached once + source untouched")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("before"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("before"));
     DependencyObject target;
     (void)target.register_property(key(kText, ValueType::String), string_default("DEFAULT"));
     RecordingSink sink;
@@ -272,8 +277,8 @@ TEST_CASE("S245 a target edit after Detach() emits Detached once + source untouc
     // is gone, so nothing writes to the source; the (still-live) target Set
     // cannot reach the detached binding's write-back — Detached is not emitted
     // from a target edit because the write-back wire was already unsubscribed.
-    (void)target.Set(PropertyId::of(kText), Value::String("edited"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("before")));
+    (void)target.Set(PropertyId::of("S245Text", "S245Test"), Value::String("edited"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S245Text", "ObservableObject"))).ShouldBe(Value::String("before")));
 
     // The Detached lifecycle arm is bound to the FORWARD write path (a target
     // binding's own write-back wire is gone on detach) — assert the source is
@@ -288,7 +293,7 @@ TEST_CASE("S245 a target edit after Detach() emits Detached once + source untouc
 TEST_CASE("S245 OneWay parity: source change after Detach() emits Detached once + target untouched")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("keep"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("keep"));
     DependencyObject target;
     (void)target.register_property(key(kText, ValueType::String), string_default("DEFAULT"));
     RecordingSink sink;
@@ -298,9 +303,9 @@ TEST_CASE("S245 OneWay parity: source change after Detach() emits Detached once 
     (void)expr->TransferSourceToTarget();
     expr->Detach();
 
-    (void)vm.Set(PropertyId::of(kText), Value::String("new"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("new"));
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("keep")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("keep")));
     int detachedCount = 0;
     for (auto r : sink.reasons) if (r == BindingReasonCode::Detached) ++detachedCount;
     SHOULD(ShouldlyIntegral(detachedCount).ShouldBe(1));
@@ -313,7 +318,7 @@ TEST_CASE("S245 OneWay parity: source change after Detach() emits Detached once 
 TEST_CASE("S245 OneTime parity: transfer after Detach() emits Detached once + target untouched")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("keep"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("keep"));
     DependencyObject target;
     (void)target.register_property(key(kText, ValueType::String), string_default("DEFAULT"));
     RecordingSink sink;
@@ -323,9 +328,9 @@ TEST_CASE("S245 OneTime parity: transfer after Detach() emits Detached once + ta
     (void)expr->TransferSourceToTarget();
     expr->Detach();
 
-    (void)vm.Set(PropertyId::of(kText), Value::String("changed"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("changed"));
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("keep")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("keep")));
     int detachedCount = 0;
     for (auto r : sink.reasons) if (r == BindingReasonCode::Detached) ++detachedCount;
     SHOULD(ShouldlyIntegral(detachedCount).ShouldBe(1));
@@ -354,7 +359,7 @@ TEST_CASE("S245 Detached reason is Class B (silenced non-error) via binding_clas
 TEST_CASE("S245 a moved binding keeps auto-detaching on element destroy")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("initial"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("initial"));
     RecordingSink sink;
     SinkGuard guard(sink);
 
@@ -373,7 +378,7 @@ TEST_CASE("S245 a moved binding keeps auto-detaching on element destroy")
     SHOULD(ShouldlyIntegral(moved->detached() ? 1 : 0).ShouldBe(1));
     SHOULD(ShouldlyIntegral(static_cast<int>(sink.reasons.size())).ShouldBe(0));
 
-    (void)vm.Set(PropertyId::of(kText), Value::String("after"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("after"));
     (void)moved->TransferSourceToTarget();
     int detachedCount = 0;
     for (auto r : sink.reasons) if (r == BindingReasonCode::Detached) ++detachedCount;
@@ -387,7 +392,7 @@ TEST_CASE("S245 a moved binding keeps auto-detaching on element destroy")
 TEST_CASE("S245 destruction of the expression leaves no dangling callback (no crash)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("x"));
     {
         DependencyObject target;
         (void)target.register_property(key(kText, ValueType::String), string_default("DEFAULT"));
@@ -396,6 +401,6 @@ TEST_CASE("S245 destruction of the expression leaves no dangling callback (no cr
         // expr destroyed here: unsubscribes the forward/write-back/destroyed wires.
     }
     // target still alive, vm still alive — no dangling callback invoked.
-    (void)vm.Set(PropertyId::of(kText), Value::String("y"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("y")));
+    (void)vm.Set(PropertyId::of("S245Text", "ObservableObject"), Value::String("y"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S245Text", "ObservableObject"))).ShouldBe(Value::String("y")));
 }

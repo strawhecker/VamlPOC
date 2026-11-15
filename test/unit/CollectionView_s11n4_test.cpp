@@ -126,7 +126,7 @@ TEST_CASE("11n-4: CollectionView re-emits CollectionChanged + PropertyChanged(Co
     });
 
     int countChanges = 0;
-    (void)view->add_property_changed(PropertyId::of("Count"),
+    (void)view->add_property_changed(PropertyId::of("Count", "CollectionView"),
                                      [&](PropertyId, const Value&, const Value&) { ++countChanges; });
 
     // Source mutation -> the view re-emits to its own consumers.

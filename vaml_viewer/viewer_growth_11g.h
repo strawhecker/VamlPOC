@@ -93,7 +93,7 @@ run_viewer_growth_11g_plan(const std::string& text)
         move->set_duration(2.0);
         auto fade = std::make_unique<vaml::DoubleAnimation>();
         fade->set_target_name("Ball");
-        fade->set_target_property(vaml::PropertyId::of("Opacity"));
+        fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
         fade->set_from(1.0);
         fade->set_to(0.3);
         fade->set_duration(2.0);

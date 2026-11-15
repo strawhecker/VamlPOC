@@ -91,7 +91,7 @@ TEST_CASE("S363: explicit style setters land on the element's DPs")
 
     Style style;
     style.set_target_type("UIElement");
-    style.add_setter(Setter{ PropertyId::of("S363Width"),
+    style.add_setter(Setter{ PropertyId::of("S363Width", "S363_Owner"),
                              SetterValue::Literal(Value::Int32(120)) });
 
     StyleApplier applier;
@@ -99,7 +99,7 @@ TEST_CASE("S363: explicit style setters land on the element's DPs")
     const auto applied = applier.apply_style(el, style, links);
 
     SHOULD(ShouldlyString(applied.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363Width"))).ShouldBe(Value::Int32(120)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363Width", "S363_Owner"))).ShouldBe(Value::Int32(120)));
 }
 
 TEST_CASE("S363: BasedOn chain — base setters first, derived overrides")
@@ -109,13 +109,13 @@ TEST_CASE("S363: BasedOn chain — base setters first, derived overrides")
 
     Style base;
     base.set_target_type("UIElement");
-    base.add_setter(Setter{ PropertyId::of("S363BaseW"),
+    base.add_setter(Setter{ PropertyId::of("S363BaseW", "S363_Owner"),
                             SetterValue::Literal(Value::Int32(50)) });
 
     Style derived;
     derived.set_target_type("UIElement");
     derived.set_based_on(&base);
-    derived.add_setter(Setter{ PropertyId::of("S363BaseW"),
+    derived.add_setter(Setter{ PropertyId::of("S363BaseW", "S363_Owner"),
                                SetterValue::Literal(Value::Int32(99)) });
 
     StyleApplier applier;
@@ -123,7 +123,7 @@ TEST_CASE("S363: BasedOn chain — base setters first, derived overrides")
     const auto applied = applier.apply_style(el, derived, links);
 
     // Derived overrides base: the final value is 99 (child wins).
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363BaseW"))).ShouldBe(Value::Int32(99)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363BaseW", "S363_Owner"))).ShouldBe(Value::Int32(99)));
     // Both base + derived applied (2 writes: base 50 then derived 99).
     SHOULD(ShouldlyString(applied.size()).ShouldBe(2u));
 }
@@ -133,11 +133,11 @@ TEST_CASE("S363: local-wins — an authored local value is NOT clobbered by a st
     registerS363Int("S363LocalW");
     UIElement el;
     // Author the LOCAL value FIRST (the S363 local-wins contract).
-    (void)el.Set(PropertyId::of("S363LocalW"), Value::Int32(7));
+    (void)el.Set(PropertyId::of("S363LocalW", "S363_Owner"), Value::Int32(7));
 
     Style style;
     style.set_target_type("UIElement");
-    style.add_setter(Setter{ PropertyId::of("S363LocalW"),
+    style.add_setter(Setter{ PropertyId::of("S363LocalW", "S363_Owner"),
                              SetterValue::Literal(Value::Int32(999)) });
 
     StyleApplier applier;
@@ -147,7 +147,7 @@ TEST_CASE("S363: local-wins — an authored local value is NOT clobbered by a st
     // The authored local (7) must NOT be clobbered by the style's 999.
     // apply_value_to still runs Set, but the applier reports applied only when
     // a real change happened; the element retains its authored 7.
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363LocalW"))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363LocalW", "S363_Owner"))).ShouldBe(Value::Int32(7)));
     (void)applied;
 }
 
@@ -158,7 +158,7 @@ TEST_CASE("S363: find_implicit_style resolves a Style by target type from the tr
     // on the PARENT's Resources (the panel resolves it through the parent chain).
     auto styleRes = std::make_unique<Style>();
     styleRes->set_target_type("StackPanel");
-    styleRes->add_setter(Setter{ PropertyId::of("S363ImplicitW"),
+    styleRes->add_setter(Setter{ PropertyId::of("S363ImplicitW", "S363_Owner"),
                                  SetterValue::Literal(Value::Int32(300)) });
 
     UIElement parent;
@@ -185,7 +185,7 @@ TEST_CASE("S363: apply_implicit_style applies the implicit style's setters")
     registerS363Int("S363ImplicitApply");
     auto styleRes = std::make_unique<Style>();
     styleRes->set_target_type("StackPanel");
-    styleRes->add_setter(Setter{ PropertyId::of("S363ImplicitApply"),
+    styleRes->add_setter(Setter{ PropertyId::of("S363ImplicitApply", "S363_Owner"),
                                  SetterValue::Literal(Value::Int32(222)) });
 
     UIElement parent;
@@ -200,7 +200,7 @@ TEST_CASE("S363: apply_implicit_style applies the implicit style's setters")
     std::vector<vaml::DynamicResourceLink> links;
     const std::size_t applied = apply_implicit_style(*panelPtr, links);
     SHOULD(ShouldlyString(applied).ShouldBe(1u));
-    SHOULD(ShouldlyString(panelPtr->Get(PropertyId::of("S363ImplicitApply"))).
+    SHOULD(ShouldlyString(panelPtr->Get(PropertyId::of("S363ImplicitApply", "S363_Owner"))).
                ShouldBe(Value::Int32(222)));
 }
 
@@ -213,12 +213,12 @@ TEST_CASE("S363: PropertyTrigger fires when the element's DP equals the match va
     // is DISTINCT from the trigger's target setter property, so the fired
     // trigger's write (on the OUT property) is never mistaken for a pre-pass
     // local on the MATCH property.
-    (void)el.Set(PropertyId::of("S363TriggerMatch"), Value::Int32(5));
+    (void)el.Set(PropertyId::of("S363TriggerMatch", "S363_Owner"), Value::Int32(5));
 
     PropertyTrigger pt;
-    pt.property = PropertyId::of("S363TriggerMatch");
+    pt.property = PropertyId::of("S363TriggerMatch", "S363_Owner");
     pt.value = Value::Int32(5); // == the element's current match value -> fires
-    pt.setters.push_back(Setter{ PropertyId::of("S363TriggerOut"),
+    pt.setters.push_back(Setter{ PropertyId::of("S363TriggerOut", "S363_Owner"),
                                  SetterValue::Literal(Value::Int32(500)) });
 
     Style style;
@@ -231,9 +231,9 @@ TEST_CASE("S363: PropertyTrigger fires when the element's DP equals the match va
 
     // The trigger fired: its setter wrote 500 onto the OUT property.
     SHOULD(ShouldlyString(applied.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerOut"))).ShouldBe(Value::Int32(500)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerOut", "S363_Owner"))).ShouldBe(Value::Int32(500)));
     // The MATCH property retains its authored 5 (never clobbered).
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerMatch"))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerMatch", "S363_Owner"))).ShouldBe(Value::Int32(5)));
 }
 
 TEST_CASE("S363: PropertyTrigger does NOT fire when the element's DP differs")
@@ -241,12 +241,12 @@ TEST_CASE("S363: PropertyTrigger does NOT fire when the element's DP differs")
     registerS363Int("S363TriggerOffMatch");
     registerS363Int("S363TriggerOffOut");
     UIElement el;
-    (void)el.Set(PropertyId::of("S363TriggerOffMatch"), Value::Int32(1));
+    (void)el.Set(PropertyId::of("S363TriggerOffMatch", "S363_Owner"), Value::Int32(1));
 
     PropertyTrigger pt;
-    pt.property = PropertyId::of("S363TriggerOffMatch");
+    pt.property = PropertyId::of("S363TriggerOffMatch", "S363_Owner");
     pt.value = Value::Int32(2); // does NOT match the element's current 1
-    pt.setters.push_back(Setter{ PropertyId::of("S363TriggerOffOut"),
+    pt.setters.push_back(Setter{ PropertyId::of("S363TriggerOffOut", "S363_Owner"),
                                  SetterValue::Literal(Value::Int32(999)) });
 
     Style style;
@@ -259,7 +259,7 @@ TEST_CASE("S363: PropertyTrigger does NOT fire when the element's DP differs")
 
     // Trigger not firing -> the OUT property untouched.
     SHOULD(ShouldlyString(applied.size()).ShouldBe(0u));
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerOffOut"))).ShouldBe(Value::Int32(0)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerOffOut", "S363_Owner"))).ShouldBe(Value::Int32(0)));
 }
 
 TEST_CASE("S363: DataTrigger fires on an S240-path value match through the dependency-object reader")
@@ -267,12 +267,14 @@ TEST_CASE("S363: DataTrigger fires on an S240-path value match through the depen
     registerS363Int("S363DataMatch");
     registerS363Int("S363DataOut");
     UIElement el;
-    (void)el.Set(PropertyId::of("S363DataMatch"), Value::Int32(42));
+    (void)el.Set(PropertyId::of("S363DataMatch", "S363_Owner"), Value::Int32(42));
 
     DataTrigger dt;
-    dt.path = vaml::PropertyPath::parse("S363DataMatch");
+    // Dotted composite key (S803): a bare synthetic name won't resolve on a
+    // plain UIElement, so carry the owner explicitly.
+    dt.path = vaml::PropertyPath::parse("S363_Owner.S363DataMatch");
     dt.value = Value::Int32(42); // matches the element's DP read through the path
-    dt.setters.push_back(Setter{ PropertyId::of("S363DataOut"),
+    dt.setters.push_back(Setter{ PropertyId::of("S363DataOut", "S363_Owner"),
                                  SetterValue::Literal(Value::Int32(420)) });
 
     Style style;
@@ -285,5 +287,5 @@ TEST_CASE("S363: DataTrigger fires on an S240-path value match through the depen
 
     // The data trigger fired (the S240 path read 42 == match 42).
     SHOULD(ShouldlyString(applied.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363DataOut"))).ShouldBe(Value::Int32(420)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363DataOut", "S363_Owner"))).ShouldBe(Value::Int32(420)));
 }

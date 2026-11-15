@@ -151,11 +151,11 @@ TEST_CASE("S137: Canvas.Left/Top resolve globally on a plain DependencyObject (S
     // through the S043 attached-aware path. Default is NaN.
     DependencyObject fresh;
     SHOULD(ShouldlyIntegral(std::isnan(
-               fresh.Get(PropertyId::of("Canvas.Left")).get<double>()) != 0)
+               fresh.Get(PropertyId::of("Left", "Canvas")).get<double>()) != 0)
                .ShouldBe(true));
     DependencyObject plain;
-    (void)plain.Set(PropertyId::of("Canvas.Left"), vaml::Value::Double(15.0));
-    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Canvas.Left")).get<double>())
+    (void)plain.Set(PropertyId::of("Left", "Canvas"), vaml::Value::Double(15.0));
+    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Left", "Canvas")).get<double>())
                .ShouldBe(15.0));
 }
 

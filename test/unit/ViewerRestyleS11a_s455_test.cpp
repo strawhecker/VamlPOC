@@ -98,7 +98,7 @@ TEST_CASE("S455: an authored implicit Style re-skis the live target by target ty
     if (element)
     {
         const vaml::Color bg =
-            element->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+            element->Get(PropertyId::of("Background", "Control")).get<std::shared_ptr<::vaml::Brush>>()->color();
         SHOULD(ShouldlyString(vaml::Value::Color(bg))
                    .ShouldBe(Value::Color(Color{ 255, 0, 0, 255 })));
     }
@@ -112,7 +112,7 @@ TEST_CASE("S455: an authored-Background edit + re-Load re-skis the target red ->
     if (e1)
     {
         const vaml::Color bg1 =
-            e1->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+            e1->Get(PropertyId::of("Background", "Control")).get<std::shared_ptr<::vaml::Brush>>()->color();
         SHOULD(ShouldlyString(vaml::Value::Color(bg1))
                    .ShouldBe(Value::Color(Color{ 255, 0, 0, 255 })));
     }
@@ -126,7 +126,7 @@ TEST_CASE("S455: an authored-Background edit + re-Load re-skis the target red ->
     if (e2)
     {
         const vaml::Color bg2 =
-            e2->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+            e2->Get(PropertyId::of("Background", "Control")).get<std::shared_ptr<::vaml::Brush>>()->color();
         SHOULD(ShouldlyString(vaml::Value::Color(bg2))
                    .ShouldBe(Value::Color(Color{ 0, 255, 0, 255 })));
     }

@@ -76,10 +76,10 @@ const DependencyProperty& registerS285Global(const std::string& name, ValueType 
 {
     if (s285_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S285_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S285_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 void registerS285Properties()
@@ -91,8 +91,8 @@ void registerS285Properties()
     (void)registerS285Global("S285Content",  ValueType::String, PropertyFlags::None, Value::String(""));
     (void)registerS285Global("S285Fill",     ValueType::Color, PropertyFlags::None,
                              Value::Color(Color{0, 0, 0, 0}));
-    (void)registerS285Global("S285Grid.Row", ValueType::Int32, PropertyFlags::None, Value::Int32(0));
-    (void)registerS285Global("S285Dock.Dock",ValueType::String, PropertyFlags::None, Value::String(""));
+    (void)registerS285Global("S285Row", ValueType::Int32, PropertyFlags::None, Value::Int32(0));
+    (void)registerS285Global("S285Dock", ValueType::String, PropertyFlags::None, Value::String(""));
 }
 
 // The S285 compiled golden — a subset of the S284 full-feature doc, using ONLY
@@ -102,8 +102,8 @@ void registerS285Properties()
 const char* kS285GoldenDoc =
     R"(<Window x:Name="root" S285Width="1024" S285Margin="10,10,10,10">)"
     R"(<StackPanel S285Enabled="true">)"
-    R"(<Button x:Name="search" S285Content="Search" S285Width="200" S285Grid.Row="1" S285Fill="#FF0000"/>)"
-    R"(<TextBlock S285Dock.Dock="Top">Search:</TextBlock>)"
+    R"(<Button x:Name="search" S285Content="Search" S285Width="200" S285Row="1" S285Fill="#FF0000"/>)"
+    R"(<TextBlock S285Dock="Top">Search:</TextBlock>)"
     R"(</StackPanel></Window>)";
 
 } // namespace
@@ -159,28 +159,28 @@ TEST_CASE("S285: compiled golden — every literal prop converted + set (incl. a
     }
 
     // Root Window: numeric + comma-list Thickness.
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Width")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Width", "FrameworkElement")))
                .ShouldBe(Value::Int32(1024)));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Margin")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Margin", "FrameworkElement")))
                .ShouldBe(Value::Thickness(Thickness{10, 10, 10, 10})));
 
     // StackPanel (retained[2].get()): Bool.
-    SHOULD(ShouldlyString(retained[2].get()->Get(PropertyId::of("S285Enabled")))
+    SHOULD(ShouldlyString(retained[2].get()->Get(PropertyId::of("S285Enabled", "FrameworkElement")))
                .ShouldBe(Value::Bool(true)));
 
     // search Button (retained[0].get()): String + numeric + attached Int32 + Color.
     const auto& btn = retained[0].get();
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Content")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Content", "FrameworkElement")))
                .ShouldBe(Value::String("Search")));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Width")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Width", "FrameworkElement")))
                .ShouldBe(Value::Int32(200)));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Grid.Row")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Row", "FrameworkElement")))
                .ShouldBe(Value::Int32(1)));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Fill")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Fill", "FrameworkElement")))
                .ShouldBe(Value::Color(Color{255, 0, 0, 255})));
 
     // Text (retained[1].get()): attached dotted String.
-    SHOULD(ShouldlyString(retained[1].get()->Get(PropertyId::of("S285Dock.Dock")))
+    SHOULD(ShouldlyString(retained[1].get()->Get(PropertyId::of("S285Dock", "FrameworkElement")))
                .ShouldBe(Value::String("Top")));
 }
 
@@ -304,7 +304,7 @@ TEST_CASE("S451: a BOM+prolog+comment golden compiles and loads via VBamlReader 
 
     // Root Window with the BOM+prolog stripped cleanly.
     SHOULD(ShouldlyIntegral(dynamic_cast<vaml::Window*>(root.get()) != nullptr).ShouldBe(true));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Width")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Width", "FrameworkElement")))
                .ShouldBe(Value::Int32(1024)));
 
     // Exactly the declared tree survives — the comments added NOTHING. The
@@ -315,7 +315,7 @@ TEST_CASE("S451: a BOM+prolog+comment golden compiles and loads via VBamlReader 
     if (retained.size() == 2)
     {
         SHOULD(ShouldlyIntegral(dynamic_cast<vaml::Button*>(retained[0].get()) != nullptr).ShouldBe(true));
-        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S285Content")))
+        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S285Content", "FrameworkElement")))
                    .ShouldBe(Value::String("Go")));
         SHOULD(ShouldlyIntegral(dynamic_cast<vaml::StackPanel*>(retained[1].get()) != nullptr).ShouldBe(true));
     }

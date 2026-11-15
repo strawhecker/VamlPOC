@@ -321,8 +321,9 @@ Value DependencyObject::Get(PropertyId id) const
 VAML_CORE_EXPORT
 bool DependencyObject::has_local_value(PropertyId id) const noexcept
 {
-    // S802: composite (name, owner) when the id carries an owner; the guarded
-    // unique-name bridge for a legacy owner-less id (MINIMAL REAL, S803).
+    // S802/S803: composite (name, owner) resolution — the id always carries its
+    // owner (WPF: no name-only DP lookup); a same-name/different-owner pair is
+    // a distinct property. resolve_entry is strict-pair.
     const PD* entry = resolve_entry(id);
     if (entry == nullptr)
     {
@@ -339,9 +340,8 @@ bool DependencyObject::has_local_value(PropertyId id) const noexcept
 VAML_CORE_EXPORT
 Value DependencyObject::GetEffectiveValue(PropertyId id) const
 {
-    // S802: the per-object store resolves on the composite (name, owner) pair
-    // when the id carries an owner; a legacy owner-less id goes through the
-    // guarded unique-name bridge (MINIMAL REAL, S803).
+    // S802/S803: the per-object store resolves on the composite (name, owner)
+    // pair — the id always carries its owner (WPF: no name-only DP lookup).
     const PD* entry = resolve_entry(id);
     const bool inStore = (entry != nullptr);
 
@@ -364,10 +364,7 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
     //      (unchanged — an unregistered/unresolvable name still throws).
     //
     // S801/S802: the global metadata read resolves by the composite (name,
-    // owner) PAIR when the id carries an owner; for a legacy owner-less id it
-    // uses the GUARDED unique-name bridge (TryGetByName) — returns the DP only
-    // when exactly one (owner) registration has this name, never silently
-    // picking among ambiguous ones (MINIMAL REAL, S803-resolved). The global
+    // owner) PAIR (the id always carries its owner — WPF-faithful). The global
     // descriptor supplies the canonical flags + default for an
     // attached/purely-global property.
     const DependencyProperty* globalDp = resolve_global(id);
@@ -532,9 +529,8 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     //     the single owner;
     //   - NEITHER: PropertyNotFound (unchanged — an unregistered id throws).
     //
-    // S802: a composite (name, owner) id resolves by its pair; a legacy owner-
-    // less id resolves by the guarded unique-name store/global bridges (MINIMAL
-    // REAL, S803).
+    // S802/S803: a composite (name, owner) id resolves by its pair (the id
+    // always carries its owner — WPF has no name-only lookup).
     //
     // coerce + validate MUST run before any store touch (S037 instant writer
     // feedback), and a NON-affine Set must NOT mutate the store (the store is
@@ -831,9 +827,10 @@ DependencyObject::PropertyChangedToken DependencyObject::add_property_changed(
     // entirely (subscriptions are thread-affine, matching S037/ADR-018 — zero
     // locks). Content-equal dedup is preserved (S140).
     //
-    // S802 composite: the subscriber key is the (name, owner) PAIR — BOTH interned
-    // canonical views. A same-name/different-owner pair is its OWN subscription
-    // list. A legacy owner-less id subscribes under (name, "").
+    // S802/S803 composite: the subscriber key is the (name, owner) PAIR — BOTH
+    // interned canonical views. A same-name/different-owner pair is its OWN
+    // subscription list. A subscription is keyed strictly on the pair (S803:
+    // the owner-less legacy list is removed).
     const std::string_view stableName  = vaml::intern(id.name());
     const std::string_view stableOwner = vaml::intern(id.owner());
     const SubKey key{stableName, stableOwner};
@@ -921,42 +918,22 @@ void DependencyObject::fire_self_subscribers(
     fire_subscribers_for(name, owner, oldEffective, newEffective);
 }
 
-// Fires the registration-ordered subscribers for the (name, owner) pair, ALSO
-// falling back to the [MINIMAL REAL] owner-less legacy subscription list (an
-// `add_property_changed(PropertyId::of(name))` subscription with empty owner —
-// S802 has no owner to carry on legacy bindings that subscribe by bare name;
-// S803 resolves this when every binding carries an owner). The handle vector is
-// COPIED before invoking so a handler that (un)subscribes mid-fire does not
-// invalidate iteration (registration ORDER preserved for the captured snapshot).
+// Fires the registration-ordered subscribers for the (name, owner) pair. S803:
+// the owner-less legacy subscription list is REMOVED (bindings + every consumer
+// now carry the composite (name, owner) pair — WPF has no name-only DP lookup),
+// so a subscription is keyed strictly on the pair. The handle vector is COPIED
+// before invoking so a handler that (un)subscribes mid-fire does not invalidate
+// iteration (registration ORDER preserved for the captured snapshot).
 void DependencyObject::fire_subscribers_for(
     std::string_view name, std::string_view owner, const Value& oldEffective, const Value& newEffective)
 {
     const SubKey key{vaml::intern(name), vaml::intern(owner)};
     const auto it = subs_.find(key);
-    if (it != subs_.end())
-    {
-        const std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>> snapshot = it->second;
-        for (const auto& [token, handler] : snapshot)
-        {
-            (void)token;
-            if (handler)
-            {
-                handler(PropertyId::of(name, owner), oldEffective, newEffective);
-            }
-        }
-    }
-
-    // [MINIMAL REAL] owner-less legacy fallback (S803-resolved). Bindings and
-    // other consumers that still subscribe by bare PropertyId::of(name) use the
-    // (name, "") list; fire it with the canonical-owner id so their handlers
-    // observe the real effective change.
-    const SubKey legacyKey{vaml::intern(name), std::string_view{}};
-    const auto lit = subs_.find(legacyKey);
-    if (lit == subs_.end())
+    if (it == subs_.end())
     {
         return;
     }
-    const std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>> snapshot = lit->second;
+    const std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>> snapshot = it->second;
     for (const auto& [token, handler] : snapshot)
     {
         (void)token;
@@ -993,8 +970,7 @@ void DependencyObject::ProcessNotificationQueue()
     }
     recorder.flush([this](PropertyId id, const Value& o, const Value& n) {
         // Fire THIS object's registration-ordered subscribers for the pushed
-        // property (composite pair + the [MINIMAL REAL] owner-less legacy
-        // fallback — S803-resolved).
+        // property (composite pair — S803, owner always carried).
         fire_subscribers_for(id.name(), id.owner(), o, n);
     });
 }

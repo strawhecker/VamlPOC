@@ -50,7 +50,7 @@ const char* kBindingDoc =
 
 double opacity_of(vaml::UIElement& el)
 {
-    return el.Get(vaml::PropertyId::of("Opacity")).get<double>();
+    return el.Get(vaml::PropertyId::of("Opacity", "UIElement")).get<double>();
 }
 
 } // namespace
@@ -130,8 +130,13 @@ TEST_CASE("S256: a later set_Dim re-pushes the bound Opacity (live, via the reta
 
 TEST_CASE("S256: a document whose binding fails reports a structured detail")
 {
+    // A malformed {Binding} reports (never silent) + keeps last-good. NOTE: an
+    // EMPTY path is NO LONGER malformed (Sprint 11af re-baselined `{Binding}`
+    // as a VALID Direct self-binding, WPF PathParser.cs:83-89); a leading comma
+    // with no path (`{Binding ,Mode=TwoWay}`) IS a Class A authoring error, so
+    // it is the honest malformed source this failure report demonstrates.
     const std::string bad =
-        "<StackPanel Opacity=\"{Binding}\"/>";   // {Binding} with no path -> Class A
+        "<StackPanel Opacity=\"{Binding ,Mode=TwoWay}\"/>";   // leading comma, no path -> Class A
     auto plan = run_viewer_binding_plan(bad, 0.4);
     // The plan reports the failure (never silent), keeps no root (last-good kept
     // by the app), and the pure decision says Report.

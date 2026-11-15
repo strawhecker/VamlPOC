@@ -103,12 +103,12 @@ TEST_CASE("S040: cascade after attach — parent change AFTER child attached rec
 
     // No child write ever: the child's own local store stays empty, so the
     // parent's later Set must be reflected purely through the read-side pull.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(11));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(11)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(11));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(11)));
 
     // A second parent change recomputes again, still with no child write.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(22));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(22)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(22));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(22)));
 }
 
 TEST_CASE("S040: multi-level cascade — changing the great-grandparent recomputes the great-grandchild")
@@ -125,13 +125,13 @@ TEST_CASE("S040: multi-level cascade — changing the great-grandparent recomput
     g3.set_parent(&g2);
     leaf.set_parent(&g3);
 
-    (void)g1.Set(PropertyId::of(name), Value::Int32(5));
-    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(5)));
+    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(5)));
 
     // Change the great-grandparent after the chain is fully wired —
     // intermediate nodes g2/g3 hold NO local, so the leaf must follow.
-    (void)g1.Set(PropertyId::of(name), Value::Int32(9));
-    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(9)));
+    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
+    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(9)));
 }
 
 TEST_CASE("S040: local-wins — a child's own local override is NOT swept by a parent change")
@@ -145,13 +145,13 @@ TEST_CASE("S040: local-wins — a child's own local override is NOT swept by a p
     child.set_parent(&parent);
 
     // Child declares a REAL local override BEFORE the parent changes.
-    (void)child.Set(PropertyId::of(name), Value::Int32(7));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
 
     // Parent changes AFTER: the cascade must RESPECT the child's real local
     // override — it does NOT sweep it (child effective stays its own 7).
-    (void)parent.Set(PropertyId::of(name), Value::Int32(99));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(99));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
 }
 
 TEST_CASE("S040: InheritOnly recompute — own local is IGNORED, so a parent change DOES recompute")
@@ -167,15 +167,15 @@ TEST_CASE("S040: InheritOnly recompute — own local is IGNORED, so a parent cha
 
     // Child SETS its own local override — but InheritOnly means it is IGNORED,
     // so the value comes from the parent's chain instead.
-    (void)child.Set(PropertyId::of(name), Value::Int32(100));
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(3));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(3)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(3));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3)));
 
     // A second parent change still recomputes the InheritOnly child (its own
     // local never contributes), again with no child write.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(4));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(4)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(4));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(4)));
 }
 
 TEST_CASE("S040: child Set vs inherited old — a child write after inheriting is never clobbered by a later parent change")
@@ -189,17 +189,17 @@ TEST_CASE("S040: child Set vs inherited old — a child write after inheriting i
     child.set_parent(&parent);
 
     // Child first INHERITS the parent's value...
-    (void)parent.Set(PropertyId::of(name), Value::Int32(20));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(20)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(20));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(20)));
 
     // ...then writes its OWN local override (child Set vs inherited old).
-    (void)child.Set(PropertyId::of(name), Value::Int32(31));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(31)));
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(31));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(31)));
 
     // A LATER parent change must NOT clobber that child write — the cascade
     // respects the now-local override and leaves the child effective untouched.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(44));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(31)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(44));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(31)));
 }
 
 TEST_CASE("S040: parent reverts — the child follows both the new value and the reverting value, no child write")
@@ -213,14 +213,14 @@ TEST_CASE("S040: parent reverts — the child follows both the new value and the
     child.set_parent(&parent);
 
     // Parent moves to a new value AFTER attach...
-    (void)parent.Set(PropertyId::of(name), Value::Int32(8));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(8)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(8)));
 
     // ...and reverts to a prior/different value. The child tracks BOTH moves
     // purely through the read-side pull — no child Set anywhere in this case.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(0));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(0)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(0));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(0)));
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(6));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(6)));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(6));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(6)));
 }

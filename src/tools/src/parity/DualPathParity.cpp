@@ -354,8 +354,12 @@ ParityAxis compare_dual_path_props(std::string_view source,
         const vaml::DependencyObject* o7 = (ni == 0) ? s7root.get() : r7[ni - 1].get();
         for (const std::string& key : propKeys)
         {
-            const vaml::Value v2 = o2->Get(vaml::PropertyId::of(key));
-            const vaml::Value v7 = o7->Get(vaml::PropertyId::of(key));
+            // The S288 golden's plain DPs are registered under owner
+            // "S288_Owner" (see registerS288Properties in the S288 parity
+            // test). owner is the composite (name, owner) key required by S803.
+            const vaml::PropertyId keyId = vaml::PropertyId::of(key, "FrameworkElement");
+            const vaml::Value v2 = o2->Get(keyId);
+            const vaml::Value v7 = o7->Get(keyId);
             if (!(v2 == v7))
             {
                 a.ok = false;

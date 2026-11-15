@@ -223,6 +223,12 @@ struct VAML_CORE_EXPORT BindingExpressionSpec
     std::string sourcePath;
     DependencyObject* target = nullptr;
     std::string targetProp;
+    // The target property's OWNER (declaring-type/step-scoped id), always
+    // carried per S803/ADR-002 so the target Set/Get/add_property_changed are
+    // resolved on the composite (name, owner) pair — WPF has no name-only DP
+    // lookup. Empty when the target DP is unresolved (the transfer then maps to
+    // TargetRejected defensively).
+    std::string targetOwner;
     BindingMode mode = BindingMode::OneTime;
     BindingPolicy policy = BindingPolicy::Fallback;
     BindingConverter converter;
@@ -305,6 +311,7 @@ public:
     [[nodiscard]] DependencyObject* target() const noexcept { return target_; }
     [[nodiscard]] const std::string& source_path() const noexcept { return sourcePath_; }
     [[nodiscard]] const std::string& target_prop() const noexcept { return targetProp_; }
+    [[nodiscard]] const std::string& target_owner() const noexcept { return targetOwner_; }
 
 private:
     BindingExpression() = default;
@@ -379,6 +386,7 @@ private:
     DependencyObject* target_ = nullptr;
     std::string sourcePath_;
     std::string targetProp_;
+    std::string targetOwner_;
     BindingConverter converter_;
     std::string converterName_;
     std::optional<Value> fallback_;

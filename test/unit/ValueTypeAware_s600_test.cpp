@@ -54,10 +54,12 @@ using vaml::test::ShouldThrow;
 
 namespace {
 
-// Reads an element's Int32 DP value (the enum rides Int32).
-int read_int(const DependencyObject& obj, const char* prop)
+// Reads an element's Int32 DP value (the enum rides Int32). The owner is the
+// real WPF registering type (S803 composite identity — TextBlock text DPs live
+// under "TextBlock", Control content-alignment under "Control", etc.).
+int read_int(const DependencyObject& obj, const char* prop, const char* owner)
 {
-    return obj.Get(PropertyId::of(prop)).get<std::int32_t>();
+    return obj.Get(PropertyId::of(prop, owner)).get<std::int32_t>();
 }
 
 } // namespace
@@ -84,9 +86,9 @@ TEST_CASE("S600: audited enum DPs convert WPF-true ordinals from markup")
     // (TextAndFontProperties.cs:49/200/231). The enums ride the Int32 value path.
     auto* textBlock = dynamic_cast<UIElement*>(root.get());
     REQUIRE(textBlock != nullptr);
-    REQUIRE(read_int(*textBlock, "TextWrapping") == 2);
-    REQUIRE(read_int(*textBlock, "TextAlignment") == 2);
-    REQUIRE(read_int(*textBlock, "TextTrimming") == 1);
+    REQUIRE(read_int(*textBlock, "TextWrapping", "TextBlock") == 2);
+    REQUIRE(read_int(*textBlock, "TextAlignment", "TextBlock") == 2);
+    REQUIRE(read_int(*textBlock, "TextTrimming", "TextBlock") == 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -118,8 +120,8 @@ TEST_CASE("S600: Control content-alignment DPs resolve Center from markup (A1 A1
     // Center == 1 in both.
     auto* button = dynamic_cast<UIElement*>(root.get());
     REQUIRE(button != nullptr);
-    REQUIRE(read_int(*button, "HorizontalContentAlignment") == 1);
-    REQUIRE(read_int(*button, "VerticalContentAlignment") == 1);
+    REQUIRE(read_int(*button, "HorizontalContentAlignment", "Control") == 1);
+    REQUIRE(read_int(*button, "VerticalContentAlignment", "Control") == 1);
 }
 
 TEST_CASE("S600: enum domain registry carries WPF-true ordinals for the audited set")
@@ -150,7 +152,7 @@ TEST_CASE("S600: enum domain registry carries WPF-true ordinals for the audited 
     REQUIRE(orient != nullptr);
     REQUIRE(orient->count == 2);
 
-    const auto* dock = EnumDomainRegistry::global().try_find("DockPanel.Dock");
+    const auto* dock = EnumDomainRegistry::global().try_find("Dock");
     REQUIRE(dock != nullptr);
     REQUIRE(dock->count == 4);
 
@@ -195,7 +197,7 @@ TEST_CASE("S600: Dock=\"Left\" resolves to 0 (A1 wrong-typed fix, was 1=Top)")
 
     // Direct registry proof: Dock Left=0 (WPF Dock.cs), NOT 1 (the old shared
     // Left=HorizontalAlignment=1 wrong-typed value).
-    const EnumDomain* dock = EnumDomainRegistry::global().try_find("DockPanel.Dock");
+    const EnumDomain* dock = EnumDomainRegistry::global().try_find("Dock");
     REQUIRE(dock != nullptr);
     // "Left" is the first member = 0.
     REQUIRE(dock->memberValues[0] == 0);
@@ -313,7 +315,7 @@ TEST_CASE("S600: S7 compiled reader mirrors the S2 text reader for enum conversi
             REQUIRE(wrap->memberValues[i] == 2);
         }
     }
-    const EnumDomain* dock = EnumDomainRegistry::global().try_find("DockPanel.Dock");
+    const EnumDomain* dock = EnumDomainRegistry::global().try_find("Dock");
     REQUIRE(dock != nullptr);
     for (std::size_t i = 0; i < dock->count; ++i)
     {

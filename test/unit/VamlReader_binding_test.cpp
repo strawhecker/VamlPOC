@@ -3,7 +3,7 @@
 // S252: the reader's deferred-extensions (the S2 tag) are resolved by
 // VamlReader::BindExtensions() into LIVE BindingExpressions against a
 // data context (the app-constructed VM, S250/S251 pattern) + target DP:
-//   <StackPanel S252Text="{Binding Title}"/>
+//   <StackPanel S252_Binding_Owner.S252Text="{Binding Title}"/>
 //   -> set_data_context(vm) -> BindExtensions() -> the bound value lands on the
 //   target (first transfer) + a live one-way re-push on set_Title.
 //   Mode=TwoWay arms the S244 write-back end-to-end through markup.
@@ -116,12 +116,12 @@ TEST_CASE("S252: BindExtensions resolves {Binding Title} onto a real VM + target
 
     // The bound value landed on the target (the S242 first transfer).
     const DependencyObject* target = reader.deferred_extensions()[0].target;
-    SHOULD(ShouldlyString(target->Get(PropertyId::of("S252Text")))
+    SHOULD(ShouldlyString(target->Get(PropertyId::of("S252Text", "S252_Binding_Owner")))
                .ShouldBe(Value::String("Hello")));
 
     // A live VM change auto-pushes through the S243 one-way wire.
     (void)vm.set_Title("World");
-    SHOULD(ShouldlyString(target->Get(PropertyId::of("S252Text")))
+    SHOULD(ShouldlyString(target->Get(PropertyId::of("S252Text", "S252_Binding_Owner")))
                .ShouldBe(Value::String("World")));
 }
 
@@ -149,37 +149,42 @@ TEST_CASE("S252: {Binding Title, Mode=TwoWay} binds two-way through markup")
 
     const DependencyObject* target = reader.deferred_extensions()[0].target;
     // A target edit -> the S244 write-back reaches the VM store.
-    (void)const_cast<DependencyObject*>(target)->Set(PropertyId::of("S252Text"), Value::String("edited"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("edited")));
+    (void)const_cast<DependencyObject*>(target)->Set(PropertyId::of("S252Text", "S252_Binding_Owner"), Value::String("edited"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title", "ObservableObject"))).ShouldBe(Value::String("edited")));
 }
 
 // ---------------------------------------------------------------------------
 // S252 — a malformed {Binding} is a Class A reader error (never silent)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("S252: a malformed {Binding} throws VamlReaderException(MalformedBindingMarkup)")
+TEST_CASE("S252: a no-path {Binding} is a VALID Direct self-binding (Sprint 11af — no MalformedBindingMarkup)")
 {
+    // Sprint 11af (S847): `{Binding}` with no path is a VALID Direct
+    // self-binding to the whole data context — NOT a Class A malformed markup.
+    // BindExtensions must NOT throw MalformedBindingMarkup for it (the retired
+    // "no path -> malformed" premise is re-baselined here, S848). The Direct
+    // binding's first transfer against a String target is a non-throwing
+    // Class B outcome (TargetRejected), so no reader exception fires.
     registerS252Properties();
     VamlReader reader;
     S252ViewModel vm;
     reader.set_data_context(&vm);
 
     std::unique_ptr<DependencyObject> root = reader.Load(
-        "<StackPanel S252Text=\"{Binding}\"/>"); // no path
+        "<StackPanel S252Text=\"{Binding}\"/>"); // no path -> Direct
     SHOULD(ShouldlyIntegral(reader.deferred_extensions().size()).ShouldBe(1u));
 
+    // BindExtensions succeeds (bound == 1) — no MalformedBindingMarkup throw.
     bool threw = false;
     try
     {
         (void)reader.BindExtensions();
     }
-    catch (const VamlReaderException& e)
+    catch (const VamlReaderException&)
     {
         threw = true;
-        SHOULD(ShouldlyIntegral(static_cast<int>(e.kind()))
-                   .ShouldBe(static_cast<int>(VamlReaderError::MalformedBindingMarkup)));
     }
-    SHOULD(ShouldlyIntegral(static_cast<int>(threw)).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(threw ? 1 : 0).ShouldBe(0));
 }
 
 TEST_CASE("S252: malformed {Binding} — ShouldThrow form")

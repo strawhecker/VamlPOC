@@ -148,16 +148,16 @@ TEST_CASE("S044: attached-inherits cascade — child effective follows each pare
     child.set_parent(&parent);
 
     // Orphan read -> global default, and child inherits that default (0).
-    SHOULD(ShouldlyString(child.Get(PropertyId::of(name))).ShouldBe(Value::Int32(0)));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(0)));
 
     // parent.Set(5) — attached write materializes a borrowed entry on the parent.
-    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
     // Child, unattached (no store entry), INHERITS the parent's 5.
-    SHOULD(ShouldlyString(child.Get(PropertyId::of(name))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(5)));
 
     // parent.Set(9) — the child's effective follows the new move (9).
-    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(child.Get(PropertyId::of(name))).ShouldBe(Value::Int32(9)));
+    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(9)));
 }
 
 TEST_CASE("S044: attached inherited + local-wins — child override not clobbered")
@@ -172,12 +172,12 @@ TEST_CASE("S044: attached inherited + local-wins — child override not clobbere
     child.set_parent(&parent);
 
     // Child sets its own attached value FIRST -> local override materialized.
-    SHOULD(ShouldlyString(child.Set(PropertyId::of(name), Value::Int32(7))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(child.Get(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(child.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(7))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(7)));
 
     // A later parent.Set(44) must NOT clobber the child (local-wins).
-    (void)parent.Set(PropertyId::of(name), Value::Int32(44));
-    SHOULD(ShouldlyString(child.Get(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(44));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(7)));
 }
 
 TEST_CASE("S044: passive attached-Inherits descendant IS notified (gap-fix under test)")
@@ -193,10 +193,10 @@ TEST_CASE("S044: passive attached-Inherits descendant IS notified (gap-fix under
     child.set_parent(&parent); // child is passive — no Set, no register ever
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
 
     // Parent's attached Inherits write pushes to the passive child.
-    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name), Value::Int32(8))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(8))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
 
     // Child drain fires EXACTLY once, old=0 (inherited default) -> new=8.
@@ -220,10 +220,10 @@ TEST_CASE("S044: attached coalescing — two Sets before one drain == one notifi
     child.set_parent(&parent); // passive child
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5)); // push (0 -> 5)
-    (void)parent.Set(PropertyId::of(name), Value::Int32(8)); // push (5 -> 8)
+    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(5)); // push (0 -> 5)
+    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(8)); // push (5 -> 8)
 
     // RAW depth 2: coalescing happens AT DRAIN, not enqueue.
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(2u));
@@ -250,21 +250,21 @@ TEST_CASE("S044: wrong-thread attached Inherits -> QUEUED; drain applies -> desc
     child.set_parent(&parent); // passive child
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
 
     // Non-affine attached Inherits Set -> QUEUED, NOT applied.
     SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(parent, PropertyId::of(name), Value::Int32(9), &r);
+    setFromOtherThread(parent, PropertyId::of(name, "AppOwner_A"), Value::Int32(9), &r);
     SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
     SHOULD(ShouldlyString(parent.pending_change_count()).ShouldBe(1u));
-    SHOULD(ShouldlyString(parent.Get(PropertyId::of(name))).ShouldBe(Value::Int32(0)));
+    SHOULD(ShouldlyString(parent.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(0)));
     // Child not yet notified.
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
 
     // Affinity-thread drain applies the queued attached write -> pushes to child.
     parent.ProcessPendingChanges();
     SHOULD(ShouldlyString(parent.pending_change_count()).ShouldBe(0u));
-    SHOULD(ShouldlyString(parent.Get(PropertyId::of(name))).ShouldBe(Value::Int32(9)));
+    SHOULD(ShouldlyString(parent.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(9)));
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
 
     // Child drain fires (0 -> 9).
@@ -290,8 +290,8 @@ TEST_CASE("S044: owner != class preserved; local registration shadows global; un
 
     DependencyObject parent, child;
     child.set_parent(&parent);
-    (void)parent.Set(PropertyId::of(name), Value::Int32(3));
-    SHOULD(ShouldlyString(child.Get(PropertyId::of(name))).ShouldBe(Value::Int32(3)));
+    (void)parent.Set(PropertyId::of(name, "AccentOwner_A"), Value::Int32(3));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AccentOwner_A"))).ShouldBe(Value::Int32(3)));
     SHOULD(ShouldlyString(dp.owner_type_id()).ShouldBe(std::string("AccentOwner_A")));
 
     // A LOCAL registration of the same NAME shadows the global path -> the local
@@ -300,14 +300,14 @@ TEST_CASE("S044: owner != class preserved; local registration shadows global; un
     PropertyKey localKey(name, ValueType::Int32, "LocalOwner_B", PropertyFlags::None);
     (void)b.register_property(std::move(localKey),
                               PropertyMetadata::WithDefault(Value::Int32(99), PropertyFlags::None));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(99)));
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "LocalOwner_B"))).ShouldBe(Value::Int32(99)));
 
     // An UNREGISTERED (not local, not global) name still throws PropertyNotFound.
     DependencyObject c;
     SHOULD(ShouldThrow<PropertyNotFound>([&] {
-        (void)c.Get(PropertyId::of("NoSuchAttached_S044_6"));
+        (void)c.Get(PropertyId::of("NoSuchAttached_S044_6", "LocalOwner_B"));
     }));
     SHOULD(ShouldThrow<PropertyNotFound>([&] {
-        (void)c.Set(PropertyId::of("NoSuchAttached_S044_6"), Value::Int32(1));
+        (void)c.Set(PropertyId::of("NoSuchAttached_S044_6", "LocalOwner_B"), Value::Int32(1));
     }));
 }

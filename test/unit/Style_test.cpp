@@ -78,8 +78,8 @@ TEST_CASE("S362: SetterValue resource kinds report their reference key")
 
 TEST_CASE("S362: a Setter carries a target property + a value")
 {
-    const Setter s{ PropertyId::of("Width"), SetterValue::Literal(Value::Int32(120)) };
-    SHOULD(ShouldlyIntegral(static_cast<int>(s.targetProperty == PropertyId::of("Width"))).ShouldBe(1));
+    const Setter s{ PropertyId::of("Width", "S362_Owner"), SetterValue::Literal(Value::Int32(120)) };
+    SHOULD(ShouldlyIntegral(static_cast<int>(s.targetProperty == PropertyId::of("Width", "S362_Owner"))).ShouldBe(1));
     SHOULD(ShouldlyIntegral(static_cast<int>(s.value.is_literal())).ShouldBe(1));
 }
 
@@ -87,8 +87,8 @@ TEST_CASE("S362: a Style records target_type + ordered setters")
 {
     Style style;
     style.set_target_type("Button");
-    style.add_setter(Setter{ PropertyId::of("Width"), SetterValue::Literal(Value::Int32(100)) });
-    style.add_setter(Setter{ PropertyId::of("Height"), SetterValue::Literal(Value::Int32(40)) });
+    style.add_setter(Setter{ PropertyId::of("Width", "S362_Owner"), SetterValue::Literal(Value::Int32(100)) });
+    style.add_setter(Setter{ PropertyId::of("Height", "S362_Owner"), SetterValue::Literal(Value::Int32(40)) });
 
     SHOULD(ShouldlyString(style.target_type()).ShouldBe(std::string("Button")));
     SHOULD(ShouldlyString(style.setters().size()).ShouldBe(2u));
@@ -124,22 +124,22 @@ TEST_CASE("S362: style_valid — non-empty target type is valid")
 TEST_CASE("S362: trigger kind discrimination — Property vs Data")
 {
     PropertyTrigger pt;
-    pt.property = PropertyId::of("IsEnabled");
+    pt.property = PropertyId::of("IsEnabled", "S362_Owner");
     pt.value = Value::Bool(false);
-    pt.setters.push_back(Setter{ PropertyId::of("Opacity"), SetterValue::Literal(Value::Double(0.5)) });
+    pt.setters.push_back(Setter{ PropertyId::of("Opacity", "S362_Owner"), SetterValue::Literal(Value::Double(0.5)) });
     const Trigger tProperty = Trigger::MakeProperty(pt);
     SHOULD(ShouldlyIntegral(static_cast<int>(trigger_kind(tProperty))).
                ShouldBe(static_cast<int>(TriggerKind::Property)));
     SHOULD(ShouldlyString(tProperty.property.setters.size()).ShouldBe(1u));
     SHOULD(ShouldlyIntegral(
-               static_cast<int>(tProperty.property.property == PropertyId::of("IsEnabled"))).
+               static_cast<int>(tProperty.property.property == PropertyId::of("IsEnabled", "S362_Owner"))).
                ShouldBe(1));
     SHOULD(ShouldlyString(tProperty.property.value).ShouldBe(Value::Bool(false)));
 
     DataTrigger dt;
     dt.path = PropertyPath::parse("State");
     dt.value = Value::Int32(2);
-    dt.setters.push_back(Setter{ PropertyId::of("Background"), SetterValue::Literal(
+    dt.setters.push_back(Setter{ PropertyId::of("Background", "S362_Owner"), SetterValue::Literal(
         Value::Color(vaml::Color{ 255, 0, 0, 255 })) });
     const Trigger tData = Trigger::MakeData(dt);
     SHOULD(ShouldlyIntegral(static_cast<int>(trigger_kind(tData))).
@@ -156,7 +156,7 @@ TEST_CASE("S362: a Style carries PropertyTrigger and DataTrigger")
     style.set_target_type("Button");
 
     PropertyTrigger pt;
-    pt.property = PropertyId::of("IsEnabled");
+    pt.property = PropertyId::of("IsEnabled", "S362_Owner");
     pt.value = Value::Bool(false);
     style.add_trigger(Trigger::MakeProperty(pt));
 

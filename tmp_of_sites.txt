@@ -1,0 +1,872 @@
+test\unit\11k3_valueElems_test.cpp:302:        const Value applied = inner->Get(vaml::PropertyId::of("S11k3Color"));
+test\unit\Animation_test.cpp:261:    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\Animation_test.cpp:315:    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\Animation_test.cpp:335:    fadeHold->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\Animation_test.cpp:353:    fadeStop->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\Animation_test.cpp:401:    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\Animation_test.cpp:426:    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\AppShellBinding_test.cpp:99:    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
+test\unit\AppShellBinding_test.cpp:117:    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
+test\unit\AppShellBinding_test.cpp:121:    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
+test\unit\AppShellBinding_test.cpp:141:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellBinding_test.cpp:143:    SHOULD(ShouldlyString(inputBox->Get(vaml::PropertyId::of("Text", "TextBox")))
+test\unit\AppShellBinding_test.cpp:152:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellBinding_test.cpp:199:    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
+test\unit\AppShellChurn_test.cpp:182:    SHOULD(ShouldlyString(h.plan.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellChurn_test.cpp:190:    SHOULD(ShouldlyString(h.plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellE2E_test.cpp:119:    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellE2E_test.cpp:141:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellE2E_test.cpp:158:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellE2E_test.cpp:170:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellE2E_test.cpp:175:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellE2E_test.cpp:235:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellE2E_test.cpp:243:    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellE2E_test.cpp:248:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellE2E_test.cpp:250:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellIntegration_test.cpp:191:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellIntegration_test.cpp:196:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellIntegration_test.cpp:204:    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellIntegration_test.cpp:208:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellIntegration_test.cpp:210:    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+test\unit\AppShellIntegration_test.cpp:407:    SHOULD(ShouldlyString(postStatus->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellIntegration_test.cpp:413:    SHOULD(ShouldlyString(p.vm->Get(vaml::PropertyId::of("Text")))
+test\unit\AppShellViewModel_test.cpp:92:    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("Text"))).ShouldBe(Value::String("hello")));
+test\unit\AttachedInheritanceNotification_test.cpp:151:    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(0)));
+test\unit\AttachedInheritanceNotification_test.cpp:154:    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedInheritanceNotification_test.cpp:156:    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(5)));
+test\unit\AttachedInheritanceNotification_test.cpp:159:    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedInheritanceNotification_test.cpp:160:    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(9)));
+test\unit\AttachedInheritanceNotification_test.cpp:175:    SHOULD(ShouldlyString(child.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(7))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedInheritanceNotification_test.cpp:176:    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(7)));
+test\unit\AttachedInheritanceNotification_test.cpp:179:    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(44));
+test\unit\AttachedInheritanceNotification_test.cpp:180:    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(7)));
+test\unit\AttachedInheritanceNotification_test.cpp:196:    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
+test\unit\AttachedInheritanceNotification_test.cpp:199:    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(8))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedInheritanceNotification_test.cpp:223:    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
+test\unit\AttachedInheritanceNotification_test.cpp:225:    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(5)); // push (0 -> 5)
+test\unit\AttachedInheritanceNotification_test.cpp:226:    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(8)); // push (5 -> 8)
+test\unit\AttachedInheritanceNotification_test.cpp:253:    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
+test\unit\AttachedInheritanceNotification_test.cpp:257:    setFromOtherThread(parent, PropertyId::of(name, "AppOwner_A"), Value::Int32(9), &r);
+test\unit\AttachedInheritanceNotification_test.cpp:260:    SHOULD(ShouldlyString(parent.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(0)));
+test\unit\AttachedInheritanceNotification_test.cpp:267:    SHOULD(ShouldlyString(parent.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(9)));
+test\unit\AttachedInheritanceNotification_test.cpp:293:    (void)parent.Set(PropertyId::of(name, "AccentOwner_A"), Value::Int32(3));
+test\unit\AttachedInheritanceNotification_test.cpp:294:    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AccentOwner_A"))).ShouldBe(Value::Int32(3)));
+test\unit\AttachedInheritanceNotification_test.cpp:303:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "LocalOwner_B"))).ShouldBe(Value::Int32(99)));
+test\unit\AttachedInheritanceNotification_test.cpp:308:        (void)c.Get(PropertyId::of("NoSuchAttached_S044_6"));
+test\unit\AttachedInheritanceNotification_test.cpp:311:        (void)c.Set(PropertyId::of("NoSuchAttached_S044_6"), Value::Int32(1));
+test\unit\AttachedProperty_test.cpp:105:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(0))); // global default resolves
+test\unit\AttachedProperty_test.cpp:108:    SHOULD(ShouldlyString(b.Set(PropertyId::of(name, "CanvasOwner_A"), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedProperty_test.cpp:109:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(5)));
+test\unit\AttachedProperty_test.cpp:114:    SHOULD(ShouldlyString(b2.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(0)));
+test\unit\AttachedProperty_test.cpp:124:    SHOULD(ShouldlyString(orphan.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(0)));
+test\unit\AttachedProperty_test.cpp:131:    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner"), Value::Int32(7))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedProperty_test.cpp:132:    SHOULD(ShouldlyString(parent.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\AttachedProperty_test.cpp:134:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\AttachedProperty_test.cpp:137:    SHOULD(ShouldlyString(child.Set(PropertyId::of(name, "AppOwner"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedProperty_test.cpp:138:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(9)));
+test\unit\AttachedProperty_test.cpp:152:    (void)b.Set(PropertyId::of(name, "DockPanelOwner_A"), Value::Int32(4));
+test\unit\AttachedProperty_test.cpp:153:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "DockPanelOwner_A"))).ShouldBe(Value::Int32(4)));
+test\unit\AttachedProperty_test.cpp:154:    (void)b.Set(PropertyId::of(name, "DockPanelOwner_A"), Value::Int32(0)); // clear back toward default
+test\unit\AttachedProperty_test.cpp:155:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "DockPanelOwner_A"))).ShouldBe(Value::Int32(0)));
+test\unit\AttachedProperty_test.cpp:169:    SHOULD(ShouldlyString(b.Set(PropertyId::of(name, "CanvasOwner_A"), Value::Int32(1))).ShouldBe(SetResult::APPLIED));
+test\unit\AttachedProperty_test.cpp:174:    setFromOtherThread(b, PropertyId::of(name, "CanvasOwner_A"), Value::Int32(8), &r);
+test\unit\AttachedProperty_test.cpp:177:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(1))); // not applied
+test\unit\AttachedProperty_test.cpp:182:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(8)));
+test\unit\AttachedProperty_test.cpp:198:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "LocalOwner_B"))).ShouldBe(Value::Int32(99))); // local default, not global 0
+test\unit\AttachedProperty_test.cpp:199:    (void)b.Set(PropertyId::of(name, "LocalOwner_B"), Value::Int32(3));
+test\unit\AttachedProperty_test.cpp:200:    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "LocalOwner_B"))).ShouldBe(Value::Int32(3))); // local path
+test\unit\AttachedProperty_test.cpp:205:        (void)c.Get(PropertyId::of("NoSuchAttached_S043_5"));
+test\unit\AttachedProperty_test.cpp:208:        (void)c.Set(PropertyId::of("NoSuchAttached_S043_5"), Value::Int32(1));
+test\unit\BindingExpression_test.cpp:133:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("Hello"));
+test\unit\BindingExpression_test.cpp:149:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("Hello")));
+test\unit\BindingExpression_test.cpp:159:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("first"));
+test\unit\BindingExpression_test.cpp:172:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("first")));
+test\unit\BindingExpression_test.cpp:175:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("second"));
+test\unit\BindingExpression_test.cpp:176:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("first")));
+test\unit\BindingExpression_test.cpp:190:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("x"));
+test\unit\BindingExpression_test.cpp:206:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("x")));
+test\unit\BindingExpression_test.cpp:234:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("FALLBACK")));
+test\unit\BindingExpression_test.cpp:242:    (void)vm.Set(PropertyId::of("S242Empty"), Value::Null());
+test\unit\BindingExpression_test.cpp:261:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("FB")));
+test\unit\BindingExpression_test.cpp:285:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
+test\unit\BindingExpression_test.cpp:295:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("42"));
+test\unit\BindingExpression_test.cpp:316:    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S242Number", "S242Test")).get<std::int32_t>()).ShouldBe(7));
+test\unit\BindingExpression_test.cpp:322:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("x"));
+test\unit\BindingExpression_test.cpp:345:    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S242Number", "S242Test")).get<std::int32_t>()).ShouldBe(99));
+test\unit\BindingExpression_test.cpp:371:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
+test\unit\BindingExpression_test.cpp:381:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("same"));
+test\unit\BindingExpression_test.cpp:383:    (void)target.Set(PropertyId::of("S242Text", "S242Test"), Value::String("same")); // pre-set equal
+test\unit\BindingExpression_test.cpp:403:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("str"));
+test\unit\BindingExpression_test.cpp:450:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("NULL_FB")));
+test\unit\BindingExpression_test.cpp:472:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
+test\unit\BindingExpression_test.cpp:482:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("a"));
+test\unit\BindingExpression_test.cpp:531:        (void)vm.Set(PropertyId::of("S242Empty"), Value::Null());
+test\unit\BindingExpression_test.cpp:567:        (void)vm.Set(PropertyId::of("S242Text"), Value::String("x"));
+test\unit\BindingExpression_test.cpp:656:    (void)vm.Set(PropertyId::of("S242Text"), Value::String("x"));
+test\unit\BindingExpression_test.cpp:679:    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S242Number", "S242Test")).get<std::int32_t>()).ShouldBe(5));
+test\unit\BindingFailure_test.cpp:159:    (void)vm.Set(PropertyId::of("S245_1Text"), Value::String("Hello"));
+test\unit\BindingFailure_test.cpp:184:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
+test\unit\BindingFailure_test.cpp:210:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
+test\unit\BindingFailure_test.cpp:277:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
+test\unit\BindingFailure_test.cpp:310:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("FB")));
+test\unit\BindingFailure_test.cpp:322:    (void)vm.Set(PropertyId::of("S245_1NullLead"), Value::Null());
+test\unit\BindingFailure_test.cpp:338:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
+test\unit\BindingFailure_test.cpp:370:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
+test\unit\BindingFailure_test.cpp:382:        (void)vm.Set(PropertyId::of("S245_1Text"), Value::String("Hello"));
+test\unit\BindingFailure_test.cpp:409:        SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
+test\unit\BindingFailure_test.cpp:415:        (void)vm.Set(PropertyId::of("S245_1Text"), Value::String("Hello"));
+test\unit\BindingFailure_test.cpp:440:        SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("CFB")));
+test\unit\BindingFailure_test.cpp:451:    (void)vm.Set(PropertyId::of("S245_1Text"), Value::String("str"));
+test\unit\BindingFailure_test.cpp:477:    (void)vm.Set(PropertyId::of("S245_1Text"), Value::String("live"));
+test\unit\BindingFailure_test.cpp:483:    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S245_1Int", "S245_1Test")).get<std::int32_t>()).ShouldBe(-1));
+test\unit\BindingFailure_test.cpp:493:    (void)vm.Set(PropertyId::of("S245_1Text"), Value::String("initial"));
+test\unit\BindingFailure_test.cpp:521:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("initial")));
+test\unit\BindingFailure_test.cpp:526:    (void)target.Set(PropertyId::of("S245_1Text", "S245_1Test"), Value::String("edited"));
+test\unit\BindingFailure_test.cpp:532:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S245_1Text"))).ShouldBe(Value::String("initial")));
+test\unit\BindingFailure_test.cpp:542:    (void)vm.Set(PropertyId::of("S245_1Text"), Value::String("initial"));
+test\unit\BindingFailure_test.cpp:601:        noopTarget = target.Get(PropertyId::of("S245_1Text", "S245_1Test"));
+test\unit\BindingFailure_test.cpp:616:        recTarget = target.Get(PropertyId::of("S245_1Text", "S245_1Test"));
+test\unit\BindingLifecycle_test.cpp:148:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("Hello"));
+test\unit\BindingLifecycle_test.cpp:166:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("Hello"));
+test\unit\BindingLifecycle_test.cpp:195:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("initial"));
+test\unit\BindingLifecycle_test.cpp:220:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("after-destroy"));
+test\unit\BindingLifecycle_test.cpp:236:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("before"));
+test\unit\BindingLifecycle_test.cpp:244:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("before")));
+test\unit\BindingLifecycle_test.cpp:247:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("after"));
+test\unit\BindingLifecycle_test.cpp:251:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("before")));
+test\unit\BindingLifecycle_test.cpp:264:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("before"));
+test\unit\BindingLifecycle_test.cpp:278:    (void)target.Set(PropertyId::of("S245Text", "S245Test"), Value::String("edited"));
+test\unit\BindingLifecycle_test.cpp:279:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S245Text"))).ShouldBe(Value::String("before")));
+test\unit\BindingLifecycle_test.cpp:294:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("keep"));
+test\unit\BindingLifecycle_test.cpp:304:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("new"));
+test\unit\BindingLifecycle_test.cpp:306:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("keep")));
+test\unit\BindingLifecycle_test.cpp:319:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("keep"));
+test\unit\BindingLifecycle_test.cpp:329:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("changed"));
+test\unit\BindingLifecycle_test.cpp:331:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245Text", "S245Test"))).ShouldBe(Value::String("keep")));
+test\unit\BindingLifecycle_test.cpp:360:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("initial"));
+test\unit\BindingLifecycle_test.cpp:379:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("after"));
+test\unit\BindingLifecycle_test.cpp:393:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("x"));
+test\unit\BindingLifecycle_test.cpp:402:    (void)vm.Set(PropertyId::of("S245Text"), Value::String("y"));
+test\unit\BindingLifecycle_test.cpp:403:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S245Text"))).ShouldBe(Value::String("y")));
+test\unit\BindingOneWay_test.cpp:148:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("Hello"));
+test\unit\BindingOneWay_test.cpp:157:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("Hello")));
+test\unit\BindingOneWay_test.cpp:167:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("first"));
+test\unit\BindingOneWay_test.cpp:172:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("first")));
+test\unit\BindingOneWay_test.cpp:175:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("second"));
+test\unit\BindingOneWay_test.cpp:176:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("second")));
+test\unit\BindingOneWay_test.cpp:186:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("v1"));
+test\unit\BindingOneWay_test.cpp:191:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("v1")));
+test\unit\BindingOneWay_test.cpp:193:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("v2"));
+test\unit\BindingOneWay_test.cpp:194:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("v3"));
+test\unit\BindingOneWay_test.cpp:195:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("v3")));
+test\unit\BindingOneWay_test.cpp:205:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("same"));
+test\unit\BindingOneWay_test.cpp:214:    bool fired = vm.Set(PropertyId::of("S243Text"), Value::String("same"));
+test\unit\BindingOneWay_test.cpp:226:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("A"));
+test\unit\BindingOneWay_test.cpp:233:    (void)target.obj.Set(PropertyId::of("S243Text", "S243Test"), Value::String("B")); // write #2
+test\unit\BindingOneWay_test.cpp:234:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("B")));
+test\unit\BindingOneWay_test.cpp:240:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("B"));
+test\unit\BindingOneWay_test.cpp:241:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("B")));
+test\unit\BindingOneWay_test.cpp:252:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("A"));
+test\unit\BindingOneWay_test.cpp:261:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("A")); // source-equal: no handler
+test\unit\BindingOneWay_test.cpp:262:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("B")); // real: write #2
+test\unit\BindingOneWay_test.cpp:263:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("B")); // source-equal: no handler
+test\unit\BindingOneWay_test.cpp:264:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("C")); // real: write #3
+test\unit\BindingOneWay_test.cpp:270:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("C")));
+test\unit\BindingOneWay_test.cpp:282:        (void)vm.Set(PropertyId::of("S243Text"), Value::String("x"));
+test\unit\BindingOneWay_test.cpp:298:        (void)vm.Set(PropertyId::of("S243Text"), Value::String("x"));
+test\unit\BindingOneWay_test.cpp:309:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("first"));
+test\unit\BindingOneWay_test.cpp:320:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("first")));
+test\unit\BindingOneWay_test.cpp:322:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("second"));
+test\unit\BindingOneWay_test.cpp:323:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("first")));
+test\unit\BindingOneWay_test.cpp:333:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("1"));
+test\unit\BindingOneWay_test.cpp:350:    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(1));
+test\unit\BindingOneWay_test.cpp:353:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("Hello"));
+test\unit\BindingOneWay_test.cpp:354:    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(5));
+test\unit\BindingOneWay_test.cpp:357:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("World!"));
+test\unit\BindingOneWay_test.cpp:358:    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(6));
+test\unit\BindingOneWay_test.cpp:386:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("FB")));
+test\unit\BindingOneWay_test.cpp:396:    (void)vm.Set(PropertyId::of("S243Nope"), Value::String("restored"));
+test\unit\BindingOneWay_test.cpp:397:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("restored")));
+test\unit\BindingOneWay_test.cpp:409:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("str"));
+test\unit\BindingOneWay_test.cpp:437:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("second"));
+test\unit\BindingOneWay_test.cpp:442:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("third"));
+test\unit\BindingOneWay_test.cpp:450:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("str"));
+test\unit\BindingOneWay_test.cpp:469:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("x"));
+test\unit\BindingOneWay_test.cpp:480:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("str"));
+test\unit\BindingOneWay_test.cpp:502:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("live"));
+test\unit\BindingOneWay_test.cpp:509:    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(-1));
+test\unit\BindingOneWay_test.cpp:519:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("first"));
+test\unit\BindingOneWay_test.cpp:526:        (void)vm.Set(PropertyId::of("S243Text"), Value::String("live"));
+test\unit\BindingOneWay_test.cpp:527:        SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("live")));
+test\unit\BindingOneWay_test.cpp:531:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("after"));
+test\unit\BindingOneWay_test.cpp:534:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("live")));
+test\unit\BindingOneWay_test.cpp:544:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("first"));
+test\unit\BindingOneWay_test.cpp:556:    (void)vm.Set(PropertyId::of("S243Text"), Value::String("after-move"));
+test\unit\BindingOneWay_test.cpp:557:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("after-move")));
+test\unit\BindingPolicy_test.cpp:142:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
+test\unit\BindingPolicy_test.cpp:239:    (void)vm.Set(PropertyId::of("S2421Text"), Value::String("x"));
+test\unit\BindingPolicy_test.cpp:286:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
+test\unit\BindingPolicy_test.cpp:294:    (void)vm.Set(PropertyId::of("S2421Empty"), Value::Null());
+test\unit\BindingPolicy_test.cpp:314:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("FB")));
+test\unit\BindingPolicy_test.cpp:348:    (void)vm.Set(PropertyId::of("S2421Text"), Value::String("x"));
+test\unit\BindingPolicy_test.cpp:373:    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S2421Number", "S2421Test")).get<std::int32_t>()).ShouldBe(5));
+test\unit\BindingPolicy_test.cpp:386:    (void)vm.Set(PropertyId::of("S2421Text"), Value::String("Hello"));
+test\unit\BindingPolicy_test.cpp:403:    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("Hello")));
+test\unit\BindingTwoWay_test.cpp:158:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("Hello"));
+test\unit\BindingTwoWay_test.cpp:169:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("Hello")));
+test\unit\BindingTwoWay_test.cpp:179:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("first"));
+test\unit\BindingTwoWay_test.cpp:184:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("first")));
+test\unit\BindingTwoWay_test.cpp:188:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("second"));
+test\unit\BindingTwoWay_test.cpp:189:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("second")));
+test\unit\BindingTwoWay_test.cpp:199:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("initial"));
+test\unit\BindingTwoWay_test.cpp:204:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("initial")));
+test\unit\BindingTwoWay_test.cpp:209:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("edited"));
+test\unit\BindingTwoWay_test.cpp:210:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("edited")));
+test\unit\BindingTwoWay_test.cpp:221:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("xyz")); // length 3
+test\unit\BindingTwoWay_test.cpp:246:    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S244Number", "S244Test")).get<std::int32_t>()).ShouldBe(3));
+test\unit\BindingTwoWay_test.cpp:250:    (void)target.obj.Set(PropertyId::of("S244Number", "S244Test"), Value::Int32(5));
+test\unit\BindingTwoWay_test.cpp:251:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("xxxxx")));
+test\unit\BindingTwoWay_test.cpp:261:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("A"));
+test\unit\BindingTwoWay_test.cpp:266:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("A")));
+test\unit\BindingTwoWay_test.cpp:272:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("B"));   // forward: target -> B
+test\unit\BindingTwoWay_test.cpp:273:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("B")));
+test\unit\BindingTwoWay_test.cpp:274:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("C")); // write-back: source -> C
+test\unit\BindingTwoWay_test.cpp:275:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("C")));
+test\unit\BindingTwoWay_test.cpp:281:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("C")));
+test\unit\BindingTwoWay_test.cpp:282:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("C")));
+test\unit\BindingTwoWay_test.cpp:292:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("same"));
+test\unit\BindingTwoWay_test.cpp:297:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("other"));
+test\unit\BindingTwoWay_test.cpp:298:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("other")));
+test\unit\BindingTwoWay_test.cpp:303:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("other"));
+test\unit\BindingTwoWay_test.cpp:305:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("other")); // target edit to equal source
+test\unit\BindingTwoWay_test.cpp:307:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("other")));
+test\unit\BindingTwoWay_test.cpp:308:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("other")));
+test\unit\BindingTwoWay_test.cpp:318:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("x"));
+test\unit\BindingTwoWay_test.cpp:347:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("zzz"));
+test\unit\BindingTwoWay_test.cpp:350:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("x"))); // unchanged
+test\unit\BindingTwoWay_test.cpp:353:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("yyy"));
+test\unit\BindingTwoWay_test.cpp:386:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("e"));
+test\unit\BindingTwoWay_test.cpp:413:        (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("e"));
+test\unit\BindingTwoWay_test.cpp:427:        (void)vm.Set(PropertyId::of("S244Text"), Value::String("str"));
+test\unit\BindingTwoWay_test.cpp:444:        (void)vm.Set(PropertyId::of("S244Text"), Value::String("live")); // live rejection
+test\unit\BindingTwoWay_test.cpp:457:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("initial"));
+test\unit\BindingTwoWay_test.cpp:474:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("edited"));
+test\unit\BindingTwoWay_test.cpp:475:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("initial")));
+test\unit\BindingTwoWay_test.cpp:485:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("initial"));
+test\unit\BindingTwoWay_test.cpp:502:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("src"));
+test\unit\BindingTwoWay_test.cpp:503:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("initial")));
+test\unit\BindingTwoWay_test.cpp:504:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("tgt"));
+test\unit\BindingTwoWay_test.cpp:505:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("src")));
+test\unit\BindingTwoWay_test.cpp:515:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("A"));
+test\unit\BindingTwoWay_test.cpp:520:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("raw-back"));
+test\unit\BindingTwoWay_test.cpp:522:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("raw-back")));
+test\unit\BindingTwoWay_test.cpp:532:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("first"));
+test\unit\BindingTwoWay_test.cpp:539:        (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("live"));
+test\unit\BindingTwoWay_test.cpp:540:        SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("live")));
+test\unit\BindingTwoWay_test.cpp:544:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("after"));
+test\unit\BindingTwoWay_test.cpp:545:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("live")));
+test\unit\BindingTwoWay_test.cpp:551:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("post"));
+test\unit\BindingTwoWay_test.cpp:552:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("post"))); // local store write still works
+test\unit\BindingTwoWay_test.cpp:553:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("after")));        // no write-back echo
+test\unit\BindingTwoWay_test.cpp:563:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("first"));
+test\unit\BindingTwoWay_test.cpp:575:    (void)vm.Set(PropertyId::of("S244Text"), Value::String("from-source"));
+test\unit\BindingTwoWay_test.cpp:576:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("from-source")));
+test\unit\BindingTwoWay_test.cpp:579:    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("from-target"));
+test\unit\BindingTwoWay_test.cpp:580:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text"))).ShouldBe(Value::String("from-target")));
+test\unit\BlockResidentStore_test.cpp:78:        SHOULD(ShouldlyString(obj.Get(PropertyId::of("P" + std::to_string(i), "S142Owner")))
+test\unit\BlockResidentStore_test.cpp:85:        SHOULD(ShouldlyString(obj.Set(PropertyId::of("P" + std::to_string(i), "S142Owner"), v))
+test\unit\BlockResidentStore_test.cpp:87:        SHOULD(ShouldlyString(obj.Get(PropertyId::of("P" + std::to_string(i), "S142Owner"))).ShouldBe(v));
+test\unit\BlockResidentStore_test.cpp:90:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("P0", "S142Owner"), Value::Int32(100)))
+test\unit\BlockResidentStore_test.cpp:111:        SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP" + std::to_string(i), "S142Owner")))
+test\unit\BlockResidentStore_test.cpp:118:        SHOULD(ShouldlyString(obj.Set(PropertyId::of("OverflowP" + std::to_string(i), "S142Owner"), v))
+test\unit\BlockResidentStore_test.cpp:120:        SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP" + std::to_string(i), "S142Owner"))).ShouldBe(v));
+test\unit\BlockResidentStore_test.cpp:127:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP0", "S142Owner"))).ShouldBe(Value::Int32(1)));
+test\unit\BlockResidentStore_test.cpp:149:    (void)obj.Set(PropertyId::of("Stable0", "S142Owner"), Value::Int32(42));
+test\unit\BlockResidentStore_test.cpp:150:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Stable0", "S142Owner"))).ShouldBe(Value::Int32(42)));
+test\unit\BlockResidentStore_test.cpp:157:    (void)src.Set(PropertyId::of("Move0", "S142Owner"), Value::Int32(5));
+test\unit\BlockResidentStore_test.cpp:159:    (void)src.Set(PropertyId::of("Move1", "S142Owner"), Value::Int32(6));
+test\unit\BlockResidentStore_test.cpp:164:    SHOULD(ShouldlyString(dst.Get(PropertyId::of("Move0", "S142Owner"))).ShouldBe(Value::Int32(5)));
+test\unit\BlockResidentStore_test.cpp:165:    SHOULD(ShouldlyString(dst.Get(PropertyId::of("Move1", "S142Owner"))).ShouldBe(Value::Int32(6)));
+test\unit\BlockResidentStore_test.cpp:170:    SHOULD(ShouldlyString(dst.Get(PropertyId::of(srcStable.name(), "S142Owner"))).ShouldBe(Value::Int32(5)));
+test\unit\BlockResidentStore_test.cpp:178:    (void)obj.Set(PropertyId::of("LocalProp", "S142Owner"), Value::Int32(30));
+test\unit\BlockResidentStore_test.cpp:185:    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "UIElement"))).ShouldBe(Value::Double(1.0)));
+test\unit\BlockResidentStore_test.cpp:186:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp", "S142Owner"))).ShouldBe(Value::Int32(30)));
+test\unit\BlockResidentStore_test.cpp:189:    SHOULD(ShouldlyString(element.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(0.5)))
+test\unit\BlockResidentStore_test.cpp:191:    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "UIElement"))).ShouldBe(Value::Double(0.5)));
+test\unit\BlockResidentStore_test.cpp:194:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp", "S142Owner"))).ShouldBe(Value::Int32(30)));
+test\unit\Button_test.cpp:137:    const vaml::Value normalBg = b.Get(vaml::PropertyId::of("Background", "InkCanvas"));
+test\unit\Canvas_test.cpp:154:               fresh.Get(PropertyId::of("Left", "Canvas")).get<double>()) != 0)
+test\unit\Canvas_test.cpp:157:    (void)plain.Set(PropertyId::of("Left", "Canvas"), vaml::Value::Double(15.0));
+test\unit\Canvas_test.cpp:158:    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Left", "Canvas")).get<double>())
+test\unit\ChangeNotificationPipeline_test.cpp:102:    p.enqueue(PropertyId::of("W", "PropOwner"), Value::Int32(0), Value::Int32(5));
+test\unit\ChangeNotificationPipeline_test.cpp:103:    p.enqueue(PropertyId::of("W", "PropOwner"), Value::Int32(5), Value::Int32(8));
+test\unit\ChangeNotificationPipeline_test.cpp:125:    p.enqueue(PropertyId::of("Width", "PropOwner"), Value::Int32(0), Value::Int32(10));
+test\unit\ChangeNotificationPipeline_test.cpp:126:    p.enqueue(PropertyId::of("Height", "PropOwner"), Value::Int32(0), Value::Int32(20));
+test\unit\ChangeNotificationPipeline_test.cpp:127:    p.enqueue(PropertyId::of("Width", "PropOwner"), Value::Int32(10), Value::Int32(15)); // coalesce Width
+test\unit\ChangeNotificationPipeline_test.cpp:169:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), make(1));
+test\unit\ChangeNotificationPipeline_test.cpp:170:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), make(2));
+test\unit\ChangeNotificationPipeline_test.cpp:171:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), make(3));
+test\unit\ChangeNotificationPipeline_test.cpp:173:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(11)); // push -> child queue
+test\unit\ChangeNotificationPipeline_test.cpp:196:    auto t1 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(1));
+test\unit\ChangeNotificationPipeline_test.cpp:197:    auto t2 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(2));
+test\unit\ChangeNotificationPipeline_test.cpp:198:    auto t3 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(3));
+test\unit\ChangeNotificationPipeline_test.cpp:204:    auto t4 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(4));
+test\unit\ChangeNotificationPipeline_test.cpp:207:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
+test\unit\ChangeNotificationPipeline_test.cpp:229:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\ChangeNotificationPipeline_test.cpp:231:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\ChangeNotificationPipeline_test.cpp:241:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
+test\unit\ChangeNotificationPipeline_test.cpp:261:    (void)leaf.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\ChangeNotificationPipeline_test.cpp:265:    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\ChangeNotificationPipeline_test.cpp:291:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
+test\unit\ChangeNotificationPipeline_test.cpp:298:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), childTrace.handler());
+test\unit\ChangeNotificationPipeline_test.cpp:299:    (void)grandchild.add_property_changed(PropertyId::of(name, "PropOwner"), gcTrace.handler());
+test\unit\ChangeNotificationPipeline_test.cpp:305:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(99));
+test\unit\ChangeNotificationPipeline_test.cpp:307:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\ChangeNotificationPipeline_test.cpp:308:    SHOULD(ShouldlyString(grandchild.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\ChangeNotificationPipeline_test.cpp:321:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8));
+test\unit\ChangeNotificationPipeline_test.cpp:338:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
+test\unit\ChangeNotificationPipeline_test.cpp:341:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\ChangeNotificationPipeline_test.cpp:343:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(3));
+test\unit\ChangeNotificationPipeline_test.cpp:347:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3)));
+test\unit\ChangeNotificationPipeline_test.cpp:359:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\ChangeNotificationPipeline_test.cpp:372:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\ChangeNotificationPipeline_test.cpp:374:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(2));
+test\unit\ChangeQueue_test.cpp:83:    enqueueFromOtherThread(q, PropertyId::of("Width"), Value::Int32(0), Value::Int32(10));
+test\unit\ChangeQueue_test.cpp:97:    q.enqueue(PropertyId::of("A"), Value::Int32(0), Value::Int32(1));
+test\unit\ChangeQueue_test.cpp:98:    q.enqueue(PropertyId::of("B"), Value::Int32(0), Value::Int32(2));
+test\unit\ChangeQueue_test.cpp:99:    q.enqueue(PropertyId::of("C"), Value::Int32(0), Value::Int32(3));
+test\unit\ChangeQueue_test.cpp:122:    q.enqueue(PropertyId::of("W"), Value::Int32(0), Value::Int32(9));
+test\unit\ChangeQueue_test.cpp:145:    q.enqueue(PropertyId::of("W"), Value::Int32(0), Value::Int32(9));
+test\unit\ChangeQueue_test.cpp:167:    q.enqueue(PropertyId::of("A"), Value::Int32(0), Value::Int32(1));
+test\unit\ChangeQueue_test.cpp:193:    q.enqueue(PropertyId::of("W"), Value::Int32(0), Value::Int32(1));
+test\unit\ChangeQueue_test.cpp:194:    q.enqueue(PropertyId::of("H"), Value::Int32(0), Value::Int32(2));
+test\unit\ChangeQueue_test.cpp:212:        q.enqueue(PropertyId::of(temp), Value::Int32(0), Value::Int32(5));
+test\unit\ChangeRecorder_test.cpp:69:    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(false));
+test\unit\ChangeRecorder_test.cpp:71:    rec.record(PropertyId::of("Width"), Value::Int32(1), Value::Int32(5));
+test\unit\ChangeRecorder_test.cpp:73:    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(true));
+test\unit\ChangeRecorder_test.cpp:76:    rec.record(PropertyId::of("Height"), Value::Int32(2), Value::Int32(9));
+test\unit\ChangeRecorder_test.cpp:78:    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Height"))).ShouldBe(true));
+test\unit\ChangeRecorder_test.cpp:79:    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(true));
+test\unit\ChangeRecorder_test.cpp:85:    rec.record(PropertyId::of("W"), Value::Int32(1), Value::Int32(5));
+test\unit\ChangeRecorder_test.cpp:86:    rec.record(PropertyId::of("W"), Value::Int32(5), Value::Int32(8)); // coalesce
+test\unit\ChangeRecorder_test.cpp:101:    rec.record(PropertyId::of("C"), Value::Int32(0), Value::Int32(1));
+test\unit\ChangeRecorder_test.cpp:102:    rec.record(PropertyId::of("C"), Value::Int32(1), Value::Int32(2));
+test\unit\ChangeRecorder_test.cpp:103:    rec.record(PropertyId::of("C"), Value::Int32(2), Value::Int32(3));
+test\unit\ChangeRecorder_test.cpp:116:    rec.record(PropertyId::of("Width"), Value::Int32(0), Value::Int32(10));
+test\unit\ChangeRecorder_test.cpp:117:    rec.record(PropertyId::of("Height"), Value::Int32(0), Value::Int32(20));
+test\unit\ChangeRecorder_test.cpp:118:    rec.record(PropertyId::of("Depth"), Value::Int32(0), Value::Int32(30));
+test\unit\ChangeRecorder_test.cpp:135:    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(false));
+test\unit\ChangeRecorder_test.cpp:146:    rec.record(PropertyId::of("A"), Value::Int32(0), Value::Int32(1));
+test\unit\ChangeRecorder_test.cpp:173:    rec.record(PropertyId::of("W"), Value::Int32(0), Value::Int32(1));
+test\unit\ChangeRecorder_test.cpp:174:    rec.record(PropertyId::of("H"), Value::Int32(0), Value::Int32(2));
+test\unit\ChangeRecorder_test.cpp:179:    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("W"))).ShouldBe(false));
+test\unit\ChangeRecorder_test.cpp:204:        rec.record(PropertyId::of(temp), Value::Int32(0), Value::Int32(5));
+test\unit\ChangeRecorder_test.cpp:209:    rec.record(PropertyId::of(fresh), Value::Int32(5), Value::Int32(7));
+test\unit\Coalescing_test.cpp:124:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:127:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5)); // push (0 -> 5)
+test\unit\Coalescing_test.cpp:128:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8)); // push (5 -> 8)
+test\unit\Coalescing_test.cpp:153:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:155:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\Coalescing_test.cpp:156:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
+test\unit\Coalescing_test.cpp:157:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
+test\unit\Coalescing_test.cpp:180:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:182:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\Coalescing_test.cpp:188:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8));
+test\unit\Coalescing_test.cpp:211:    (void)child.add_property_changed(PropertyId::of(aName, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:212:    (void)child.add_property_changed(PropertyId::of(bName, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:214:    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(1)); // A first-record
+test\unit\Coalescing_test.cpp:215:    (void)parent.Set(PropertyId::of(bName, "PropOwner"), Value::Int32(2)); // B first-record
+test\unit\Coalescing_test.cpp:216:    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(3)); // coalesce A (0->3)
+test\unit\Coalescing_test.cpp:242:    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:244:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\Coalescing_test.cpp:248:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\Coalescing_test.cpp:273:    (void)child.add_property_changed(PropertyId::of(aName, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:274:    (void)child.add_property_changed(PropertyId::of(bName, "PropOwner"), trace.handler());
+test\unit\Coalescing_test.cpp:276:    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(5));
+test\unit\Coalescing_test.cpp:277:    (void)parent.Set(PropertyId::of(bName, "PropOwner"), Value::Int32(2));
+test\unit\Coalescing_test.cpp:278:    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(7));
+test\unit\Coalescing_test.cpp:279:    (void)parent.Set(PropertyId::of(bName, "PropOwner"), Value::Int32(3));
+test\unit\CollectionView_s11n4_test.cpp:129:    (void)view->add_property_changed(PropertyId::of("Count"),
+test\unit\ControlDp_s11j5_test.cpp:43:    (void)o.Set(PropertyId::of(name, "Control"), Value::Int32(want));
+test\unit\ControlDp_s11j5_test.cpp:44:    CHECK(o.Get(PropertyId::of(name, "Control")).get<std::int32_t>() == want);
+test\unit\ControlDp_s11j5_test.cpp:51:    (void)o.Set(PropertyId::of(name, "Control"), Value::Double(want));
+test\unit\ControlDp_s11j5_test.cpp:52:    CHECK(o.Get(PropertyId::of(name, "Control")).get<double>() == want);
+test\unit\ControlDp_s11j5_test.cpp:59:    (void)o.Set(PropertyId::of(name, "Control"), Value::String(want));
+test\unit\ControlDp_s11j5_test.cpp:60:    CHECK(o.Get(PropertyId::of(name, "Control")).get<std::string>() == want);
+test\unit\ControlDp_s11j5_test.cpp:78:    (void)o.Set(PropertyId::of("Padding", "Control"), Value::Thickness(vaml::Thickness{1, 2, 3, 4}));
+test\unit\ControlDp_s11j5_test.cpp:79:    CHECK(o.Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>() == vaml::Thickness{1, 2, 3, 4});
+test\unit\ControlDp_s11j5_test.cpp:123:    CHECK(o.Get(PropertyId::of("FontSize", "Control")).get<double>() == 12.0);
+test\unit\ControlDp_s11j5_test.cpp:124:    CHECK(o.Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>() == vaml::Thickness{});
+test\unit\ControlDp_s11j5_test.cpp:125:    CHECK(o.Get(PropertyId::of("HorizontalContentAlignment", "Control")).get<std::int32_t>() == 0);
+test\unit\ControlDp_s11j5_test.cpp:126:    CHECK(o.Get(PropertyId::of("VerticalContentAlignment", "Control")).get<std::int32_t>() == 0);
+test\unit\ControlTemplate_test.cpp:123:    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background", "InkCanvas"))))).
+test\unit\ControlTemplate_test.cpp:128:    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background", "InkCanvas"))))).
+test\unit\ControlTemplate_test.cpp:133:    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background", "InkCanvas"))))).
+test\unit\ConverterSurface_test.cpp:286:    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
+test\unit\ConverterSurface_test.cpp:291:    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
+test\unit\ConverterSurface_test.cpp:308:    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
+test\unit\ConverterSurface_test.cpp:355:    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
+test\unit\DependencyCallbacks_test.cpp:133:    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
+test\unit\DependencyCallbacks_test.cpp:163:    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
+test\unit\DependencyCallbacks_test.cpp:179:    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
+test\unit\DependencyCallbacks_test.cpp:210:    const PropertyId id = PropertyId::of(name, "S046Owner");
+test\unit\DependencyCallbacks_test.cpp:251:    const PropertyId id = PropertyId::of(name, "S046Owner");
+test\unit\DependencyObject_marshalling_test.cpp:80:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Width", "TestOwner"), Value::Int32(0))).ShouldBe(SetResult::NO_CHANGE));
+test\unit\DependencyObject_marshalling_test.cpp:85:    setFromOtherThread(obj, PropertyId::of("Width", "TestOwner"), Value::Int32(42), &result);
+test\unit\DependencyObject_marshalling_test.cpp:89:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(0)));
+test\unit\DependencyObject_marshalling_test.cpp:110:        setFromOtherThread(obj, PropertyId::of("Counter", "TestOwner"), Value::Int32(v), &r);
+test\unit\DependencyObject_marshalling_test.cpp:119:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Counter", "TestOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\DependencyObject_marshalling_test.cpp:141:    setFromOtherThread(obj, PropertyId::of("W", "TestOwner"), Value::Int32(3), &r);
+test\unit\DependencyObject_marshalling_test.cpp:146:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(3)));
+test\unit\DependencyObject_marshalling_test.cpp:160:    setFromOtherThread(obj, PropertyId::of("Age", "TestOwner"), Value::Int32(-3), &r);
+test\unit\DependencyObject_marshalling_test.cpp:164:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1))); // store unchanged
+test\unit\DependencyObject_marshalling_test.cpp:168:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1)));
+test\unit\DependencyObject_marshalling_test.cpp:184:            (void)obj.Set(PropertyId::of("W", "TestOwner"), Value::Double(2.5));
+test\unit\DependencyObject_marshalling_test.cpp:197:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(0)));
+test\unit\DependencyObject_marshalling_test.cpp:207:    setFromOtherThread(obj, PropertyId::of("W", "TestOwner"), Value::Int32(9), &r);
+test\unit\DependencyObject_marshalling_test.cpp:227:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(0))); // store unchanged
+test\unit\DependencyObject_marshalling_test.cpp:255:        setFromOtherThread(obj, PropertyId::of("C", "TestOwner"), Value::Int32(v), &r);
+test\unit\DependencyObject_marshalling_test.cpp:263:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("C", "TestOwner"))).ShouldBe(Value::Int32(3)));
+test\unit\DependencyObject_marshalling_test.cpp:271:        setFromOtherThread(obj, PropertyId::of("C", "TestOwner"), Value::Int32(v), &r);
+test\unit\DependencyObject_marshalling_test.cpp:277:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("C", "TestOwner"))).ShouldBe(Value::Int32(5)));
+test\unit\DependencyObject_marshalling_test.cpp:288:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("W", "TestOwner"), Value::Int32(1))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_marshalling_test.cpp:290:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(1)));
+test\unit\DependencyObject_marshalling_test.cpp:294:    setFromOtherThread(obj, PropertyId::of("W", "TestOwner"), Value::Int32(7), &r);
+test\unit\DependencyObject_marshalling_test.cpp:296:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(1))); // not yet applied
+test\unit\DependencyObject_marshalling_test.cpp:300:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\DependencyObject_test.cpp:78:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(7))); // "default applied"
+test\unit\DependencyObject_test.cpp:94:    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)obj.Get(PropertyId::of("Nope", "TestOwner")); }));
+test\unit\DependencyObject_test.cpp:95:    SHOULD(ShouldThrow<PropertyNotFound>([&] { (void)obj.Set(PropertyId::of("Nope", "TestOwner"), Value::Int32(1)); }));
+test\unit\DependencyObject_test.cpp:116:    const PropertyId id = PropertyId::of("Width", "TestOwner");
+test\unit\DependencyObject_test.cpp:151:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Fixed", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_test.cpp:152:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Fixed", "TestOwner"))).ShouldBe(Value::Int32(5))); // the COERCED value stored
+test\unit\DependencyObject_test.cpp:162:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::REJECTED));
+test\unit\DependencyObject_test.cpp:163:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1)));
+test\unit\DependencyObject_test.cpp:164:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(0))).ShouldBe(SetResult::REJECTED));
+test\unit\DependencyObject_test.cpp:165:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1)));
+test\unit\DependencyObject_test.cpp:168:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_test.cpp:169:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(5)));
+test\unit\DependencyObject_test.cpp:186:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_test.cpp:188:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::NO_CHANGE));
+test\unit\DependencyObject_test.cpp:189:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::NO_CHANGE));
+test\unit\DependencyObject_test.cpp:192:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(11))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_test.cpp:197:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(15))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_test.cpp:203:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Count", "TestOwner"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_test.cpp:214:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Raw", "TestOwner"), Value::Int32(42))).ShouldBe(SetResult::APPLIED));
+test\unit\DependencyObject_test.cpp:215:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Raw", "TestOwner"))).ShouldBe(Value::Int32(42)));
+test\unit\DependencyObject_test.cpp:216:    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Raw", "TestOwner"), Value::Int32(42))).ShouldBe(SetResult::NO_CHANGE));
+test\unit\DependencyObject_test.cpp:217:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Raw", "TestOwner"))).ShouldBe(Value::Int32(42)));
+test\unit\DependencyObject_test.cpp:227:        (void)obj.Set(PropertyId::of("W", "TestOwner"), Value::Double(2.5));
+test\unit\DependencyObject_test.cpp:229:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "TestOwner"))).ShouldBe(Value::Int32(0))); // store untouched
+test\unit\DependencyObject_test.cpp:238:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(1)));
+test\unit\DependencyObject_test.cpp:239:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height", "TestOwner"))).ShouldBe(Value::Int32(2)));
+test\unit\DependencyObject_test.cpp:241:    (void)obj.Set(PropertyId::of("Width", "TestOwner"), Value::Int32(100));
+test\unit\DependencyObject_test.cpp:242:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(100)));
+test\unit\DependencyObject_test.cpp:243:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height", "TestOwner"))).ShouldBe(Value::Int32(2))); // untouched
+test\unit\DependencyObject_test.cpp:245:    (void)obj.Set(PropertyId::of("Height", "TestOwner"), Value::Int32(200));
+test\unit\DependencyObject_test.cpp:246:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(100))); // untouched
+test\unit\DependencyObject_test.cpp:247:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Height", "TestOwner"))).ShouldBe(Value::Int32(200)));
+test\unit\DependencyObject_test.cpp:254:    (void)obj.Set(PropertyId::of("Width", "TestOwner"), Value::Int32(50)); // take a local override
+test\unit\DependencyObject_test.cpp:262:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "TestOwner"))).ShouldBe(Value::Int32(50)));
+test\unit\DependencyObject_test.cpp:274:    (void)obj.Set(PropertyId::of("Label", "TestOwner"), Value::String("hello"));
+test\unit\DependencyObject_test.cpp:277:    Value a = obj.Get(PropertyId::of("Label", "TestOwner"));
+test\unit\DependencyObject_test.cpp:278:    Value b = obj.Get(PropertyId::of("Label", "TestOwner"));
+test\unit\EffectiveValue_test.cpp:87:    SHOULD(ShouldlyString(obj.GetEffectiveValue(PropertyId::of("Plain", "TestOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\EffectiveValue_test.cpp:89:    (void)obj.Set(PropertyId::of("Plain", "TestOwner"), Value::Int32(50));
+test\unit\EffectiveValue_test.cpp:90:    SHOULD(ShouldlyString(obj.GetEffectiveValue(PropertyId::of("Plain", "TestOwner"))).ShouldBe(Value::Int32(50)));
+test\unit\EffectiveValue_test.cpp:92:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Plain", "TestOwner"))).ShouldBe(Value::Int32(50)));
+test\unit\EffectiveValue_test.cpp:103:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\EffectiveValue_test.cpp:107:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(5)));
+test\unit\EffectiveValue_test.cpp:119:    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(42));
+test\unit\EffectiveValue_test.cpp:124:    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(42)));
+test\unit\EffectiveValue_test.cpp:137:    (void)grandparent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
+test\unit\EffectiveValue_test.cpp:143:    SHOULD(ShouldlyString(parent.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(9)));
+test\unit\EffectiveValue_test.cpp:144:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(9)));
+test\unit\EffectiveValue_test.cpp:154:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
+test\unit\EffectiveValue_test.cpp:159:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
+test\unit\EffectiveValue_test.cpp:160:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\EffectiveValue_test.cpp:169:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(77));
+test\unit\EffectiveValue_test.cpp:170:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3))); // default
+test\unit\EffectiveValue_test.cpp:178:    SHOULD(ShouldlyString(orphan.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(4)));
+test\unit\EffectiveValue_test.cpp:188:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(13));
+test\unit\EffectiveValue_test.cpp:190:    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(13)));
+test\unit\EffectiveValue_test.cpp:197:        (void)obj.GetEffectiveValue(PropertyId::of("NoSuch_S039", "TestOwner"));
+test\unit\EventTriggerAnimation_s512a_test.cpp:71:    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\GoldenDocs_test.cpp:313:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Width")))
+test\unit\GoldenDocs_test.cpp:315:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Title")))
+test\unit\GoldenDocs_test.cpp:317:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Margin")))
+test\unit\GoldenDocs_test.cpp:321:    SHOULD(ShouldlyString(retained[4]->Get(PropertyId::of("S095IsEnabled")))
+test\unit\GoldenDocs_test.cpp:326:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Content")))
+test\unit\GoldenDocs_test.cpp:328:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Width")))
+test\unit\GoldenDocs_test.cpp:330:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Height")))
+test\unit\GoldenDocs_test.cpp:332:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Dock.Dock")))
+test\unit\GoldenDocs_test.cpp:334:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Grid.Row")))
+test\unit\GoldenDocs_test.cpp:336:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Grid.Column")))
+test\unit\GoldenDocs_test.cpp:338:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Fill")))
+test\unit\GoldenDocs_test.cpp:343:    SHOULD(ShouldlyString(nested->Get(PropertyId::of("S095Content")))
+test\unit\GoldenDocs_test.cpp:345:    SHOULD(ShouldlyString(nested->Get(PropertyId::of("S095Grid.Row")))
+test\unit\GoldenDocs_test.cpp:425:    SHOULD(ShouldlyString(retained[1]->Get(PropertyId::of("S095Text")))
+test\unit\GoldenDocs_test.cpp:452:    SHOULD(ShouldlyString(root1->Get(PropertyId::of("S095Width")))
+test\unit\GoldenDocs_test.cpp:453:               .ShouldBe(root2->Get(PropertyId::of("S095Width"))));
+test\unit\GoldenDocs_test.cpp:454:    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S095Content")))
+test\unit\GoldenDocs_test.cpp:455:               .ShouldBe(r2.retained_objects()[0]->Get(PropertyId::of("S095Content"))));
+test\unit\GoldenDocs_test.cpp:456:    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S095Grid.Row")))
+test\unit\GoldenDocs_test.cpp:457:               .ShouldBe(r2.retained_objects()[0]->Get(PropertyId::of("S095Grid.Row"))));
+test\unit\GoldenDocs_test.cpp:458:    SHOULD(ShouldlyString(r1.retained_objects()[1]->Get(PropertyId::of("S095Text")))
+test\unit\GoldenDocs_test.cpp:459:               .ShouldBe(r2.retained_objects()[1]->Get(PropertyId::of("S095Text"))));
+test\unit\GoldenDocs_test.cpp:594:        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S095Content")))
+test\unit\GridSpan_test.cpp:103:    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("RowSpan", "Grid")).get<std::int32_t>()).ShouldBe(3));
+test\unit\GridSpan_test.cpp:104:    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("ColumnSpan", "Grid")).get<std::int32_t>()).ShouldBe(2));
+test\unit\Grid_test.cpp:261:    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Row", "Grid")).get<std::int32_t>()).ShouldBe(2));
+test\unit\Grid_test.cpp:262:    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Column", "Grid")).get<std::int32_t>()).ShouldBe(3));
+test\unit\HexBrushId_s643a_test.cpp:106:    const Value v = obj.Get(PropertyId::of(dpName));
+test\unit\HexBrushId_s643a_test.cpp:135:    const vaml::Value fgv = tb->Get(vaml::PropertyId::of("Foreground"));
+test\unit\HexBrushId_s643b_test.cpp:90:    const Value v = el.Get(vaml::PropertyId::of(dpName));
+test\unit\HexBrushId_s643b_test.cpp:206:    const Value bg = element->Get(vaml::PropertyId::of("Background", "InkCanvas"));
+test\unit\InheritanceCascade_test.cpp:106:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(11));
+test\unit\InheritanceCascade_test.cpp:107:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(11)));
+test\unit\InheritanceCascade_test.cpp:110:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(22));
+test\unit\InheritanceCascade_test.cpp:111:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(22)));
+test\unit\InheritanceCascade_test.cpp:128:    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+test\unit\InheritanceCascade_test.cpp:129:    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(5)));
+test\unit\InheritanceCascade_test.cpp:133:    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
+test\unit\InheritanceCascade_test.cpp:134:    SHOULD(ShouldlyString(leaf.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(9)));
+test\unit\InheritanceCascade_test.cpp:148:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
+test\unit\InheritanceCascade_test.cpp:149:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\InheritanceCascade_test.cpp:153:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(99));
+test\unit\InheritanceCascade_test.cpp:154:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
+test\unit\InheritanceCascade_test.cpp:170:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
+test\unit\InheritanceCascade_test.cpp:172:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(3));
+test\unit\InheritanceCascade_test.cpp:173:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3)));
+test\unit\InheritanceCascade_test.cpp:177:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(4));
+test\unit\InheritanceCascade_test.cpp:178:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(4)));
+test\unit\InheritanceCascade_test.cpp:192:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(20));
+test\unit\InheritanceCascade_test.cpp:193:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(20)));
+test\unit\InheritanceCascade_test.cpp:196:    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(31));
+test\unit\InheritanceCascade_test.cpp:197:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(31)));
+test\unit\InheritanceCascade_test.cpp:201:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(44));
+test\unit\InheritanceCascade_test.cpp:202:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(31)));
+test\unit\InheritanceCascade_test.cpp:216:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8));
+test\unit\InheritanceCascade_test.cpp:217:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(8)));
+test\unit\InheritanceCascade_test.cpp:221:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(0));
+test\unit\InheritanceCascade_test.cpp:222:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(0)));
+test\unit\InheritanceCascade_test.cpp:224:    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(6));
+test\unit\InheritanceCascade_test.cpp:225:    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(6)));
+test\unit\LayoutSlot_test.cpp:207:    (void)plain.Set(vaml::PropertyId::of("Margin", "UIElement"), Value::Thickness(Thickness{ 1.0f, 1.0f, 1.0f, 1.0f }));
+test\unit\LayoutSlot_test.cpp:208:    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("Margin", "UIElement")).get<Thickness>().left).ShouldBe(1.0f));
+test\unit\LayoutSlot_test.cpp:210:    (void)plain.Set(vaml::PropertyId::of("HorizontalAlignment", "UIElement"), Value::Int32(1));
+test\unit\LayoutSlot_test.cpp:211:    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("HorizontalAlignment", "UIElement")).get<std::int32_t>()).ShouldBe(1));
+test\unit\LayoutSlot_test.cpp:213:    (void)plain.Set(vaml::PropertyId::of("VerticalAlignment", "UIElement"), Value::Int32(2));
+test\unit\LayoutSlot_test.cpp:214:    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("VerticalAlignment", "UIElement")).get<std::int32_t>()).ShouldBe(2));
+test\unit\LayoutSlot_test.cpp:223:        (void)el.Set(vaml::PropertyId::of("Margin", "UIElement"), Value::Int32(7));
+test\unit\LayoutSlot_test.cpp:229:        (void)el.Set(vaml::PropertyId::of("HorizontalAlignment", "UIElement"), Value::Double(1.0));
+test\unit\LiveReload_test.cpp:78:    CHECK((a.root->Get(vaml::PropertyId::of("Margin", "UIElement"))
+test\unit\LiveReload_test.cpp:79:               == b.root->Get(vaml::PropertyId::of("Margin", "UIElement"))));
+test\unit\MarkupStaticType_s461_test.cpp:136:        SHOULD(ShouldlyString(std::string(inner->Get(PropertyId::of("S461Text")).get<std::string>()))
+test\unit\MutexRelocation_rekey_test.cpp:153:        setFromOtherThread(obj, PropertyId::of("Counter", "S143Owner"), Value::Int32(v), &r);
+test\unit\MutexRelocation_rekey_test.cpp:161:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Counter", "S143Owner"))).ShouldBe(Value::Int32(7)));
+test\unit\MutexRelocation_rekey_test.cpp:177:    setFromOtherThread(obj, PropertyId::of("W", "S143Owner"), Value::Int32(9), &r);
+test\unit\MutexRelocation_rekey_test.cpp:196:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("W", "S143Owner"))).ShouldBe(Value::Int32(0))); // store unchanged
+test\unit\MutexRelocation_rekey_test.cpp:224:    q.enqueue(PropertyId::of("Height", "S143Owner"), Value::Int32(0), Value::Int32(9));
+test\unit\MutexRelocation_rekey_test.cpp:284:    SHOULD(ShouldlyString(reg.id_of("S143_Width", "S143Owner")).ShouldBe(PropertyId::of("S143_Width", "S143Owner")));
+test\unit\ObservableCollection_s11n4_test.cpp:53:    (void)col.add_property_changed(vaml::PropertyId::of("Count"),
+test\unit\ObservableCollection_s11n4_test.cpp:57:    (void)col.add_property_changed(vaml::PropertyId::of("Item[]"),
+test\unit\ObservableObject_test.cpp:79:    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle), Value::String("Hello"))).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:80:    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameCount), Value::Int32(42))).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:81:    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameOn), Value::Bool(true))).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:83:    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle))).ShouldBe(Value::String("Hello")));
+test\unit\ObservableObject_test.cpp:84:    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameCount))).ShouldBe(Value::Int32(42)));
+test\unit\ObservableObject_test.cpp:85:    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameOn))).ShouldBe(Value::Bool(true)));
+test\unit\ObservableObject_test.cpp:91:    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle)).isNull()).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:92:    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle))).ShouldBe(false));
+test\unit\ObservableObject_test.cpp:98:    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle), Value::String("A"))).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:99:    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle), Value::String("A"))).ShouldBe(false));
+test\unit\ObservableObject_test.cpp:101:    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle))).ShouldBe(Value::String("A")));
+test\unit\ObservableObject_test.cpp:116:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("first"));
+test\unit\ObservableObject_test.cpp:117:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("second"));
+test\unit\ObservableObject_test.cpp:137:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("same"));
+test\unit\ObservableObject_test.cpp:138:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("same"));
+test\unit\ObservableObject_test.cpp:146:    (void)vm.add_property_changed(PropertyId::of(kNameTitle),
+test\unit\ObservableObject_test.cpp:151:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("t"));
+test\unit\ObservableObject_test.cpp:152:    (void)vm.Set(PropertyId::of(kNameCount), Value::Int32(7)); // other property
+test\unit\ObservableObject_test.cpp:153:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("t2"));
+test\unit\ObservableObject_test.cpp:169:    (void)vm.add_property_changed(PropertyId::of(kNameCount),
+test\unit\ObservableObject_test.cpp:174:    (void)vm.Set(PropertyId::of(kNameCount), Value::Int32(5));
+test\unit\ObservableObject_test.cpp:175:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("x"));
+test\unit\ObservableObject_test.cpp:194:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("a"));
+test\unit\ObservableObject_test.cpp:196:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("b")); // handler removed
+test\unit\ObservableObject_test.cpp:200:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("c")); // re-added handler
+test\unit\ObservableObject_test.cpp:206:    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle))).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:212:    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+test\unit\ObservableObject_test.cpp:213:    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameEmpty))).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:214:    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameEmpty)).isNull()).ShouldBe(true));
+test\unit\ObservableObject_test.cpp:215:    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle))).ShouldBe(false));
+test\unit\ObservableObject_test.cpp:234:    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("Hello"));
+test\unit\ObservableObject_test.cpp:254:    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+test\unit\ObservableObject_test.cpp:263:    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+test\unit\ObservableObject_test.cpp:276:    (void)inner.Set(PropertyId::of(kNameTitle), Value::String("deep"));
+test\unit\ObservableObject_test.cpp:278:    (void)outer.Set(PropertyId::of("S241Inner"), Value::UntypedPtr(&inner));
+test\unit\Pack_s289_test.cpp:327:            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S289Content")))
+test\unit\Pack_s289_test.cpp:413:            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S289Content")))
+test\unit\PropertyBindable_test.cpp:81:    void set_manual(std::int32_t v) { (void)ObservableObject::Set(PropertyId::of("S2471Manual"), Value::Int32(v)); }
+test\unit\PropertyBindable_test.cpp:110:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("Hello")));
+test\unit\PropertyBindable_test.cpp:112:    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of("Title"))).ShouldBe(true));
+test\unit\PropertyBindable_test.cpp:120:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Count"))).ShouldBe(Value::Int32(42)));
+test\unit\PropertyBindable_test.cpp:124:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Scale"))).ShouldBe(Value::Double(1.5)));
+test\unit\PropertyBindable_test.cpp:128:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("IsEnabled", "Button"))).ShouldBe(Value::Bool(true)));
+test\unit\PropertyBindable_test.cpp:161:    (void)vm.add_property_changed(PropertyId::of("Title"),
+test\unit\PropertyBindable_test.cpp:194:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("same")));
+test\unit\PropertyBindable_test.cpp:232:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Count"))).ShouldBe(Value::Int32(6)));
+test\unit\PropertyBindable_test.cpp:233:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("x")));
+test\unit\PropertyBindable_test.cpp:278:    SHOULD(ShouldlyIntegral(set_property(vm, PropertyId::of("Raw"), field, std::int32_t{ 10 })).ShouldBe(true));
+test\unit\PropertyBindable_test.cpp:280:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Raw"))).ShouldBe(Value::Int32(10)));
+test\unit\PropertyBindable_test.cpp:283:    SHOULD(ShouldlyIntegral(set_property(vm, PropertyId::of("Raw"), field, std::int32_t{ 10 })).ShouldBe(false));
+test\unit\PropertyBindable_test.cpp:303:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Accent"))).ShouldBe(Value::Color(vaml::Color{ 200, 150, 100, 255 })));
+test\unit\PropertyBindable_test.cpp:304:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Padding", "Control"))).ShouldBe(Value::Thickness(vaml::Thickness{ 5, 6, 7, 8 })));
+test\unit\PropertyElementS7_s452_test.cpp:103:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Fill")))
+test\unit\PropertyElementS7_s452_test.cpp:135:            void* contentPtr = panel->Get(PropertyId::of("S452Content")).get<void*>();
+test\unit\PropertyElement_s452_test.cpp:159:            void* contentPtr = panel->Get(PropertyId::of("S452Content")).get<void*>();
+test\unit\PropertyElement_s452_test.cpp:180:        (void)retained[0].get()->Get(PropertyId::of("S452Content"));
+test\unit\PropertyElement_s452_test.cpp:196:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Fill")))
+test\unit\PropertyElement_s452_test.cpp:208:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Text")))
+test\unit\PropertyElement_s452_test.cpp:232:        SHOULD(ShouldlyString(inner->Get(PropertyId::of("S452Text")))
+test\unit\PropertyElement_s452_test.cpp:249:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Text")))
+test\unit\PropertyId_test.cpp:2:// Scope: PropertyId::of(name, owner) is a compile-time constant (proven by
+test\unit\PropertyId_test.cpp:9:// S803 — the 1-arg PropertyId::of(name) / bare constructor (owner "") has been
+test\unit\PropertyId_test.cpp:36:static_assert(PropertyId::of("Width", "vaml::Button").name() == "Width", "PropertyId::of must be constexpr-safe");
+test\unit\PropertyId_test.cpp:37:static_assert(PropertyId::of("Margin", "vaml::Button").name() == "Margin");
+test\unit\PropertyId_test.cpp:38:static_assert(PropertyId::of("Width", "vaml::Button").valid(), "a named id is valid");
+test\unit\PropertyId_test.cpp:39:static_assert(PropertyId::of("Width", "vaml::Button") == PropertyId::of("Width", "vaml::Button"));
+test\unit\PropertyId_test.cpp:40:static_assert(PropertyId::of("Width", "vaml::Button") != PropertyId::of("Height", "vaml::Button"));
+test\unit\PropertyId_test.cpp:44:static_assert(PropertyId::of("A", "vaml::Button") == PropertyId::of("A", "vaml::Button"));
+test\unit\PropertyId_test.cpp:45:static_assert(PropertyId::of("A", "vaml::Button") != PropertyId::of("B", "vaml::Button"));
+test\unit\PropertyId_test.cpp:49:static_assert(PropertyId::of("Orientation", "vaml::StackPanel") ==
+test\unit\PropertyId_test.cpp:50:              PropertyId::of("Orientation", "vaml::StackPanel"));
+test\unit\PropertyId_test.cpp:52:static_assert(PropertyId::of("Orientation", "vaml::StackPanel") !=
+test\unit\PropertyId_test.cpp:53:              PropertyId::of("Orientation", "vaml::Controls"));
+test\unit\PropertyId_test.cpp:55:static_assert(PropertyId::of("Foo", "::Foo") != PropertyId::of("Foo", "vaml::Foo"));
+test\unit\PropertyId_test.cpp:57:static_assert(PropertyId::of("Orientation", "vaml::StackPanel").owner() == "vaml::StackPanel");
+test\unit\PropertyId_test.cpp:58:static_assert(PropertyId::of("Foo", "::Foo").owner() == "::Foo");
+test\unit\PropertyId_test.cpp:60:static_assert(PropertyId::of("Orientation", "vaml::StackPanel").valid());
+test\unit\PropertyId_test.cpp:74:    PropertyId id = PropertyId::of("Width", "vaml::Button");
+test\unit\PropertyId_test.cpp:82:    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+test\unit\PropertyId_test.cpp:83:               .ShouldBe(PropertyId::of("Width", "vaml::Button")));
+test\unit\PropertyId_test.cpp:84:    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+test\unit\PropertyId_test.cpp:85:               .ShouldNotBe(PropertyId::of("Height", "vaml::Button")));
+test\unit\PropertyId_test.cpp:86:    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+test\unit\PropertyId_test.cpp:87:               .ShouldNotBe(PropertyId::of("Width", "vaml::Panel")));
+test\unit\PropertyId_test.cpp:88:    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+test\unit\PropertyId_test.cpp:89:               .ShouldBe(PropertyId::of("Width", "vaml::Button")));
+test\unit\PropertyId_test.cpp:95:    SHOULD(ShouldlyString(def).ShouldNotBe(PropertyId::of("Width", "vaml::Button")));
+test\unit\PropertyId_test.cpp:103:    SHOULD(ShouldlyString(h(PropertyId::of("Width", "vaml::Button")))
+test\unit\PropertyId_test.cpp:104:               .ShouldBe(h(PropertyId::of("Width", "vaml::Button"))));
+test\unit\PropertyId_test.cpp:108:    SHOULD(ShouldlyString(h(PropertyId::of("Width", "vaml::Button")))
+test\unit\PropertyId_test.cpp:109:               .ShouldNotBe(h(PropertyId::of("Height", "vaml::Button"))));
+test\unit\PropertyId_test.cpp:118:    SHOULD(ShouldlyString(reg.id_of("Width", "Button")).ShouldBe(PropertyId::of("Width", "Button")));
+test\unit\PropertyId_test.cpp:122:    SHOULD(ShouldlyString(reg.try_id("Width", "Button")).ShouldBe(PropertyId::of("Width", "Button")));
+test\unit\PropertyId_test.cpp:158:    SHOULD(ShouldlyString(PropertyId::of("Orientation", "vaml::StackPanel"))
+test\unit\PropertyId_test.cpp:159:               .ShouldBe(PropertyId::of("Orientation", "vaml::StackPanel")));
+test\unit\PropertyId_test.cpp:161:    SHOULD(ShouldlyString(PropertyId::of("Orientation", "vaml::StackPanel"))
+test\unit\PropertyId_test.cpp:162:               .ShouldNotBe(PropertyId::of("Orientation", "vaml::Controls")));
+test\unit\PropertyId_test.cpp:164:    SHOULD(ShouldlyString(std::string(PropertyId::of("Orientation", "vaml::StackPanel").owner()))
+test\unit\PropertyId_test.cpp:166:    SHOULD(ShouldlyString(PropertyId::of("Orientation", "vaml::StackPanel").valid()).ShouldBe(true));
+test\unit\PropertyId_test.cpp:174:    const PropertyId sliderOrient = PropertyId::of("Orientation", "vaml::Slider");
+test\unit\PropertyId_test.cpp:175:    const PropertyId panelOrient  = PropertyId::of("Orientation", "vaml::StackPanel");
+test\unit\PropertyId_test.cpp:179:    SHOULD(ShouldlyString(sliderOrient).ShouldBe(PropertyId::of("Orientation", "vaml::Slider")));
+test\unit\PropertyId_test.cpp:187:    SHOULD(ShouldlyString(PropertyId::of("Foo", "::Foo"))
+test\unit\PropertyId_test.cpp:188:               .ShouldNotBe(PropertyId::of("Foo", "vaml::Foo")));
+test\unit\PropertyId_test.cpp:189:    SHOULD(ShouldlyString(std::string(PropertyId::of("Foo", "::Foo").owner()))
+test\unit\PropertyId_test.cpp:192:    SHOULD(ShouldlyString(PropertyId::of("Foo", "::Foo"))
+test\unit\PropertyId_test.cpp:193:               .ShouldBe(PropertyId::of("Foo", "::Foo")));
+test\unit\PropertyId_test.cpp:200:    SHOULD(ShouldlyString(h(PropertyId::of("Orientation", "vaml::StackPanel")))
+test\unit\PropertyId_test.cpp:201:               .ShouldBe(h(PropertyId::of("Orientation", "vaml::StackPanel"))));
+test\unit\PropertyId_test.cpp:204:    SHOULD(ShouldlyString(h(PropertyId::of("Orientation", "vaml::Slider")))
+test\unit\PropertyId_test.cpp:205:               .ShouldNotBe(h(PropertyId::of("Orientation", "vaml::StackPanel"))));
+test\unit\PropertyId_test.cpp:207:    SHOULD(ShouldlyString(h(PropertyId::of("Foo", "::Foo")))
+test\unit\PropertyId_test.cpp:208:               .ShouldNotBe(h(PropertyId::of("Foo", "vaml::Foo"))));
+test\unit\PropertyPath_test.cpp:360:    (void)obj.Set(vaml::PropertyId::of(kNameTitle, "S240Test"), Value::String("world"));
+test\unit\PropertyRegistryExhaustive_test.cpp:192:    SHOULD(ShouldlyString(dst.try_id("Width", "Button")).ShouldBe(PropertyId::of("Width", "Button")));
+test\unit\ReadOnlyAndValidation_test.cpp:89:    return PropertyId::of(name, "S045Owner");
+test\unit\ReadOnlyAndValidation_test.cpp:175:    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
+test\unit\ReadOnlyAndValidation_test.cpp:200:    const PropertyId id = PropertyId::of(name, "S045Owner");
+test\unit\ReadOnlyAndValidation_test.cpp:227:    const PropertyId rid = PropertyId::of(name, "S045Owner");
+test\unit\ReadOnlyAndValidation_test.cpp:263:        const PropertyId id = PropertyId::of(name, "S045Owner");
+test\unit\ReadOnlyAndValidation_test.cpp:277:        const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
+test\unit\ResourceResolution_test.cpp:143:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(5)));
+test\unit\ResourceResolution_test.cpp:183:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(9)));
+test\unit\ResourceResolution_test.cpp:199:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(1)));
+test\unit\ResourceResolution_test.cpp:211:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(7)));
+test\unit\S802_composite_store_test.cpp:19://   2. INDEPENDENT WRITE/READ: Set(PropertyId::of("Prop","ownerA")) does not
+test\unit\S802_composite_store_test.cpp:20://      touch Get(PropertyId::of("Prop","ownerB")); has_local_value is distinct
+test\unit\S802_composite_store_test.cpp:79:    const PropertyId idA = PropertyId::of("Prop", "ownerA");
+test\unit\S802_composite_store_test.cpp:80:    const PropertyId idB = PropertyId::of("Prop", "ownerB");
+test\unit\S802_composite_store_test.cpp:114:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "ownerA"))).ShouldBe(Value::Int32(1)));
+test\unit\S802_composite_store_test.cpp:118:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "ownerB"))).ShouldBe(Value::Int32(2)));
+test\unit\S802_composite_store_test.cpp:119:    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "ownerA"))).ShouldBe(Value::Int32(1)));
+test\unit\S802_composite_store_test.cpp:128:    const PropertyId idA = PropertyId::of("Opacity", "ownerA");
+test\unit\S802_composite_store_test.cpp:129:    const PropertyId idB = PropertyId::of("Opacity", "ownerB");
+test\unit\StackPanel_test.cpp:128:    (void)plain.Set(PropertyId::of("Orientation", "StackPanel"), vaml::Value::Int32(0)); // Horizontal
+test\unit\StackPanel_test.cpp:129:    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Orientation", "StackPanel")))
+test\unit\StackPanel_test.cpp:133:    SHOULD(ShouldlyString(fresh.Get(PropertyId::of("Orientation", "StackPanel")))
+test\unit\StoryboardAnimation_test.cpp:60:    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\StoryboardAnimation_test.cpp:85:    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
+test\unit\StringMaker_test.cpp:50:    PropertyId w = PropertyId::of("Width");
+test\unit\StyleApply_test.cpp:94:    style.add_setter(Setter{ PropertyId::of("S363Width"),
+test\unit\StyleApply_test.cpp:102:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363Width"))).ShouldBe(Value::Int32(120)));
+test\unit\StyleApply_test.cpp:112:    base.add_setter(Setter{ PropertyId::of("S363BaseW"),
+test\unit\StyleApply_test.cpp:118:    derived.add_setter(Setter{ PropertyId::of("S363BaseW"),
+test\unit\StyleApply_test.cpp:126:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363BaseW"))).ShouldBe(Value::Int32(99)));
+test\unit\StyleApply_test.cpp:136:    (void)el.Set(PropertyId::of("S363LocalW"), Value::Int32(7));
+test\unit\StyleApply_test.cpp:140:    style.add_setter(Setter{ PropertyId::of("S363LocalW"),
+test\unit\StyleApply_test.cpp:150:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363LocalW"))).ShouldBe(Value::Int32(7)));
+test\unit\StyleApply_test.cpp:161:    styleRes->add_setter(Setter{ PropertyId::of("S363ImplicitW"),
+test\unit\StyleApply_test.cpp:188:    styleRes->add_setter(Setter{ PropertyId::of("S363ImplicitApply"),
+test\unit\StyleApply_test.cpp:203:    SHOULD(ShouldlyString(panelPtr->Get(PropertyId::of("S363ImplicitApply"))).
+test\unit\StyleApply_test.cpp:216:    (void)el.Set(PropertyId::of("S363TriggerMatch"), Value::Int32(5));
+test\unit\StyleApply_test.cpp:219:    pt.property = PropertyId::of("S363TriggerMatch");
+test\unit\StyleApply_test.cpp:221:    pt.setters.push_back(Setter{ PropertyId::of("S363TriggerOut"),
+test\unit\StyleApply_test.cpp:234:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerOut"))).ShouldBe(Value::Int32(500)));
+test\unit\StyleApply_test.cpp:236:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerMatch"))).ShouldBe(Value::Int32(5)));
+test\unit\StyleApply_test.cpp:244:    (void)el.Set(PropertyId::of("S363TriggerOffMatch"), Value::Int32(1));
+test\unit\StyleApply_test.cpp:247:    pt.property = PropertyId::of("S363TriggerOffMatch");
+test\unit\StyleApply_test.cpp:249:    pt.setters.push_back(Setter{ PropertyId::of("S363TriggerOffOut"),
+test\unit\StyleApply_test.cpp:262:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363TriggerOffOut"))).ShouldBe(Value::Int32(0)));
+test\unit\StyleApply_test.cpp:270:    (void)el.Set(PropertyId::of("S363DataMatch"), Value::Int32(42));
+test\unit\StyleApply_test.cpp:275:    dt.setters.push_back(Setter{ PropertyId::of("S363DataOut"),
+test\unit\StyleApply_test.cpp:288:    SHOULD(ShouldlyString(el.Get(PropertyId::of("S363DataOut"))).ShouldBe(Value::Int32(420)));
+test\unit\StyleAuthoring_s454_test.cpp:176:        SHOULD(ShouldlyString(target.Get(PropertyId::of("S454Size"))).ShouldBe(Value::Int32(77)));
+test\unit\StyleAuthoring_s454_test.cpp:211:        SHOULD(ShouldlyString(target.Get(PropertyId::of("S454Size"))).ShouldBe(Value::Int32(99)));
+test\unit\StyleAuthoring_s454_test.cpp:292:    SHOULD(ShouldlyString(panel->Get(PropertyId::of("S454Hover"))).ShouldBe(Value::Int32(3)));
+test\unit\StyleAuthoring_s454_test.cpp:313:    SHOULD(ShouldlyString(panel->Get(PropertyId::of("S454Hover"))).ShouldBe(Value::Int32(0)));
+test\unit\Style_test.cpp:81:    const Setter s{ PropertyId::of("Width"), SetterValue::Literal(Value::Int32(120)) };
+test\unit\Style_test.cpp:82:    SHOULD(ShouldlyIntegral(static_cast<int>(s.targetProperty == PropertyId::of("Width"))).ShouldBe(1));
+test\unit\Style_test.cpp:90:    style.add_setter(Setter{ PropertyId::of("Width"), SetterValue::Literal(Value::Int32(100)) });
+test\unit\Style_test.cpp:91:    style.add_setter(Setter{ PropertyId::of("Height"), SetterValue::Literal(Value::Int32(40)) });
+test\unit\Style_test.cpp:127:    pt.property = PropertyId::of("IsEnabled");
+test\unit\Style_test.cpp:129:    pt.setters.push_back(Setter{ PropertyId::of("Opacity"), SetterValue::Literal(Value::Double(0.5)) });
+test\unit\Style_test.cpp:135:               static_cast<int>(tProperty.property.property == PropertyId::of("IsEnabled"))).
+test\unit\Style_test.cpp:142:    dt.setters.push_back(Setter{ PropertyId::of("Background"), SetterValue::Literal(
+test\unit\Style_test.cpp:159:    pt.property = PropertyId::of("IsEnabled");
+test\unit\TagDp_s11j8_test.cpp:39:    CHECK(b.Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string{});
+test\unit\TagDp_s11j8_test.cpp:42:    (void)b.Set(PropertyId::of("Tag", "UIElement"), Value::String(std::string("ghostBrush")));
+test\unit\TagDp_s11j8_test.cpp:43:    CHECK(b.Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string("ghostBrush"));
+test\unit\TagDp_s11j8_test.cpp:53:    CHECK(btn->Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string("ghostBrush"));
+test\unit\TagDp_s11j8_test.cpp:67:    CHECK(btn->Get(PropertyId::of("Tag", "UIElement")).get<std::string>() == std::string{});
+test\unit\TemplateBinding_test.cpp:50:    Setter setter{ PropertyId::of("Background", "InkCanvas"),
+test\unit\TemplateBinding_test.cpp:84:    (void)control.Set(PropertyId::of("Background", "InkCanvas"), Value::Brush(std::move(blackBrush)));
+test\unit\TemplateBinding_test.cpp:95:        control.Get(PropertyId::of("Background", "InkCanvas")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\TemplateBinding_test.cpp:119:    (void)control.Set(PropertyId::of("Background", "InkCanvas"), Value::Brush(std::move(blueBrush)));
+test\unit\TemplateBinding_test.cpp:121:        control.Get(PropertyId::of("Background", "InkCanvas")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\TemplateBinding_test.cpp:154:            control.Get(PropertyId::of("Background", "InkCanvas")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\TemplateParity_test.cpp:142:    const Value v2 = s2.named("go")->Get(PropertyId::of("S366Height"));
+test\unit\TemplateParity_test.cpp:143:    const Value v7 = s7.named("go")->Get(PropertyId::of("S366Height"));
+test\unit\TemplateParity_test.cpp:158:    styleRes->add_setter(Setter{ PropertyId::of("S366Width"),
+test\unit\TemplateParity_test.cpp:184:            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S366Width"))).
+test\unit\TemplateParity_test.cpp:205:            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S366Width"))).
+test\unit\TextBox_test.cpp:171:    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("text")).get<std::string>())
+test\unit\Text_test.cpp:223:    const vaml::Value v = plain.Get(vaml::PropertyId::of("Text", "TextBlock"));
+test\unit\Transform_render_test.cpp:204:    const Value v = fresh.Get(PropertyId::of("RenderTransform", "UIElement"));
+test\unit\UIElement_test.cpp:111:    const PropertyId id = PropertyId::of("Visibility", "UIElement"); // string literal -> static lifetime
+test\unit\UIElement_test.cpp:122:    const PropertyId id = PropertyId::of("Visibility", "UIElement");
+test\unit\UIElement_test.cpp:174:    const PropertyId id = PropertyId::of("Opacity", "UIElement"); // string literal
+test\unit\UIElement_test.cpp:228:    (void)child.add_property_changed(PropertyId::of("Opacity", "UIElement"), trace.opacity_handler());
+test\unit\UIElement_test.cpp:251:    (void)plain.Set(PropertyId::of("Visibility", "UIElement"), Value::Int32(1));
+test\unit\UIElement_test.cpp:252:    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Visibility", "UIElement")).get<std::int32_t>()).ShouldBe(1));
+test\unit\UIElement_test.cpp:255:    (void)plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(0.3));
+test\unit\UIElement_test.cpp:256:    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Opacity", "UIElement")).get<double>()).ShouldBe(0.3));
+test\unit\UIElement_test.cpp:257:    SHOULD(ShouldlyString(plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(5.0))).ShouldBe(SetResult::REJECTED));
+test\unit\ValueTypeAware_s600_test.cpp:60:    return obj.Get(PropertyId::of(prop)).get<std::int32_t>();
+test\unit\Vamlc_s287_test.cpp:196:        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S287Content")))
+test\unit\VamlReader_binding_test.cpp:119:    SHOULD(ShouldlyString(target->Get(PropertyId::of("S252Text", "S252_Binding_Owner")))
+test\unit\VamlReader_binding_test.cpp:124:    SHOULD(ShouldlyString(target->Get(PropertyId::of("S252Text", "S252_Binding_Owner")))
+test\unit\VamlReader_binding_test.cpp:152:    (void)const_cast<DependencyObject*>(target)->Set(PropertyId::of("S252Text", "S252_Binding_Owner"), Value::String("edited"));
+test\unit\VamlReader_binding_test.cpp:153:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("edited")));
+test\unit\VamlReader_defer_test.cpp:255:        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S092Text", "S092_Owner")))
+test\unit\VamlReader_s093_test.cpp:149:        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Content", "S093_Owner")))
+test\unit\VamlReader_s093_test.cpp:151:        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Width", "S093_Owner")))
+test\unit\VamlReader_s093_test.cpp:153:        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Height", "S093_Owner")))
+test\unit\VamlReader_s093_test.cpp:155:        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093IsEnabled", "S093_Owner")))
+test\unit\VamlReader_s094_test.cpp:357:                   reader.retained_objects()[0]->Get(PropertyId::of("S094Width", "S094_Owner")))
+test\unit\VamlReader_s094_test.cpp:360:                   reader.retained_objects()[0]->Get(PropertyId::of("S094Text", "S094_Owner")))
+test\unit\VamlReader_test.cpp:171:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Width", "S091_Owner")))
+test\unit\VamlReader_test.cpp:173:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Text", "S091_Owner")))
+test\unit\VamlReader_test.cpp:175:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091IsEnabled", "S091_Owner")))
+test\unit\VamlReader_test.cpp:177:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Margin", "S091_Owner")))
+test\unit\VamlReader_test.cpp:179:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Fill", "S091_Owner")))
+test\unit\VamlReader_test.cpp:197:        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("Row", "S091Grid")))
+test\unit\VamlReader_test.cpp:199:        SHOULD(ShouldlyIntegral(root->Get(PropertyId::of("Row", "S091Grid"))
+test\unit\VamlReader_test.cpp:229:        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S091Text", "S091_Owner")))
+test\unit\VamlReader_test.cpp:430:    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S091Width", "S091_Owner")))
+test\unit\VamlReader_test.cpp:432:    SHOULD(ShouldlyString(r2.retained_objects()[0]->Get(PropertyId::of("S091Width", "S091_Owner")))
+test\unit\VamlReader_test.cpp:434:    SHOULD(ShouldlyString(r1.retained_objects()[1]->Get(PropertyId::of("S091Text", "S091_Owner")))
+test\unit\VamlReader_test.cpp:436:    SHOULD(ShouldlyString(r2.retained_objects()[1]->Get(PropertyId::of("S091Text", "S091_Owner")))
+test\unit\VamlRenderer_alpha_test.cpp:56:    (void)p.Set(vaml::PropertyId::of("Background"),
+test\unit\VamlRenderer_alpha_test.cpp:70:    (void)p.Set(vaml::PropertyId::of("Background"),
+test\unit\VamlRenderer_alpha_test.cpp:82:    (void)p.Set(vaml::PropertyId::of("Background"),
+test\unit\VamlRenderer_alpha_test.cpp:94:    (void)p.Set(vaml::PropertyId::of("Background"),
+test\unit\VamlRenderer_clear_test.cpp:45:    const bool allows = w.Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
+test\unit\VamlRenderer_clear_test.cpp:46:    const vaml::Value bv = w.Get(vaml::PropertyId::of("Background"));
+test\unit\VamlRenderer_clear_test.cpp:52:        w.has_local_value(vaml::PropertyId::of("Background")) &&
+test\unit\VamlRenderer_clear_test.cpp:106:    (void)w.Set(vaml::PropertyId::of("AllowsTransparency"), vaml::Value::Bool(true));
+test\unit\VamlRenderer_clear_test.cpp:107:    (void)w.Set(vaml::PropertyId::of("Background"),
+test\unit\VamlRenderer_clear_test.cpp:121:    (void)w.Set(vaml::PropertyId::of("Background"), vaml::test::brush_value(vaml::parse_color("#FF0000FF")));
+test\unit\VBamlReader_s285_test.cpp:162:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Width")))
+test\unit\VBamlReader_s285_test.cpp:164:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Margin")))
+test\unit\VBamlReader_s285_test.cpp:168:    SHOULD(ShouldlyString(retained[2].get()->Get(PropertyId::of("S285Enabled")))
+test\unit\VBamlReader_s285_test.cpp:173:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Content")))
+test\unit\VBamlReader_s285_test.cpp:175:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Width")))
+test\unit\VBamlReader_s285_test.cpp:177:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Grid.Row")))
+test\unit\VBamlReader_s285_test.cpp:179:    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S285Fill")))
+test\unit\VBamlReader_s285_test.cpp:183:    SHOULD(ShouldlyString(retained[1].get()->Get(PropertyId::of("S285Dock.Dock")))
+test\unit\VBamlReader_s285_test.cpp:307:    SHOULD(ShouldlyString(root->Get(PropertyId::of("S285Width")))
+test\unit\VBamlReader_s285_test.cpp:318:        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S285Content")))
+test\unit\VBamlReader_s286_test.cpp:258:        SHOULD(ShouldlyString(search->Get(PropertyId::of("S286Text")))
+test\unit\ViewerBindingPlan_test.cpp:53:    return el.Get(vaml::PropertyId::of("Opacity")).get<double>();
+test\unit\ViewerHitTest_s595a_test.cpp:56:    (void)e.Set(vaml::PropertyId::of("IsHitTestVisible"), vaml::Value::Bool(true));
+test\unit\ViewerHitTest_s595a_test.cpp:57:    CHECK(e.Get(vaml::PropertyId::of("IsHitTestVisible")).get<bool>() == true);
+test\unit\ViewerInteractivePlan_test.cpp:57:    return el.Get(vaml::PropertyId::of("Opacity")).get<double>();
+test\unit\ViewerLoadFile_test.cpp:131:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+test\unit\ViewerLoadFile_test.cpp:133:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Width")))
+test\unit\ViewerLoadFile_test.cpp:135:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Margin")))
+test\unit\ViewerLoadFile_test.cpp:137:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Fill")))
+test\unit\ViewerLoadFile_test.cpp:200:            std::isnan(r.root->Get(PropertyId::of("Width", "UIElement")).get<double>()))).ShouldBe(1));
+test\unit\ViewerLoadFile_test.cpp:250:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+test\unit\ViewerLoadFile_test.cpp:252:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Margin")))
+test\unit\ViewerLoadFile_test.cpp:289:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+test\unit\ViewerLoadFile_test.cpp:317:        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+test\unit\ViewerRestylePlan_test.cpp:79:            element->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\ViewerRestylePlan_test.cpp:94:            element2->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\ViewerRestyleS11a_s455_test.cpp:101:            element->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\ViewerRestyleS11a_s455_test.cpp:115:            e1->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\ViewerRestyleS11a_s455_test.cpp:129:            e2->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+test\unit\ViewerSeedBrush_s621_test.cpp:53:    const vaml::Value v = el.Get(vaml::PropertyId::of("Background"));
+test\unit\ViewerSeedBrush_s621_test.cpp:67:    return el.Get(vaml::PropertyId::of("Opacity")).get<double>();
+test\unit\ViewerSeedBrush_s621_test.cpp:74:    const vaml::Value v = el.Get(vaml::PropertyId::of("Foreground"));
+test\unit\ViewerSeedBrush_s621_test.cpp:118:    const vaml::Value bv = vm.Get(vaml::PropertyId::of("Bg"));
+test\unit\ViewerSeedBrush_s621_test.cpp:123:    SHOULD(ShouldlyIntegral(vm.Get(vaml::PropertyId::of("Op")).type() == vaml::ValueType::Double)
+test\unit\ViewerSeedBrush_s621_test.cpp:136:    const vaml::Value fv = vm.Get(vaml::PropertyId::of("Fg"));
+test\unit\ViewerSeedBrush_s621_test.cpp:195:    SHOULD(ShouldlyString(uiRoot->Get(vaml::PropertyId::of("Text")).get<std::string>())
+test\unit\ViewerSeedContext_s620_test.cpp:51:    const vaml::Value v = el.Get(vaml::PropertyId::of("Text"));
+test\unit\ViewerSeedContext_s620_test.cpp:85:    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("Name")).get<std::string>())
+test\unit\ViewerTransparency_s595_test.cpp:99:    (void)w.Set(vaml::PropertyId::of("AllowsTransparency"), vaml::Value::Bool(true));
+test\unit\ViewerTransparency_s595_test.cpp:102:    (void)panelRaw->Set(vaml::PropertyId::of("Background"),
+test\unit\VisualTree_test.cpp:177:    (void)child->add_property_changed(PropertyId::of("Opacity", "UIElement"), handler);
+test\unit\VmAgnosticInjection_test.cpp:73:// property line up: a bindable `Name` registers `PropertyId::of("Name", "AutomationProperties")`.
+test\unit\VmAgnosticInjection_test.cpp:181:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Hello")));
+test\unit\VmAgnosticInjection_test.cpp:186:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Alice")));
+test\unit\VmAgnosticInjection_test.cpp:189:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Bob")));
+test\unit\VmAgnosticInjection_test.cpp:219:    (void)target.obj.Set(PropertyId::of("Name", "AutomationProperties"), Value::String("edited"));
+test\unit\VmAgnosticInjection_test.cpp:220:    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("edited")));
+test\unit\VmAgnosticInjection_test.cpp:252:    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Hello, Ada!")));
+test\unit\WindowDp_s11j4_test.cpp:33:    (void)o.Set(PropertyId::of(name, "Window"), Value::Int32(want));
+test\unit\WindowDp_s11j4_test.cpp:34:    CHECK(o.Get(PropertyId::of(name, "Window")).get<std::int32_t>() == want);
+test\unit\WindowDp_s11j4_test.cpp:41:    (void)o.Set(PropertyId::of(name, "Window"), Value::Bool(want != 0));
+test\unit\WindowDp_s11j4_test.cpp:42:    CHECK(o.Get(PropertyId::of(name, "Window")).get<bool>() == (want != 0));
+test\unit\WindowDp_s11j4_test.cpp:69:    CHECK(window.Get(PropertyId::of("AllowsTransparency", "Window")).get<bool>() == false);
+test\unit\WindowDp_s11j4_test.cpp:70:    CHECK(window.Get(PropertyId::of("WindowStartupLocation", "Window")).get<std::int32_t>() == 0); // Manual
+test\unit\WindowDp_s11j4_test.cpp:71:    CHECK(window.Get(PropertyId::of("WindowStyle", "Window")).get<std::int32_t>() == 1);           // SingleBorderWindow
+test\unit\WindowDp_s11j4_test.cpp:72:    CHECK(window.Get(PropertyId::of("Topmost", "Window")).get<bool>() == false);
+test\unit\WindowDp_s11j4_test.cpp:73:    CHECK(window.Get(PropertyId::of("ResizeMode", "Window")).get<std::int32_t>() == 2);            // CanResize
+test\unit\WrapPanel_test.cpp:141:    SHOULD(ShouldlyString(fresh.Get(PropertyId::of("WrapDirection", "WrapPanel")))
+test\unit\WrapPanel_test.cpp:144:    (void)plain.Set(PropertyId::of("WrapDirection", "WrapPanel"), vaml::Value::Int32(1)); // Vertical
+test\unit\WrapPanel_test.cpp:145:    SHOULD(ShouldlyString(plain.Get(PropertyId::of("WrapDirection", "WrapPanel")))

@@ -227,6 +227,10 @@ void push_concrete_owner(std::string_view typeName, std::vector<std::string_view
     if (typeName == "ImageBrush")           { out.push_back("ImageBrush"); return; }
     if (typeName == "LinearGradientBrush")  { out.push_back("LinearGradientBrush"); return; }
     if (typeName == "GradientStop")         { out.push_back("GradientStop"); return; }
+    // SolidColorBrush owns the Color DP (Brush.cpp:24) — bare `Color=` on an
+    // authored <SolidColorBrush> (or <LinearGradientBrush.GradientStops> child
+    // contexts) must resolve through this owner (the S803 composite re-key).
+    if (typeName == "SolidColorBrush")      { out.push_back("SolidColorBrush"); return; }
     if (typeName == "Viewport3D")           { out.push_back("Viewport3D"); return; }
     if (typeName == "ModelVisual3D")        { out.push_back("ModelVisual3D"); return; }
     if (typeName == "MeshGeometry3D")       { out.push_back("MeshGeometry3D"); return; }
@@ -299,10 +303,22 @@ const DependencyProperty* DependencyProperty::ResolveForElement(
             return dp;
         }
     }
+    // S803 GUARDED UNIQUE-NAME BRIDGE (the documented, S803-resolved fallback;
+    // see NameTable::find_unique_name). When the chain-walk finds no owner, a
+    // synthetic DP authored BARE (e.g. `S361Tint` on a plain UIElement) still
+    // resolves IF the name is owned by EXACTLY ONE (name, owner) pair — never a
+    // silent pick among ambiguous names. This is what makes the reader's bare
+    // non-dotted attribute form resolve test-fixture global DPs and any real
+    // single-owner DP without an explicit owner, while keeping composite
+    // identity strict (a same-name/different-owner pair stays ambiguous here).
+    std::size_t bridgeMatches = 0;
+    if (auto* unique =
+            GlobalTable::instance().byName.find_unique_name(name, &bridgeMatches))
+    {
+        return unique->get();
+    }
     return nullptr;
-}
-
-VAML_CORE_EXPORT
+}VAML_CORE_EXPORT
 const DependencyProperty& DependencyProperty::Get(std::string_view name,
                                                   std::string_view owner)
 {

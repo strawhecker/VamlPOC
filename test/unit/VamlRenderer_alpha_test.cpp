@@ -53,7 +53,7 @@ TEST_CASE("S593 base panel: opaque Background + Opacity=0.5 -> item.a == 0.5 (SI
     // ENCODER folds effective_opacity ONCE -> 1.0 * 0.5 = 0.5. Under the old
     // double-count it would be 0.25 — this is the regression tripwire.
     vaml::StackPanel p;
-    (void)p.Set(vaml::PropertyId::of("Background"),
+    (void)p.Set(vaml::PropertyId::of("Background", "Control"),
                 vaml::test::brush_value(vaml::parse_color("#FF102030")));
     (void)p.set_opacity(0.5);
     p.Measure(vaml::Size{ 100.0f, 100.0f });
@@ -67,7 +67,7 @@ TEST_CASE("S593 base panel: opaque Background + Opacity=0.5 -> item.a == 0.5 (SI
 TEST_CASE("S593 panel Background=Transparent (alpha 0) -> item.a == 0")
 {
     vaml::StackPanel p;
-    (void)p.Set(vaml::PropertyId::of("Background"),
+    (void)p.Set(vaml::PropertyId::of("Background", "Control"),
                 vaml::test::brush_value(vaml::parse_color("#00000000")));  // transparent
     p.Measure(vaml::Size{ 100.0f, 100.0f });
     p.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
@@ -79,7 +79,7 @@ TEST_CASE("S593 panel Background=Transparent (alpha 0) -> item.a == 0")
 TEST_CASE("S593 panel semi-alpha Background + Opacity=1.0 -> item.a == bg.a")
 {
     vaml::StackPanel p;
-    (void)p.Set(vaml::PropertyId::of("Background"),
+    (void)p.Set(vaml::PropertyId::of("Background", "Control"),
                 vaml::test::brush_value(vaml::parse_color("#80FF0000")));  // half-alpha red
     p.Measure(vaml::Size{ 100.0f, 100.0f });
     p.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
@@ -91,7 +91,7 @@ TEST_CASE("S593 panel semi-alpha Background + Opacity=1.0 -> item.a == bg.a")
 TEST_CASE("S593 cross-product: semi-alpha Background × Opacity=0.5 -> item.a == bg.a × 0.5")
 {
     vaml::StackPanel p;
-    (void)p.Set(vaml::PropertyId::of("Background"),
+    (void)p.Set(vaml::PropertyId::of("Background", "Control"),
                 vaml::test::brush_value(vaml::parse_color("#80FF0000")));
     (void)p.set_opacity(0.5);
     p.Measure(vaml::Size{ 100.0f, 100.0f });

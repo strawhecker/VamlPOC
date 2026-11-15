@@ -115,13 +115,15 @@ struct CountingTarget
     }
 };
 
-// RAII guard: swaps in the recorder, restores the previous sink at scope exit.
+// RAII guard: swaps in the recorder, restores the PERMANENT default sink at
+// scope exit. Restoring to default_binding_diagnostics() — never a captured
+// `previous` reference — guarantees the restored sink outlives every test (a
+// captured reference can dangle into a prior test's freed stack RecordingSink,
+// the use-after-free that surfaces as a stray `reasons[0]` crash in full runs).
 struct SinkGuard
 {
-    IBindingDiagnostics& previous;
-    explicit SinkGuard(IBindingDiagnostics& sink)
-        : previous(set_binding_diagnostics(sink)) {}
-    ~SinkGuard() { (void)set_binding_diagnostics(previous); }
+    explicit SinkGuard(IBindingDiagnostics& sink) { (void)set_binding_diagnostics(sink); }
+    ~SinkGuard() { (void)set_binding_diagnostics(vaml::default_binding_diagnostics()); }
 };
 
 struct RecordingSink final : IBindingDiagnostics
@@ -141,6 +143,7 @@ std::unique_ptr<BindingExpression> make_twoway(ObservableObject& vm, DependencyO
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S244Test";
     spec.mode = BindingMode::TwoWay;
     return BindingExpression::create(spec);
 }
@@ -154,7 +157,7 @@ std::unique_ptr<BindingExpression> make_twoway(ObservableObject& vm, DependencyO
 TEST_CASE("S244 TwoWay: create APPLIES the initial push and arms BOTH the forward and write-back wires")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("Hello"));
     CountingTarget target;
 
     auto expr = make_twoway(vm, target.obj);
@@ -165,7 +168,7 @@ TEST_CASE("S244 TwoWay: create APPLIES the initial push and arms BOTH the forwar
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::Applied)));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("Hello")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("Hello")));
 }
 
 // ===========================================================================
@@ -175,17 +178,17 @@ TEST_CASE("S244 TwoWay: create APPLIES the initial push and arms BOTH the forwar
 TEST_CASE("S244 TwoWay LIVE forward: a source mutation auto-updates the target (shared S243 wire)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("first"));
     CountingTarget target;
 
     auto expr = make_twoway(vm, target.obj);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("first")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("first")));
 
     // Source change -> live forward re-push (the exact S243 layer, now armed
     // for TwoWay too).
-    (void)vm.Set(PropertyId::of(kText), Value::String("second"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("second")));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("second"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("second")));
 }
 
 // ===========================================================================
@@ -195,18 +198,18 @@ TEST_CASE("S244 TwoWay LIVE forward: a source mutation auto-updates the target (
 TEST_CASE("S244 HEADLINE: a target edit (TextBox) writes the value back to the source VM")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("initial"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("initial"));
     CountingTarget target;
 
     auto expr = make_twoway(vm, target.obj);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("initial")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("initial")));
 
     // A TextBox edit lands on the TARGET DP as a real change. The write-back
     // subscription fires and pushes the value into the SOURCE VM — no manual
     // call.
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("edited"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("edited")));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("edited"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("edited")));
 }
 
 // ===========================================================================
@@ -217,7 +220,7 @@ TEST_CASE("S244 convertBack: a target Int32 edit is convertBack'd to a String th
 {
     // Forward: "" <-> 0, "a" <-> 1, ... a String name whose length is the Int32.
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("xyz")); // length 3
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("xyz")); // length 3
     CountingTarget target;
 
     BindingExpressionSpec spec;
@@ -225,6 +228,7 @@ TEST_CASE("S244 convertBack: a target Int32 edit is convertBack'd to a String th
     spec.sourcePath = kText;      // String source
     spec.target = &target.obj;
     spec.targetProp = kNumber;    // Int32 target
+    spec.targetOwner = "S244Test";
     spec.mode = BindingMode::TwoWay;
     spec.converter.convert = [](const Value& v) -> BindingConversion {
         return BindingConversion{ true, Value::Int32(static_cast<std::int32_t>(v.get<std::string>().size())), {} };
@@ -241,12 +245,12 @@ TEST_CASE("S244 convertBack: a target Int32 edit is convertBack'd to a String th
 
     (void)expr->TransferSourceToTarget();
     // Forward converts source "xyz" (len 3) -> target Int32 3.
-    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of(kNumber)).get<std::int32_t>()).ShouldBe(3));
+    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S244Number", "S244Test")).get<std::int32_t>()).ShouldBe(3));
 
     // A target edit: user types 5 into the Int32 field. convertBack runs and
     // the resulting String ("xxxxx") reaches the SOURCE.
-    (void)target.obj.Set(PropertyId::of(kNumber), Value::Int32(5));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("xxxxx")));
+    (void)target.obj.Set(PropertyId::of("S244Number", "S244Test"), Value::Int32(5));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("xxxxx")));
 }
 
 // ===========================================================================
@@ -256,28 +260,28 @@ TEST_CASE("S244 convertBack: a target Int32 edit is convertBack'd to a String th
 TEST_CASE("S244 loop safety: a source->target->write-back->source cycle is BOUNDED and stable")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("A"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("A"));
     CountingTarget target;
 
     auto expr = make_twoway(vm, target.obj);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("A")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("A")));
 
     // Drive the FULL cycle: source A -> target A (forward); then a target edit
     // B -> source B (write-back). Because each Set only fires on a REAL change,
     // the cycle terminates: the write-back of B into the source (then holding B)
     // fires no re-forward, and the re-push of the equal value fires no loop.
-    (void)vm.Set(PropertyId::of(kText), Value::String("B"));   // forward: target -> B
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("B")));
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("C")); // write-back: source -> C
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("C")));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("B"));   // forward: target -> B
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("B")));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("C")); // write-back: source -> C
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("C")));
 
     // No runaway: target tracks exactly the distinct values written (A + B + C
     // = 3 real target writes; any echo would inflate this).
     SHOULD(ShouldlyIntegral(target.stringWrites).ShouldBe(3));
     // Converged, stable.
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("C")));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("C")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("C")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("C")));
 }
 
 // ===========================================================================
@@ -287,23 +291,23 @@ TEST_CASE("S244 loop safety: a source->target->write-back->source cycle is BOUND
 TEST_CASE("S244 stability: a target edit yielding the current source value fires NO forward re-trigger")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("same"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("same"));
     CountingTarget target;
 
     auto expr = make_twoway(vm, target.obj);
     (void)expr->TransferSourceToTarget();
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("other"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("other")));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("other"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("other")));
 
     // Now set the source back and force a target edit to the SAME value the
     // source already holds: the write-back's source Set returns false (equal)
     // -> no source signal -> no forward re-push; still stable.
-    (void)vm.Set(PropertyId::of(kText), Value::String("other"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("other"));
     const int writesBefore = target.stringWrites;
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("other")); // target edit to equal source
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("other")); // target edit to equal source
     SHOULD(ShouldlyIntegral(target.stringWrites - writesBefore).ShouldBe(0)); // no re-forward echo
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("other")));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("other")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("other")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("other")));
 }
 
 // ===========================================================================
@@ -313,7 +317,7 @@ TEST_CASE("S244 stability: a target edit yielding the current source value fires
 TEST_CASE("S244 WriteBackRejected: a target edit whose convertBack fails emits WriteBackRejected once per rejection")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("x"));
     CountingTarget target;
     RecordingSink sink;
     SinkGuard guard(sink);
@@ -324,6 +328,7 @@ TEST_CASE("S244 WriteBackRejected: a target edit whose convertBack fails emits W
     spec.sourcePath = kText;
     spec.target = &target.obj;
     spec.targetProp = kText;
+    spec.targetOwner = "S244Test";
     spec.mode = BindingMode::TwoWay;
     spec.converter.convert = [](const Value& v) -> BindingConversion {
         return BindingConversion{ true, v, {} };
@@ -341,13 +346,13 @@ TEST_CASE("S244 WriteBackRejected: a target edit whose convertBack fails emits W
 
     // A LIVE target edit is rejected -> WriteBackRejected exactly once; the
     // target value is NOT written back to the source.
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("zzz"));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("zzz"));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::WriteBackRejected)));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("x"))); // unchanged
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("x"))); // unchanged
 
     // A second rejection emits a second WriteBackRejected.
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("yyy"));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("yyy"));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{2}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[1])).ShouldBe(rc_int(BindingReasonCode::WriteBackRejected)));
 }
@@ -367,6 +372,7 @@ TEST_CASE("S244 WriteBackRejected: a two-way binding with no source emits WriteB
     spec.sourcePath = kText;
     spec.target = &target.obj;
     spec.targetProp = kText;
+    spec.targetOwner = "S244Test";
     spec.mode = BindingMode::TwoWay;
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyIntegral(expr != nullptr).ShouldBe(true));
@@ -379,7 +385,7 @@ TEST_CASE("S244 WriteBackRejected: a two-way binding with no source emits WriteB
 
     // A live target edit with no source -> WriteBackRejected (Class B, never a
     // throw).
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("e"));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("e"));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::WriteBackRejected)));
 }
@@ -401,11 +407,12 @@ TEST_CASE("S244 WriteBackRejected != SetTargetFailed: distinct arms, never confl
         spec.sourcePath = kText;
         spec.target = &target.obj;
         spec.targetProp = kText;
+        spec.targetOwner = "S244Test";
         spec.mode = BindingMode::TwoWay;
         auto expr = BindingExpression::create(spec);
         (void)expr->TransferSourceToTarget();
         sink.reasons.clear();
-        (void)target.obj.Set(PropertyId::of(kText), Value::String("e"));
+        (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("e"));
         SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
         SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::WriteBackRejected)));
         // No SetTargetFailed leaked in (the ONLY emitted reason is the
@@ -419,7 +426,7 @@ TEST_CASE("S244 WriteBackRejected != SetTargetFailed: distinct arms, never confl
     // WriteBackRejected.
     {
         ObservableObject vm;
-        (void)vm.Set(PropertyId::of(kText), Value::String("str"));
+        (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("str"));
         DependencyObject target;
         target.register_property(key(kNumber, ValueType::Int32),
             PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
@@ -431,11 +438,12 @@ TEST_CASE("S244 WriteBackRejected != SetTargetFailed: distinct arms, never confl
         spec.sourcePath = kText;
         spec.target = &target;
         spec.targetProp = kNumber;
+        spec.targetOwner = "S244Test";
         spec.mode = BindingMode::OneWay;
         auto expr = BindingExpression::create(spec);
         (void)expr->TransferSourceToTarget(); // first push: rejected, no emission
         sink.reasons.clear();
-        (void)vm.Set(PropertyId::of(kText), Value::String("live")); // live rejection
+        (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("live")); // live rejection
         SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
         SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::SetTargetFailed)));
     }
@@ -448,7 +456,7 @@ TEST_CASE("S244 WriteBackRejected != SetTargetFailed: distinct arms, never confl
 TEST_CASE("S244 OneWay parity: OneWay arms forward only; a target edit does NOT push to source")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("initial"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("initial"));
     CountingTarget target;
 
     BindingExpressionSpec spec;
@@ -456,6 +464,7 @@ TEST_CASE("S244 OneWay parity: OneWay arms forward only; a target edit does NOT 
     spec.sourcePath = kText;
     spec.target = &target.obj;
     spec.targetProp = kText;
+    spec.targetOwner = "S244Test";
     spec.mode = BindingMode::OneWay;
     auto expr = BindingExpression::create(spec);
     (void)expr->TransferSourceToTarget();
@@ -464,8 +473,8 @@ TEST_CASE("S244 OneWay parity: OneWay arms forward only; a target edit does NOT 
     SHOULD(ShouldlyIntegral(expr->live_writeback() ? 1 : 0).ShouldBe(0));    // NO write-back
 
     // A target edit must NOT push to the source (OneWay is single-direction).
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("edited"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("initial")));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("edited"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("initial")));
 }
 
 // ===========================================================================
@@ -475,7 +484,7 @@ TEST_CASE("S244 OneWay parity: OneWay arms forward only; a target edit does NOT 
 TEST_CASE("S244 OneTime inert: neither forward nor write-back armed; target edit and source change both inert")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("initial"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("initial"));
     CountingTarget target;
 
     BindingExpressionSpec spec;
@@ -483,6 +492,7 @@ TEST_CASE("S244 OneTime inert: neither forward nor write-back armed; target edit
     spec.sourcePath = kText;
     spec.target = &target.obj;
     spec.targetProp = kText;
+    spec.targetOwner = "S244Test";
     spec.mode = BindingMode::OneTime;
     auto expr = BindingExpression::create(spec);
     (void)expr->TransferSourceToTarget();
@@ -491,10 +501,10 @@ TEST_CASE("S244 OneTime inert: neither forward nor write-back armed; target edit
     SHOULD(ShouldlyIntegral(expr->live_writeback() ? 1 : 0).ShouldBe(0));
 
     // Neither a source change nor a target edit propagates.
-    (void)vm.Set(PropertyId::of(kText), Value::String("src"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("initial")));
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("tgt"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("src")));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("src"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("initial")));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("tgt"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("src")));
 }
 
 // ===========================================================================
@@ -504,14 +514,14 @@ TEST_CASE("S244 OneTime inert: neither forward nor write-back armed; target edit
 TEST_CASE("S244 no-converter round-trip: a matching-type target edit writes the raw value back to source")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("A"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("A"));
     CountingTarget target;
 
     auto expr = make_twoway(vm, target.obj);
     (void)expr->TransferSourceToTarget();
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("raw-back"));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("raw-back"));
     // Raw, matching-type target edit -> source holds the raw value.
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("raw-back")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("raw-back")));
 }
 
 // ===========================================================================
@@ -521,28 +531,28 @@ TEST_CASE("S244 no-converter round-trip: a matching-type target edit writes the 
 TEST_CASE("S244 lifetime: after destruction neither the forward nor the write-back handler fires")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("first"));
     CountingTarget target;
 
     {
         auto expr = make_twoway(vm, target.obj);
         (void)expr->TransferSourceToTarget();
         SHOULD(ShouldlyIntegral(expr->live_writeback() ? 1 : 0).ShouldBe(1));
-        (void)target.obj.Set(PropertyId::of(kText), Value::String("live"));
-        SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("live")));
+        (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("live"));
+        SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("live")));
     } // expr destroyed -> BOTH subscriptions removed
 
     // A source change no longer re-pushes to the target...
-    (void)vm.Set(PropertyId::of(kText), Value::String("after"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("live")));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("after"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("live")));
 
     // ...and a target edit no longer writes back to the source. The target's
     // OWN metadata cb still fires on its Set (that counter is independent of
     // the binding), but the WRITE-BACK must not carry "post" into the source —
     // the source stays "after" (the real no-dangling-write-back proof).
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("post"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("post"))); // local store write still works
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("after")));        // no write-back echo
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("post"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("post"))); // local store write still works
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("after")));        // no write-back echo
 }
 
 // ===========================================================================
@@ -552,7 +562,7 @@ TEST_CASE("S244 lifetime: after destruction neither the forward nor the write-ba
 TEST_CASE("S244 move: a moved two-way expression re-arms BOTH subscriptions; forward + write-back stay live")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("first"));
     CountingTarget target;
 
     auto expr = make_twoway(vm, target.obj);
@@ -564,12 +574,12 @@ TEST_CASE("S244 move: a moved two-way expression re-arms BOTH subscriptions; for
     SHOULD(ShouldlyIntegral(moved->live_writeback() ? 1 : 0).ShouldBe(1));
 
     // Forward still live after the move.
-    (void)vm.Set(PropertyId::of(kText), Value::String("from-source"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("from-source")));
+    (void)vm.Set(PropertyId::of("S244Text", "ObservableObject"), Value::String("from-source"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S244Text", "S244Test"))).ShouldBe(Value::String("from-source")));
 
     // Write-back still live after the move.
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("from-target"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("from-target")));
+    (void)target.obj.Set(PropertyId::of("S244Text", "S244Test"), Value::String("from-target"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S244Text", "ObservableObject"))).ShouldBe(Value::String("from-target")));
 
     // The moved-from is inert; destroying it is safe (no double-remove, no
     // dangling `this`).

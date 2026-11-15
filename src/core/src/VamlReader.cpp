@@ -3121,8 +3121,14 @@ std::size_t VamlReader::BindExtensions()
         }
 
         // kind Binding. A malformed {Binding ...} source is a Class A AUTHORING
-        // error — reported loudly, never silently left deferred.
-        if (markup.malformed || markup.path.empty())
+        // error — reported loudly, never silently left deferred. NOTE: an EMPTY
+        // path is NOT malformed — Sprint 11af re-baselined `{Binding}` (no path)
+        // as a VALID Direct SELF-BINDING to the whole data context (WPF
+        // PathParser.cs:83-89); `BindingExpression::create` parses the empty
+        // path into a Direct path, and its first transfer is a non-throwing
+        // Class B outcome (a wrong-typed target maps to TargetRejected). Only
+        // `malformed` (a real inner-syntax error) throws here.
+        if (markup.malformed)
         {
             throw VamlReaderException(
                 VamlReaderError::MalformedBindingMarkup, std::string(ext.key),
@@ -3138,7 +3144,25 @@ std::size_t VamlReader::BindExtensions()
         spec.source     = dataContext_;
         spec.sourcePath = std::string(markup.path); // Binding path
         spec.target     = const_cast<DependencyObject*>(ext.target);
-        spec.targetProp = std::string(ext.key);
+        // S803: the binding target resolves on the composite (name, owner) pair
+        // (WPF has no name-only DP lookup). Resolve the attribute key against the
+        // authored element's OWNER-CHAIN (ResolveForElement) and carry the DP's
+        // CANONICAL name + declaring owner. When the key is authored DOTTED
+        // (`TextBox.Text="{Binding Text, Mode=TwoWay}"`), the raw ext.key
+        // ("TextBox.Text") is NOT the DP's name ("Text") — using it would key the
+        // S244 write-back subscription on the impossible composite
+        // ("TextBox.Text", "TextBox"), which never fires and drops the two-way
+        // write-back. Resolving the DP normalizes targetProp to the canonical
+        // registered name so the forward push AND the S244 write-back subscribe
+        // on the real composite (name, owner). When unresolvable the transfer
+        // maps to TargetRejected defensively (never a reader throw); targetProp
+        // keeps the raw key so any write-back arm is inert (no real DP fires it).
+        if (const vaml::DependencyProperty* targetDp =
+                lookup_dp_for_attr(ext.key, ext.elementTypeName))
+        {
+            spec.targetProp  = std::string(targetDp->property_id().name());
+            spec.targetOwner = targetDp->owner_type_id();
+        }
         spec.policy     = vaml::view_binding_policy_default();   // Fallback (S250_1)
         // WPF-faithful: {Binding} without Mode= is OneWay; Mode= overrides.
         spec.mode = markup.hasMode

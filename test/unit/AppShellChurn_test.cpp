@@ -179,7 +179,7 @@ TEST_CASE("S446: the TwoWay wires still write back to the VM store after the 10k
     auto* inputBox = named_as<vaml::TextBox>(h.plan, "InputBox");
     SHOULD(ShouldlyIntegral(inputBox != nullptr).ShouldBe(1));
     (void)inputBox->set_text("retained across 10k");
-    SHOULD(ShouldlyString(h.plan.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(h.plan.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("retained across 10k")));
 
     // The S445 SliderValue TwoWay wire survived too: a drag STILL pushes the ratio
@@ -187,7 +187,7 @@ TEST_CASE("S446: the TwoWay wires still write back to the VM store after the 10k
     auto* dimSlider = named_as<vaml::Slider>(h.plan, "DimSlider");
     SHOULD(ShouldlyIntegral(dimSlider != nullptr).ShouldBe(1));
     (void)dimSlider->set_value_from_ratio(0.8);
-    SHOULD(ShouldlyString(h.plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(h.plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(80.0)));
 
     // The retained reader (the wiring owner) is still the live object (never

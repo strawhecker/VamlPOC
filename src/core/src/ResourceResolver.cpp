@@ -4,6 +4,7 @@
 
 #include "vaml/core/BindingAccess.h"      // S250_1 view diagnostics channel (dynamic-hold note)
 #include "vaml/core/BindingDiagnostics.h" // BindingDiagnostic + reason (ADR-016)
+#include "vaml/core/DependencyProperty.h" // S803 composite resolution (ResolveForElement)
 #include "vaml/core/PropertyId.h"         // PropertyId (Set target)
 #include "vaml/core/Value.h"              // Value
 
@@ -28,7 +29,22 @@ namespace {
     }
     try
     {
-        const SetResult r = element.Set(PropertyId(prop), value);
+        // S803 composite re-key: resolve the TRUE (name, owner) pair for this
+        // prop, never a hardcoded owner. A DOTTED prop (`Owner.Prop`) carries
+        // its owner and is resolved directly; a BARE prop walks the element's
+        // owner chain. Previously this hardcoded owner "UIElement", which broke
+        // any Plain resource targeting a synthetic/derived-owned DP (e.g. a
+        // DP registered under a test `S361_Owner` — the re-key made the bare
+        // hardcode unresolvable). Set via the resolved DP's property_id so the
+        // correct owner is honored (WPF FromName semantics).
+        const DependencyProperty* dp =
+            DependencyProperty::ResolveForElement(prop, "UIElement");
+        if (dp == nullptr)
+        {
+            *outOk = false;
+            return false;
+        }
+        const SetResult r = element.Set(dp->property_id(), value);
         *outOk = true;
         (void)r;
         return true;

@@ -79,8 +79,10 @@ void ObservableCollectionBase::raise_change(const NotifyCollectionChangedEventAr
 {
     // WPF order: PropertyChanged(Count) + PropertyChanged(Item[]), THEN
     // CollectionChanged. The prop axis stores the new Count via Set.
-    (void)prop_axis_.Set(PropertyId::of("Count"), Value::Int32(static_cast<std::int32_t>(items_.size())));
-    (void)prop_axis_.Set(PropertyId::of("Item[]"), Value::Int32(static_cast<std::int32_t>(items_.size())));
+    (void)prop_axis_.Set(PropertyId::of("Count", "ObservableCollectionBase"),
+                         Value::Int32(static_cast<std::int32_t>(items_.size())));
+    (void)prop_axis_.Set(PropertyId::of("Item[]", "ObservableCollectionBase"),
+                         Value::Int32(static_cast<std::int32_t>(items_.size())));
     // copy-before-invoke (registration-order discipline)
     const auto copy = collectionChanged_;
     for (const auto& [t, h] : copy)

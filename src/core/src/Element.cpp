@@ -3377,18 +3377,23 @@ namespace {
 
 void register_treeview_properties()
 {
-    (void)DependencyProperty::Register(
-        "ItemsSource", ValueType::String, "TreeView",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "SelectedItem", ValueType::String, "TreeView",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "SelectedValue", ValueType::String, "TreeView",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "SelectedValuePath", ValueType::String, "TreeView",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // Per-row idempotence (see register_expander_properties).
+    if (DependencyProperty::TryGet("ItemsSource", "TreeView") == nullptr)
+        (void)DependencyProperty::Register(
+            "ItemsSource", ValueType::String, "TreeView",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    if (DependencyProperty::TryGet("SelectedItem", "TreeView") == nullptr)
+        (void)DependencyProperty::Register(
+            "SelectedItem", ValueType::String, "TreeView",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    if (DependencyProperty::TryGet("SelectedValue", "TreeView") == nullptr)
+        (void)DependencyProperty::Register(
+            "SelectedValue", ValueType::String, "TreeView",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    if (DependencyProperty::TryGet("SelectedValuePath", "TreeView") == nullptr)
+        (void)DependencyProperty::Register(
+            "SelectedValuePath", ValueType::String, "TreeView",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 
 void ensure_treeview_properties_registered()
@@ -3403,15 +3408,19 @@ void ensure_treeview_properties_registered()
 
 void register_treeviewitem_properties()
 {
-    (void)DependencyProperty::Register(
-        "IsExpanded", ValueType::Int32, "TreeViewItem",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "IsSelected", ValueType::Int32, "TreeViewItem",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Header", ValueType::String, "TreeViewItem",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // Per-row idempotence (see register_expander_properties).
+    if (DependencyProperty::TryGet("IsExpanded", "TreeViewItem") == nullptr)
+        (void)DependencyProperty::Register(
+            "IsExpanded", ValueType::Int32, "TreeViewItem",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("IsSelected", "TreeViewItem") == nullptr)
+        (void)DependencyProperty::Register(
+            "IsSelected", ValueType::Int32, "TreeViewItem",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("Header", "TreeViewItem") == nullptr)
+        (void)DependencyProperty::Register(
+            "Header", ValueType::String, "TreeViewItem",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 }
 
 void ensure_treeviewitem_properties_registered()
@@ -3698,15 +3707,19 @@ void ensure_datepickertetxbox_properties_registered()
 }
 void register_datepicker_properties()
 {
-    (void)DependencyProperty::Register(
-        "SelectedDate", ValueType::Int64, "DatePicker",
-        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "DisplayDate", ValueType::Int64, "DatePicker",
-        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "IsDropDownOpen", ValueType::Int32, "DatePicker",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // Per-row idempotence (see register_expander_properties).
+    if (DependencyProperty::TryGet("SelectedDate", "DatePicker") == nullptr)
+        (void)DependencyProperty::Register(
+            "SelectedDate", ValueType::Int64, "DatePicker",
+            PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("DisplayDate", "DatePicker") == nullptr)
+        (void)DependencyProperty::Register(
+            "DisplayDate", ValueType::Int64, "DatePicker",
+            PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("IsDropDownOpen", "DatePicker") == nullptr)
+        (void)DependencyProperty::Register(
+            "IsDropDownOpen", ValueType::Int32, "DatePicker",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 void ensure_datepicker_properties_registered()
 {
@@ -3871,15 +3884,21 @@ namespace {
 
 void register_inkcanvas_properties()
 {
-    (void)DependencyProperty::Register(
-        "Strokes", ValueType::String, "InkCanvas",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "ActiveStroke", ValueType::String, "InkCanvas",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Background", ValueType::Brush, "InkCanvas",
-        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
+    // Per-row idempotence: the 11k-9 DP-fidelity CLOSURE eagerly registers the
+    // audit-pinned Background/InkCanvas (so `of("Background","InkCanvas")`
+    // resolves WITHOUT constructing a real InkCanvas). Guard each row.
+    if (DependencyProperty::TryGet("Strokes", "InkCanvas") == nullptr)
+        (void)DependencyProperty::Register(
+            "Strokes", ValueType::String, "InkCanvas",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    if (DependencyProperty::TryGet("ActiveStroke", "InkCanvas") == nullptr)
+        (void)DependencyProperty::Register(
+            "ActiveStroke", ValueType::String, "InkCanvas",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    if (DependencyProperty::TryGet("Background", "InkCanvas") == nullptr)
+        (void)DependencyProperty::Register(
+            "Background", ValueType::Brush, "InkCanvas",
+            PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
 }
 void ensure_inkcanvas_properties_registered()
 {
@@ -5637,12 +5656,17 @@ namespace {
 
 void register_expander_properties()
 {
-    (void)DependencyProperty::Register(
-        "Header", ValueType::String, "Expander",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "IsExpanded", ValueType::Int32, "Expander",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // Per-row idempotence: the 11k-9 DP-fidelity CLOSURE may pre-register some
+    // (or all) of these eagerly. Guard EACH row individually so a partial
+    // pre-registration never skips an unregistered sibling row.
+    if (DependencyProperty::TryGet("Header", "Expander") == nullptr)
+        (void)DependencyProperty::Register(
+            "Header", ValueType::String, "Expander",
+            PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    if (DependencyProperty::TryGet("IsExpanded", "Expander") == nullptr)
+        (void)DependencyProperty::Register(
+            "IsExpanded", ValueType::Int32, "Expander",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
 void ensure_expander_properties_registered()
@@ -7638,21 +7662,27 @@ namespace {
 
 void register_popup_properties()
 {
-    (void)DependencyProperty::Register(
-        "IsOpen", ValueType::Int32, "Popup",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Placement", ValueType::Int32, "Popup",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "HorizontalOffset", ValueType::Double, "Popup",
-        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "VerticalOffset", ValueType::Double, "Popup",
-        PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "StaysOpen", ValueType::Int32, "Popup",
-        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+    // Per-row idempotence (see register_expander_properties).
+    if (DependencyProperty::TryGet("IsOpen", "Popup") == nullptr)
+        (void)DependencyProperty::Register(
+            "IsOpen", ValueType::Int32, "Popup",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("Placement", "Popup") == nullptr)
+        (void)DependencyProperty::Register(
+            "Placement", ValueType::Int32, "Popup",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("HorizontalOffset", "Popup") == nullptr)
+        (void)DependencyProperty::Register(
+            "HorizontalOffset", ValueType::Double, "Popup",
+            PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("VerticalOffset", "Popup") == nullptr)
+        (void)DependencyProperty::Register(
+            "VerticalOffset", ValueType::Double, "Popup",
+            PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("StaysOpen", "Popup") == nullptr)
+        (void)DependencyProperty::Register(
+            "StaysOpen", ValueType::Int32, "Popup",
+            PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
     (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
     (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
 }

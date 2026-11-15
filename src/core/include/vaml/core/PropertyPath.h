@@ -1,5 +1,5 @@
 #pragma once
-// VAML PropertyPath — the parsed dot-path binding route + its evaluator.
+// VAML PropertyPath — the parsed path binding route + its evaluator.
 // S240 (dep:S226). Sprint 6 first token. Foundation for the binding engine.
 //
 // This is REAL permanent core surface (NOT a STUB / NOT MINIMAL REAL — there
@@ -9,25 +9,32 @@
 //
 // Two distinct, deliberately-split responsibility classes (this split is the
 // S240_1/BindingDiagnostic precondition — recorded, NOT silent):
-//   - Class A (syntax / authoring): PropertyPathError's Empty, TrailingDot,
+//   - Class A (syntax / authoring): PropertyPathError's TrailingDot,
 //     ConsecutiveDot, UnterminatedIndexer, EmptyIndexer, MalformedIndex,
-//     UnclosedQuote — thrown by parse() as PropertyPathException. Static:
-//     the path TEXT is wrong and no data is needed to know it.
+//     UnclosedQuote, UnmatchedParen — thrown by parse() as
+//     PropertyPathException. Static: the path TEXT is wrong and no data is
+//     needed to know it.
 //   - Class B (evaluation / runtime data outcome): NullIntermediate,
-//     MissingProperty, NotReadable — produced by the EVALUATOR (never by
-//     parse()). They depend on the live data, so they are reported back as
+//     MissingProperty, NotReadable, Direct — produced by the EVALUATOR (never
+//     by parse()). They depend on the live data, so they are reported back as
 //     PropertyRead outcomes, not thrown diagnostics.
 //
-// Grammar (hand-rolled, WPF-faithful): a path is a sequence of `.name` /
-// `[index]` route steps. The first step may be bare (`Address`, `[0]`,
-// `Address[0].Name`). A name is a non-empty run excluding `.` `[` `]` and
-// whitespace. An index is either an optional `-` + digits (Integer) or a
-// single/double-quoted string (StringKey). Whitespace around dots and inside
-// brackets is skipped (authoring tolerance), but whitespace WITHIN a name is
-// a syntax boundary.
+// Grammar (hand-rolled, WPF-faithful — audited against
+// E:\GitRepos\wpf\...\MS\Internal\Data\PathParser.cs per the WPF-source-audit
+// protocol): a path is a sequence of route steps, each a property name or an
+// indexer. The FIRST level may start bare (`Address`, `[0]`, `Address[0].Name`),
+// OR with a leading `.` (`DrillIn.Never`), `/` (`DrillIn.Always`), or `[` — the
+// WPF Init/DrillIn state machine (PathParser.cs:103-136). An EMPTY / `.` path
+// is a VALID `Direct` binding to the whole object (PathParser.cs:83-89), NOT an
+// error. A name is a run excluding `.` `/` `[` `]` (IsSpecialChar, :401-405) —
+// internal whitespace is legal (names are trimmed, :150-165); `( )` paren-level
+// tracking is honored (:144-149). An indexer is a comma-separated
+// IndexerParamInfo{parenString, valueString} list (:17-32, :172-181) supporting
+// a `(paren)value` form, multi-param `[i,j]`, nested `[ [ ] ]`, and the `^`
+// escape of `, ( ) ] ^` and white space (EscapeChar = '^', :417, :239-247).
 //
 // The parser is hand-rolled (no std::regex, no parser-generator dependency):
-// a dot-path grammar is small and deterministic, and hand-rolling keeps this
+// the path grammar is small and deterministic, and hand-rolling keeps this
 // core surface dependency-free (ADR-011 clean, no Vulkan; no runtime libs).
 
 #include "vaml/core/Value.h" // Value (evaluator's payload), ValueType
@@ -47,19 +54,40 @@ namespace vaml {
 enum class PropertyPathError : std::uint8_t
 {
     // Class A — syntax (parse-time, authoring). parse() throws these.
-    Empty             = 0,  // empty / whitespace-only path
-    TrailingDot       = 1,  // "Address."        (ends on a dot)
-    ConsecutiveDot    = 2,  // "Address..Street" (a dot adjacent to a dot)
+    // NOTE: `Empty` is RETIRED as a syntax error (the WPF drift closure at
+    // Sprint 11af): an empty / `.` path is a VALID `Direct` self-binding
+    // (PathParser.cs:83-89), so the enum keeps `Empty = 0` as the stable
+    // "no-error / ok" tag used by PropertyRead and diagnostics, and the Class A
+    // error set is the remaining syntax arms. The order below is STABLE (the
+    // surviving error ordinals are unchanged; `UnmatchedParen` is appended).
+    Empty             = 0,  // no-error/ok tag (a Direct path is valid, not an error)
+    TrailingDot       = 1,  // path ends mid-language-gate (e.g. "...Address/")
+    ConsecutiveDot    = 2,  // "Address..Street" debug-only remnant — real WPF treats
+                            // `.` as DrillIn.Never and a leading `.` is legal; kept
+                            // as a stable ordinal, reported only for the archived form
     UnterminatedIndexer = 3,// "Items[0"        (bracket never closed)
     EmptyIndexer      = 4,  // "Items[]"        (no index inside brackets)
     MalformedIndex    = 5,  // "Items[abc]" / "Items[1.5]" / "Items[-]" (bad index)
     UnclosedQuote     = 6,  // "Items[\"abc]    (quote never closed)
+    UnmatchedParen    = 10, // "(Name" / "Name)" unbalanced paren in a property name
+                            // (the WPF UnmatchedParen error, PathParser.cs:144-149)
 
     // Class B — evaluation (runtime data outcome, never thrown by parse()).
     NullIntermediate  = 7,  // a NON-final segment yielded Value::Null
     MissingProperty   = 8,  // the read resolved to an unknown property
     NotReadable       = 9,  // the node cannot be read by this reader (e.g. an
                             // index into a non-indexable DependencyObject)
+    Direct            = 11, // the path was empty/`.` — bind the whole object
+                            // (equivalent to WPF SourceValueInfo(Direct), :83-89)
+};
+
+// The three drill-in modes WPF's parser tracks per level
+// (PathParser.cs:17-32, :80, :372).
+enum class DrillIn : std::uint8_t
+{
+    Never    = 0, // '.' — property access, no drill-in
+    IfNeeded = 1, // first-level default
+    Always   = 2, // '/' — drill into the collection/items
 };
 
 // Structured parse error (the S082/S091/S094 structured-exception pattern):
@@ -83,9 +111,20 @@ private:
     std::string       fragment_;
 };
 
-// A single parsed index expression: either an Integer (optionally negative) or
-// a quoted StringKey. Integer is signed int64_t so the reader/accessor decides
-// from-end semantics; the parser only records the literal sign.
+// One indexer parameter, the WPF `IndexerParamInfo{parenString, valueString}`
+// unit (PathParser.cs:17-32, :172-181). Both parts may be empty; a plain string
+// key or numeric index is simply the empty-paren case.
+struct VAML_CORE_EXPORT PropertyIndexerParam
+{
+    std::string paren;   // the "(...)" paren string (may be empty)
+    std::string value;   // the value string (may be empty; the parser trims trailing ws)
+};
+
+// A single parsed index expression: the WPF indexer is a comma-separated list of
+// IndexerParamInfo units. The common cases (a single Integer or a single quoted
+// StringKey) are exposed in a plain form via the convenience accessors; the full
+// param list is always retained for fidelity. Integer is signed int64_t so the
+// reader/accessor decides from-end semantics.
 struct VAML_CORE_EXPORT PropertyIndex
 {
     enum class Kind : std::uint8_t { Integer, StringKey };
@@ -93,21 +132,33 @@ struct VAML_CORE_EXPORT PropertyIndex
     Kind       kind = Kind::Integer;
     std::int64_t integer = 0; // meaningful when kind == Integer
     std::string  str;         // meaningful when kind == StringKey
+    std::vector<PropertyIndexerParam> params; // the full WPF param list (>= 1 entry)
+
+    // True iff the parsed list is a single Integer param with an empty paren
+    // part (the "Items[2]" / "Items[-1]" case).
+    [[nodiscard]] bool is_single_integer() const noexcept
+    {
+        return kind == Kind::Integer && params.size() == 1 && params[0].paren.empty();
+    }
 };
 
 enum class PropertySegmentKind : std::uint8_t { Property, Index };
 
 // One step of the parsed path. `source` is the exact authored sub-text of this
-// step (e.g. ".Street", "[0]", ".Name") for diagnostics/round-trip.
+// step (e.g. ".Street", "/Items[0]", ".Name") for diagnostics/round-trip.
+// `drillIn` is the WPF per-level drill-in mode ('.' → Never, '/' → Always,
+// first-level default → IfNeeded).
 struct VAML_CORE_EXPORT PropertySegment
 {
     PropertySegmentKind kind = PropertySegmentKind::Property;
+    DrillIn          drillIn = DrillIn::Never;
     std::string      name;   // property name (kind==Property) or string key (kind==Index)
     PropertyIndex    index;  // meaningful when kind == Index
     std::string      source; // exact authored sub-text (".Street", "[0]", ...)
 };
 
-// The parsed representation of a dot-path.
+// The parsed representation of a path (a route of property/indexer steps, or a
+// single Direct step when the path was empty / `.`).
 class VAML_CORE_EXPORT PropertyPath
 {
 public:
@@ -126,12 +177,25 @@ public:
                                         PropertyPathError* err) noexcept;
 
     [[nodiscard]] bool valid() const noexcept { return valid_; }
+    // True iff the path is a WPF `Direct` self-binding (empty or exactly `.` /
+    // `/`, PathParser.cs:83-89) — evaluates to the whole object.
+    [[nodiscard]] bool is_direct() const noexcept { return valid_ && isDirect_; }
     [[nodiscard]] std::size_t segment_count() const noexcept { return segments_.size(); }
     [[nodiscard]] const std::vector<PropertySegment>& segments() const noexcept { return segments_; }
+    // The first segment only when the path is a non-direct route.
+    [[nodiscard]] const PropertySegment* first_segment() const noexcept
+    {
+        return (valid_ && !isDirect_ && !segments_.empty()) ? &segments_.front() : nullptr;
+    }
     [[nodiscard]] const std::string& original() const noexcept { return original_; }
 
 private:
+    // Builds the Direct self-binding path (empty / `.` / `/` text). Internal
+    // factory so the private members can be set by the parser.
+    static void make_direct(PropertyPath& out, std::string_view text) noexcept;
+
     bool                        valid_ = false;
+    bool                        isDirect_ = false;
     std::string                 original_;
     std::vector<PropertySegment> segments_;
 };
@@ -166,7 +230,10 @@ struct VAML_CORE_EXPORT PropertyRead
 using PropertyReader = std::function<PropertyRead(const Value& node, const PropertySegment& segment)>;
 
 // Walks the parsed path through the reader, null-safe.
-//   - segment_count() == 0 -> ok=false, error=Empty.
+//   - A Direct path (empty / `.` — path.is_direct()) -> ok=true with the ROOT
+//     value (self-binding, the WPF `SourceValueInfo(Direct)` result).
+//   - segment_count() == 0 (only reachable for an invalid path) -> ok=false,
+//     error=Empty.
 //   - A reader failure on any segment -> propagated (ok=false) with that
 //     segment's error + segmentIndex.
 //   - A reader SUCCESS whose value is Value::Null on a NON-final segment ->
@@ -178,15 +245,5 @@ using PropertyReader = std::function<PropertyRead(const Value& node, const Prope
 // caller's thread and touches only the reader it is handed).
 [[nodiscard]] VAML_CORE_EXPORT PropertyRead evaluate_property_path(
     const Value& root, const PropertyPath& path, const PropertyReader& reader);
-
-// The default reader: when `node` is Value::UntypedPtr to a DependencyObject,
-// a Property segment reads obj->Get(PropertyId(name)) — mapping the
-// unregistered case to MissingProperty (never a thrown raw PropertyNotFound),
-// and an Index segment on a plain DependencyObject -> NotReadable (a
-// DependencyObject is not indexable; collection-indexable objects get their own
-// reader when collections land — NO-GAP, recorded). Any OTHER node/segment
-// combination -> NotReadable. Makes S240 genuinely usable today against
-// registered DPs on the S036/S039 store.
-[[nodiscard]] VAML_CORE_EXPORT PropertyReader dependency_object_reader();
 
 } // namespace vaml

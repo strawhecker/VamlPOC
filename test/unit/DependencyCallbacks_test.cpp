@@ -130,7 +130,7 @@ TEST_CASE("S046: attached/global coerce+validate — coerced value applied on a 
                        return Value::Int32(n < 0 ? 0 : (n > 100 ? 100 : n));
                    },
                    /*validate*/ [](const Value& v) { return v.get<std::int32_t>() != 7; });
-    const PropertyId id = PropertyId::of(name);
+    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
 
     DependencyObject b; // never locally registers the property
 
@@ -160,7 +160,7 @@ TEST_CASE("S046: attached/global coerce+validate — wrong-tag input throws on t
                        return Value::Int32(n < 0 ? 0 : (n > 100 ? 100 : n));
                    },
                    /*validate*/ [](const Value& v) { return v.get<std::int32_t>() != 7; });
-    const PropertyId id = PropertyId::of(name);
+    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
 
     DependencyObject b; // never locally registers
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
@@ -176,7 +176,7 @@ TEST_CASE("S046: attached/global property with NO hooks stores as-given (backwar
     // (S036 passthrough, now proven on the global/attached path).
     const char* name = "PlainAttached_S046";
     registerGlobal(name, Value::Int32(0)); // no hooks
-    const PropertyId id = PropertyId::of(name);
+    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
 
     DependencyObject b; // never locally registers
     SHOULD(ShouldlyString(b.Set(id, Value::Int32(42))).ShouldBe(SetResult::APPLIED));
@@ -207,7 +207,7 @@ TEST_CASE("S046: wrong-thread queued coercion — the COERCED value is what the 
                  ++fire;
              });
     (void)obj.register_property(std::move(key), std::move(md));
-    const PropertyId id = PropertyId::of(name);
+    const PropertyId id = PropertyId::of(name, "S046Owner");
 
     // Affine Set(50) -> applied 50; cb fired once (default 10 -> 50).
     SHOULD(ShouldlyString(obj.Set(id, Value::Int32(50))).ShouldBe(SetResult::APPLIED));
@@ -248,7 +248,7 @@ TEST_CASE("S046: wrong-thread queued coercion clamps a sub-zero raw write to 0")
              })
              .with_changed([&fire](const Value&, const Value&) { ++fire; });
     (void)obj.register_property(std::move(key), std::move(md));
-    const PropertyId id = PropertyId::of(name);
+    const PropertyId id = PropertyId::of(name, "S046Owner");
 
     // Non-affine Set(-5): coerce -> 0 at queue time, POSTED; default 10 -> Get
     // still 10.

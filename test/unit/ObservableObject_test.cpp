@@ -76,29 +76,29 @@ struct Recorder
 TEST_CASE("S241 Set/Get: round-trips typed values (String/Int32/Bool)")
 {
     ObservableObject vm;
-    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle), Value::String("Hello"))).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameCount), Value::Int32(42))).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameOn), Value::Bool(true))).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("Hello"))).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameCount, "ObservableObject"), Value::Int32(42))).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameOn, "ObservableObject"), Value::Bool(true))).ShouldBe(true));
 
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle))).ShouldBe(Value::String("Hello")));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameCount))).ShouldBe(Value::Int32(42)));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameOn))).ShouldBe(Value::Bool(true)));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle, "ObservableObject"))).ShouldBe(Value::String("Hello")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameCount, "ObservableObject"))).ShouldBe(Value::Int32(42)));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameOn, "ObservableObject"))).ShouldBe(Value::Bool(true)));
 }
 
 TEST_CASE("S241 Set/Get: an unset property reads Value::Null() and is absent")
 {
     ObservableObject vm;
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle)).isNull()).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle))).ShouldBe(false));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle, "ObservableObject")).isNull()).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle, "ObservableObject"))).ShouldBe(false));
 }
 
 TEST_CASE("S241 Set: same value (real-change discipline) does not store and returns false")
 {
     ObservableObject vm;
-    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle), Value::String("A"))).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle), Value::String("A"))).ShouldBe(false));
+    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("A"))).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("A"))).ShouldBe(false));
     // Storage unchanged.
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle))).ShouldBe(Value::String("A")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameTitle, "ObservableObject"))).ShouldBe(Value::String("A")));
 }
 
 // ===========================================================================
@@ -113,8 +113,8 @@ TEST_CASE("S241 signal: broadcast fires with correct (id, old, new) on a real ch
         rec.record(id, o, n);
     });
 
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("first"));
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("second"));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("first"));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("second"));
 
     SHOULD(ShouldlyIntegral(rec.size()).ShouldBe(2));
     SHOULD(ShouldlyString(rec.entries[0].id.name()).ShouldBe(kNameTitle));
@@ -134,8 +134,8 @@ TEST_CASE("S241 signal: no signal on a no-change Set")
         rec.record(id, o, n);
     });
 
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("same"));
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("same"));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("same"));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("same"));
     SHOULD(ShouldlyIntegral(rec.size()).ShouldBe(1));
 }
 
@@ -143,14 +143,14 @@ TEST_CASE("S241 signal: per-property subscription fires only for its property")
 {
     ObservableObject vm;
     Recorder titleOnly;
-    (void)vm.add_property_changed(PropertyId::of(kNameTitle),
+    (void)vm.add_property_changed(PropertyId::of(kNameTitle, "ObservableObject"),
                             [&titleOnly](PropertyId id, const Value& o, const Value& n) {
                                 titleOnly.record(id, o, n);
                             });
 
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("t"));
-    (void)vm.Set(PropertyId::of(kNameCount), Value::Int32(7)); // other property
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("t2"));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("t"));
+    (void)vm.Set(PropertyId::of(kNameCount, "ObservableObject"), Value::Int32(7)); // other property
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("t2"));
 
     SHOULD(ShouldlyIntegral(titleOnly.size()).ShouldBe(2));
     SHOULD(ShouldlyString(titleOnly.entries[0].id.name()).ShouldBe(kNameTitle));
@@ -166,13 +166,13 @@ TEST_CASE("S241 signal: broadcast + per-property both fire, registration order p
     (void)vm.add_property_changed([&rec](PropertyId id, const Value& o, const Value& n) {
         rec.record(id, o, n);
     });
-    (void)vm.add_property_changed(PropertyId::of(kNameCount),
+    (void)vm.add_property_changed(PropertyId::of(kNameCount, "ObservableObject"),
                             [&countOnly](PropertyId id, const Value& o, const Value& n) {
                                 countOnly.record(id, o, n);
                             });
 
-    (void)vm.Set(PropertyId::of(kNameCount), Value::Int32(5));
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("x"));
+    (void)vm.Set(PropertyId::of(kNameCount, "ObservableObject"), Value::Int32(5));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("x"));
 
     // Broadcast saw BOTH changes, in Set order.
     SHOULD(ShouldlyIntegral(rec.size()).ShouldBe(2));
@@ -191,28 +191,28 @@ TEST_CASE("S241 signal: remove_property_changed stops a handler; re-add appends"
         rec.record(id, o, n);
     });
 
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("a"));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("a"));
     vm.remove_property_changed(token);
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("b")); // handler removed
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("b")); // handler removed
     (void)vm.add_property_changed([&rec](PropertyId id, const Value& o, const Value& n) {
         rec.record(id, o, n);
     });
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("c")); // re-added handler
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("c")); // re-added handler
 
     // Only "a" (first) and "c" (re-added) fired; "b" was silent.
     SHOULD(ShouldlyIntegral(rec.size()).ShouldBe(2));
     SHOULD(ShouldlyString(rec.entries[0].newValue).ShouldBe(Value::String("a")));
     SHOULD(ShouldlyString(rec.entries[1].newValue).ShouldBe(Value::String("c")));
-    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle))).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle, "ObservableObject"))).ShouldBe(true));
 }
 
 TEST_CASE("S241 has(): a Set-to-Value::Null property is present; a never-set name is absent")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
-    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameEmpty))).ShouldBe(true));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameEmpty)).isNull()).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle))).ShouldBe(false));
+    (void)vm.Set(PropertyId::of(kNameEmpty, "ObservableObject"), Value::Null());
+    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameEmpty, "ObservableObject"))).ShouldBe(true));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kNameEmpty, "ObservableObject")).isNull()).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of(kNameTitle, "ObservableObject"))).ShouldBe(false));
 }
 
 // ===========================================================================
@@ -231,7 +231,7 @@ PropertyRead eval(ObservableObject& vm, std::string_view path)
 TEST_CASE("S241 reader: a present property resolves to its value (final)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameTitle), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("Hello"));
 
     PropertyRead r = eval(vm, kNameTitle);
     SHOULD(ShouldlyIntegral(r.ok).ShouldBe(true));
@@ -251,7 +251,7 @@ TEST_CASE("S241 reader: an absent name -> MissingProperty at segmentIndex 0 (nev
 TEST_CASE("S241 reader: a stored null read as the FINAL segment is a valid ok=true result")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+    (void)vm.Set(PropertyId::of(kNameEmpty, "ObservableObject"), Value::Null());
     PropertyRead r = eval(vm, kNameEmpty);
     SHOULD(ShouldlyIntegral(r.ok).ShouldBe(true));
     SHOULD(ShouldlyString(r.value.isNull()).ShouldBe(true));
@@ -260,7 +260,7 @@ TEST_CASE("S241 reader: a stored null read as the FINAL segment is a valid ok=tr
 TEST_CASE("S241 reader: a stored null on a NON-final segment -> NullIntermediate at its index")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+    (void)vm.Set(PropertyId::of(kNameEmpty, "ObservableObject"), Value::Null());
     // "S241Null.Foo": segment0 = S241Null -> Non-final null -> NullIntermediate at 0.
     PropertyRead r = eval(vm, std::string(kNameEmpty) + ".Foo");
     SHOULD(ShouldlyIntegral(r.ok).ShouldBe(false));
@@ -273,9 +273,9 @@ TEST_CASE("S241 reader: a chain through an ObservableObject as a non-final node 
 {
     // A host ObservableObject whose property points at a SECOND ObservableObject.
     ObservableObject inner;
-    (void)inner.Set(PropertyId::of(kNameTitle), Value::String("deep"));
+    (void)inner.Set(PropertyId::of(kNameTitle, "ObservableObject"), Value::String("deep"));
     ObservableObject outer;
-    (void)outer.Set(PropertyId::of("S241Inner"), Value::UntypedPtr(&inner));
+    (void)outer.Set(PropertyId::of("S241Inner", "ObservableObject"), Value::UntypedPtr(&inner));
 
     Value root = Value::UntypedPtr(&outer);
     PropertyRead r = vaml::evaluate_property_path(

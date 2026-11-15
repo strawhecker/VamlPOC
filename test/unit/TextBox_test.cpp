@@ -168,7 +168,7 @@ TEST_CASE("S402: a TwoWay binding on TextBox.Text writes an edit back to the VM"
     // store (the established S244 pattern reads the source via Get on the path
     // key — the source's observable property, not the PROPERTY_BINDABLE backing
     // field, is what the write-back updates).
-    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("text")).get<std::string>())
+    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("text", "ObservableObject")).get<std::string>())
                .ShouldBe(std::string("b5initial")));
 }
 

@@ -75,8 +75,8 @@ void require_equivalent_trees(const vaml::LoadResult& a, const vaml::LoadResult&
     CHECK(dynamic_cast<vaml::StackPanel*>(a.root.get()) != nullptr);
     CHECK(dynamic_cast<vaml::StackPanel*>(b.root.get()) != nullptr);
     // The converted Margin value is the same for the SAME bytes.
-    CHECK((a.root->Get(vaml::PropertyId::of("Margin"))
-               == b.root->Get(vaml::PropertyId::of("Margin"))));
+    CHECK((a.root->Get(vaml::PropertyId::of("Margin", "UIElement"))
+               == b.root->Get(vaml::PropertyId::of("Margin", "UIElement"))));
 }
 
 } // namespace

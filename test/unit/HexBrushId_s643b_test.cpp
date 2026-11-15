@@ -85,9 +85,10 @@ const char* const kLiteralSetterDoc =
     "</StackPanel.Resources>"
     "</StackPanel>";
 
-[[nodiscard]] std::shared_ptr<Brush> heldBrushOf(const UIElement& el, const char* dpName)
+[[nodiscard]] std::shared_ptr<Brush> heldBrushOf(const UIElement& el, const char* dpName,
+                                                 const char* owner)
 {
-    const Value v = el.Get(vaml::PropertyId::of(dpName));
+    const Value v = el.Get(vaml::PropertyId::of(dpName, owner));
     REQUIRE(v.type() == ValueType::Brush);
     return v.get<std::shared_ptr<::vaml::Brush>>();
 }
@@ -117,8 +118,8 @@ TEST_CASE("S643b: a color literal -> a Brush OBJECT (D1); same color -> shared f
     REQUIRE(border != nullptr);
 
     // D1 object round-trip: each DP holds a Brush OBJECT with the parsed color.
-    const std::shared_ptr<Brush> ba = heldBrushOf(*a, "Foreground");
-    const std::shared_ptr<Brush> bb = heldBrushOf(*b, "Foreground");
+    const std::shared_ptr<Brush> ba = heldBrushOf(*a, "Foreground", "TextBlock");
+    const std::shared_ptr<Brush> bb = heldBrushOf(*b, "Foreground", "TextBlock");
     SHOULD(ShouldlyIntegral(ba != nullptr).ShouldBe(true));
     SHOULD(ShouldlyIntegral(static_cast<int>(ba->color().r)).ShouldBe(0x11));
     SHOULD(ShouldlyIntegral(static_cast<int>(ba->color().g)).ShouldBe(0x22));
@@ -130,7 +131,7 @@ TEST_CASE("S643b: a color literal -> a Brush OBJECT (D1); same color -> shared f
     SHOULD(ShouldlyIntegral(static_cast<int>(ba->is_frozen())).ShouldBe(1));
 
     // A DIFFERENT color (Border's BorderBrush) is a DIFFERENT shared brush.
-    const std::shared_ptr<Brush> bbb = heldBrushOf(*border, "BorderBrush");
+    const std::shared_ptr<Brush> bbb = heldBrushOf(*border, "BorderBrush", "Border");
     SHOULD(ShouldlyIntegral(bbb != ba).ShouldBe(true));
     SHOULD(ShouldlyIntegral(static_cast<int>(bbb->color().r == 0x44)).ShouldBe(1));
 
@@ -203,7 +204,7 @@ TEST_CASE("S643b: a Style setter + authored literal co-occur on ONE element, no 
     SHOULD(ShouldlyIntegral(applied > 0u).ShouldBe(1));
 
     // The style setter applied the color via the OBJECT path (D1): a Brush.
-    const Value bg = element->Get(vaml::PropertyId::of("Background"));
+    const Value bg = element->Get(vaml::PropertyId::of("Background", "Control"));
     SHOULD(ShouldlyString(bg.type()).ShouldBe(ValueType::Brush));
     const std::shared_ptr<Brush> bgBrush = bg.get<std::shared_ptr<::vaml::Brush>>();
     SHOULD(ShouldlyIntegral(bgBrush != nullptr).ShouldBe(true));

@@ -66,24 +66,24 @@ TEST_CASE("S038: record — pending_count increments, has_pending true, distinct
 {
     ChangeRecorder rec;
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(0u));
-    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(false));
+    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width", "ChangeRecorder"))).ShouldBe(false));
 
-    rec.record(PropertyId::of("Width"), Value::Int32(1), Value::Int32(5));
+    rec.record(PropertyId::of("Width", "ChangeRecorder"), Value::Int32(1), Value::Int32(5));
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(1u));
-    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(true));
+    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width", "ChangeRecorder"))).ShouldBe(true));
 
     // A DISTINCT property coexists.
-    rec.record(PropertyId::of("Height"), Value::Int32(2), Value::Int32(9));
+    rec.record(PropertyId::of("Height", "ChangeRecorder"), Value::Int32(2), Value::Int32(9));
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(2u));
-    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Height"))).ShouldBe(true));
-    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(true));
+    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Height", "ChangeRecorder"))).ShouldBe(true));
+    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width", "ChangeRecorder"))).ShouldBe(true));
 }
 
 TEST_CASE("S038: per-property coalescing — first old kept, latest new adopted")
 {
     ChangeRecorder rec;
-    rec.record(PropertyId::of("W"), Value::Int32(1), Value::Int32(5));
-    rec.record(PropertyId::of("W"), Value::Int32(5), Value::Int32(8)); // coalesce
+    rec.record(PropertyId::of("W", "ChangeRecorder"), Value::Int32(1), Value::Int32(5));
+    rec.record(PropertyId::of("W", "ChangeRecorder"), Value::Int32(5), Value::Int32(8)); // coalesce
 
     // One pending notification, not two.
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(1u));
@@ -98,9 +98,9 @@ TEST_CASE("S038: per-property coalescing — first old kept, latest new adopted"
 TEST_CASE("S038: three records same prop — earliest old + newest new")
 {
     ChangeRecorder rec;
-    rec.record(PropertyId::of("C"), Value::Int32(0), Value::Int32(1));
-    rec.record(PropertyId::of("C"), Value::Int32(1), Value::Int32(2));
-    rec.record(PropertyId::of("C"), Value::Int32(2), Value::Int32(3));
+    rec.record(PropertyId::of("C", "ChangeRecorder"), Value::Int32(0), Value::Int32(1));
+    rec.record(PropertyId::of("C", "ChangeRecorder"), Value::Int32(1), Value::Int32(2));
+    rec.record(PropertyId::of("C", "ChangeRecorder"), Value::Int32(2), Value::Int32(3));
 
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(1u));
 
@@ -113,9 +113,9 @@ TEST_CASE("S038: three records same prop — earliest old + newest new")
 TEST_CASE("S038: flush emits once per property in FIRST-RECORD order and clears")
 {
     ChangeRecorder rec;
-    rec.record(PropertyId::of("Width"), Value::Int32(0), Value::Int32(10));
-    rec.record(PropertyId::of("Height"), Value::Int32(0), Value::Int32(20));
-    rec.record(PropertyId::of("Depth"), Value::Int32(0), Value::Int32(30));
+    rec.record(PropertyId::of("Width", "ChangeRecorder"), Value::Int32(0), Value::Int32(10));
+    rec.record(PropertyId::of("Height", "ChangeRecorder"), Value::Int32(0), Value::Int32(20));
+    rec.record(PropertyId::of("Depth", "ChangeRecorder"), Value::Int32(0), Value::Int32(30));
 
     FlushTrace trace;
     SHOULD(ShouldlyString(rec.flush(trace.fn())).ShouldBe(3u));
@@ -132,7 +132,7 @@ TEST_CASE("S038: flush emits once per property in FIRST-RECORD order and clears"
 
     // Recorder cleared after flush.
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(0u));
-    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width"))).ShouldBe(false));
+    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("Width", "ChangeRecorder"))).ShouldBe(false));
 
     // A second flush has nothing left.
     FlushTrace trace2;
@@ -143,7 +143,7 @@ TEST_CASE("S038: flush emits once per property in FIRST-RECORD order and clears"
 TEST_CASE("S038: record during flush lands in fresh state — not double-emitted this pass")
 {
     ChangeRecorder rec;
-    rec.record(PropertyId::of("A"), Value::Int32(0), Value::Int32(1));
+    rec.record(PropertyId::of("A", "ChangeRecorder"), Value::Int32(0), Value::Int32(1));
 
     // A notify handler that re-record()s the same property during the flush.
     int emitted = 0;
@@ -170,13 +170,13 @@ TEST_CASE("S038: record during flush lands in fresh state — not double-emitted
 TEST_CASE("S038: clear drops all pending; flush after clear returns 0")
 {
     ChangeRecorder rec;
-    rec.record(PropertyId::of("W"), Value::Int32(0), Value::Int32(1));
-    rec.record(PropertyId::of("H"), Value::Int32(0), Value::Int32(2));
+    rec.record(PropertyId::of("W", "ChangeRecorder"), Value::Int32(0), Value::Int32(1));
+    rec.record(PropertyId::of("H", "ChangeRecorder"), Value::Int32(0), Value::Int32(2));
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(2u));
 
     rec.clear();
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(0u));
-    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("W"))).ShouldBe(false));
+    SHOULD(ShouldlyString(rec.has_pending(PropertyId::of("W", "ChangeRecorder"))).ShouldBe(false));
 
     FlushTrace trace;
     SHOULD(ShouldlyString(rec.flush(trace.fn())).ShouldBe(0u));
@@ -201,12 +201,12 @@ TEST_CASE("S038: owned-name (record survives the registering key) — coalescing
     {
         // Simulate a short-lived key source whose storage dies after this block.
         std::string temp(W);
-        rec.record(PropertyId::of(temp), Value::Int32(0), Value::Int32(5));
+        rec.record(PropertyId::of(temp, "ChangeRecorder"), Value::Int32(0), Value::Int32(5));
     }
 
     // The same NAME (via a fresh, unrelated source) must COALESCE, not add a second.
     std::string fresh = "Width";
-    rec.record(PropertyId::of(fresh), Value::Int32(5), Value::Int32(7));
+    rec.record(PropertyId::of(fresh, "ChangeRecorder"), Value::Int32(5), Value::Int32(7));
     SHOULD(ShouldlyString(rec.pending_count()).ShouldBe(1u));
 
     FlushTrace trace;

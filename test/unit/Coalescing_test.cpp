@@ -121,11 +121,11 @@ TEST_CASE("S042: two live Sets of the same prop before one drain == one notifica
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
     // Two Sets before the drain — each pushes one entry into the child's queue.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5)); // push (0 -> 5)
-    (void)parent.Set(PropertyId::of(name), Value::Int32(8)); // push (5 -> 8)
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5)); // push (0 -> 5)
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8)); // push (5 -> 8)
 
     // RAW depth is 2: coalescing happens AT DRAIN, not at enqueue.
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(2u));
@@ -150,11 +150,11 @@ TEST_CASE("S042: three Sets -> one notification, earliest old + newest new")
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5));
-    (void)parent.Set(PropertyId::of(name), Value::Int32(7));
-    (void)parent.Set(PropertyId::of(name), Value::Int32(9));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
 
     // Raw depth 3 -> single drain -> ONE coalesced notification.
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(3u));
@@ -177,15 +177,15 @@ TEST_CASE("S042: drain is the coalescing boundary — no cross-drain collapse")
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
     child.ProcessNotificationQueue();
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
     SHOULD(ShouldlyString(trace.olds[0]).ShouldBe(0));
     SHOULD(ShouldlyString(trace.news[0]).ShouldBe(5));
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(8));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8));
     child.ProcessNotificationQueue();
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(2u));
     SHOULD(ShouldlyString(trace.olds[1]).ShouldBe(5));
@@ -208,12 +208,12 @@ TEST_CASE("S042: distinct props do NOT coalesce with each other")
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(aName), trace.handler());
-    (void)child.add_property_changed(PropertyId::of(bName), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(aName, "PropOwner"), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(bName, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(aName), Value::Int32(1)); // A first-record
-    (void)parent.Set(PropertyId::of(bName), Value::Int32(2)); // B first-record
-    (void)parent.Set(PropertyId::of(aName), Value::Int32(3)); // coalesce A (0->3)
+    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(1)); // A first-record
+    (void)parent.Set(PropertyId::of(bName, "PropOwner"), Value::Int32(2)); // B first-record
+    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(3)); // coalesce A (0->3)
     child.ProcessNotificationQueue();
 
     // Two distinct-property notifications, first-record order: A then B.
@@ -239,13 +239,13 @@ TEST_CASE("S042: a NO_CHANGE Set does not inflate the queue")
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
 
     // Second same-value Set: NO_CHANGE -> no push, queue depth unchanged.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
 
     child.ProcessNotificationQueue();
@@ -270,13 +270,13 @@ TEST_CASE("S042: aggregate — exactly one notification per property")
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(aName), trace.handler());
-    (void)child.add_property_changed(PropertyId::of(bName), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(aName, "PropOwner"), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(bName, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(aName), Value::Int32(5));
-    (void)parent.Set(PropertyId::of(bName), Value::Int32(2));
-    (void)parent.Set(PropertyId::of(aName), Value::Int32(7));
-    (void)parent.Set(PropertyId::of(bName), Value::Int32(3));
+    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(bName, "PropOwner"), Value::Int32(2));
+    (void)parent.Set(PropertyId::of(aName, "PropOwner"), Value::Int32(7));
+    (void)parent.Set(PropertyId::of(bName, "PropOwner"), Value::Int32(3));
 
     // 4 raw records -> single drain -> exactly 2 coalesced notifications.
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(4u));

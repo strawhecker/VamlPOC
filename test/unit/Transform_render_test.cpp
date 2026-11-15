@@ -201,7 +201,7 @@ TEST_CASE("S208 UIElement RenderTransform DP: S043 attached-aware global resolut
     CHECK(is_transform_identity(fresh.render_transform()));
 
     // PropertyId path reads the effective value back.
-    const Value v = fresh.Get(PropertyId::of("RenderTransform"));
+    const Value v = fresh.Get(PropertyId::of("RenderTransform", "UIElement"));
     CHECK(v.type() == ValueType::Matrix2D);
     CHECK(v.get<Matrix2D>() == Matrix2D::identity());
 }

@@ -48,7 +48,7 @@ const char* kMultiHopDoc =
 
 std::string text_of(vaml::UIElement& el)
 {
-    const vaml::Value v = el.Get(vaml::PropertyId::of("Text"));
+    const vaml::Value v = el.Get(vaml::PropertyId::of("Text", "TextBlock"));
     return v.isNull() ? std::string() : v.get<std::string>();
 }
 
@@ -82,7 +82,7 @@ TEST_CASE("S620: seed_string_bindings seeds a leaf {Binding} path as its name")
     const std::size_t n = seed_string_bindings(reader, vm);
     SHOULD(ShouldlyIntegral(n == 1u).ShouldBe(1));
     // The leaf property name was seeded AS TEXT (the S620 deterministic value).
-    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("Name")).get<std::string>())
+    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("Name", "ObservableObject")).get<std::string>())
                .ShouldBe(std::string("Name")));
 }
 

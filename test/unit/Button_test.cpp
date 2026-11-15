@@ -134,7 +134,7 @@ TEST_CASE("S401: hover/pressed/disabled visual states swap the Background brush 
     // Enter Hover -> the Background DP holds a Brush OBJECT (S643b-1 D1, the
     // WPF-faithful paint read — not a Color, not a BrushId).
     (void)b.set_visual_state("Hover");
-    const vaml::Value normalBg = b.Get(vaml::PropertyId::of("Background"));
+    const vaml::Value normalBg = b.Get(vaml::PropertyId::of("Background", "InkCanvas"));
     SHOULD(ShouldlyString(normalBg.type() == vaml::ValueType::Brush).ShouldBe(true));
     (void)normalBg;
 

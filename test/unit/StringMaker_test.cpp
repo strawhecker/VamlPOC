@@ -47,7 +47,7 @@ TEST_CASE("S036_2: StringMaker<SetResult> names the outcome")
 // StringMaker<PropertyId> shows the name (and marks an empty id).
 TEST_CASE("S036_2: StringMaker<PropertyId> shows the name")
 {
-    PropertyId w = PropertyId::of("Width");
+    PropertyId w = PropertyId::of("Width", "StringMaker");
     CHECK(doctest::String{doctest::StringMaker<PropertyId>::convert(w)} ==
           doctest::String{"PropertyId(Width)"});
     CHECK(doctest::String{doctest::StringMaker<PropertyId>::convert(PropertyId{})} ==

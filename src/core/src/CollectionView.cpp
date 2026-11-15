@@ -189,10 +189,13 @@ void CollectionView::process_change(CollectionChangedAction action, std::size_t 
 void CollectionView::notify_own_change(const NotifyCollectionChangedEventArgs& e)
 {
     // Raise the PropertyChanged("Count") signal (the prop axis stores it).
+    // Owner is the CollectionView's own declaring type, matching how
+    // ObservableCollection's own axis uses "ObservableCollectionBase".
+    const PropertyId countId = PropertyId::of("Count", "CollectionView");
     for (const auto& s : propSubs_)
     {
-        if (!s.id.valid() || s.id == PropertyId::of("Count"))
-            s.handler(PropertyId::of("Count"), Value::Int32(0),
+        if (!s.id.valid() || s.id == countId)
+            s.handler(countId, Value::Int32(0),
                       Value::Int32(static_cast<std::int32_t>(items_.size())));
     }
 

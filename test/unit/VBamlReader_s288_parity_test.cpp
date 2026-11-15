@@ -65,10 +65,10 @@ const DependencyProperty& registerS288Global(const std::string& name, ValueType 
 {
     if (s288_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S288_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S288_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 void registerS288Properties()
@@ -78,7 +78,7 @@ void registerS288Properties()
                              Value::Thickness(vaml::Thickness{0, 0, 0, 0}));
     (void)registerS288Global("S288Enabled", ValueType::Bool, PropertyFlags::None, Value::Bool(true));
     (void)registerS288Global("S288Content", ValueType::String, PropertyFlags::None, Value::String(""));
-    (void)registerS288Global("S288Grid.Row",ValueType::Int32, PropertyFlags::None, Value::Int32(0));
+    (void)registerS288Global("S288Row", ValueType::Int32, PropertyFlags::None, Value::Int32(0));
 }
 
 // The S284 golden is used verbatim (it already carries xmlns/x:Name/x:Class/
@@ -86,7 +86,7 @@ void registerS288Properties()
 // plain prop on the Button and a {Binding} on the Text (so the deferred-bindings
 // axis is genuinely exercised on both paths).
 const char* kS288Golden =
-    R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root" S288Width="1024" S288Margin="10,10,10,10"><StackPanel x:Name="panel" S288Enabled="true"><Button x:Name="search" S288Content="Search" S288Width="200" S288Grid.Row="1" S288Click="OnSearch"/><TextBlock x:Name="label" S288Content="{Binding SearchText}">Hi</TextBlock></StackPanel></Window>)";
+    R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Name="root" S288Width="1024" S288Margin="10,10,10,10"><StackPanel x:Name="panel" S288Enabled="true"><Button x:Name="search" S288Content="Search" S288Width="200" S288Row="1" S288Click="OnSearch"/><TextBlock x:Name="label" S288Content="{Binding SearchText}">Hi</TextBlock></StackPanel></Window>)";
 
 // Focused control: two elements, plain props only (no events/bindings) — proves
 // the structural + literal-prop axes tightly.
@@ -123,7 +123,7 @@ TEST_CASE("S288: literal-prop parity holds on the golden (root + retained, incl.
     // The golden's PLAIN DPs — the ones both readers set by conversion. The
     // event key S288Click and x:* directives are excluded (not plain props).
     const std::vector<std::string> propKeys = {
-        "S288Width", "S288Margin", "S288Enabled", "S288Content", "S288Grid.Row"};
+        "S288Width", "S288Margin", "S288Enabled", "S288Content", "S288Row"};
     const ParityAxis props = vaml::tools::compare_dual_path_props(kS288Golden, propKeys, kS288Events);
     SHOULD(ShouldlyString(props.name).ShouldBe(std::string("literal_props")));
     SHOULD(ShouldlyIntegral(static_cast<int>(props.ok))

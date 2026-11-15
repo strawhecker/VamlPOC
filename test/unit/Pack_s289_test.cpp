@@ -75,10 +75,10 @@ const DependencyProperty& registerS289Global(const std::string& name, ValueType 
 {
     if (s289_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S289_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S289_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 void registerS289Properties()
@@ -324,7 +324,7 @@ TEST_CASE("S289: InitializeComponent binds the x:Class owner + root_class + name
         // The property set in the golden is converted + stored.
         if (panel)
         {
-            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S289Content")))
+            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S289Content", "FrameworkElement")))
                        .ShouldBe(Value::String("Hello")));
         }
     }
@@ -410,7 +410,7 @@ TEST_CASE("S289: InitializeComponentFrom resolves through the pack → identical
         SHOULD(ShouldlyIntegral(panel != nullptr).ShouldBe(true));
         if (panel)
         {
-            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S289Content")))
+            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S289Content", "FrameworkElement")))
                        .ShouldBe(Value::String("Hello")));
         }
     }

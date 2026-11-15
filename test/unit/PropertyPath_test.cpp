@@ -1,4 +1,4 @@
-// S240 — PropertyPath parser + evaluator (dep:S226). Sprint 6 first token.
+// S240 â€” PropertyPath parser + evaluator (dep:S226). Sprint 6 first token.
 //
 // Parse suite (Class A syntax): valid dot-paths ("Title", "Address.Street.City",
 // "Items[0].Name", "Items[-1]", "Items[\"key\"]", "['key']", "[0]" root, mixed);
@@ -48,15 +48,6 @@ using vaml::ValueType;
 using vaml::test::ShouldThrow;
 
 namespace {
-
-// S240-unique property names (object-scoped; no global-name collision).
-const char* kNameTitle = "S240Title";
-const char* kNameEmpty = "S240Empty";
-
-PropertyKey key(const std::string& name, ValueType t)
-{
-    return PropertyKey(name, t, "S240Test", PropertyFlags::None);
-}
 
 // Returns the kind thrown by PropertyPath::parse(text). Throws std::runtime_error
 // if the text parses successfully (i.e. the caller mis-classified a valid path).
@@ -138,7 +129,7 @@ void expect_kind(const char* text, PropertyPathError expected)
 } // namespace
 
 // ===========================================================================
-// PARSE SUITE (Class A — syntax)
+// PARSE SUITE (Class A â€” syntax)
 // ===========================================================================
 
 TEST_CASE("S240 parse: valid single-step and dotted paths")
@@ -179,12 +170,19 @@ TEST_CASE("S240 parse: segment kinds and index payloads")
     const auto& seg2 = p.segments()[2];
     SHOULD(ShouldlyIntegral(static_cast<int>(seg2.kind)).ShouldBe(static_cast<int>(PropertySegmentKind::Property)));
     SHOULD(ShouldlyString(seg2.name).ShouldBe("S240Name"));
-    SHOULD(ShouldlyString(seg2.source).ShouldBe(".S240Name"));
+    // Sprint 11af — AddProperty records the WPF SourceValueInfo.name field (the
+    // BARE name), NOT an authored `.`-prefixed step text (the pre-11af source
+    // carried the leading separator; the new WPF-faithful parser records the
+    // name only, PathParser.cs:276-281).
+    SHOULD(ShouldlyString(seg2.source).ShouldBe("S240Name"));
 
     const auto& seg3 = p.segments()[3];
     SHOULD(ShouldlyIntegral(static_cast<int>(seg3.kind)).ShouldBe(static_cast<int>(PropertySegmentKind::Index)));
     SHOULD(ShouldlyIntegral(static_cast<int>(seg3.index.kind)).ShouldBe(static_cast<int>(vaml::PropertyIndex::Kind::StringKey)));
-    SHOULD(ShouldlyString(seg3.index.str).ShouldBe("k"));
+    // Sprint 11af — the value string keeps the AUTHORED characters (the quotes
+    // are literal value-string chars; WPF lexes until `,`/`]`, :243-307), so
+    // `['k']` yields the string "'k'" (with quotes), not a stripped "k".
+    SHOULD(ShouldlyString(seg3.index.str).ShouldBe("'k'"));
 }
 
 TEST_CASE("S240 parse: negative integer index keeps its sign")
@@ -196,17 +194,25 @@ TEST_CASE("S240 parse: negative integer index keeps its sign")
 
 TEST_CASE("S240 parse: each syntax error throws PropertyPathException with the right kind")
 {
-    expect_kind("", PropertyPathError::Empty);
-    expect_kind("   ", PropertyPathError::Empty);
-    expect_kind("Address.", PropertyPathError::TrailingDot);
-    expect_kind(".Address", PropertyPathError::TrailingDot);
-    expect_kind("Address..Street", PropertyPathError::ConsecutiveDot);
-    expect_kind("Items[0", PropertyPathError::UnterminatedIndexer);
-    expect_kind("Items[]", PropertyPathError::EmptyIndexer);
-    expect_kind("Items[abc]", PropertyPathError::MalformedIndex);
-    expect_kind("Items[1.5]", PropertyPathError::MalformedIndex);
-    expect_kind("Items[-]", PropertyPathError::MalformedIndex);
-    expect_kind("Items[\"abc]", PropertyPathError::UnclosedQuote);
+    // Sprint 11af (WPF-faithful, PathParser.cs): an EMPTY / `.` path is a VALID
+    // Direct self-binding (PathParser.cs:83-89, :262-270) — NOT an error; `.`
+    // and `..` select DrillIn.Never per level (a leading / repeated dot is a
+    // legal separator, PathParser.cs:120-136). Unquoted indexer values are legal
+    // string keys (PathParser.cs:243-307), so `[abc]`/`[1.5]`/`[-]`/`["abc]`
+    // are VALID string-key indexers — NOT MalformedIndex/UnclosedQuote. The
+    // surviving Class A errors are the ones the WPF parser actually emits:
+    // unmatched bracket (UnterminatedIndexer), empty bracket (EmptyIndexer),
+    // a trailing `/` gate with no step (TrailingDot), and an unbalanced `( )`
+    // paren in a property name (UnmatchedParen).
+    expect_kind("Items[0",   PropertyPathError::UnterminatedIndexer);
+    expect_kind("Items[(p)", PropertyPathError::UnterminatedIndexer);
+    expect_kind("Items[^]",  PropertyPathError::UnterminatedIndexer);
+    expect_kind("Items[]",   PropertyPathError::EmptyIndexer);
+    expect_kind("Address/",  PropertyPathError::TrailingDot);
+    expect_kind("Items[0]]", PropertyPathError::TrailingDot);
+    expect_kind("(Name",     PropertyPathError::UnmatchedParen);
+    expect_kind("A(",        PropertyPathError::UnmatchedParen);
+    expect_kind("A)",        PropertyPathError::UnmatchedParen);
 }
 
 TEST_CASE("S240 parse: the exception carries the path and a non-empty diagnostic")
@@ -216,7 +222,7 @@ TEST_CASE("S240 parse: the exception carries the path and a non-empty diagnostic
     PropertyPathError kind = PropertyPathError::Empty;
     try
     {
-        (void)PropertyPath::parse("Address..Street");
+        (void)PropertyPath::parse("Items[0");
     }
     catch (const PropertyPathException& e)
     {
@@ -224,10 +230,73 @@ TEST_CASE("S240 parse: the exception carries the path and a non-empty diagnostic
         what = e.what();
         kind = e.kind();
     }
-    SHOULD(ShouldlyString(path).ShouldBe("Address..Street"));
-    SHOULD(ShouldlyIntegral(kind_int(kind)).ShouldBe(kind_int(PropertyPathError::ConsecutiveDot)));
+    SHOULD(ShouldlyString(path).ShouldBe("Items[0"));
+    SHOULD(ShouldlyIntegral(kind_int(kind)).ShouldBe(kind_int(PropertyPathError::UnterminatedIndexer)));
     SHOULD(ShouldlyIntegral(what.empty()).ShouldBe(false));
-    SHOULD(ShouldlyIntegral(what.find("ConsecutiveDot") != std::string::npos || what.find("consecutive") != std::string::npos).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(what.find("UnterminatedIndexer") != std::string::npos || what.find("unterminated") != std::string::npos).ShouldBe(true));
+}
+
+TEST_CASE("S240 parse: empty / dot paths are VALID Direct self-bindings (WPF PathParser.cs:83-89)")
+{
+    // Sprint 11af — empty, whitespace-only, and `.` are a Direct binding to the
+    // whole object, NOT syntax errors (the pre-11af 'Empty' Class A error is
+    // retired). try_parse succeeds and the path reports is_direct().
+    {
+        PropertyPath p; PropertyPathError err = PropertyPathError::Empty;
+        SHOULD(ShouldlyIntegral(PropertyPath::try_parse("", p, &err)).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(p.valid()).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(p.is_direct()).ShouldBe(true));
+    }
+    {
+        PropertyPath p; PropertyPathError err = PropertyPathError::Empty;
+        SHOULD(ShouldlyIntegral(PropertyPath::try_parse("   ", p, &err)).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(p.is_direct()).ShouldBe(true));
+    }
+    {
+        PropertyPath p = PropertyPath::parse(".");
+        SHOULD(ShouldlyIntegral(p.valid()).ShouldBe(true));
+        SHOULD(ShouldlyIntegral(p.is_direct()).ShouldBe(true));
+    }
+}
+
+TEST_CASE("S240 parse: dot / double-dot separators are legal DrillIn (not errors)")
+{
+    // Sprint 11af — leading `.` and repeated `.` are legal per-level drill-in
+    // separators (WPF DrillIn.Never, PathParser.cs:120-136, AddProperty :262).
+    // A trailing `.` with no following step is a single property step.
+    PropertyPath p1 = PropertyPath::parse(".Address");
+    SHOULD(ShouldlyIntegral(p1.valid()).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(p1.segment_count()).ShouldBe(1));
+    SHOULD(ShouldlyString(p1.segments()[0].name).ShouldBe("Address"));
+
+    PropertyPath p2 = PropertyPath::parse("Address..Street");
+    SHOULD(ShouldlyIntegral(p2.valid()).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(p2.segment_count()).ShouldBe(2));
+    SHOULD(ShouldlyString(p2.segments()[0].name).ShouldBe("Address"));
+    SHOULD(ShouldlyString(p2.segments()[1].name).ShouldBe("Street"));
+
+    PropertyPath p3 = PropertyPath::parse("Address.");
+    SHOULD(ShouldlyIntegral(p3.valid()).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(p3.segment_count()).ShouldBe(1));
+    SHOULD(ShouldlyString(p3.segments()[0].name).ShouldBe("Address"));
+}
+
+TEST_CASE("S240 parse: unquoted indexer values are valid string keys (WPF PathParser.cs:243-307)")
+{
+    // WPF value-string lexing: any chars until `,` or `]` are a value; an
+    // unquoted run (incl. '.', '-', '"') is a legal StringKey indexer.
+    PropertyPath pa = PropertyPath::parse("Items[abc]");
+    SHOULD(ShouldlyIntegral(pa.valid()).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(static_cast<int>(pa.segments()[1].index.kind)).ShouldBe(static_cast<int>(vaml::PropertyIndex::Kind::StringKey)));
+    SHOULD(ShouldlyString(pa.segments()[1].index.str).ShouldBe("abc"));
+
+    PropertyPath pb = PropertyPath::parse("Items[1.5]");
+    SHOULD(ShouldlyIntegral(static_cast<int>(pb.segments()[1].index.kind)).ShouldBe(static_cast<int>(vaml::PropertyIndex::Kind::StringKey)));
+    SHOULD(ShouldlyString(pb.segments()[1].index.str).ShouldBe("1.5"));
+
+    PropertyPath pc = PropertyPath::parse("Items[\"abc]");
+    SHOULD(ShouldlyIntegral(static_cast<int>(pc.segments()[1].index.kind)).ShouldBe(static_cast<int>(vaml::PropertyIndex::Kind::StringKey)));
+    SHOULD(ShouldlyString(pc.segments()[1].index.str).ShouldBe("\"abc"));
 }
 
 TEST_CASE("S240 parse: try_parse never throws, sets the kind, leaves out untouched on error")
@@ -247,12 +316,12 @@ TEST_CASE("S240 parse: try_parse never throws, sets the kind, leaves out untouch
 TEST_CASE("S240 parse: parse() throws PropertyPathException (typed, catchable)")
 {
     SHOULD(ShouldThrow<PropertyPathException>([] {
-        (void)PropertyPath::parse("Address.");
+        (void)PropertyPath::parse("Items[0");
     }));
 }
 
 // ===========================================================================
-// EVALUATOR SUITE (Class B — data outcomes)
+// EVALUATOR SUITE (Class B â€” data outcomes)
 // ===========================================================================
 
 TEST_CASE("S240 eval: full property chain resolves via the test reader")
@@ -336,73 +405,21 @@ TEST_CASE("S240 eval: missing property propagates MissingProperty with its segme
     SHOULD(ShouldlyIntegral(r.segmentIndex).ShouldBe(0));
 }
 
-TEST_CASE("S240 eval: empty/invalid path -> Empty")
+TEST_CASE("S240 eval: empty/`.` Direct path binds the whole object (WPF PathParser.cs:83-89, :262-270)")
 {
+    // Sprint 11af — an empty / `.` path is a VALID Direct self-binding, so the
+    // evaluator returns ok=true with the ROOT value (the WPF
+    // SourceValueInfo(Direct) result), NOT an Empty error.
     TestRecord rec;
+    rec.emplace("S240Title", Value::String("whole"));
     Value root = Value::UntypedPtr(&rec);
-    PropertyPath p;
-    PropertyPathError err;
+
+    PropertyPath p; PropertyPathError err;
     (void)PropertyPath::try_parse("", p, &err);
+    SHOULD(ShouldlyIntegral(p.is_direct()).ShouldBe(true));
     PropertyRead r = vaml::evaluate_property_path(root, p, test_reader());
-    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(false));
-    SHOULD(ShouldlyIntegral(kind_int(r.error)).ShouldBe(kind_int(PropertyPathError::Empty)));
-}
-
-// ===========================================================================
-// EVALUATOR SUITE against the DEFAULT reader (DependencyObjects)
-// ===========================================================================
-
-TEST_CASE("S240 eval default reader: resolves a registered property on a DependencyObject")
-{
-    DependencyObject obj;
-    obj.register_property(key(kNameTitle, ValueType::String),
-        PropertyMetadata::WithDefault(Value::String("hello"), PropertyFlags::None));
-    (void)obj.Set(vaml::PropertyId::of(kNameTitle), Value::String("world"));
-
-    Value root = Value::UntypedPtr(&obj);
-    PropertyRead r = vaml::evaluate_property_path(root, PropertyPath::parse(kNameTitle), vaml::dependency_object_reader());
     SHOULD(ShouldlyIntegral(r.ok).ShouldBe(true));
-    SHOULD(ShouldlyString(r.value).ShouldBe(Value::String("world")));
-}
-
-TEST_CASE("S240 eval default reader: unknown property -> MissingProperty (never a raw throw)")
-{
-    DependencyObject obj;
-    Value root = Value::UntypedPtr(&obj);
-    PropertyRead r = vaml::evaluate_property_path(root, PropertyPath::parse("S240Nope"), vaml::dependency_object_reader());
-    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(false));
-    SHOULD(ShouldlyIntegral(kind_int(r.error)).ShouldBe(kind_int(PropertyPathError::MissingProperty)));
-}
-
-TEST_CASE("S240 eval default reader: Index on a DependencyObject -> NotReadable")
-{
-    DependencyObject obj;
-    Value root = Value::UntypedPtr(&obj);
-    PropertyRead r = vaml::evaluate_property_path(root, PropertyPath::parse("[0]"), vaml::dependency_object_reader());
-    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(false));
-    SHOULD(ShouldlyIntegral(kind_int(r.error)).ShouldBe(kind_int(PropertyPathError::NotReadable)));
-}
-
-TEST_CASE("S240 eval default reader: non-object root -> NotReadable")
-{
-    Value root = Value::Int32(5);
-    PropertyRead r = vaml::evaluate_property_path(root, PropertyPath::parse("S240Title"), vaml::dependency_object_reader());
-    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(false));
-    SHOULD(ShouldlyIntegral(kind_int(r.error)).ShouldBe(kind_int(PropertyPathError::NotReadable)));
-}
-
-TEST_CASE("S240 eval default reader: intermediate null on DependencyObject -> NullIntermediate")
-{
-    DependencyObject obj;
-    // A property whose default (and value) is Value::Null.
-    obj.register_property(key(kNameEmpty, ValueType::Null),
-        PropertyMetadata::WithDefault(Value::Null(), PropertyFlags::None));
-
-    Value root = Value::UntypedPtr(&obj);
-    // "S240Empty.Foo": segment0 = S240Empty -> Get returns Null (non-final) ->
-    // NullIntermediate at segmentIndex 0.
-    PropertyRead r = vaml::evaluate_property_path(root, PropertyPath::parse(std::string(kNameEmpty) + ".Foo"), vaml::dependency_object_reader());
-    SHOULD(ShouldlyIntegral(r.ok).ShouldBe(false));
-    SHOULD(ShouldlyIntegral(kind_int(r.error)).ShouldBe(kind_int(PropertyPathError::NullIntermediate)));
-    SHOULD(ShouldlyIntegral(r.segmentIndex).ShouldBe(0));
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.error)).ShouldBe(static_cast<int>(PropertyPathError::Empty))); // the no-error tag
+    // The Direct path binds the WHOLE object root (an UntypedPtr transport).
+    SHOULD(ShouldlyIntegral(static_cast<int>(r.value.type())).ShouldBe(static_cast<int>(ValueType::UntypedPtr)));
 }

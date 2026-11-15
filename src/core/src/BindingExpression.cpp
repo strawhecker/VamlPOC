@@ -16,6 +16,7 @@
 // See BindingExpression.h for the full contract.
 
 #include "vaml/core/BindingExpression.h"
+#include "vaml/core/DependencyProperty.h" // S803 composite target-DP resolution (ResolveForElement)
 
 #include <string>
 
@@ -40,6 +41,48 @@ std::string policy_what(PropertyPathError kind, const std::string& path)
     default:                                     kindName = "invalid property path"; break;
     }
     return std::string("BindingPolicyException (Strict): ") + kindName + " in '" + path + "'";
+}
+
+// S803 composite target-DP resolution. Historically the binding built
+// `PropertyId::of(targetProp_, targetOwner_)` verbatim, which MISSES a composite
+// key authored as a DOTTED targetProp with an EMPTY targetOwner (e.g.
+// `TextBox.Text` → the DP lives under ("Text","TextBox")). WPF walks the owning
+// Type (FromName); this resolves:
+//   - non-empty targetOwner → the explicit composite pair (unchanged);
+//   - empty owner + dotted `A.B` → (name=B, owner=A);
+//   - empty owner + bare name → the guarded unique-name bridge on the universal
+//     UIElement base (single-owner synthetic DPs resolve; ambiguous stays null);
+//   - otherwise → the verbatim pair (fallback, keeps owner-carrying specs).
+PropertyId resolve_target_id(const std::string& prop, const std::string& owner)
+{
+    // Build string_views OVER `prop`/`owner` FIRST, then substr those views —
+    // never std::string::substr. PropertyId is a NON-OWNING pair of
+    // std::string_views (S800 contract), so the views must point into storage
+    // that outlives the id. `prop`/`owner` at every call site are the binding's
+    // member `targetProp_`/`targetOwner_` strings (stable for the binding's
+    // lifetime); a std::string_view::substr stays inside that storage, whereas
+    // std::string::substr returns a temporary std::string whose buffer dies at
+    // the end of the full expression — producing a DANGLING id (the S803
+    // composite-re-key regression that dropped the TextBox Text forward push
+    // AND its S244 write-back: the appliance resolved to an empty "no property
+    // registered" id).
+    const std::string_view propView = prop;
+    const std::string_view ownerView = owner;
+    if (!ownerView.empty())
+    {
+        return PropertyId::of(propView, ownerView);
+    }
+    const std::size_t dot = propView.rfind('.');
+    if (dot != std::string_view::npos && dot != 0 && dot + 1 < propView.size())
+    {
+        return PropertyId::of(propView.substr(dot + 1), propView.substr(0, dot));
+    }
+    if (const vaml::DependencyProperty* dp =
+            vaml::DependencyProperty::ResolveForElement(propView, "UIElement"))
+    {
+        return dp->property_id();
+    }
+    return PropertyId::of(propView, ownerView);
 }
 
 // The leading path segment's property name — the key the live one-way
@@ -89,6 +132,7 @@ BindingExpression::BindingExpression(BindingExpression&& other) noexcept
       target_(other.target_),
       sourcePath_(std::move(other.sourcePath_)),
       targetProp_(std::move(other.targetProp_)),
+      targetOwner_(std::move(other.targetOwner_)),
       converter_(std::move(other.converter_)),
       converterName_(std::move(other.converterName_)),
       fallback_(std::move(other.fallback_)),
@@ -123,14 +167,14 @@ BindingExpression::BindingExpression(BindingExpression&& other) noexcept
             forwardKey = first_segment_name(path_);
             source_->remove_property_changed(liveToken_);
             liveToken_ = source_->add_property_changed(
-                PropertyId::of(forwardKey),
+                PropertyId::of(forwardKey, "ObservableObject"),
                 [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
         }
         if (writeback_ && target_ != nullptr)
         {
             target_->remove_property_changed(targetToken_);
             targetToken_ = target_->add_property_changed(
-                PropertyId::of(targetProp_),
+                resolve_target_id(targetProp_, targetOwner_),
                 [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
         }
         // Re-arm the S245 destruction wire: a moved binding keeps auto-detaching
@@ -162,6 +206,7 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
     target_       = other.target_;
     sourcePath_   = std::move(other.sourcePath_);
     targetProp_   = std::move(other.targetProp_);
+    targetOwner_  = std::move(other.targetOwner_);
     converter_    = std::move(other.converter_);
     converterName_= std::move(other.converterName_);
     fallback_     = std::move(other.fallback_);
@@ -186,14 +231,14 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
         {
             source_->remove_property_changed(liveToken_);
             liveToken_ = source_->add_property_changed(
-                PropertyId::of(first_segment_name(path_)),
+                PropertyId::of(first_segment_name(path_), "ObservableObject"),
                 [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
         }
         if (writeback_ && target_ != nullptr)
         {
             target_->remove_property_changed(targetToken_);
             targetToken_ = target_->add_property_changed(
-                PropertyId::of(targetProp_),
+                resolve_target_id(targetProp_, targetOwner_),
                 [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
         }
         if (target_ != nullptr)
@@ -280,6 +325,7 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
     e->target_      = spec.target;
     e->sourcePath_  = spec.sourcePath;
     e->targetProp_  = spec.targetProp;
+    e->targetOwner_ = spec.targetOwner;
     e->converter_   = spec.converter;
     e->converterName_ = spec.converterName;
     e->fallback_    = spec.fallback;
@@ -328,7 +374,7 @@ void BindingExpression::arm_subscription()
         return; // empty path or indexer-led: nothing to key the subscription on
     }
     liveToken_ = source_->add_property_changed(
-        PropertyId::of(leading),
+        PropertyId::of(leading, "ObservableObject"),
         [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
     subscribed_ = true;
 }
@@ -465,7 +511,7 @@ void BindingExpression::arm_writeback()
     // arm still holds (the key check is the write-back path's, not the arm's)
     // so the introspection reflects "armed to observe the target".
     targetToken_ = target_->add_property_changed(
-        PropertyId::of(targetProp_),
+        resolve_target_id(targetProp_, targetOwner_),
         [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
     writeback_ = true;
 }
@@ -512,7 +558,7 @@ void BindingExpression::transfer_write_back()
     }
     try
     {
-        value = target_->Get(PropertyId::of(targetProp_));
+        value = target_->Get(resolve_target_id(targetProp_, targetOwner_));
     }
     catch (const PropertyNotFound&)
     {
@@ -557,7 +603,7 @@ void BindingExpression::transfer_write_back()
     }
     try
     {
-        (void)source_->Set(PropertyId::of(key), value);
+        (void)source_->Set(PropertyId::of(key, "ObservableObject"), value);
     }
     catch (const ValueTypeMismatch&)
     {
@@ -621,7 +667,7 @@ TransferResult BindingExpression::apply_to_target(const Value& value)
         return TransferResult::TargetRejected;
     }
 
-    const PropertyId id = PropertyId::of(targetProp_);
+    const PropertyId id = resolve_target_id(targetProp_, targetOwner_);
     try
     {
         const SetResult r = target_->Set(id, value);

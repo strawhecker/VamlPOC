@@ -65,10 +65,10 @@ const DependencyProperty& registerS7S452Global(const std::string& name, ValueTyp
 {
     if (s7s452_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S452_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S452_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 // Same prop names as the S2 test (PropertyElement_s452_test.cpp) so the two
@@ -100,7 +100,7 @@ TEST_CASE("S452 (S7): a literal property-element compile+load Sets the parent's 
     std::unique_ptr<DependencyObject> root = reader.Load(bytes);
 
     // The folded literal (propertyElement flag) Set the parent StackPanel's DP.
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Fill")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Fill", "FrameworkElement")))
                .ShouldBe(Value::Color(Color{0, 255, 0, 255})));
     // No extra retained children (the literal is NOT an object child).
     SHOULD(ShouldlyString(reader.retained_objects().size()).ShouldBe(0u));
@@ -132,7 +132,7 @@ TEST_CASE("S452 (S7): an object property-element Sets the parent DP, NOT a visua
         {
             // The TextBlock landed on the panel's S452Content DP as an
             // UntypedPtr...
-            void* contentPtr = panel->Get(PropertyId::of("S452Content")).get<void*>();
+            void* contentPtr = panel->Get(PropertyId::of("S452Content", "FrameworkElement")).get<void*>();
             SHOULD(ShouldlyIntegral(contentPtr != nullptr).ShouldBe(true));
             // ...and IS the retained TextBlock object (the same reader-owned
             // instance).

@@ -85,10 +85,10 @@ const DependencyProperty& registerS287Global(const std::string& name, ValueType 
 {
     if (s287_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S287_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S287_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 void registerS287Properties()
@@ -193,7 +193,7 @@ TEST_CASE("S287: the sidecar loads through the S285 reader into the demo tree")
         SHOULD(ShouldlyIntegral(dynamic_cast<Button*>(retained[0].get()) != nullptr).ShouldBe(true));
         SHOULD(ShouldlyIntegral(dynamic_cast<StackPanel*>(retained[1].get()) != nullptr).ShouldBe(true));
         // The demo's literal prop (S287Content="Search") is set by the reader.
-        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S287Content")))
+        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S287Content", "FrameworkElement")))
                    .ShouldBe(Value::String("Search")));
     }
     // x:Class on the root records the demo's root class.

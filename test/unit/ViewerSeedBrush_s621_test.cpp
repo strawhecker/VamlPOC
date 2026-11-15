@@ -50,7 +50,12 @@ const char* kBrushIdDoc =
 
 vaml::Color background_of(vaml::UIElement& el)
 {
-    const vaml::Value v = el.Get(vaml::PropertyId::of("Background"));
+    // The reader resolves a bare `Background` on a StackPanel via the owner
+    // chain to the universal base owner "Control" (Background/Control — the
+    // S803 composite key the {Binding} target was Set through). Read it back
+    // under that owner so the seeded value is observed (not the InkCanvas copy,
+    // which is a distinct composite key and stays at its default).
+    const vaml::Value v = el.Get(vaml::PropertyId::of("Background", "Control"));
     // S643b-1 (D1): Background is a Brush OBJECT — read its color() directly.
     if (v.type() == vaml::ValueType::Brush)
     {
@@ -64,14 +69,14 @@ vaml::Color background_of(vaml::UIElement& el)
 
 double opacity_of(vaml::UIElement& el)
 {
-    return el.Get(vaml::PropertyId::of("Opacity")).get<double>();
+    return el.Get(vaml::PropertyId::of("Opacity", "UIElement")).get<double>();
 }
 
 // S643b-1: Foreground is a Brush OBJECT — report its color (or alpha-0 black
 // if somehow not a brush).
 vaml::Color foreground_of(vaml::UIElement& el)
 {
-    const vaml::Value v = el.Get(vaml::PropertyId::of("Foreground"));
+    const vaml::Value v = el.Get(vaml::PropertyId::of("Foreground", "TextBlock"));
     if (v.type() == vaml::ValueType::Brush)
     {
         return v.get<std::shared_ptr<vaml::Brush>>()->color();
@@ -115,12 +120,12 @@ TEST_CASE("S621: seed_typed_bindings seeds a Color-typed Background opaque non-b
     SHOULD(ShouldlyIntegral(n == 2u).ShouldBe(1));
     // Bg (a Brush-typed target — Background is the WPF-faithful Brush OBJECT
     // paint DP, S643b-1 D1) -> a non-null Brush OBJECT seed.
-    const vaml::Value bv = vm.Get(vaml::PropertyId::of("Bg"));
+    const vaml::Value bv = vm.Get(vaml::PropertyId::of("Bg", "ObservableObject"));
     SHOULD(ShouldlyIntegral(bv.type() == vaml::ValueType::Brush).ShouldBe(1));
     // Non-null — never a null/black placeholder.
     SHOULD(ShouldlyIntegral(bv.get<std::shared_ptr<vaml::Brush>>() != nullptr).ShouldBe(1));
     // Op (a Double-typed target) -> a Double seed.
-    SHOULD(ShouldlyIntegral(vm.Get(vaml::PropertyId::of("Op")).type() == vaml::ValueType::Double)
+    SHOULD(ShouldlyIntegral(vm.Get(vaml::PropertyId::of("Op", "ObservableObject")).type() == vaml::ValueType::Double)
                .ShouldBe(1));
 }
 
@@ -133,7 +138,7 @@ TEST_CASE("S621: a Brush-typed target (Foreground) seeds a non-null Brush OBJECT
     const std::size_t n = seed_typed_bindings(reader, vm);
     // Txt (String) + Fg (Brush) -> two seeds.
     SHOULD(ShouldlyIntegral(n == 2u).ShouldBe(1));
-    const vaml::Value fv = vm.Get(vaml::PropertyId::of("Fg"));
+    const vaml::Value fv = vm.Get(vaml::PropertyId::of("Fg", "ObservableObject"));
     // S643b-1: Foreground is a Brush OBJECT (D1).
     SHOULD(ShouldlyIntegral(fv.type() == vaml::ValueType::Brush).ShouldBe(1));
     SHOULD(ShouldlyIntegral(fv.get<std::shared_ptr<vaml::Brush>>() != nullptr).ShouldBe(1));
@@ -192,7 +197,7 @@ TEST_CASE("S621: a Foreground {Binding} seeds an opaque non-black Brush OBJECT v
     // The Text target (String-typed) got the property-name text (S620), and the
     // Foreground target (Brush-typed, S643b-1) got an OPAQUE NON-BLACK Brush
     // OBJECT — never the default black.
-    SHOULD(ShouldlyString(uiRoot->Get(vaml::PropertyId::of("Text")).get<std::string>())
+    SHOULD(ShouldlyString(uiRoot->Get(vaml::PropertyId::of("Text", "TextBlock")).get<std::string>())
                .ShouldBe(std::string("Txt")));
     const vaml::Color fg = foreground_of(*uiRoot);
     SHOULD(ShouldlyIntegral(static_cast<int>(fg.a) == 255).ShouldBe(1));

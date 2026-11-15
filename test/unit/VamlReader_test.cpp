@@ -98,9 +98,17 @@ void registerS091Properties()
                          Value::Thickness(Thickness{0, 0, 0, 0}));
     (void)registerGlobal("S091Fill",       ValueType::Color, PropertyFlags::None,
                          Value::Color(Color{0, 0, 0, 0}));
-    // ATTACHED: owner is "S091_Owner"; the value lands on whatever object Set
-    // is called on (S043 attached-aware global resolution by name).
-    (void)registerGlobal("S091Grid.Row",   ValueType::Int32, PropertyFlags::None, Value::Int32(0));
+    // ATTACHED: authored dotted `S091Grid.Row` splits to (name="Row",
+    // owner="S091Grid") per S803 composite lookup; register under owner
+    // "S091Grid" so TryGet("Row","S091Grid") resolves the dotted key. The value
+    // lands on whatever object Set is called on (S043 attached-aware).
+    // Idempotent across TEST_CASEs: the (name, owner) pair is process-global, so
+    // only register once (a same-pair re-register throws PropertyAlreadyRegistered).
+    if (DependencyProperty::TryGet("Row", "S091Grid") == nullptr)
+    {
+        (void)DependencyProperty::Register("Row", ValueType::Int32, "S091Grid",
+                                           PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    }
 }
 
 // Asserts `p` is non-null AND dynamic_cast<Concrete*>(p) is non-null.
@@ -160,19 +168,20 @@ TEST_CASE("S091: plain literal attributes are converted and set")
     registerS091Properties();
     VamlReader reader;
     std::unique_ptr<DependencyObject> root = reader.Load(
-        "<Button S091Width=\"100\" S091Text=\"Hello\" S091IsEnabled=\"true\" "
-        "S091Margin=\"10,20\" S091Fill=\"#FF0000\"/>");
+        "<Button S091_Owner.S091Width=\"100\" S091_Owner.S091Text=\"Hello\" "
+        "S091_Owner.S091IsEnabled=\"true\" S091_Owner.S091Margin=\"10,20\" "
+        "S091_Owner.S091Fill=\"#FF0000\"/>");
     assertConcrete<Button>(root);
 
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Width")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Width", "S091_Owner")))
                .ShouldBe(Value::Int32(100)));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Text")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Text", "S091_Owner")))
                .ShouldBe(Value::String("Hello")));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091IsEnabled")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091IsEnabled", "S091_Owner")))
                .ShouldBe(Value::Bool(true)));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Margin")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Margin", "S091_Owner")))
                .ShouldBe(Value::Thickness(Thickness{10, 20, 10, 20})));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Fill")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S091Fill", "S091_Owner")))
                .ShouldBe(Value::Color(Color{255, 0, 0, 255})));
 }
 
@@ -190,9 +199,9 @@ TEST_CASE("S091: a dotted attached key is set on a child via S043")
         assertConcrete<Button>(retained[0]);
         // The attached S091Grid.Row value lands on the Button (Set is attached-
         // aware by name — S043); the value stored to the child, not the root.
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S091Grid.Row")))
+        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("Row", "S091Grid")))
                    .ShouldBe(Value::Int32(3)));
-        SHOULD(ShouldlyIntegral(root->Get(PropertyId::of("S091Grid.Row"))
+        SHOULD(ShouldlyIntegral(root->Get(PropertyId::of("Row", "S091Grid"))
                    == Value::Int32(3)).ShouldBe(0)); // root untouched
     }
 }
@@ -222,7 +231,7 @@ TEST_CASE("S091: markup-extension and directive attributes are skipped, object s
     {
         assertConcrete<Button>(retained[0]);
         // Nothing was set: S091Text still has its default (empty String).
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S091Text")))
+        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S091Text", "S091_Owner")))
                    .ShouldBe(Value::String("")));
     }
 }
@@ -349,7 +358,7 @@ TEST_CASE("11d-DEBUG: collect mode is per-Load cleared + clean document yields n
     scan.set_collect_issues(true);
     (void)scan.Load("<Button BogusA=\"1\"/>");
     SHOULD(ShouldlyIntegral(static_cast<int>(scan.issues().size())).ShouldBe(1));
-    (void)scan.Load("<StackPanel><Button S091Width=\"10\"/></StackPanel>");
+    (void)scan.Load("<StackPanel><Button S091_Owner.S091Width=\"10\"/></StackPanel>");
     SHOULD(ShouldlyIntegral(scan.issues().empty()).ShouldBe(1));
 }
 
@@ -365,7 +374,7 @@ TEST_CASE("S091: a malformed literal for a known property throws ValueConversion
     bool threw = false;
     try
     {
-        (void)reader.Load("<Button S091Width=\"abc\"/>");
+        (void)reader.Load("<Button S091_Owner.S091Width=\"abc\"/>");
     }
     catch (const ValueConversionException& e)
     {
@@ -405,7 +414,7 @@ TEST_CASE("S091: Load(ParsedElement) and Load(text) produce identical trees")
 {
     registerS091Properties();
     const std::string doc =
-        "<StackPanel><Button S091Width=\"7\"/><TextBlock S091Text=\"hi\"/></StackPanel>";
+        "<StackPanel><Button S091_Owner.S091Width=\"7\"/><TextBlock S091_Owner.S091Text=\"hi\"/></StackPanel>";
 
     // ParsedElement path.
     ParsedElement parsed = parse_vaml(doc);
@@ -423,13 +432,13 @@ TEST_CASE("S091: Load(ParsedElement) and Load(text) produce identical trees")
     SHOULD(ShouldlyString(r1.retained_objects().size()).ShouldBe(2u));
 
     // Same property values on the corresponding nodes.
-    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S091Width")))
+    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S091Width", "S091_Owner")))
                .ShouldBe(Value::Int32(7)));
-    SHOULD(ShouldlyString(r2.retained_objects()[0]->Get(PropertyId::of("S091Width")))
+    SHOULD(ShouldlyString(r2.retained_objects()[0]->Get(PropertyId::of("S091Width", "S091_Owner")))
                .ShouldBe(Value::Int32(7)));
-    SHOULD(ShouldlyString(r1.retained_objects()[1]->Get(PropertyId::of("S091Text")))
+    SHOULD(ShouldlyString(r1.retained_objects()[1]->Get(PropertyId::of("S091Text", "S091_Owner")))
                .ShouldBe(Value::String("hi")));
-    SHOULD(ShouldlyString(r2.retained_objects()[1]->Get(PropertyId::of("S091Text")))
+    SHOULD(ShouldlyString(r2.retained_objects()[1]->Get(PropertyId::of("S091Text", "S091_Owner")))
                .ShouldBe(Value::String("hi")));
 }
 

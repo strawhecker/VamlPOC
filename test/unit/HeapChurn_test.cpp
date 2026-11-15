@@ -104,6 +104,7 @@ TEST_CASE("S146: public API accepts string_view literals and intern() views (reg
     // (owner) registration, so it resolves unambiguously.
     const std::string_view lit = "Opacity";
     const std::string_view interned = intern(lit);
+    (void)interned; // keep the intern()-produced view's reachability explicit
 
     SHOULD(ShouldlyPointer(DependencyProperty::TryGet("Opacity", "UIElement")).ShouldNotBeNull());
     SHOULD(ShouldlyPointer(DependencyProperty::TryGet("Opacity", "UIElement")).ShouldNotBeNull());

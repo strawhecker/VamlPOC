@@ -12,8 +12,8 @@
 //   GOLDEN A (full-feature app view) — ONE realistic doc carrying together:
 //     xmlns:x + a prefixed custom-ns element (<vm:Button>), x:Class + x:Name on
 //     root + children, attached-style dotted props (S095Dock.Dock / S095Grid.Row
-//     / S095Grid.Column), numeric (S095Width="1024"), quoted (S095Title), comma-
-//     list (S095Margin="10,10,10,10"), markup extension ({Binding ...}), an
+//     / S095Grid.Column), numeric (S095_Owner.S095Width="1024"), quoted (S095Title), comma-
+//     list (S095_Owner.S095Margin="10,10,10,10"), markup extension ({Binding ...}), an
 //     event-shaped key (S095Click="OnClick") routed via register_event,
 //     x:Key (deferred), self-closing leaves, a text-content leaf, multi-level
 //     nesting. Asserted on FOUR axes:
@@ -129,6 +129,22 @@ const DependencyProperty& registerGlobal(const std::string& name, ValueType type
 
 // The S095-unique global DPs the S095 golden documents set from text. This is
 // the SURFACE the goldens prove end-to-end — a realistic, WPF-faithful set.
+//
+// S803 composite: an ATTACHED dotted key authored as `Owner.Prop` resolves via
+// TryGet(Prop, Owner). Register (name, owner) pairs idempotently (a same-pair
+// re-register across TEST_CASEs would throw PropertyAlreadyRegistered).
+const DependencyProperty& requireRegister(const char* name, const char* owner,
+                                          ValueType type, PropertyFlags flags,
+                                          Value def)
+{
+    if (const DependencyProperty* p = DependencyProperty::TryGet(name, owner))
+    {
+        return *p;
+    }
+    return DependencyProperty::Register(name, type, owner,
+                                        PropertyMetadata::WithDefault(def, flags));
+}
+
 void registerS095Properties()
 {
     (void)registerGlobal("S095Width",      ValueType::Int32, PropertyFlags::None, Value::Int32(0));
@@ -143,9 +159,14 @@ void registerS095Properties()
                          Value::Color(Color{0, 0, 0, 0}));
     // ATTACHED (owner "S095_Owner"; value lands on whatever object Set is called
     // on — S043 attached-aware global resolution by name).
-    (void)registerGlobal("S095Dock.Dock",  ValueType::String, PropertyFlags::None, Value::String(""));
-    (void)registerGlobal("S095Grid.Row",   ValueType::Int32, PropertyFlags::None, Value::Int32(0));
-    (void)registerGlobal("S095Grid.Column",ValueType::Int32, PropertyFlags::None, Value::Int32(0));
+    // S803 composite: the authored DOTTED key `S095Dock.Dock` splits to
+    // (name="Dock", owner="S095Dock") — register under that (owner, name) pair.
+    requireRegister("Dock", "S095Dock", ValueType::String, PropertyFlags::None,
+                    Value::String(""));
+    requireRegister("Row", "S095Grid", ValueType::Int32, PropertyFlags::None,
+                    Value::Int32(0));
+    requireRegister("Column", "S095Grid", ValueType::Int32, PropertyFlags::None,
+                    Value::Int32(0));
 }
 
 // ---------------------------------------------------------------------------
@@ -160,13 +181,13 @@ inline const char* kXamlNs = "xmlns:x=\"http://schemas.microsoft.com/winfx/2006/
 
 // Elements flush (no inter-element whitespace) so the golden canonical string
 // is exact and non-ambiguous (the S086 round-trip discipline).
-const char* kGoldenDocA = R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="urn:vm:app" x:Class="App.MainView" x:Name="root" S095Width="1024" S095Title="Contact Manager" S095Margin="10,10,10,10"><StackPanel S095IsEnabled="true"><vm:Button x:Name="search" S095Content="Search" S095Width="200" S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095Fill="#FF0000"/><TextBlock x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</TextBlock><Grid><Button S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
+const char* kGoldenDocA = R"(<Window xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="urn:vm:app" x:Class="App.MainView" x:Name="root" S095_Owner.S095Width="1024" S095_Owner.S095Title="Contact Manager" S095_Owner.S095Margin="10,10,10,10"><StackPanel S095_Owner.S095IsEnabled="true"><vm:Button x:Name="search" S095_Owner.S095Content="Search" S095_Owner.S095Width="200" S095_Owner.S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095_Owner.S095Fill="#FF0000"/><TextBlock x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</TextBlock><Grid><Button S095_Owner.S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
 
 // The expected canonicalize(parse(kGoldenDocA)) — the parser GOLDEN. Reproduces
 // the authored structure exactly, modulo the xmlns declarations (they are
 // namespace DECLARATIONS, never ordinary attributes — S082 — so the faithful
 // re-serializer omits them).
-const char* kExpectedCanonicalA = R"(<Window x:Class="App.MainView" x:Name="root" S095Width="1024" S095Title="Contact Manager" S095Margin="10,10,10,10"><StackPanel S095IsEnabled="true"><vm:Button x:Name="search" S095Content="Search" S095Width="200" S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095Fill="#FF0000"/><TextBlock x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</TextBlock><Grid><Button S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
+const char* kExpectedCanonicalA = R"(<Window x:Class="App.MainView" x:Name="root" S095_Owner.S095Width="1024" S095_Owner.S095Title="Contact Manager" S095_Owner.S095Margin="10,10,10,10"><StackPanel S095_Owner.S095IsEnabled="true"><vm:Button x:Name="search" S095_Owner.S095Content="Search" S095_Owner.S095Width="200" S095_Owner.S095Height="40" S095Dock.Dock="Top" S095Grid.Row="1" S095Grid.Column="0" S095Click="OnClick" S095Command="{Binding SearchCommand}" S095_Owner.S095Fill="#FF0000"/><TextBlock x:Name="label" x:Key="searchLabelKey" S095Text="{Binding SearchText}">Search:</TextBlock><Grid><Button S095_Owner.S095Content="Nested" S095Grid.Row="2"/></Grid></StackPanel></Window>)";
 
 // Test-local re-serializer (S086 contract): attrs in document order, self-closing
 // preserved, children then content, no xml namespaces. NOT product code.
@@ -310,39 +331,39 @@ TEST_CASE("S095: golden A reader axis — every literal property is converted + 
     }
 
     // Root Window: numeric Int32, quoted String, comma-list Thickness.
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Width")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Width", "S095_Owner")))
                .ShouldBe(Value::Int32(1024)));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Title")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Title", "S095_Owner")))
                .ShouldBe(Value::String("Contact Manager")));
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Margin")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S095Margin", "S095_Owner")))
                .ShouldBe(Value::Thickness(Thickness{10, 10, 10, 10})));
 
     // StackPanel: Bool.
-    SHOULD(ShouldlyString(retained[4]->Get(PropertyId::of("S095IsEnabled")))
+    SHOULD(ShouldlyString(retained[4]->Get(PropertyId::of("S095IsEnabled", "S095_Owner")))
                .ShouldBe(Value::Bool(true)));
 
     // search Button (retained[0]): String/Int32 + attached + Color.
     const auto& btn = retained[0];
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Content")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Content", "S095_Owner")))
                .ShouldBe(Value::String("Search")));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Width")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Width", "S095_Owner")))
                .ShouldBe(Value::Int32(200)));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Height")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Height", "S095_Owner")))
                .ShouldBe(Value::Int32(40)));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Dock.Dock")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("Dock", "S095Dock")))
                .ShouldBe(Value::String("Top")));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Grid.Row")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("Row", "S095Grid")))
                .ShouldBe(Value::Int32(1)));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Grid.Column")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("Column", "S095Grid")))
                .ShouldBe(Value::Int32(0)));
-    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Fill")))
+    SHOULD(ShouldlyString(btn->Get(PropertyId::of("S095Fill", "S095_Owner")))
                .ShouldBe(Value::Color(Color{255, 0, 0, 255})));
 
     // nested Button (retained[2]): String + attached Int32.
     const auto& nested = retained[2];
-    SHOULD(ShouldlyString(nested->Get(PropertyId::of("S095Content")))
+    SHOULD(ShouldlyString(nested->Get(PropertyId::of("S095Content", "S095_Owner")))
                .ShouldBe(Value::String("Nested")));
-    SHOULD(ShouldlyString(nested->Get(PropertyId::of("S095Grid.Row")))
+    SHOULD(ShouldlyString(nested->Get(PropertyId::of("Row", "S095Grid")))
                .ShouldBe(Value::Int32(2)));
 }
 
@@ -422,7 +443,7 @@ TEST_CASE("S095: golden A deferred axis — extensions + event handler captured,
     // x:Key on the Text stays DEFERRED (S361): never set as a property, but the
     // object is still built (not thrown). The Text's S095Text is an extension
     // (not set); x:Name is a Name directive (registered), never a property.
-    SHOULD(ShouldlyString(retained[1]->Get(PropertyId::of("S095Text")))
+    SHOULD(ShouldlyString(retained[1]->Get(PropertyId::of("S095Text", "S095_Owner")))
                .ShouldBe(Value::String("")));
 }
 
@@ -449,14 +470,14 @@ TEST_CASE("S095: golden A parity axis — Load(text) and Load(parse_vaml(doc)) a
     SHOULD(ShouldlyString(r1.retained_objects().size()).ShouldBe(5u));
 
     // Same converted values on the corresponding nodes.
-    SHOULD(ShouldlyString(root1->Get(PropertyId::of("S095Width")))
-               .ShouldBe(root2->Get(PropertyId::of("S095Width"))));
-    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S095Content")))
-               .ShouldBe(r2.retained_objects()[0]->Get(PropertyId::of("S095Content"))));
-    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S095Grid.Row")))
-               .ShouldBe(r2.retained_objects()[0]->Get(PropertyId::of("S095Grid.Row"))));
-    SHOULD(ShouldlyString(r1.retained_objects()[1]->Get(PropertyId::of("S095Text")))
-               .ShouldBe(r2.retained_objects()[1]->Get(PropertyId::of("S095Text"))));
+    SHOULD(ShouldlyString(root1->Get(PropertyId::of("S095Width", "S095_Owner")))
+               .ShouldBe(root2->Get(PropertyId::of("S095Width", "S095_Owner"))));
+    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("S095Content", "S095_Owner")))
+               .ShouldBe(r2.retained_objects()[0]->Get(PropertyId::of("S095Content", "S095_Owner"))));
+    SHOULD(ShouldlyString(r1.retained_objects()[0]->Get(PropertyId::of("Row", "S095Grid")))
+               .ShouldBe(r2.retained_objects()[0]->Get(PropertyId::of("Row", "S095Grid"))));
+    SHOULD(ShouldlyString(r1.retained_objects()[1]->Get(PropertyId::of("S095Text", "S095_Owner")))
+               .ShouldBe(r2.retained_objects()[1]->Get(PropertyId::of("S095Text", "S095_Owner"))));
 
     // Same name registry (document order) + root_class.
     SHOULD(ShouldlyString(r1.name_count()).ShouldBe(r2.name_count()));
@@ -474,7 +495,7 @@ TEST_CASE("S095: golden B — unknown ELEMENT fires ElementResolutionException(U
     bool threw = false;
     try
     {
-        (void)reader.Load("<StackPanel><S095Zorp S095Content=\"x\"/></StackPanel>");
+        (void)reader.Load("<StackPanel><S095Zorp S095_Owner.S095Content=\"x\"/></StackPanel>");
     }
     catch (const ElementResolutionException& e)
     {
@@ -512,7 +533,7 @@ TEST_CASE("S095: golden B — malformed VALUE fires ValueConversionException(Mal
     bool threw = false;
     try
     {
-        (void)reader.Load("<Button S095Width=\"abc\"/>"); // Int32, not a number
+        (void)reader.Load("<Button S095_Owner.S095Width=\"abc\"/>"); // Int32, not a number
     }
     catch (const ValueConversionException& e)
     {
@@ -578,7 +599,7 @@ TEST_CASE("S095: clean-minimal golden loads with no extensions and no event hand
     VamlReader reader; // NO register_event call
     std::unique_ptr<DependencyObject> root = reader.Load(
         std::string("<StackPanel ") + kXamlNs + " x:Name=\"root\">"
-        "  <Button x:Name=\"go\" S095Content=\"Go\" S095Width=\"80\" S095IsEnabled=\"true\"/>"
+        "  <Button x:Name=\"go\" S095_Owner.S095Content=\"Go\" S095_Owner.S095Width=\"80\" S095_Owner.S095IsEnabled=\"true\"/>"
         "</StackPanel>");
 
     assertConcrete<StackPanel>(root);
@@ -591,7 +612,7 @@ TEST_CASE("S095: clean-minimal golden loads with no extensions and no event hand
         SHOULD(ShouldlyIntegral(reader.deferred_extensions().size()).ShouldBe(0u));
         SHOULD(ShouldlyIntegral(reader.deferred_event_handlers().size()).ShouldBe(0u));
         // The plain-literal property still converted + set.
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S095Content")))
+        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S095Content", "S095_Owner")))
                    .ShouldBe(Value::String("Go")));
     }
 }

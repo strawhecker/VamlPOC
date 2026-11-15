@@ -70,12 +70,15 @@ namespace {
 // ---- S251-unique names ----
 // The target DP name must MATCH the PROPERTY_BINDABLE name (each is registered
 // under its own literal name) so the binding source path and the target
-// property line up: a bindable `Name` registers `PropertyId::of("Name")`.
+// property line up: a bindable `Name` registers `PropertyId::of("Name", "AutomationProperties")`.
 const char* kName = "Name";   // VM bindable String / target String
 
 PropertyKey key(const std::string& name, ValueType t)
 {
-    return PropertyKey(name, t, "S251Test", PropertyFlags::None);
+    // S803 composite: the target DP is registered under the SAME composite
+    // owner the VM's bindable + this suite's reads use ("AutomationProperties"),
+    // so a binding target resolves (never an empty/private owner mismatch).
+    return PropertyKey(name, t, "AutomationProperties", PropertyFlags::None);
 }
 
 // ---- The APP-AUTHORED SERVICE (S251) --------------------------------------
@@ -172,21 +175,22 @@ TEST_CASE("S251 one-way: the service-driven VM's set_Name pushes to the real DP 
     spec.sourcePath = kName;
     spec.target = &target.obj;
     spec.targetProp = kName;
+    spec.targetOwner = "AutomationProperties";
     spec.mode = BindingMode::OneWay;
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyIntegral(expr != nullptr).ShouldBe(true));
     SHOULD(ShouldlyIntegral(tr_int(expr->TransferSourceToTarget())).ShouldBe(tr_int(TransferResult::Applied)));
 
     // The initial push applies the VM's current Name ("Hello") to the target.
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kName))).ShouldBe(Value::String("Hello")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Hello")));
 
     // A service-driven set on the VM (as a real app's service/async would) →
     // the live one-way subscription auto-updates the target.
     (void)vm.set_Name("Alice");
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kName))).ShouldBe(Value::String("Alice")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Alice")));
 
     (void)vm.set_Name("Bob");
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kName))).ShouldBe(Value::String("Bob")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Bob")));
 }
 
 // ===========================================================================
@@ -205,6 +209,7 @@ TEST_CASE("S251 two-way: a target edit writes back to the app-constructed VM's b
     spec.sourcePath = kName;
     spec.target = &target.obj;
     spec.targetProp = kName;
+    spec.targetOwner = "AutomationProperties";
     spec.mode = BindingMode::TwoWay;
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyIntegral(expr != nullptr).ShouldBe(true));
@@ -216,8 +221,8 @@ TEST_CASE("S251 two-way: a target edit writes back to the app-constructed VM's b
     // The write-back writes the ObservableObject base store (S244 wire reads
     // vm.Get(...)); the typed `Name()` field getter is the VM-read side kept in
     // lock-step by set_Name, so the write-back is verified through the store.
-    (void)target.obj.Set(PropertyId::of(kName), Value::String("edited"));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kName))).ShouldBe(Value::String("edited")));
+    (void)target.obj.Set(PropertyId::of("Name", "AutomationProperties"), Value::String("edited"));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("edited")));
 }
 
 // ===========================================================================
@@ -237,6 +242,7 @@ TEST_CASE("S251 command->service: executing the VM's command calls the INJECTED 
     spec.sourcePath = kName;
     spec.target = &target.obj;
     spec.targetProp = kName;
+    spec.targetOwner = "AutomationProperties";
     spec.mode = BindingMode::OneWay;
     auto expr = BindingExpression::create(spec);
     (void)expr->TransferSourceToTarget();
@@ -249,7 +255,7 @@ TEST_CASE("S251 command->service: executing the VM's command calls the INJECTED 
     // The command's set_Name() updated the VM bindable → the live one-way
     // binding auto-pushes to the target.
     SHOULD(ShouldlyString(vm.Name()).ShouldBe(std::string("Hello, Ada!")));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kName))).ShouldBe(Value::String("Hello, Ada!")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("Name", "AutomationProperties"))).ShouldBe(Value::String("Hello, Ada!")));
 }
 
 // ===========================================================================

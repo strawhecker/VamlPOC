@@ -258,8 +258,8 @@ TEST_CASE("S131: attached Grid.Row / Grid.Column set + read on a plain Dependenc
     SHOULD(ShouldlyString(Grid::row(child)).ShouldBe(2));
     SHOULD(ShouldlyString(Grid::column(child)).ShouldBe(3));
     // Read through the raw attached-aware Set/Get path (global name resolution).
-    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Grid.Row")).get<std::int32_t>()).ShouldBe(2));
-    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Grid.Column")).get<std::int32_t>()).ShouldBe(3));
+    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Row", "Grid")).get<std::int32_t>()).ShouldBe(2));
+    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Column", "Grid")).get<std::int32_t>()).ShouldBe(3));
 }
 
 // --- Basic cell measure/arrange (no-span) ------------------------------------

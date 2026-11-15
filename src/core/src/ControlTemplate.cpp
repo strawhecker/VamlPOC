@@ -72,7 +72,18 @@ void collect_bindings(const TemplatePart& part,
                 {
                     try
                     {
-                        (void)ui->Set(PropertyId::of(prop), value);
+                        // S803: resolve the bare property name against the part
+                        // element-type's DECLARED OWNER-CHAIN (WPF-faithful —
+                        // a DP's owner is its declaring type), and Set on the
+                        // composite (name, owner) pair. When unresolvable, skip
+                        // the wrong-tag prop (report, never throw) as before.
+                        const vaml::DependencyProperty* dp =
+                            vaml::DependencyProperty::ResolveForElement(prop, part.typeName);
+                        if (dp == nullptr)
+                        {
+                            continue;
+                        }
+                        (void)ui->Set(dp->property_id(), value);
                     }
                     catch (...)
                     {
@@ -146,10 +157,15 @@ std::size_t apply_control_template(UIElement& control, const ControlTemplate& te
     for (const auto& [partProp, controlProp] : templ.all_template_bindings())
     {
         (void)partProp;
-        (void)controlProp;
         // Capture the control's current effective value for the bound property.
-        const Value v = control.Get(PropertyId::of(controlProp));
-        (void)v;
+        // S803: resolve the bare control-prop against the templated control's
+        // owner-chain (WPF-faithful — a DP's owner is its declaring type).
+        if (const vaml::DependencyProperty* cdp =
+                vaml::DependencyProperty::ResolveForElement(controlProp, "UIElement"))
+        {
+            const Value v = control.Get(cdp->property_id());
+            (void)v;
+        }
     }
     // Attach visual states (they begin Normal/unengaged; the state engine drives
     // Hover/Pressed).
@@ -170,9 +186,18 @@ void enter_state(UIElement& control, VisualState& state)
     // reads brush->color() via resolve_foreground_brush.
     try
     {
+        // S803: resolve the state's brushProperty against the element's
+        // owner-chain (WPF-faithful — a DP's owner is its declaring type).
+        const vaml::DependencyProperty* dp =
+            vaml::DependencyProperty::ResolveForElement(state.brushProperty, "UIElement");
+        if (dp == nullptr)
+        {
+            state.engaged = false;
+            return;
+        }
         // S643b-1 (D1) + S643b-4 (D3): the state's color -> the SHARED FROZEN
         // SolidColorBrush object (same color -> same shared object).
-        (void)control.Set(PropertyId::of(state.brushProperty),
+        (void)control.Set(dp->property_id(),
                           Value::Brush(shared_frozen_solid_brush(state.brush->color())));
         state.engaged = true;
     }
@@ -198,10 +223,17 @@ void exit_state(UIElement& control, VisualState& state)
     // Color and never a BrushId.
     try
     {
-        // S643b-1 (D1) + S643b-4 (D3): the state's color -> the SHARED FROZEN
-        // SolidColorBrush object (same color -> same shared object).
-        (void)control.Set(PropertyId::of(state.brushProperty),
-                          Value::Brush(shared_frozen_solid_brush(state.brush->color())));
+        // S803: resolve the state's brushProperty against the element's
+        // owner-chain (WPF-faithful — a DP's owner is its declaring type).
+        const vaml::DependencyProperty* dp =
+            vaml::DependencyProperty::ResolveForElement(state.brushProperty, "UIElement");
+        if (dp != nullptr)
+        {
+            // S643b-1 (D1) + S643b-4 (D3): the state's color -> the SHARED FROZEN
+            // SolidColorBrush object (same color -> same shared object).
+            (void)control.Set(dp->property_id(),
+                              Value::Brush(shared_frozen_solid_brush(state.brush->color())));
+        }
     }
     catch (...)
     {

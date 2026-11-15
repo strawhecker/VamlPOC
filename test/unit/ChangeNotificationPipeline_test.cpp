@@ -99,8 +99,8 @@ struct SubTrace
 TEST_CASE("S041: ChangeProcessor coalesces — two enqueues of the same prop equal one notification")
 {
     ChangeProcessor p;
-    p.enqueue(PropertyId::of("W"), Value::Int32(0), Value::Int32(5));
-    p.enqueue(PropertyId::of("W"), Value::Int32(5), Value::Int32(8));
+    p.enqueue(PropertyId::of("W", "PropOwner"), Value::Int32(0), Value::Int32(5));
+    p.enqueue(PropertyId::of("W", "PropOwner"), Value::Int32(5), Value::Int32(8));
 
     SHOULD(ShouldlyString(p.pending_count()).ShouldBe(2u)); // both queued, raw
 
@@ -122,9 +122,9 @@ TEST_CASE("S041: ChangeProcessor coalesces — two enqueues of the same prop equ
 TEST_CASE("S041: ChangeProcessor emits distinct properties once each in first-record order")
 {
     ChangeProcessor p;
-    p.enqueue(PropertyId::of("Width"), Value::Int32(0), Value::Int32(10));
-    p.enqueue(PropertyId::of("Height"), Value::Int32(0), Value::Int32(20));
-    p.enqueue(PropertyId::of("Width"), Value::Int32(10), Value::Int32(15)); // coalesce Width
+    p.enqueue(PropertyId::of("Width", "PropOwner"), Value::Int32(0), Value::Int32(10));
+    p.enqueue(PropertyId::of("Height", "PropOwner"), Value::Int32(0), Value::Int32(20));
+    p.enqueue(PropertyId::of("Width", "PropOwner"), Value::Int32(10), Value::Int32(15)); // coalesce Width
 
     std::vector<std::string> names;
     std::vector<std::int32_t> news;
@@ -166,11 +166,11 @@ TEST_CASE("S041: DependencyObject subscribers fire in REGISTRATION ORDER (via de
     auto make = [&](int tag) {
         return [&, tag](PropertyId, const Value&, const Value&) { order.push_back(tag); };
     };
-    (void)child.add_property_changed(PropertyId::of(name), make(1));
-    (void)child.add_property_changed(PropertyId::of(name), make(2));
-    (void)child.add_property_changed(PropertyId::of(name), make(3));
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), make(1));
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), make(2));
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), make(3));
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(11)); // push -> child queue
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(11)); // push -> child queue
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
 
     child.ProcessNotificationQueue(); // drain -> fire child subscribers in order
@@ -193,18 +193,18 @@ TEST_CASE("S041: remove token detaches; re-add appends at the end")
     auto make = [&](int tag) {
         return [&, tag](PropertyId, const Value&, const Value&) { order.push_back(tag); };
     };
-    auto t1 = child.add_property_changed(PropertyId::of(name), make(1));
-    auto t2 = child.add_property_changed(PropertyId::of(name), make(2));
-    auto t3 = child.add_property_changed(PropertyId::of(name), make(3));
+    auto t1 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(1));
+    auto t2 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(2));
+    auto t3 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(3));
 
     child.remove_property_changed(t2); // detach the middle handler
     (void)t3;
 
     // A re-add appends at the END (after t3).
-    auto t4 = child.add_property_changed(PropertyId::of(name), make(4));
+    auto t4 = child.add_property_changed(PropertyId::of(name, "PropOwner"), make(4));
     (void)t4;
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(7));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
     child.ProcessNotificationQueue();
 
     // Fired: t1, t3, t4 — in registration order, with t2 removed.
@@ -226,9 +226,9 @@ TEST_CASE("S041: descendant push carries oldEffective->newEffective delta")
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
     child.ProcessNotificationQueue();
 
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
@@ -238,7 +238,7 @@ TEST_CASE("S041: descendant push carries oldEffective->newEffective delta")
     SHOULD(ShouldlyString(trace.news[0]).ShouldBe(5));
 
     // A second parent change pushes the next delta (5 -> 9).
-    (void)parent.Set(PropertyId::of(name), Value::Int32(9));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(9));
     child.ProcessNotificationQueue();
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(2u));
     SHOULD(ShouldlyString(trace.olds[1]).ShouldBe(5));
@@ -258,11 +258,11 @@ TEST_CASE("S041: multi-level descendant push — great-grandparent change notifi
     leaf.set_parent(&g3);
 
     SubTrace trace;
-    (void)leaf.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)leaf.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
     // Change the great-grandparent; every intermediate (g2, g3) holds no local,
     // so the leaf inherits and must be notified.
-    (void)g1.Set(PropertyId::of(name), Value::Int32(5));
+    (void)g1.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
     leaf.ProcessNotificationQueue();
 
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
@@ -288,24 +288,24 @@ TEST_CASE("S041: local-wins intermediate shields BOTH itself and descendants ben
     // for everything beneath it (the local-wins node shields its subtree from
     // the parent). This Set itself pushed 0->7 to the grandchild — drain and
     // clear those queues so the assertions measure only the parent move.
-    (void)child.Set(PropertyId::of(name), Value::Int32(7));
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
     SHOULD(ShouldlyString(grandchild.pending_notification_count()).ShouldBe(1u));
     grandchild.ProcessNotificationQueue();
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
     SHOULD(ShouldlyString(grandchild.pending_notification_count()).ShouldBe(0u));
 
     SubTrace childTrace, gcTrace;
-    (void)child.add_property_changed(PropertyId::of(name), childTrace.handler());
-    (void)grandchild.add_property_changed(PropertyId::of(name), gcTrace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), childTrace.handler());
+    (void)grandchild.add_property_changed(PropertyId::of(name, "PropOwner"), gcTrace.handler());
 
     // Parent changes: the child's local-wins node is NOT swept (effective stays
     // its own 7), and the grandchild's effective is the CHILD's local (7), not
     // the parent's — so the grandchild is unaffected too. Neither is notified:
     // the parent move changes no descendant's effective value.
-    (void)parent.Set(PropertyId::of(name), Value::Int32(99));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(99));
 
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
-    SHOULD(ShouldlyString(grandchild.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(grandchild.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
 
     // No effective value changed anywhere -> no pushed notification anywhere.
     child.ProcessNotificationQueue();
@@ -318,7 +318,7 @@ TEST_CASE("S041: local-wins intermediate shields BOTH itself and descendants ben
     // Sanity: the same subtree IS notified when the ORIGIN of the inherited
     // value changes — change the CHILD's local and the grandchild (which
     // inherits through it) must be notified.
-    (void)child.Set(PropertyId::of(name), Value::Int32(8));
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(8));
     grandchild.ProcessNotificationQueue();
     SHOULD(ShouldlyString(gcTrace.names.size()).ShouldBe(1u));
     SHOULD(ShouldlyString(gcTrace.news[0]).ShouldBe(8)); // 7 -> 8, own delta
@@ -335,16 +335,16 @@ TEST_CASE("S041: InheritOnly descendant always inherits")
 
     // Child SETs its own local override — but InheritOnly means it is IGNORED,
     // so it must still inherit and be notified of the parent's change.
-    (void)child.Set(PropertyId::of(name), Value::Int32(100));
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(3));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(3));
     child.ProcessNotificationQueue();
 
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(3)));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3)));
     SHOULD(ShouldlyString(trace.news[0]).ShouldBe(3));
 }
 
@@ -356,7 +356,7 @@ TEST_CASE("S041: no registered property -> pushed nothing; pending stays 0")
     // Child does NOT register the property -> cannot inherit; no push.
     child.set_parent(&parent);
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(5));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(5));
     SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
 }
 
@@ -369,9 +369,9 @@ TEST_CASE("S041: single subscriber handler fires once per push; object without s
     child.set_parent(&parent);
 
     SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name), trace.handler());
+    (void)child.add_property_changed(PropertyId::of(name, "PropOwner"), trace.handler());
 
-    (void)parent.Set(PropertyId::of(name), Value::Int32(2));
+    (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(2));
     child.ProcessNotificationQueue();
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
     SHOULD(ShouldlyString(trace.news[0]).ShouldBe(2));

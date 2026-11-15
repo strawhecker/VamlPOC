@@ -104,9 +104,10 @@ TEST_CASE("S093: StackPanel+Button tree has the correct structure")
     std::unique_ptr<DependencyObject> root = reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
         "x:Name=\"root\">"
-        "  <Button x:Name=\"btn\" S093Content=\"Click me\" S093Width=\"100\" "
-        "S093Height=\"40\" S093IsEnabled=\"true\"/>"
-        "  <TextBlock x:Name=\"lbl\" S093Content=\"Hello\"/>"
+        "  <Button x:Name=\"btn\" S093_Owner.S093Content=\"Click me\" "
+        "S093_Owner.S093Width=\"100\" S093_Owner.S093Height=\"40\" "
+        "S093_Owner.S093IsEnabled=\"true\"/>"
+        "  <TextBlock x:Name=\"lbl\" S093_Owner.S093Content=\"Hello\"/>"
         "</StackPanel>");
 
     // Root type + exactly two retained children, in document order.
@@ -134,8 +135,9 @@ TEST_CASE("S093: properties are set on the Button from pure text")
     VamlReader reader;
     (void)reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
-        "  <Button x:Name=\"btn\" S093Content=\"Click me\" S093Width=\"100\" "
-        "S093Height=\"40\" S093IsEnabled=\"true\"/>"
+        "  <Button x:Name=\"btn\" S093_Owner.S093Content=\"Click me\" "
+        "S093_Owner.S093Width=\"100\" "
+        "S093_Owner.S093Height=\"40\" S093_Owner.S093IsEnabled=\"true\"/>"
         "</StackPanel>");
 
     const auto& retained = reader.retained_objects();
@@ -145,13 +147,13 @@ TEST_CASE("S093: properties are set on the Button from pure text")
         assertConcrete<Button>(retained[0]);
 
         // All four pure-text properties read back with their converted values.
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Content")))
+        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Content", "S093_Owner")))
                    .ShouldBe(Value::String("Click me")));
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Width")))
+        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Width", "S093_Owner")))
                    .ShouldBe(Value::Int32(100)));
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Height")))
+        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093Height", "S093_Owner")))
                    .ShouldBe(Value::Int32(40)));
-        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093IsEnabled")))
+        SHOULD(ShouldlyString(retained[0]->Get(PropertyId::of("S093IsEnabled", "S093_Owner")))
                    .ShouldBe(Value::Bool(true)));
     }
 }
@@ -167,8 +169,8 @@ TEST_CASE("S093: the x:Name registry resolves the full document")
     std::unique_ptr<DependencyObject> root = reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
         "x:Name=\"root\">"
-        "  <Button x:Name=\"btn\" S093Content=\"Click me\" S093Width=\"100\" />"
-        "  <TextBlock x:Name=\"lbl\" S093Content=\"Hello\"/>"
+        "  <Button x:Name=\"btn\" S093_Owner.S093Content=\"Click me\" S093_Owner.S093Width=\"100\" />"
+        "  <TextBlock x:Name=\"lbl\" S093_Owner.S093Content=\"Hello\"/>"
         "</StackPanel>");
 
     // named() resolves root and both children to the live objects.
@@ -206,9 +208,9 @@ TEST_CASE("S093: no event hooks and no extensions are recorded from pure text")
     (void)reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\" "
         "x:Name=\"root\">"
-        "  <Button x:Name=\"btn\" S093Content=\"Click me\" S093Width=\"100\" "
-        "S093Height=\"40\" S093IsEnabled=\"true\"/>"
-        "  <TextBlock x:Name=\"lbl\" S093Content=\"Hello\"/>"
+        "  <Button x:Name=\"btn\" S093_Owner.S093Content=\"Click me\" S093_Owner.S093Width=\"100\" "
+        "S093_Owner.S093Height=\"40\" S093_Owner.S093IsEnabled=\"true\"/>"
+        "  <TextBlock x:Name=\"lbl\" S093_Owner.S093Content=\"Hello\"/>"
         "</StackPanel>");
 
     // Both deferred surfaces are empty — nothing was wired behind the scenes.

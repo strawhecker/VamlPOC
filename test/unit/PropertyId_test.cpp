@@ -1,18 +1,15 @@
-// S033 — PropertyId tests: constexpr-safe static id.
-// Scope: PropertyId::of("Width") is a compile-time constant (proven by
-// static_assert below); it wraps the property name as a string_view; equality
-// is by name; default-id is invalid; std::hash specializes and is consistent
-// with equality; and it interconverts with the registry's id_of/try_id.
+// S033/S800/S801 — PropertyId tests: constexpr-safe composite (name, owner) id.
+// Scope: PropertyId::of(name, owner) is a compile-time constant (proven by
+// static_assert below); it wraps the property name + fully-qualified declaring
+// type as string_view; identity is STRICT PAIR (equal IFF name AND owner equal);
+// same-name/different-owner pairs are DISTINCT ids (the WPF `(name, Type)`
+// disambiguation); std::hash is pair-keyed; default-id is invalid; and it
+// interconverts with the registry's id_of/try_id.
 //
-// S800 — COMPOSITE PropertyId (foundation). PropertyId is now the pair
-// (name_view, owner_view) where owner is the fully-qualified declaring-type
-// name (e.g. "vaml::StackPanel", "::Foo"). Identity is STRICT PAIR: equal IFF
-// name AND owner equal; same-name/different-owner pairs are DISTINCT ids;
-// std::hash is pair-keyed. The S033 regression (owner "") keeps proving NO
-// live semantic change. The composite-identity SET below proves
-// pair-equality, same-name/different-owner distinctness, the global-`::` vs
-// namespaced-owner distinction, hash difference, and both-compilers
-// constexpr-green (the S033 compile-time contract extends to the composite).
+// S803 — the 1-arg PropertyId::of(name) / bare constructor (owner "") has been
+// REMOVED permanently. Every id is constructed as a (name, owner) pair. There is
+// no owner-less compile path. (WPF's only DP-locate is
+// DependencyProperty.FromName(string, Type) — owner required.)
 
 // doctest's main comes from smoke_test.cpp (DO doctest IMPLEMENT_WITH_MAIN).
 // This TU only declares tests — must NOT re-define implementation.
@@ -35,17 +32,17 @@ using vaml::test::ShouldThrow;
 
 namespace {
 
-// --- Compile-time proof: PropertyId::of on a literal is a constant expression.
-static_assert(PropertyId::of("Width").name() == "Width", "PropertyId::of must be constexpr-safe");
-static_assert(PropertyId::of("Margin").name() == "Margin");
-static_assert(PropertyId::of("Width").valid(), "a named id is valid");
-static_assert(PropertyId::of("Width") == PropertyId::of("Width"));
-static_assert(PropertyId::of("Width") != PropertyId::of("Height"));
+// --- Compile-time proof: PropertyId::of on literals is a constant expression.
+static_assert(PropertyId::of("Width", "vaml::Button").name() == "Width", "PropertyId::of must be constexpr-safe");
+static_assert(PropertyId::of("Margin", "vaml::Button").name() == "Margin");
+static_assert(PropertyId::of("Width", "vaml::Button").valid(), "a named id is valid");
+static_assert(PropertyId::of("Width", "vaml::Button") == PropertyId::of("Width", "vaml::Button"));
+static_assert(PropertyId::of("Width", "vaml::Button") != PropertyId::of("Height", "vaml::Button"));
 static_assert(PropertyId{}.valid() == false, "default id is invalid");
 
 // constexpr equality lives in a constant expression too.
-static_assert(PropertyId::of("A") == PropertyId::of("A"));
-static_assert(PropertyId::of("A") != PropertyId::of("B"));
+static_assert(PropertyId::of("A", "vaml::Button") == PropertyId::of("A", "vaml::Button"));
+static_assert(PropertyId::of("A", "vaml::Button") != PropertyId::of("B", "vaml::Button"));
 
 // --- S800 COMPOSITE: constexpr pair proofs (both compilers green).
 // Pair equality: same (name, owner) equal.
@@ -59,13 +56,6 @@ static_assert(PropertyId::of("Foo", "::Foo") != PropertyId::of("Foo", "vaml::Foo
 // owner() accessor carries the fully-qualified declaring type.
 static_assert(PropertyId::of("Orientation", "vaml::StackPanel").owner() == "vaml::StackPanel");
 static_assert(PropertyId::of("Foo", "::Foo").owner() == "::Foo");
-// Legacy bridge: bare of(name) carries an EMPTY owner (owner-less compile art).
-static_assert(PropertyId::of("Width").owner().empty());
-static_assert(PropertyId::of("Width") == PropertyId::of("Width"));
-static_assert(PropertyId::of("Width") != PropertyId::of("Height"));
-// A composite (owner-carrying) id is a DISTINCT identity from the same-name
-// legacy id — same name is NOT identity across different owner scopes.
-static_assert(PropertyId::of("Width") != PropertyId::of("Width", "vaml::Button"));
 // valid() stays name-driven.
 static_assert(PropertyId::of("Orientation", "vaml::StackPanel").valid());
 
@@ -81,23 +71,28 @@ PropertyKey make_key(const std::string& name, ValueType type = ValueType::Int32,
 TEST_CASE("S033 PropertyId: of() is constexpr-safe and binds the name")
 {
     // The compile-time value and the runtime value agree.
-    PropertyId id = PropertyId::of("Width");
+    PropertyId id = PropertyId::of("Width", "vaml::Button");
     SHOULD(ShouldlyString(std::string(id.name())).ShouldBe(std::string("Width")));
+    SHOULD(ShouldlyString(std::string(id.owner())).ShouldBe(std::string("vaml::Button")));
     SHOULD(ShouldlyString(id.valid()).ShouldBe(true));
 }
 
-TEST_CASE("S033 PropertyId: equality is by name; default id is invalid")
+TEST_CASE("S033 PropertyId: equality is by pair; default id is invalid")
 {
-    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldBe(PropertyId::of("Width")));
-    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldNotBe(PropertyId::of("Height")));
-    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldNotBe(PropertyId::of("Height")));
-    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldBe(PropertyId::of("Width")));
+    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+               .ShouldBe(PropertyId::of("Width", "vaml::Button")));
+    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+               .ShouldNotBe(PropertyId::of("Height", "vaml::Button")));
+    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+               .ShouldNotBe(PropertyId::of("Width", "vaml::Panel")));
+    SHOULD(ShouldlyString(PropertyId::of("Width", "vaml::Button"))
+               .ShouldBe(PropertyId::of("Width", "vaml::Button")));
 
     // Default-constructed id is invalid and unequal to any named id.
     PropertyId def;
     SHOULD(ShouldlyString(def.valid()).ShouldNotBe(true));
     SHOULD(ShouldlyString(def.name().empty()).ShouldBe(true));
-    SHOULD(ShouldlyString(def).ShouldNotBe(PropertyId::of("Width")));
+    SHOULD(ShouldlyString(def).ShouldNotBe(PropertyId::of("Width", "vaml::Button")));
     SHOULD(ShouldlyString(def).ShouldBe(PropertyId{})); // two default ids compare equal
 }
 
@@ -105,11 +100,13 @@ TEST_CASE("S033 PropertyId: std::hash is consistent with equality")
 {
     const std::hash<PropertyId> h;
     // Equal ids hash equal.
-    SHOULD(ShouldlyString(h(PropertyId::of("Width"))).ShouldBe(h(PropertyId::of("Width"))));
+    SHOULD(ShouldlyString(h(PropertyId::of("Width", "vaml::Button")))
+               .ShouldBe(h(PropertyId::of("Width", "vaml::Button"))));
     SHOULD(ShouldlyString(h(PropertyId{})).ShouldBe(h(PropertyId{})));
     // Distinct ids hash (over a sample) to distinct values — equal-inputs-
     // always-equal is the contract.
-    SHOULD(ShouldlyString(h(PropertyId::of("Width"))).ShouldNotBe(h(PropertyId::of("Height"))));
+    SHOULD(ShouldlyString(h(PropertyId::of("Width", "vaml::Button")))
+               .ShouldNotBe(h(PropertyId::of("Height", "vaml::Button"))));
 }
 
 TEST_CASE("S033/S801 PropertyId: registry id_of/try_id round the composite store")
@@ -149,12 +146,10 @@ TEST_CASE("S033/S801 PropertyId: id_of/try_id on an unregistered pair")
 }
 
 // ===========================================================================
-// S800 — COMPOSITE PropertyId (foundation, pure type change, no behavior
-// change yet). The type is now the pair (name_view, owner_view); identity is
-// STRICT PAIR (name AND owner); std::hash is PAIR-KEYED. Same-name /
+// S800/S803 — COMPOSITE PropertyId. The type is the pair (name_view, owner_view);
+// identity is STRICT PAIR (name AND owner); std::hash is PAIR-KEYED. Same-name /
 // different-owner pairs are DISTINCT ids — the WPF `(name, Type)` disambiguation.
-// The S033 registry cases above (owner "" via the legacy bridge) stay GREEN,
-// proving no live semantic change this step.
+// S803: there is NO name-only (owner "") compile path under any spelling.
 // ===========================================================================
 
 TEST_CASE("S800 PropertyId: pair-equality of the composite (name, owner)")
@@ -211,22 +206,4 @@ TEST_CASE("S800 PropertyId: pair-keyed std::hash — equal pairs equal, diff own
     // Global-`::` vs namespaced owner hash to different values (sample).
     SHOULD(ShouldlyString(h(PropertyId::of("Foo", "::Foo")))
                .ShouldNotBe(h(PropertyId::of("Foo", "vaml::Foo"))));
-    // Legacy pair (owner "") still hashes consistently with its equality.
-    SHOULD(ShouldlyString(h(PropertyId::of("Width"))).ShouldBe(h(PropertyId::of("Width"))));
-    SHOULD(ShouldlyString(h(PropertyId::of("Width"))).ShouldNotBe(h(PropertyId::of("Height"))));
 }
-
-TEST_CASE("S800 PropertyId: legacy bridge (owner \"\") — no behavior change regression")
-{
-    // The S033 regression: every existing runtime consumer constructs ids via
-    // the bare of(name) bridge with owner "". Strict pair equality among them
-    // reduces to today's name-only behavior — NO live semantic change.
-    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldBe(PropertyId::of("Width")));
-    SHOULD(ShouldlyString(PropertyId::of("Width")).ShouldNotBe(PropertyId::of("Height")));
-    // A composite (owner-carrying) id is a DISTINCT identity from the same-name
-    // legacy id — same name is NOT identity across different owner scopes, and
-    // the legacy (owner "") form is the deprecated path slated for removal.
-    SHOULD(ShouldlyString(PropertyId::of("Width"))
-               .ShouldNotBe(PropertyId::of("Width", "vaml::Button")));
-}
-

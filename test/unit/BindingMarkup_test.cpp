@@ -115,11 +115,17 @@ TEST_CASE("S252 markup: {x:Null} is kind None")
 // 5. Malformed {Binding}/{Command} -> the malformed flag (Class A authoring)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("S252 markup: {Binding} with no path is malformed")
+TEST_CASE("S252 markup: {Binding} with no path is a VALID Direct self-binding (Sprint 11af)")
 {
+    // Sprint 11af (S847): `{Binding}` with no path is a VALID Direct
+    // self-binding to the whole data context (WPF PathParser.cs:83-89) — it is
+    // NOT malformed. The retired "no path -> malformed" premise is re-baselined
+    // here (S848).
     const BindingMarkup m = parse_markup_binding("{Binding}");
     SHOULD(ShouldlyString(kind_i(m.kind)).ShouldBe(kind_i(MarkupExtensionKind::Binding)));
-    SHOULD(ShouldlyIntegral(m.malformed ? 1 : 0).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(m.malformed ? 1 : 0).ShouldBe(0));
+    // The empty path marks the Direct self-binding.
+    SHOULD(ShouldlyString(m.path).ShouldBe(std::string_view("")));
 }
 
 TEST_CASE("S252 markup: {Binding , Mode=TwoWay} (leading comma) is malformed")

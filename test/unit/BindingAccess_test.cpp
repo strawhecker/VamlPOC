@@ -55,15 +55,16 @@ struct RecordingSink final : IBindingDiagnostics
     void emit(const BindingDiagnostic& d) override { seen.push_back(d); }
 };
 
-// RAII guard: installs through the VM accessor, restores the previous sink
-// (captured through the VM accessor) at scope exit. The channel is global, so
-// tests must restore — and may run in any order.
+// RAII guard: installs through the VM accessor, restores the PERMANENT default
+// sink at scope exit. The channel is global, so tests must restore — and may
+// run in any order. Restoring to default_binding_diagnostics() — never a
+// captured `previous` reference — guarantees the restored sink outlives every
+// test (a captured reference can dangle into a prior test's freed stack
+// RecordingSink, the use-after-free crash in full in-process runs).
 struct SinkGuard
 {
-    IBindingDiagnostics& previous;
-    explicit SinkGuard(IBindingDiagnostics& sink)
-        : previous(set_vm_binding_diagnostics(sink)) {}
-    ~SinkGuard() { (void)set_vm_binding_diagnostics(previous); }
+    explicit SinkGuard(IBindingDiagnostics& sink) { (void)set_vm_binding_diagnostics(sink); }
+    ~SinkGuard() { (void)set_vm_binding_diagnostics(vaml::default_binding_diagnostics()); }
 };
 
 } // namespace

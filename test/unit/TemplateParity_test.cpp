@@ -91,10 +91,10 @@ const DependencyProperty& registerS366Global(const std::string& name, ValueType 
 {
     if (s366_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S366_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S366_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 void registerS366Properties()
@@ -139,8 +139,8 @@ TEST_CASE("S366: a styling document loads through BOTH readers with matching str
 
     // Literal-prop parity on a retained child (S366Height converted the same
     // on both — a named lookup into the doc's Button).
-    const Value v2 = s2.named("go")->Get(PropertyId::of("S366Height"));
-    const Value v7 = s7.named("go")->Get(PropertyId::of("S366Height"));
+    const Value v2 = s2.named("go")->Get(PropertyId::of("S366Height", "FrameworkElement"));
+    const Value v7 = s7.named("go")->Get(PropertyId::of("S366Height", "FrameworkElement"));
     SHOULD(ShouldlyString(v2).ShouldBe(Value::Int32(40)));
     SHOULD(ShouldlyString(v7).ShouldBe(Value::Int32(40)));
 }
@@ -155,7 +155,7 @@ TEST_CASE("S366: find_implicit_style + apply_implicit_style resolve through the 
     // scope (shared across both paths — the shared S360 three-scope lookup).
     auto styleRes = std::make_unique<Style>();
     styleRes->set_target_type("StackPanel");
-    styleRes->add_setter(Setter{ PropertyId::of("S366Width"),
+    styleRes->add_setter(Setter{ PropertyId::of("S366Width", "FrameworkElement"),
                                  SetterValue::Literal(Value::Int32(777)) });
     vaml::ReferenceDictionary::app_resources().set("Style:StackPanel", std::move(styleRes));
     // Teardown: release the pooled Style from the process-lifetime app scope so
@@ -181,7 +181,7 @@ TEST_CASE("S366: find_implicit_style + apply_implicit_style resolve through the 
             std::vector<DynamicResourceLink> links;
             const std::size_t applied = apply_implicit_style(*panel, links);
             SHOULD(ShouldlyString(applied).ShouldBe(1u));
-            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S366Width"))).
+            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S366Width", "FrameworkElement"))).
                        ShouldBe(Value::Int32(777)));
         }
     }
@@ -202,7 +202,7 @@ TEST_CASE("S366: find_implicit_style + apply_implicit_style resolve through the 
             std::vector<DynamicResourceLink> links;
             const std::size_t applied = apply_implicit_style(*panel, links);
             SHOULD(ShouldlyString(applied).ShouldBe(1u));
-            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S366Width"))).
+            SHOULD(ShouldlyString(panel->Get(PropertyId::of("S366Width", "FrameworkElement"))).
                        ShouldBe(Value::Int32(777)));
         }
     }

@@ -138,11 +138,11 @@ TEST_CASE("S135: WrapDirection resolves globally on a plain DependencyObject (S0
     // through the S043 attached-aware path. Default is Horizontal
     // (Orientation::Horizontal=0, S11p WPF-true re-pointing).
     DependencyObject fresh;
-    SHOULD(ShouldlyString(fresh.Get(PropertyId::of("WrapDirection")))
+    SHOULD(ShouldlyString(fresh.Get(PropertyId::of("WrapDirection", "WrapPanel")))
                .ShouldBe(vaml::Value::Int32(0)));
     DependencyObject plain;
-    (void)plain.Set(PropertyId::of("WrapDirection"), vaml::Value::Int32(1)); // Vertical
-    SHOULD(ShouldlyString(plain.Get(PropertyId::of("WrapDirection")))
+    (void)plain.Set(PropertyId::of("WrapDirection", "WrapPanel"), vaml::Value::Int32(1)); // Vertical
+    SHOULD(ShouldlyString(plain.Get(PropertyId::of("WrapDirection", "WrapPanel")))
                .ShouldBe(vaml::Value::Int32(1)));
 }
 

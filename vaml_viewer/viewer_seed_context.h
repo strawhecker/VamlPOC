@@ -136,7 +136,7 @@ seed_string_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
         // A leaf path -> seed the property name AS TEXT (S620 root B1). If the
         // same name is authored on multiple targets, Set is idempotent on the
         // VM (real-change discipline) — the single seed value serves them all.
-        const vaml::PropertyId id = vaml::PropertyId::of(m.path);
+        const vaml::PropertyId id = vaml::PropertyId::of(m.path, "ObservableObject");
         (void)vm.Set(id, vaml::Value::String(std::string(m.path)));
         ++n;
     }
@@ -364,7 +364,7 @@ seed_typed_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
         {
             continue;   // no seed for this bound type (Bool/pointer/etc.)
         }
-        const vaml::PropertyId id = vaml::PropertyId::of(m.path);
+        const vaml::PropertyId id = vaml::PropertyId::of(m.path, "ObservableObject");
         (void)vm.Set(id, seed);
         ++n;
     }

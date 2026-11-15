@@ -104,13 +104,15 @@ struct CountingTarget
     }
 };
 
-// RAII guard: swaps in the recorder, restores the previous sink at scope exit.
+// RAII guard: swaps in the recorder, restores the PERMANENT default sink at
+// scope exit. Restoring to default_binding_diagnostics() — never a captured
+// `previous` reference — guarantees the restored sink outlives every test (a
+// captured reference can dangle into a prior test's freed stack RecordingSink,
+// the use-after-free that surfaces as a stray `reasons[0]` crash in full runs).
 struct SinkGuard
 {
-    IBindingDiagnostics& previous;
-    explicit SinkGuard(IBindingDiagnostics& sink)
-        : previous(set_binding_diagnostics(sink)) {}
-    ~SinkGuard() { (void)set_binding_diagnostics(previous); }
+    explicit SinkGuard(IBindingDiagnostics& sink) { (void)set_binding_diagnostics(sink); }
+    ~SinkGuard() { (void)set_binding_diagnostics(vaml::default_binding_diagnostics()); }
 };
 
 struct RecordingSink final : IBindingDiagnostics
@@ -131,6 +133,7 @@ std::unique_ptr<BindingExpression> make_oneway(ObservableObject& vm, DependencyO
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S243Test";
     spec.mode = BindingMode::OneWay;
     return BindingExpression::create(spec);
 }
@@ -144,7 +147,7 @@ std::unique_ptr<BindingExpression> make_oneway(ObservableObject& vm, DependencyO
 TEST_CASE("S243 OneWay: create + TransferSourceToTarget APPLIES String source -> String target")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("Hello"));
     CountingTarget target;
 
     auto expr = make_oneway(vm, target.obj);
@@ -153,7 +156,7 @@ TEST_CASE("S243 OneWay: create + TransferSourceToTarget APPLIES String source ->
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::Applied)));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("Hello")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("Hello")));
 }
 
 // ===========================================================================
@@ -163,16 +166,16 @@ TEST_CASE("S243 OneWay: create + TransferSourceToTarget APPLIES String source ->
 TEST_CASE("S243 OneWay LIVE: a source mutation auto-updates the target (no manual call)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("first"));
     CountingTarget target;
 
     auto expr = make_oneway(vm, target.obj);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("first")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("first")));
 
     // Mutate the source; the LIVE subscription re-pushes — no manual call.
-    (void)vm.Set(PropertyId::of(kText), Value::String("second"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("second")));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("second"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("second")));
 }
 
 // ===========================================================================
@@ -182,16 +185,16 @@ TEST_CASE("S243 OneWay LIVE: a source mutation auto-updates the target (no manua
 TEST_CASE("S243 OneWay: 3 distinct source values -> target tracks 1->2->3")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("v1"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("v1"));
     CountingTarget target;
 
     auto expr = make_oneway(vm, target.obj);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("v1")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("v1")));
 
-    (void)vm.Set(PropertyId::of(kText), Value::String("v2"));
-    (void)vm.Set(PropertyId::of(kText), Value::String("v3"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("v3")));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("v2"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("v3"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("v3")));
 }
 
 // ===========================================================================
@@ -201,7 +204,7 @@ TEST_CASE("S243 OneWay: 3 distinct source values -> target tracks 1->2->3")
 TEST_CASE("S243 source-side coalescing: an equal source re-set fires NO handler -> 0 target writes")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("same"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("same"));
     CountingTarget target;
 
     auto expr = make_oneway(vm, target.obj);
@@ -210,7 +213,7 @@ TEST_CASE("S243 source-side coalescing: an equal source re-set fires NO handler 
 
     // Re-set the SAME value: S241 returns false (real-change discipline) => the
     // subscription handler is NOT invoked => no target write.
-    bool fired = vm.Set(PropertyId::of(kText), Value::String("same"));
+    bool fired = vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("same"));
     SHOULD(ShouldlyIntegral(fired ? 1 : 0).ShouldBe(0));
     SHOULD(ShouldlyIntegral(target.stringWrites).ShouldBe(writesAfterFirst));
 }
@@ -222,22 +225,22 @@ TEST_CASE("S243 source-side coalescing: an equal source re-set fires NO handler 
 TEST_CASE("S243 target-side coalescing: change to a value the target already holds -> NoChange -> 0 writes")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("A"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("A"));
     CountingTarget target;
 
     auto expr = make_oneway(vm, target.obj);
     (void)expr->TransferSourceToTarget(); // target now A (write #1)
 
     // Pre-set the TARGET directly to B so it already holds B.
-    (void)target.obj.Set(PropertyId::of(kText), Value::String("B")); // write #2
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("B")));
+    (void)target.obj.Set(PropertyId::of("S243Text", "S243Test"), Value::String("B")); // write #2
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("B")));
 
     // Move the SOURCE A -> B: this IS a real source change (A != B), so the
     // live subscription fires and re-resolves to B — but the target ALREADY
     // holds B, so the target Set is NO_CHANGE -> ZERO redundant target writes.
     const int writesBefore = target.stringWrites; // == 2
-    (void)vm.Set(PropertyId::of(kText), Value::String("B"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("B")));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("B"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("B")));
     SHOULD(ShouldlyIntegral(target.stringWrites).ShouldBe(writesBefore));
 }
 
@@ -248,7 +251,7 @@ TEST_CASE("S243 target-side coalescing: change to a value the target already hol
 TEST_CASE("S243 HEADLINE: interleaved burst A,A,B,B,C -> EXACTLY 3 target writes")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("A"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("A"));
     CountingTarget target;
 
     auto expr = make_oneway(vm, target.obj);
@@ -257,16 +260,16 @@ TEST_CASE("S243 HEADLINE: interleaved burst A,A,B,B,C -> EXACTLY 3 target writes
     const int writesAfterFirst = target.stringWrites; // == 1
 
     // Burst: A,A,B,B,C  (the equal repeats must NOT write)
-    (void)vm.Set(PropertyId::of(kText), Value::String("A")); // source-equal: no handler
-    (void)vm.Set(PropertyId::of(kText), Value::String("B")); // real: write #2
-    (void)vm.Set(PropertyId::of(kText), Value::String("B")); // source-equal: no handler
-    (void)vm.Set(PropertyId::of(kText), Value::String("C")); // real: write #3
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("A")); // source-equal: no handler
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("B")); // real: write #2
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("B")); // source-equal: no handler
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("C")); // real: write #3
 
     // Exactly 3 effective writes total (initial A + B + C); the equal repeats
     // contributed 0.
     SHOULD(ShouldlyIntegral(target.stringWrites).ShouldBe(3));
     SHOULD(ShouldlyIntegral(writesAfterFirst).ShouldBe(1));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("C")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("C")));
 }
 
 // ===========================================================================
@@ -278,13 +281,14 @@ TEST_CASE("S243 mode: subscription armed only for OneWay; OneTime has none")
     // OneTime -> not subscribed.
     {
         ObservableObject vm;
-        (void)vm.Set(PropertyId::of(kText), Value::String("x"));
+        (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("x"));
         CountingTarget target;
         BindingExpressionSpec spec;
         spec.source = &vm;
         spec.sourcePath = kText;
         spec.target = &target.obj;
         spec.targetProp = kText;
+        spec.targetOwner = "S243Test";
         spec.mode = BindingMode::OneTime;
         auto e = BindingExpression::create(spec);
         SHOULD(ShouldlyIntegral(e != nullptr).ShouldBe(true));
@@ -293,7 +297,7 @@ TEST_CASE("S243 mode: subscription armed only for OneWay; OneTime has none")
     // OneWay -> subscribed on create.
     {
         ObservableObject vm;
-        (void)vm.Set(PropertyId::of(kText), Value::String("x"));
+        (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("x"));
         CountingTarget target;
         auto e = make_oneway(vm, target.obj);
         SHOULD(ShouldlyIntegral(e->live_subscribed() ? 1 : 0).ShouldBe(1));
@@ -304,20 +308,21 @@ TEST_CASE("S243 mode: subscription armed only for OneWay; OneTime has none")
 TEST_CASE("S243 OneTime unchanged: mutating the source does NOT auto-update")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("first"));
     CountingTarget target;
     BindingExpressionSpec spec;
     spec.source = &vm;
     spec.sourcePath = kText;
     spec.target = &target.obj;
     spec.targetProp = kText;
+    spec.targetOwner = "S243Test";
     spec.mode = BindingMode::OneTime;
     auto expr = BindingExpression::create(spec);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("first")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("first")));
 
-    (void)vm.Set(PropertyId::of(kText), Value::String("second"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("first")));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("second"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("first")));
 }
 
 // ===========================================================================
@@ -327,7 +332,7 @@ TEST_CASE("S243 OneTime unchanged: mutating the source does NOT auto-update")
 TEST_CASE("S243 converter: a source change re-runs the converter and the converted value reaches the target live")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("1"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("1"));
     CountingTarget target;
 
     BindingExpressionSpec spec;
@@ -335,6 +340,7 @@ TEST_CASE("S243 converter: a source change re-runs the converter and the convert
     spec.sourcePath = kText;
     spec.target = &target.obj;
     spec.targetProp = kNumber; // a converter maps String -> Int32 into the Int32 DP
+    spec.targetOwner = "S243Test";
     spec.mode = BindingMode::OneWay;
     spec.converter.convert = [](const Value& v) -> BindingConversion {
         return BindingConversion{ true, Value::Int32(static_cast<std::int32_t>(v.get<std::string>().size())), {} };
@@ -343,15 +349,15 @@ TEST_CASE("S243 converter: a source change re-runs the converter and the convert
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyIntegral(expr != nullptr).ShouldBe(true));
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of(kNumber)).get<std::int32_t>()).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(1));
 
     // "Hello" -> 5; the live subscription re-runs the converter.
-    (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
-    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of(kNumber)).get<std::int32_t>()).ShouldBe(5));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("Hello"));
+    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(5));
 
     // "World!" -> 6.
-    (void)vm.Set(PropertyId::of(kText), Value::String("World!"));
-    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of(kNumber)).get<std::int32_t>()).ShouldBe(6));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("World!"));
+    SHOULD(ShouldlyIntegral(target.obj.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(6));
 }
 
 // ===========================================================================
@@ -371,6 +377,7 @@ TEST_CASE("S243 fallback: a source resolving to a missing path -> FallbackApplie
     spec.sourcePath = kNope; // absent -> MissingProperty
     spec.target = &target.obj;
     spec.targetProp = kText;
+    spec.targetOwner = "S243Test";
     spec.mode = BindingMode::OneWay;
     spec.fallback = Value::String("FB");
     auto expr = BindingExpression::create(spec);
@@ -378,7 +385,7 @@ TEST_CASE("S243 fallback: a source resolving to a missing path -> FallbackApplie
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("FB")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("FB")));
     // MissingProperty + FallbackApplied emitted.
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{2}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::MissingProperty)));
@@ -388,8 +395,8 @@ TEST_CASE("S243 fallback: a source resolving to a missing path -> FallbackApplie
     // real value. The live subscription (keyed on kNope) fires; the re-resolve
     // succeeds -> the real value reaches the target (no fallback this time).
     sink.reasons.clear();
-    (void)vm.Set(PropertyId::of(kNope), Value::String("restored"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("restored")));
+    (void)vm.Set(PropertyId::of("S243Nope", "ObservableObject"), Value::String("restored"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("restored")));
     // No MissingProperty / FallbackApplied on the successful restore.
     SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true));
 }
@@ -401,7 +408,7 @@ TEST_CASE("S243 fallback: a source resolving to a missing path -> FallbackApplie
 TEST_CASE("S243 SetTargetFailed: a OneWay target Set rejection emits SetTargetFailed once per live re-push")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("str"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("str"));
     // Int32 target property; a String source pushed into it is wrong-typed.
     DependencyObject target;
     target.register_property(key(kNumber, ValueType::Int32),
@@ -414,6 +421,7 @@ TEST_CASE("S243 SetTargetFailed: a OneWay target Set rejection emits SetTargetFa
     spec.sourcePath = kText;      // String
     spec.target = &target;
     spec.targetProp = kNumber;    // Int32 target => wrong-typed push
+    spec.targetOwner = "S243Test";
     spec.mode = BindingMode::OneWay;
 
     auto expr = BindingExpression::create(spec);
@@ -428,12 +436,12 @@ TEST_CASE("S243 SetTargetFailed: a OneWay target Set rejection emits SetTargetFa
     // A LIVE OneWay re-push (a real source change) is rejected -> emits
     // SetTargetFailed EXACTLY once.
     sink.reasons.clear();
-    (void)vm.Set(PropertyId::of(kText), Value::String("second"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("second"));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::SetTargetFailed)));
 
     // A second live rejection emits a second SetTargetFailed.
-    (void)vm.Set(PropertyId::of(kText), Value::String("third"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("third"));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{2}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[1])).ShouldBe(rc_int(BindingReasonCode::SetTargetFailed)));
 }
@@ -441,7 +449,7 @@ TEST_CASE("S243 SetTargetFailed: a OneWay target Set rejection emits SetTargetFa
 TEST_CASE("S243 SetTargetFailed: the OneTime wrong-typed path still emits NOTHING (S242 re-proof)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("str"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("str"));
     DependencyObject target;
     target.register_property(key(kNumber, ValueType::Int32),
         PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
@@ -453,13 +461,14 @@ TEST_CASE("S243 SetTargetFailed: the OneTime wrong-typed path still emits NOTHIN
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kNumber;
+    spec.targetOwner = "S243Test";
     spec.mode = BindingMode::OneTime;
     auto expr = BindingExpression::create(spec);
     (void)expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(TransferResult::TargetRejected)).ShouldBe(tr_int(TransferResult::TargetRejected)));
     SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true)); // no SetTargetFailed
     // OneTime never subscribes, so even a later mutation stays silent.
-    (void)vm.Set(PropertyId::of(kText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("x"));
     SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true));
 }
 
@@ -470,7 +479,7 @@ TEST_CASE("S243 SetTargetFailed: the OneTime wrong-typed path still emits NOTHIN
 TEST_CASE("S243 SetTargetFailed != fallback: a target rejection is never masked by a bound fallback")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("str"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("str"));
     // Int32 target with a bound fallback. The live push of a String into the
     // Int32 target is a TARGET rejection — NOT a Class B resolve/converter
     // failure — so the fallback must NOT mask it (no FallbackApplied emitted).
@@ -485,20 +494,21 @@ TEST_CASE("S243 SetTargetFailed != fallback: a target rejection is never masked 
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kNumber;
+    spec.targetOwner = "S243Test";
     spec.mode = BindingMode::OneWay;
     spec.fallback = Value::Int32(99);
     auto expr = BindingExpression::create(spec);
     (void)expr->TransferSourceToTarget(); // first push: rejected, NO emission, NO fallback
 
     sink.reasons.clear();
-    (void)vm.Set(PropertyId::of(kText), Value::String("live"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("live"));
     // The live rejection emits SetTargetFailed ONLY — FallbackApplied must NOT
     // appear (fallback is for Class B resolve/converter failures, never a
     // target-assignment rejection).
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::SetTargetFailed)));
     // Target untouched (still -1 default; the fallback was NOT applied).
-    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of(kNumber)).get<std::int32_t>()).ShouldBe(-1));
+    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S243Number", "S243Test")).get<std::int32_t>()).ShouldBe(-1));
 }
 
 // ===========================================================================
@@ -508,22 +518,22 @@ TEST_CASE("S243 SetTargetFailed != fallback: a target rejection is never masked 
 TEST_CASE("S243 lifetime: after the expression is destroyed, a source mutation does NOT fire the handler")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("first"));
     CountingTarget target;
 
     {
         auto expr = make_oneway(vm, target.obj);
         (void)expr->TransferSourceToTarget();
         SHOULD(ShouldlyIntegral(expr->live_subscribed() ? 1 : 0).ShouldBe(1));
-        (void)vm.Set(PropertyId::of(kText), Value::String("live"));
-        SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("live")));
+        (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("live"));
+        SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("live")));
     } // expr destroyed -> unsubscribe
 
     const int writesAfterDestroy = target.stringWrites;
-    (void)vm.Set(PropertyId::of(kText), Value::String("after"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("after"));
     // No handler any more: no new target write, no dangling callback.
     SHOULD(ShouldlyIntegral(target.stringWrites).ShouldBe(writesAfterDestroy));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("live")));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("live")));
 }
 
 // ===========================================================================
@@ -533,7 +543,7 @@ TEST_CASE("S243 lifetime: after the expression is destroyed, a source mutation d
 TEST_CASE("S243 move: a moved one-way expression re-arms its live subscription; mutation after the move still updates the target")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("first"));
     CountingTarget target;
 
     auto expr = make_oneway(vm, target.obj);
@@ -545,8 +555,8 @@ TEST_CASE("S243 move: a moved one-way expression re-arms its live subscription; 
 
     // The moved-to binding's handler captures the moved-to `this`; a mutation
     // still re-pushes.
-    (void)vm.Set(PropertyId::of(kText), Value::String("after-move"));
-    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of(kText))).ShouldBe(Value::String("after-move")));
+    (void)vm.Set(PropertyId::of("S243Text", "ObservableObject"), Value::String("after-move"));
+    SHOULD(ShouldlyString(target.obj.Get(PropertyId::of("S243Text", "S243Test"))).ShouldBe(Value::String("after-move")));
 
     // The moved-from is inert (its subscription was transferred; its dtor must
     // not double-remove or touch a dangling `this`). Destroying it is safe.

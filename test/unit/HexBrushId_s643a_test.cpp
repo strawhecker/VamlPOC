@@ -101,9 +101,10 @@ const char* const kS643MalformedDoc = R"(
 
 // S643b-1: the enumerated paint DP holds a Brush OBJECT (Value::Brush). Returns
 // the held brush's color (D1 object-round-trip).
-[[nodiscard]] Color brushColorOf(const DependencyObject& obj, const char* dpName)
+[[nodiscard]] Color brushColorOf(const DependencyObject& obj, const char* dpName,
+                                 const char* owner)
 {
-    const Value v = obj.Get(PropertyId::of(dpName));
+    const Value v = obj.Get(PropertyId::of(dpName, owner));
     SHOULD(ShouldlyString(v.type()).ShouldBe(ValueType::Brush));
     const std::shared_ptr<Brush> b = v.get<std::shared_ptr<::vaml::Brush>>();
     SHOULD(ShouldlyIntegral(b != nullptr).ShouldBe(true));
@@ -132,7 +133,7 @@ TEST_CASE("S643b: S2 text reader — color literals on paint DPs become Brush OB
     // TextBlock.Foreground="#FFE8E8E8" -> (E8,E8,E8,FF)=(232,232,232,255).
     auto* tb = dynamic_cast<TextBlock*>(retained[0].get());
     REQUIRE(tb != nullptr);
-    const vaml::Value fgv = tb->Get(vaml::PropertyId::of("Foreground"));
+    const vaml::Value fgv = tb->Get(vaml::PropertyId::of("Foreground", "TextBlock"));
     SHOULD(ShouldlyString(fgv.type()).ShouldBe(vaml::ValueType::Brush));
     const Color fg = fgv.get<std::shared_ptr<::vaml::Brush>>()->color();
     SHOULD(ShouldlyString(fg.r).ShouldBe(232));
@@ -146,7 +147,7 @@ TEST_CASE("S643b: S2 text reader — color literals on paint DPs become Brush OB
     // Border.BorderBrush="#FF123456" -> (12,34,56,FF) as a Brush OBJECT.
     auto* border = dynamic_cast<Border*>(retained[1].get());
     REQUIRE(border != nullptr);
-    const Color bb = brushColorOf(*border, "BorderBrush");
+    const Color bb = brushColorOf(*border, "BorderBrush", "Border");
     SHOULD(ShouldlyString(bb.r).ShouldBe(0x12));
     SHOULD(ShouldlyString(bb.g).ShouldBe(0x34));
     SHOULD(ShouldlyString(bb.b).ShouldBe(0x56));
@@ -173,7 +174,7 @@ TEST_CASE("S643b: S7 compiled reader — color literals become Brush OBJECTs (D1
 
     auto* tb = dynamic_cast<TextBlock*>(retained[0].get());
     REQUIRE(tb != nullptr);
-    const Color fg = brushColorOf(*tb, "Foreground");
+    const Color fg = brushColorOf(*tb, "Foreground", "TextBlock");
     SHOULD(ShouldlyString(fg.r).ShouldBe(232));
     SHOULD(ShouldlyString(fg.g).ShouldBe(232));
     SHOULD(ShouldlyString(fg.b).ShouldBe(232));
@@ -181,7 +182,7 @@ TEST_CASE("S643b: S7 compiled reader — color literals become Brush OBJECTs (D1
 
     auto* border = dynamic_cast<Border*>(retained[1].get());
     REQUIRE(border != nullptr);
-    const Color bb = brushColorOf(*border, "BorderBrush");
+    const Color bb = brushColorOf(*border, "BorderBrush", "Border");
     SHOULD(ShouldlyString(bb.r).ShouldBe(0x12));
     SHOULD(ShouldlyString(bb.g).ShouldBe(0x34));
     SHOULD(ShouldlyString(bb.b).ShouldBe(0x56));

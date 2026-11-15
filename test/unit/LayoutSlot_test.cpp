@@ -204,14 +204,14 @@ TEST_CASE("S122: layout DPs resolve on a plain DependencyObject too (S043 attach
     // S043 attached-aware global resolution.
     DependencyObject plain;
 
-    (void)plain.Set(vaml::PropertyId::of("Margin"), Value::Thickness(Thickness{ 1.0f, 1.0f, 1.0f, 1.0f }));
-    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("Margin")).get<Thickness>().left).ShouldBe(1.0f));
+    (void)plain.Set(vaml::PropertyId::of("Margin", "UIElement"), Value::Thickness(Thickness{ 1.0f, 1.0f, 1.0f, 1.0f }));
+    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("Margin", "UIElement")).get<Thickness>().left).ShouldBe(1.0f));
 
-    (void)plain.Set(vaml::PropertyId::of("HorizontalAlignment"), Value::Int32(1));
-    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("HorizontalAlignment")).get<std::int32_t>()).ShouldBe(1));
+    (void)plain.Set(vaml::PropertyId::of("HorizontalAlignment", "UIElement"), Value::Int32(1));
+    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("HorizontalAlignment", "UIElement")).get<std::int32_t>()).ShouldBe(1));
 
-    (void)plain.Set(vaml::PropertyId::of("VerticalAlignment"), Value::Int32(2));
-    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("VerticalAlignment")).get<std::int32_t>()).ShouldBe(2));
+    (void)plain.Set(vaml::PropertyId::of("VerticalAlignment", "UIElement"), Value::Int32(2));
+    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("VerticalAlignment", "UIElement")).get<std::int32_t>()).ShouldBe(2));
 }
 
 TEST_CASE("S122: layout DP wrong-tag write throws ValueTypeMismatch")
@@ -220,13 +220,13 @@ TEST_CASE("S122: layout DP wrong-tag write throws ValueTypeMismatch")
     // Margin is a Thickness; writing an Int32 payload to it is a wrong-tag
     // write -> ValueTypeMismatch, store unchanged (still 0).
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
-        (void)el.Set(vaml::PropertyId::of("Margin"), Value::Int32(7));
+        (void)el.Set(vaml::PropertyId::of("Margin", "UIElement"), Value::Int32(7));
     }));
     SHOULD(ShouldlyString(el.margin().left).ShouldBe(0.0f));
 
     // HorizontalAlignment is an Int32; a Double payload is wrong-tag.
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
-        (void)el.Set(vaml::PropertyId::of("HorizontalAlignment"), Value::Double(1.0));
+        (void)el.Set(vaml::PropertyId::of("HorizontalAlignment", "UIElement"), Value::Double(1.0));
     }));
     // Store unchanged = the SYMBOLIC default Stretch=3 (S11p re-pointing).
     SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));

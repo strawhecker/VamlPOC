@@ -119,8 +119,8 @@ TEST_CASE("S454: <Style TargetType Setter> is authored into the S362 model")
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "<StackPanel.Resources>"
         "<Style x:Key=\"S\" TargetType=\"StackPanel\">"
-        "<Setter Property=\"S454Size\" Value=\"42\"/>"
-        "<Setter Property=\"S454Hover\" Value=\"1\"/>"
+        "<Setter Property=\"S454_Owner.S454Size\" Value=\"42\"/>"
+        "<Setter Property=\"S454_Owner.S454Hover\" Value=\"1\"/>"
         "</Style>"
         "</StackPanel.Resources>"
         "</StackPanel>");
@@ -158,7 +158,7 @@ TEST_CASE("S454: apply_style applies the authored style's setters to a UIElement
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "<StackPanel.Resources>"
         "<Style x:Key=\"S\" TargetType=\"UIElement\">"
-        "<Setter Property=\"S454Size\" Value=\"77\"/>"
+        "<Setter Property=\"S454_Owner.S454Size\" Value=\"77\"/>"
         "</Style>"
         "</StackPanel.Resources>"
         "</StackPanel>");
@@ -173,7 +173,7 @@ TEST_CASE("S454: apply_style applies the authored style's setters to a UIElement
         std::vector<vaml::DynamicResourceLink> links;
         const std::vector<StyleApply> applied = applier.apply_style(target, *s, links);
         SHOULD(ShouldlyString(applied.size()).ShouldBe(1u));
-        SHOULD(ShouldlyString(target.Get(PropertyId::of("S454Size"))).ShouldBe(Value::Int32(77)));
+        SHOULD(ShouldlyString(target.Get(PropertyId::of("S454Size", "S454_Owner"))).ShouldBe(Value::Int32(77)));
     }
 }
 
@@ -188,8 +188,8 @@ TEST_CASE("S454: authored BasedOn resolves; apply walks base-first then child ov
     std::unique_ptr<DependencyObject> root = reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "<StackPanel.Resources>"
-        "<Style x:Key=\"base\" TargetType=\"UIElement\"><Setter Property=\"S454Size\" Value=\"10\"/></Style>"
-        "<Style x:Key=\"derived\" TargetType=\"UIElement\" BasedOn=\"{StaticResource base}\"><Setter Property=\"S454Size\" Value=\"99\"/></Style>"
+        "<Style x:Key=\"base\" TargetType=\"UIElement\"><Setter Property=\"S454_Owner.S454Size\" Value=\"10\"/></Style>"
+        "<Style x:Key=\"derived\" TargetType=\"UIElement\" BasedOn=\"{StaticResource base}\"><Setter Property=\"S454_Owner.S454Size\" Value=\"99\"/></Style>"
         "</StackPanel.Resources>"
         "</StackPanel>");
 
@@ -208,7 +208,7 @@ TEST_CASE("S454: authored BasedOn resolves; apply walks base-first then child ov
         std::vector<vaml::DynamicResourceLink> links;
         (void)applier.apply_style(target, *derived, links);
         // Base sets 10 then derived overrides to 99 (child wins).
-        SHOULD(ShouldlyString(target.Get(PropertyId::of("S454Size"))).ShouldBe(Value::Int32(99)));
+        SHOULD(ShouldlyString(target.Get(PropertyId::of("S454Size", "S454_Owner"))).ShouldBe(Value::Int32(99)));
     }
 }
 
@@ -226,8 +226,8 @@ TEST_CASE("S454: authored <Style.Triggers> produces PropertyTrigger + DataTrigge
         "<StackPanel.Resources>"
         "<Style x:Key=\"S\" TargetType=\"UIElement\">"
         "<Style.Triggers>"
-        "<PropertyTrigger Property=\"S454Hover\" Value=\"1\"><Setter Property=\"S454Size\" Value=\"5\"/></PropertyTrigger>"
-        "<DataTrigger Binding=\"IsActive\" Value=\"true\"><Setter Property=\"S454Size\" Value=\"9\"/></DataTrigger>"
+        "<PropertyTrigger Property=\"S454_Owner.S454Hover\" Value=\"1\"><Setter Property=\"S454_Owner.S454Size\" Value=\"5\"/></PropertyTrigger>"
+        "<DataTrigger Binding=\"IsActive\" Value=\"true\"><Setter Property=\"S454_Owner.S454Size\" Value=\"9\"/></DataTrigger>"
         "</Style.Triggers>"
         "</Style>"
         "</StackPanel.Resources>"
@@ -272,7 +272,7 @@ TEST_CASE("S454: implicit <Style> (no x:Key) is registered under Style:{TargetTy
     std::unique_ptr<DependencyObject> root = reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "<StackPanel.Resources>"
-        "<Style TargetType=\"StackPanel\"><Setter Property=\"S454Hover\" Value=\"3\"/></Style>"
+        "<Style TargetType=\"StackPanel\"><Setter Property=\"S454_Owner.S454Hover\" Value=\"3\"/></Style>"
         "</StackPanel.Resources>"
         "</StackPanel>");
 
@@ -289,7 +289,7 @@ TEST_CASE("S454: implicit <Style> (no x:Key) is registered under Style:{TargetTy
     std::vector<vaml::DynamicResourceLink> links;
     const std::size_t applied = apply_implicit_style(*panel, links);
     SHOULD(ShouldlyIntegral(static_cast<int>(applied > 0u)).ShouldBe(1));
-    SHOULD(ShouldlyString(panel->Get(PropertyId::of("S454Hover"))).ShouldBe(Value::Int32(3)));
+    SHOULD(ShouldlyString(panel->Get(PropertyId::of("S454Hover", "S454_Owner"))).ShouldBe(Value::Int32(3)));
 }
 
 TEST_CASE("S454: an explicitly-keyed style does NOT auto-apply (explicit only)")
@@ -299,7 +299,7 @@ TEST_CASE("S454: an explicitly-keyed style does NOT auto-apply (explicit only)")
     std::unique_ptr<DependencyObject> root = reader.Load(
         "<StackPanel xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\">"
         "<StackPanel.Resources>"
-        "<Style x:Key=\"Explicit\" TargetType=\"StackPanel\"><Setter Property=\"S454Hover\" Value=\"8\"/></Style>"
+        "<Style x:Key=\"Explicit\" TargetType=\"StackPanel\"><Setter Property=\"S454_Owner.S454Hover\" Value=\"8\"/></Style>"
         "</StackPanel.Resources>"
         "</StackPanel>");
 
@@ -310,5 +310,5 @@ TEST_CASE("S454: an explicitly-keyed style does NOT auto-apply (explicit only)")
     SHOULD(ShouldlyIntegral(find_implicit_style(*panel) == nullptr).ShouldBe(true));
     // And a plain build does NOT apply it (explicit styles apply only via
     // apply_style) — the panel's S454Hover keeps its default 0.
-    SHOULD(ShouldlyString(panel->Get(PropertyId::of("S454Hover"))).ShouldBe(Value::Int32(0)));
+    SHOULD(ShouldlyString(panel->Get(PropertyId::of("S454Hover", "S454_Owner"))).ShouldBe(Value::Int32(0)));
 }

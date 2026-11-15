@@ -99,15 +99,17 @@ DependencyObject make_target()
     return obj;
 }
 
-// RAII guard: swaps in the recorder, restores the previous sink at scope exit
-// (the process-global sink must be restored so tests can run in any order /
-// against the real binding engine).
+// RAII guard: swaps in the recorder, restores the PERMANENT default sink at
+// scope exit (the process-global sink must be restored so tests can run in any
+// order / against the real binding engine). Restoring to
+// default_binding_diagnostics() — never to a captured `previous` reference —
+// guarantees the restored sink outlives every test (a captured reference can
+// dangle into a prior test's freed stack RecordingSink, which is the exact
+// heap-corruption/use-after-free that surfaces as a stray `reasons[0]` crash).
 struct SinkGuard
 {
-    IBindingDiagnostics& previous;
-    explicit SinkGuard(IBindingDiagnostics& sink)
-        : previous(set_binding_diagnostics(sink)) {}
-    ~SinkGuard() { (void)set_binding_diagnostics(previous); }
+    explicit SinkGuard(IBindingDiagnostics& sink) { (void)set_binding_diagnostics(sink); }
+    ~SinkGuard() { (void)set_binding_diagnostics(vaml::default_binding_diagnostics()); }
 };
 
 struct RecordingSink final : IBindingDiagnostics
@@ -130,7 +132,7 @@ int mode_int(BindingMode m) { return static_cast<int>(m); }
 TEST_CASE("S242 OneTime: create + initial transfer APPLIES String source -> String target")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("Hello"));
     DependencyObject target = make_target();
 
     BindingExpressionSpec spec;
@@ -138,6 +140,7 @@ TEST_CASE("S242 OneTime: create + initial transfer APPLIES String source -> Stri
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText; // same name on target is fine (object-scoped)
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
 
     auto expr = BindingExpression::create(spec);
@@ -145,7 +148,7 @@ TEST_CASE("S242 OneTime: create + initial transfer APPLIES String source -> Stri
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::Applied)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("Hello")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("Hello")));
 }
 
 // ===========================================================================
@@ -155,7 +158,7 @@ TEST_CASE("S242 OneTime: create + initial transfer APPLIES String source -> Stri
 TEST_CASE("S242 OneTime: mutating the source after transfer does NOT re-push (no live subscription)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("first"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("first"));
     DependencyObject target = make_target();
 
     BindingExpressionSpec spec;
@@ -163,15 +166,16 @@ TEST_CASE("S242 OneTime: mutating the source after transfer does NOT re-push (no
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
 
     auto expr = BindingExpression::create(spec);
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("first")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("first")));
 
     // Poke the source; OneTime must NOT re-transfer on its own (S243/S244 wire it).
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("second"));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("first")));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("second"));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("first")));
 }
 
 // ===========================================================================
@@ -185,7 +189,7 @@ TEST_CASE("S242 mode: create carries the mode; to_binding_direction maps correct
     SHOULD(ShouldlyIntegral(dir_int(to_binding_direction(BindingMode::TwoWay))).ShouldBe(dir_int(BindingDirection::TwoWay)));
 
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("x"));
     DependencyObject target = make_target();
 
     BindingExpressionSpec spec;
@@ -193,6 +197,7 @@ TEST_CASE("S242 mode: create carries the mode; to_binding_direction maps correct
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::TwoWay; // S244 wire; mode carried now, tested now
 
     auto expr = BindingExpression::create(spec);
@@ -200,7 +205,7 @@ TEST_CASE("S242 mode: create carries the mode; to_binding_direction maps correct
     SHOULD(ShouldlyIntegral(mode_int(expr->mode())).ShouldBe(mode_int(BindingMode::TwoWay)));
     // The first push reuses the same OneTime-compatible transfer (S243/S244 build on it).
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("x")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("x")));
 }
 
 // ===========================================================================
@@ -219,6 +224,7 @@ TEST_CASE("S242 fallback: MissingProperty source -> FallbackApplied, target gets
     spec.sourcePath = kNameNope; // absent -> MissingProperty (Class B)
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
     spec.fallback = Value::String("FALLBACK");
 
@@ -227,7 +233,7 @@ TEST_CASE("S242 fallback: MissingProperty source -> FallbackApplied, target gets
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("FALLBACK")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("FALLBACK")));
 }
 
 TEST_CASE("S242 fallback: NullIntermediate source -> FallbackApplied")
@@ -235,7 +241,7 @@ TEST_CASE("S242 fallback: NullIntermediate source -> FallbackApplied")
     // Outer holds a null-valued property, and we bind to "<empty>.<text>" so
     // the chain hits an intermediate null.
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+    (void)vm.Set(PropertyId::of("S242Empty", "ObservableObject"), Value::Null());
     DependencyObject target = make_target();
     RecordingSink sink;
     SinkGuard guard(sink);
@@ -245,6 +251,7 @@ TEST_CASE("S242 fallback: NullIntermediate source -> FallbackApplied")
     spec.sourcePath = std::string(kNameEmpty) + "." + kNameText; // intermediate null
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
     spec.fallback = Value::String("FB");
 
@@ -253,7 +260,7 @@ TEST_CASE("S242 fallback: NullIntermediate source -> FallbackApplied")
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("FB")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("FB")));
 }
 
 TEST_CASE("S242 fallback: MissingProperty WITHOUT a fallback -> ResolveFailed, target untouched, no FallbackApplied")
@@ -268,6 +275,7 @@ TEST_CASE("S242 fallback: MissingProperty WITHOUT a fallback -> ResolveFailed, t
     spec.sourcePath = kNameNope;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
 
     auto expr = BindingExpression::create(spec);
@@ -276,7 +284,7 @@ TEST_CASE("S242 fallback: MissingProperty WITHOUT a fallback -> ResolveFailed, t
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::ResolveFailed)));
     // Target untouched: still the default.
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("DEFAULT_TEXT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
 }
 
 // ===========================================================================
@@ -286,7 +294,7 @@ TEST_CASE("S242 fallback: MissingProperty WITHOUT a fallback -> ResolveFailed, t
 TEST_CASE("S242 converter: converts String source -> Int32 target, APPLIED")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("42"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("42"));
     DependencyObject target = make_target();
 
     BindingExpressionSpec spec;
@@ -294,6 +302,7 @@ TEST_CASE("S242 converter: converts String source -> Int32 target, APPLIED")
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameNumber; // Int32 target
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
     spec.converter.convert = [](const Value&) -> BindingConversion {
         // A fixed conversion for the test (String -> Int32).
@@ -306,13 +315,13 @@ TEST_CASE("S242 converter: converts String source -> Int32 target, APPLIED")
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::Applied)));
-    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of(kNameNumber)).get<std::int32_t>()).ShouldBe(7));
+    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S242Number", "S242Test")).get<std::int32_t>()).ShouldBe(7));
 }
 
 TEST_CASE("S242 converter: failure (ok=false) -> ConverterFailed; with fallback -> FallbackApplied")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("x"));
     DependencyObject target = make_target();
     RecordingSink sink;
     SinkGuard guard(sink);
@@ -322,6 +331,7 @@ TEST_CASE("S242 converter: failure (ok=false) -> ConverterFailed; with fallback 
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameNumber;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
     spec.converter.convert = [](const Value&) -> BindingConversion {
         return BindingConversion{ false, Value::Null(), "converter refused" };
@@ -334,7 +344,7 @@ TEST_CASE("S242 converter: failure (ok=false) -> ConverterFailed; with fallback 
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of(kNameNumber)).get<std::int32_t>()).ShouldBe(99));
+    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S242Number", "S242Test")).get<std::int32_t>()).ShouldBe(99));
 }
 
 // ===========================================================================
@@ -350,16 +360,17 @@ TEST_CASE("S242 Class A: malformed path -> create returns nullptr, emits Malform
 
     BindingExpressionSpec spec;
     spec.source = &vm;
-    spec.sourcePath = "S242Text.."; // TrailingDot/ConsecutiveDot Class A
+    spec.sourcePath = "S242Text[";  // unterminated indexer -> UnterminatedIndexer Class A
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
     spec.fallback = Value::String("FB"); // must NOT be applied (Class A never falls back)
 
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyIntegral(expr == nullptr).ShouldBe(true));
     // Target untouched — nothing bound, nothing applied.
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("DEFAULT_TEXT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
 }
 
 // ===========================================================================
@@ -369,15 +380,16 @@ TEST_CASE("S242 Class A: malformed path -> create returns nullptr, emits Malform
 TEST_CASE("S242 transfer: target already == value -> NoChange")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("same"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("same"));
     DependencyObject target = make_target();
-    (void)target.Set(PropertyId::of(kNameText), Value::String("same")); // pre-set equal
+    (void)target.Set(PropertyId::of("S242Text", "S242Test"), Value::String("same")); // pre-set equal
 
     BindingExpressionSpec spec;
     spec.source = &vm;
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
 
     auto expr = BindingExpression::create(spec);
@@ -390,7 +402,7 @@ TEST_CASE("S242 transfer: target already == value -> NoChange")
 TEST_CASE("S242 transfer: wrong-typed push -> TargetRejected (returned + recorded, NOT emitted SetTargetFailed)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("str"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("str"));
     DependencyObject target = make_target();
     RecordingSink sink;
     SinkGuard guard(sink);
@@ -401,6 +413,7 @@ TEST_CASE("S242 transfer: wrong-typed push -> TargetRejected (returned + recorde
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameNumber; // Int32 target
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
 
     auto expr = BindingExpression::create(spec);
@@ -427,6 +440,7 @@ TEST_CASE("S242 resolve: null source (no ObservableObject) -> NotReadable + fall
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
     spec.fallback = Value::String("NULL_FB");
 
@@ -435,7 +449,7 @@ TEST_CASE("S242 resolve: null source (no ObservableObject) -> NotReadable + fall
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("NULL_FB")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("NULL_FB")));
 }
 
 TEST_CASE("S242 resolve: null source WITHOUT fallback -> ResolveFailed, target untouched")
@@ -449,6 +463,7 @@ TEST_CASE("S242 resolve: null source WITHOUT fallback -> ResolveFailed, target u
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
 
     auto expr = BindingExpression::create(spec);
@@ -456,7 +471,7 @@ TEST_CASE("S242 resolve: null source WITHOUT fallback -> ResolveFailed, target u
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::ResolveFailed)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("DEFAULT_TEXT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S242Text", "S242Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
 }
 
 // ===========================================================================
@@ -466,7 +481,7 @@ TEST_CASE("S242 resolve: null source WITHOUT fallback -> ResolveFailed, target u
 TEST_CASE("S242 id: bindingId is monotonic and distinct across create() calls")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("a"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("a"));
     DependencyObject t1 = make_target();
     DependencyObject t2 = make_target();
 
@@ -476,6 +491,7 @@ TEST_CASE("S242 id: bindingId is monotonic and distinct across create() calls")
     spec.mode = BindingMode::OneTime;
     spec.target = &t1;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     auto e1 = BindingExpression::create(spec);
     spec.target = &t2;
     auto e2 = BindingExpression::create(spec);
@@ -504,6 +520,7 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
         spec.sourcePath = kNameNope;
         spec.target = &target;
         spec.targetProp = kNameText;
+        spec.targetOwner = "S242Test";
         spec.mode = BindingMode::OneTime;
         auto e = BindingExpression::create(spec);
         (void)e->TransferSourceToTarget();
@@ -513,7 +530,7 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
     // NullIntermediate (no fallback).
     {
         ObservableObject vm;
-        (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+        (void)vm.Set(PropertyId::of("S242Empty", "ObservableObject"), Value::Null());
         DependencyObject target = make_target();
         RecordingSink sink;
         SinkGuard guard(sink);
@@ -522,6 +539,7 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
         spec.sourcePath = std::string(kNameEmpty) + ".X";
         spec.target = &target;
         spec.targetProp = kNameText;
+        spec.targetOwner = "S242Test";
         spec.mode = BindingMode::OneTime;
         auto e = BindingExpression::create(spec);
         (void)e->TransferSourceToTarget();
@@ -538,6 +556,7 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
         spec.sourcePath = kNameText;
         spec.target = &target;
         spec.targetProp = kNameText;
+        spec.targetOwner = "S242Test";
         spec.mode = BindingMode::OneTime;
         auto e = BindingExpression::create(spec);
         (void)e->TransferSourceToTarget();
@@ -547,7 +566,7 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
     // ConverterFailed (no fallback).
     {
         ObservableObject vm;
-        (void)vm.Set(PropertyId::of(kNameText), Value::String("x"));
+        (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("x"));
         DependencyObject target = make_target();
         RecordingSink sink;
         SinkGuard guard(sink);
@@ -556,6 +575,7 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
         spec.sourcePath = kNameText;
         spec.target = &target;
         spec.targetProp = kNameNumber;
+        spec.targetOwner = "S242Test";
         spec.mode = BindingMode::OneTime;
         spec.converter.convert = [](const Value&) -> BindingConversion {
             return BindingConversion{ false, Value::Null(), "no" };
@@ -577,6 +597,7 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
         spec.sourcePath = kNameNope;
         spec.target = &target;
         spec.targetProp = kNameText;
+        spec.targetOwner = "S242Test";
         spec.mode = BindingMode::OneTime;
         spec.fallback = Value::String("FB");
         auto e = BindingExpression::create(spec);
@@ -594,9 +615,10 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
         SinkGuard guard(sink);
         BindingExpressionSpec spec;
         spec.source = &vm;
-        spec.sourcePath = "S242Text..";
+        spec.sourcePath = "S242Text[";
         spec.target = &target;
         spec.targetProp = kNameText;
+        spec.targetOwner = "S242Test";
         spec.mode = BindingMode::OneTime;
         auto e = BindingExpression::create(spec);
         SHOULD(ShouldlyIntegral(e == nullptr).ShouldBe(true));
@@ -606,11 +628,43 @@ TEST_CASE("S242 diagnostics: exact reason codes per failure arm")
 }
 
 // ===========================================================================
-// 15/16 - EMPTY PATH (Class A) + CONVERTER FAILS WITH FALLBACK present
+// 15/16 - EMPTY (Direct) PATH + CONVERTER FAILS WITH FALLBACK present
 // ===========================================================================
 
-TEST_CASE("S242 Class A: empty/whitespace path -> EmptyPath, create nullptr")
+TEST_CASE("S242 Class A: empty path is a valid Direct binding (no longer EmptyPath)")
 {
+    // Sprint 11af — an empty / `.` path is a VALID Direct self-binding (WPF
+    // PathParser.cs:83-89), so `create` produces a live DIRECT expression
+    // (NOT nullptr, NOT EmptyPath). A genuinely-malformed path is separate
+    // (asserted below): UnterminatedIndexer maps to MalformedPath.
+    ObservableObject vm;
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("whole"));
+    DependencyObject target = make_target();
+
+    BindingExpressionSpec spec;
+    spec.source = &vm;
+    spec.sourcePath = "";   // empty -> Direct (bind the whole object)
+    spec.target = &target;
+    spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
+    spec.mode = BindingMode::OneTime;
+
+    auto expr = BindingExpression::create(spec);
+    SHOULD(ShouldlyIntegral(expr != nullptr).ShouldBe(true));
+    if (expr)
+    {
+        // The Direct first push binds the whole source object (the VM as a
+        // Value) against the String target — a type mismatch on the String
+        // target maps to TargetRejected, never a throw.
+        (void)expr->TransferSourceToTarget();
+    }
+}
+
+TEST_CASE("S242 Class A: malformed path -> create nullptr + MalformedPath (no EmptyPath for empty)")
+{
+    // A genuinely-malformed path (unterminated indexer) is STILL a Class A
+    // gate: create returns nullptr and emits MalformedPath. Empty path is a
+    // Direct (opposite end); it does not emit EmptyPath (retired at 11af).
     ObservableObject vm;
     DependencyObject target = make_target();
     RecordingSink sink;
@@ -618,21 +672,22 @@ TEST_CASE("S242 Class A: empty/whitespace path -> EmptyPath, create nullptr")
 
     BindingExpressionSpec spec;
     spec.source = &vm;
-    spec.sourcePath = "   "; // whitespace-only -> Empty
+    spec.sourcePath = "Items["; // unterminated indexer -> UnterminatedIndexer Class A
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
 
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyIntegral(expr == nullptr).ShouldBe(true));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
-    SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::EmptyPath)));
+    SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::MalformedPath)));
 }
 
 TEST_CASE("S242 converter fails AND fallback present -> FallbackApplied (never throws)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S242Text", "ObservableObject"), Value::String("x"));
     DependencyObject target = make_target();
     RecordingSink sink;
     SinkGuard guard(sink);
@@ -642,6 +697,7 @@ TEST_CASE("S242 converter fails AND fallback present -> FallbackApplied (never t
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameNumber;
+    spec.targetOwner = "S242Test";
     spec.mode = BindingMode::OneTime;
     spec.converter.convert = [](const Value&) -> BindingConversion {
         throw std::runtime_error("boom"); // a throwing converter must be recovered
@@ -654,5 +710,5 @@ TEST_CASE("S242 converter fails AND fallback present -> FallbackApplied (never t
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of(kNameNumber)).get<std::int32_t>()).ShouldBe(5));
+    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S242Number", "S242Test")).get<std::int32_t>()).ShouldBe(5));
 }

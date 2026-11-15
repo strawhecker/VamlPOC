@@ -120,17 +120,17 @@ TEST_CASE("S364: enter_state applies the state brush Color to the target DP; exi
     (void)hover.brush->set_color(vaml::Color{ 255, 0, 0, 255 });
 
     // Normal default: black (opaque).
-    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background"))))).
+    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background", "Control"))))).
                ShouldBe(Value::Color(vaml::Color{ 0, 0, 0, 255 })));
 
     enter_state(control, hover);
     SHOULD(ShouldlyIntegral(static_cast<int>(hover.engaged)).ShouldBe(1));
-    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background"))))).
+    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background", "Control"))))).
                ShouldBe(Value::Color(vaml::Color{ 255, 0, 0, 255 })));
 
     exit_state(control, hover);
     SHOULD(ShouldlyIntegral(static_cast<int>(hover.engaged)).ShouldBe(0));
-    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background"))))).
+    SHOULD(ShouldlyString(vaml::Value::Color(resolveBg(control.Get(PropertyId::of("Background", "Control"))))).
                ShouldBe(Value::Color(vaml::Color{ 255, 0, 0, 255 })));
 }
 

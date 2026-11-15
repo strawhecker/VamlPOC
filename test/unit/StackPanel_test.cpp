@@ -125,12 +125,12 @@ TEST_CASE("S129: Orientation resolves globally on a plain DependencyObject (S043
     // it through the S043 attached-aware path.
     // S11p re-pointing: Orientation { Horizontal=0, Vertical=1 } (Orientation.cs).
     DependencyObject plain;
-    (void)plain.Set(PropertyId::of("Orientation"), vaml::Value::Int32(0)); // Horizontal
-    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Orientation")))
+    (void)plain.Set(PropertyId::of("Orientation", "StackPanel"), vaml::Value::Int32(0)); // Horizontal
+    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Orientation", "StackPanel")))
                .ShouldBe(vaml::Value::Int32(0)));
     // Default (no set yet) is Vertical (Orientation::Vertical=1), SYMBOLIC.
     DependencyObject fresh;
-    SHOULD(ShouldlyString(fresh.Get(PropertyId::of("Orientation")))
+    SHOULD(ShouldlyString(fresh.Get(PropertyId::of("Orientation", "StackPanel")))
                .ShouldBe(vaml::Value::Int32(1)));
 }
 

@@ -22,8 +22,9 @@
 //   A. EXACT reasonCode per Class (not just fallback values):
 //        1  Class A malformed path  -> create nullptr + exactly [MalformedPath],
 //           StaticAuthoring, NO fallback (Class A never falls back).
-//        2  Class A empty path      -> exactly [EmptyPath], StaticAuthoring,
-//           nullptr, NO fallback.
+//        2  Class A empty path      -> a VALID Direct self-binding (Sprint 11af
+//           retired the Empty-as-error premise, S848) — create returns a live
+//           expression, NO EmptyPath diagnostics emitted.
 //        3  Class A Strict policy   -> emits [MalformedPath] THEN throws
 //           BindingPolicyException — the emit is never the control flow, the
 //           throw is; reason still Class A.
@@ -105,13 +106,15 @@ PropertyKey key(const std::string& name, ValueType t)
     return PropertyKey(name, t, "S245_1Test", PropertyFlags::None);
 }
 
-// RAII guard: swaps in the recorder, restores the previous sink at scope exit.
+// RAII guard: swaps in the recorder, restores the PERMANENT default sink at
+// scope exit. Restoring to default_binding_diagnostics() — never a captured
+// `previous` reference — guarantees the restored sink outlives every test (a
+// captured reference can dangle into a prior test's freed stack RecordingSink,
+// the use-after-free that surfaces as a stray `reasons[0]` crash in full runs).
 struct SinkGuard
 {
-    IBindingDiagnostics& previous;
-    explicit SinkGuard(IBindingDiagnostics& sink)
-        : previous(set_binding_diagnostics(sink)) {}
-    ~SinkGuard() { (void)set_binding_diagnostics(previous); }
+    explicit SinkGuard(IBindingDiagnostics& sink) { (void)set_binding_diagnostics(sink); }
+    ~SinkGuard() { (void)set_binding_diagnostics(vaml::default_binding_diagnostics()); }
 };
 
 struct RecordingSink final : IBindingDiagnostics
@@ -133,6 +136,7 @@ std::unique_ptr<BindingExpression> make_onetime(ObservableObject& vm, Dependency
     spec.sourcePath = sourcePath;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::OneTime;
     return BindingExpression::create(spec);
 }
@@ -155,18 +159,23 @@ void register_target(DependencyObject& target)
 TEST_CASE("S245_1 Class A: malformed path -> create nullptr + exactly [MalformedPath], no fallback")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("Hello"));
     DependencyObject target;
     register_target(target);
     RecordingSink sink;
     SinkGuard guard(sink);
 
-    // Malformed: consecutive-dot path fails PARSE (Class A) — never evaluates.
+    // Malformed: an unterminated indexer fails PARSE (Class A) — never
+    // evaluates. (Sprint 11af: a consecutive-dot path is now a VALID
+    // DrillIn.Never route — WPF PathParser.cs; it is NOT a Class A error, so
+    // the malformed case uses a genuinely-invalid UnterminatedIndexer, aligned
+    // with the S242/S242_1 cases.)
     BindingExpressionSpec spec;
     spec.source = &vm;
-    spec.sourcePath = "a..b"; // ConsecutiveDot
+    spec.sourcePath = "a[0"; // UnterminatedIndexer
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::OneTime;
     spec.fallback = Value::String("FB"); // Class A NEVER falls back
 
@@ -179,12 +188,18 @@ TEST_CASE("S245_1 Class A: malformed path -> create nullptr + exactly [Malformed
     SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::MalformedPath)))
                .ShouldBe(cls(BindingClass::StaticAuthoring)));
     // The fallback was NOT applied (Class A never falls back; target untouched).
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("DEFAULT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
 }
 
-TEST_CASE("S245_1 Class A: empty path -> exactly [EmptyPath], StaticAuthoring, nullptr, no fallback")
+TEST_CASE("S245_1 Class A: empty path is a VALID Direct self-binding (Retired Empty-as-error)")
 {
+    // Sprint 11af (S845/S847): an empty / `.` path is a VALID Direct
+    // self-binding to the whole source object (WPF PathParser.cs:83-89) — it
+    // is NOT a Class A error and `create` does NOT return nullptr. The old
+    // "empty -> EmptyPath Class A" expectation is retired (see S848); the empty
+    // case now asserts the Direct binding is created with no error emission.
     ObservableObject vm;
+    (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("whole"));
     DependencyObject target;
     register_target(target);
     RecordingSink sink;
@@ -192,19 +207,18 @@ TEST_CASE("S245_1 Class A: empty path -> exactly [EmptyPath], StaticAuthoring, n
 
     BindingExpressionSpec spec;
     spec.source = &vm;
-    spec.sourcePath = ""; // empty -> EmptyPath (Class A)
+    spec.sourcePath = ""; // empty -> Direct (valid, not an error)
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::OneTime;
     spec.fallback = Value::String("FB");
 
     auto expr = BindingExpression::create(spec);
-    SHOULD(ShouldlyPointer(expr.get()).ShouldBeNull());
-    SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
-    SHOULD(ShouldlyIntegral(rc(sink.reasons[0])).ShouldBe(rc(BindingReasonCode::EmptyPath)));
-    SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::EmptyPath)))
-               .ShouldBe(cls(BindingClass::StaticAuthoring)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("DEFAULT")));
+    // Direct self-binding is CREATED (not nullptr, not EmptyPath).
+    SHOULD(ShouldlyPointer(expr.get()).ShouldNotBeNull());
+    // No failure diagnostic was emitted for a valid Direct path.
+    SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true));
 }
 
 // ===========================================================================
@@ -224,6 +238,7 @@ TEST_CASE("S245_1 Class A Strict: emits [MalformedPath] THEN throws BindingPolic
     spec.sourcePath = "a[0"; // UnterminatedIndexer (a real Class A parse error)
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
 
@@ -270,7 +285,7 @@ TEST_CASE("S245_1 Class B: MissingProperty (no fallback) -> exactly [MissingProp
     SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::MissingProperty)))
                .ShouldBe(cls(BindingClass::DefinedRuntimeOutcome)));
     // Target keeps its default (nothing to push).
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("DEFAULT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
 }
 
 TEST_CASE("S245_1 Class B: MissingProperty + fallback -> exactly [MissingProperty, FallbackApplied], target gets fallback")
@@ -286,6 +301,7 @@ TEST_CASE("S245_1 Class B: MissingProperty + fallback -> exactly [MissingPropert
     spec.sourcePath = kAbsent;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::OneTime;
     spec.fallback = Value::String("FB");
     auto expr = BindingExpression::create(spec);
@@ -302,7 +318,7 @@ TEST_CASE("S245_1 Class B: MissingProperty + fallback -> exactly [MissingPropert
     SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::FallbackApplied)))
                .ShouldBe(cls(BindingClass::DefinedRuntimeOutcome)));
     // The fallback VALUE reaches the target (the observable recovery).
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("FB")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("FB")));
 }
 
 // ===========================================================================
@@ -314,7 +330,7 @@ TEST_CASE("S245_1 Class B: NullIntermediate (non-final null) -> exactly [NullInt
     ObservableObject vm;
     // A stored null on a NON-final segment of a two-segment path: the evaluator
     // null-stops before the second segment -> NullIntermediate (Class B).
-    (void)vm.Set(PropertyId::of(kNullLead), Value::Null());
+    (void)vm.Set(PropertyId::of("S245_1NullLead", "ObservableObject"), Value::Null());
     DependencyObject target;
     register_target(target);
     RecordingSink sink;
@@ -330,7 +346,7 @@ TEST_CASE("S245_1 Class B: NullIntermediate (non-final null) -> exactly [NullInt
     SHOULD(ShouldlyIntegral(rc(sink.reasons[0])).ShouldBe(rc(BindingReasonCode::NullIntermediate)));
     SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::NullIntermediate)))
                .ShouldBe(cls(BindingClass::DefinedRuntimeOutcome)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("DEFAULT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
 }
 
 // ===========================================================================
@@ -351,6 +367,7 @@ TEST_CASE("S245_1 Class B: NotReadable (null source) -> exactly [NotReadable], C
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::OneTime;
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyPointer(expr.get()).ShouldNotBeNull());
@@ -361,7 +378,7 @@ TEST_CASE("S245_1 Class B: NotReadable (null source) -> exactly [NotReadable], C
     SHOULD(ShouldlyIntegral(rc(sink.reasons[0])).ShouldBe(rc(BindingReasonCode::NotReadable)));
     SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::NotReadable)))
                .ShouldBe(cls(BindingClass::DefinedRuntimeOutcome)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("DEFAULT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
 }
 
 // ===========================================================================
@@ -373,7 +390,7 @@ TEST_CASE("S245_1 Class B: ConverterFailed (throwing converter) -> exactly [Conv
     // Arm A: no fallback -> exactly [ConverterFailed], TransferResult::ConverterFailed.
     {
         ObservableObject vm;
-        (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
+        (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("Hello"));
         DependencyObject target;
         register_target(target);
         RecordingSink sink;
@@ -384,6 +401,7 @@ TEST_CASE("S245_1 Class B: ConverterFailed (throwing converter) -> exactly [Conv
         spec.sourcePath = kText;
         spec.target = &target;
         spec.targetProp = kText;
+        spec.targetOwner = "S245_1Test";
         spec.mode = BindingMode::OneTime;
         spec.converter.convert = [](const Value&) -> BindingConversion {
             throw std::runtime_error("boom");
@@ -399,13 +417,13 @@ TEST_CASE("S245_1 Class B: ConverterFailed (throwing converter) -> exactly [Conv
         SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::ConverterFailed)))
                    .ShouldBe(cls(BindingClass::DefinedRuntimeOutcome)));
         // Without a fallback the target keeps its default.
-        SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("DEFAULT")));
+        SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("DEFAULT")));
     }
     // Arm B: converter failure + fallback -> exactly [ConverterFailed, FallbackApplied],
     // target gets the fallback value.
     {
         ObservableObject vm;
-        (void)vm.Set(PropertyId::of(kText), Value::String("Hello"));
+        (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("Hello"));
         DependencyObject target;
         register_target(target);
         RecordingSink sink;
@@ -416,6 +434,7 @@ TEST_CASE("S245_1 Class B: ConverterFailed (throwing converter) -> exactly [Conv
         spec.sourcePath = kText;
         spec.target = &target;
         spec.targetProp = kText;
+        spec.targetOwner = "S245_1Test";
         spec.mode = BindingMode::OneTime;
         spec.fallback = Value::String("CFB");
         spec.converter.convert = [](const Value&) -> BindingConversion {
@@ -429,7 +448,7 @@ TEST_CASE("S245_1 Class B: ConverterFailed (throwing converter) -> exactly [Conv
         SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{2}));
         SHOULD(ShouldlyIntegral(rc(sink.reasons[0])).ShouldBe(rc(BindingReasonCode::ConverterFailed)));
         SHOULD(ShouldlyIntegral(rc(sink.reasons[1])).ShouldBe(rc(BindingReasonCode::FallbackApplied)));
-        SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("CFB")));
+        SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("CFB")));
     }
 }
 
@@ -440,7 +459,7 @@ TEST_CASE("S245_1 Class B: ConverterFailed (throwing converter) -> exactly [Conv
 TEST_CASE("S245_1 Class B: live OneWay SetTargetFailed -> exactly [SetTargetFailed]; first push silent")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("str"));
+    (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("str"));
     DependencyObject target;
     target.register_property(key(kInt, ValueType::Int32),
         PropertyMetadata::WithDefault(Value::Int32(-1), PropertyFlags::None));
@@ -452,6 +471,7 @@ TEST_CASE("S245_1 Class B: live OneWay SetTargetFailed -> exactly [SetTargetFail
     spec.sourcePath = kText;   // String source
     spec.target = &target;
     spec.targetProp = kInt;    // Int32 target => wrong-typed push -> rejection
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::OneWay;
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyPointer(expr.get()).ShouldNotBeNull());
@@ -465,13 +485,13 @@ TEST_CASE("S245_1 Class B: live OneWay SetTargetFailed -> exactly [SetTargetFail
     // A LIVE one-way re-push (real source change) is rejected -> emits
     // SetTargetFailed EXACTLY once (the exact reasonCode, Class B).
     sink.reasons.clear();
-    (void)vm.Set(PropertyId::of(kText), Value::String("live"));
+    (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("live"));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc(sink.reasons[0])).ShouldBe(rc(BindingReasonCode::SetTargetFailed)));
     SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::SetTargetFailed)))
                .ShouldBe(cls(BindingClass::DefinedRuntimeOutcome)));
     // Target untouched (still the -1 default).
-    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of(kInt)).get<std::int32_t>()).ShouldBe(-1));
+    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S245_1Int", "S245_1Test")).get<std::int32_t>()).ShouldBe(-1));
 }
 
 // ===========================================================================
@@ -481,7 +501,7 @@ TEST_CASE("S245_1 Class B: live OneWay SetTargetFailed -> exactly [SetTargetFail
 TEST_CASE("S245_1 Class B: live TwoWay WriteBackRejected -> exactly [WriteBackRejected], source untouched")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("initial"));
+    (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("initial"));
     DependencyObject target;
     register_target(target);
     RecordingSink sink;
@@ -492,6 +512,7 @@ TEST_CASE("S245_1 Class B: live TwoWay WriteBackRejected -> exactly [WriteBackRe
     spec.sourcePath = kText;
     spec.target = &target;
     spec.targetProp = kText;
+    spec.targetOwner = "S245_1Test";
     spec.mode = BindingMode::TwoWay;
     // convert: passthrough; convertBack: always FAILS -> a target edit cannot
     // write back -> WriteBackRejected.
@@ -508,18 +529,18 @@ TEST_CASE("S245_1 Class B: live TwoWay WriteBackRejected -> exactly [WriteBackRe
     // Initial forward push applies cleanly (no diagnostic — a SUCCESS is not a
     // failure; only the caller-driven push, which emits nothing anyway).
     (void)expr->TransferSourceToTarget();
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kText))).ShouldBe(Value::String("initial")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S245_1Text", "S245_1Test"))).ShouldBe(Value::String("initial")));
     SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true));
 
     // A target edit (TextBox typing) fires the live TWO-WAY write-back; the
     // failing convertBack REJECTS the write-back -> exactly [WriteBackRejected].
-    (void)target.Set(PropertyId::of(kText), Value::String("edited"));
+    (void)target.Set(PropertyId::of("S245_1Text", "S245_1Test"), Value::String("edited"));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc(sink.reasons[0])).ShouldBe(rc(BindingReasonCode::WriteBackRejected)));
     SHOULD(ShouldlyIntegral(cls(binding_class_of(BindingReasonCode::WriteBackRejected)))
                .ShouldBe(cls(BindingClass::DefinedRuntimeOutcome)));
     // The rejected value is NOT written to the source (source untouched).
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of(kText))).ShouldBe(Value::String("initial")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("S245_1Text", "ObservableObject"))).ShouldBe(Value::String("initial")));
 }
 
 // ===========================================================================
@@ -529,7 +550,7 @@ TEST_CASE("S245_1 Class B: live TwoWay WriteBackRejected -> exactly [WriteBackRe
 TEST_CASE("S245_1 HEADLINE: destroying the target auto-detaches; write emits [Detached] once, Class B, never throws")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kText), Value::String("initial"));
+    (void)vm.Set(PropertyId::of("S245_1Text", "ObservableObject"), Value::String("initial"));
     RecordingSink sink;
     SinkGuard guard(sink);
 
@@ -588,7 +609,7 @@ TEST_CASE("S245_1 diagnostics != control-flow: NO-OP vs RECORDING sink -> IDENTI
         // NO SinkGuard installed -> the default no-op sink is active.
         auto expr = make_onetime(vm, target, kAbsent);
         noopResult = expr->TransferSourceToTarget();
-        noopTarget = target.Get(PropertyId::of(kText));
+        noopTarget = target.Get(PropertyId::of("S245_1Text", "S245_1Test"));
     }
 
     // Phase 2: the SAME failure with a RECORDING sink subscribed.
@@ -603,7 +624,7 @@ TEST_CASE("S245_1 diagnostics != control-flow: NO-OP vs RECORDING sink -> IDENTI
         SinkGuard guard(sink);
         auto expr = make_onetime(vm, target, kAbsent);
         recResult = expr->TransferSourceToTarget();
-        recTarget = target.Get(PropertyId::of(kText));
+        recTarget = target.Get(PropertyId::of("S245_1Text", "S245_1Test"));
         recorded = sink.reasons;
     }
 
@@ -631,6 +652,7 @@ TEST_CASE("S245_1 diagnostics != control-flow: NO-OP vs RECORDING sink -> IDENTI
         spec.sourcePath = "bad[";
         spec.target = &target;
         spec.targetProp = kText;
+        spec.targetOwner = "S245_1Test";
         spec.mode = BindingMode::OneTime;
         auto expr = BindingExpression::create(spec);
         SHOULD(ShouldlyPointer(expr.get()).ShouldBeNull());

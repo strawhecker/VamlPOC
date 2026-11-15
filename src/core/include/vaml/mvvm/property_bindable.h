@@ -97,6 +97,6 @@ public:                                                                      \
     [[nodiscard]] const TYPE& NAME() const noexcept { return NAME##_field_; } \
     [[nodiscard]] bool set_##NAME(const TYPE& v)                            \
     {                                                                        \
-        return vaml::mvvm::set_property(*this, vaml::PropertyId::of(#NAME),   \
+        return vaml::mvvm::set_property(*this, vaml::PropertyId::of(#NAME, "ObservableObject"),   \
                                         NAME##_field_, v);                    \
     }

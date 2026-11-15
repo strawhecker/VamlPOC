@@ -75,16 +75,16 @@ TEST_CASE("S142: inline path — properties within kInline register/Set/Get with
     // All defaults applied (no local overrides) — inline store, zero overflow.
     for (std::size_t i = 0; i < n; ++i)
     {
-        SHOULD(ShouldlyString(obj.Get(PropertyId::of("P" + std::to_string(i))))
+        SHOULD(ShouldlyString(obj.Get(PropertyId::of("P" + std::to_string(i), "S142Owner")))
                    .ShouldBe(Value::Int32(0)));
     }
     // Set + Get each independently through the inline store.
     for (std::size_t i = 0; i < n; ++i)
     {
         const Value v = Value::Int32(static_cast<std::int32_t>(100 + i));
-        SHOULD(ShouldlyString(obj.Set(PropertyId::of("P" + std::to_string(i)), v))
+        SHOULD(ShouldlyString(obj.Set(PropertyId::of("P" + std::to_string(i), "S142Owner"), v))
                    .ShouldBe(SetResult::APPLIED));
-        SHOULD(ShouldlyString(obj.Get(PropertyId::of("P" + std::to_string(i)))).ShouldBe(v));
+        SHOULD(ShouldlyString(obj.Get(PropertyId::of("P" + std::to_string(i), "S142Owner"))).ShouldBe(v));
     }
     // NO_CHANGE on a redundant write still works (real-change only).
     SHOULD(ShouldlyString(obj.Set(PropertyId::of("P0", "S142Owner"), Value::Int32(100)))
@@ -108,16 +108,16 @@ TEST_CASE("S142: overflow growth — >kInline properties all work through the re
     // All defaults present across inline + overflow.
     for (std::size_t i = 0; i < n; ++i)
     {
-        SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP" + std::to_string(i))))
+        SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP" + std::to_string(i), "S142Owner")))
                    .ShouldBe(Value::Int32(0)));
     }
     // Write distinct values; each must APPLY (real change) and read back.
     for (std::size_t i = 0; i < n; ++i)
     {
         const Value v = Value::Int32(static_cast<std::int32_t>(i * 7 + 1));
-        SHOULD(ShouldlyString(obj.Set(PropertyId::of("OverflowP" + std::to_string(i)), v))
+        SHOULD(ShouldlyString(obj.Set(PropertyId::of("OverflowP" + std::to_string(i), "S142Owner"), v))
                    .ShouldBe(SetResult::APPLIED));
-        SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP" + std::to_string(i)))).ShouldBe(v));
+        SHOULD(ShouldlyString(obj.Get(PropertyId::of("OverflowP" + std::to_string(i), "S142Owner"))).ShouldBe(v));
     }
     // A property in the overflow region still dedupes/rejects by name.
     SHOULD(ShouldThrow<PropertyAlreadyRegistered>([&] {
@@ -167,7 +167,7 @@ TEST_CASE("S142: move preserves values + stable key (Store is move-aware)")
     // The stable key node is heap-owned, so the reference it returned is still
     // valid after the move AND still resolves through the destination's store.
     SHOULD(ShouldlyString(srcStable.name()).ShouldBe(std::string("Move0")));
-    SHOULD(ShouldlyString(dst.Get(PropertyId::of(srcStable.name()))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(dst.Get(PropertyId::of(srcStable.name(), "S142Owner"))).ShouldBe(Value::Int32(5)));
 }
 
 TEST_CASE("S142: single PD — owned (object-scoped) + borrowed (attached/global) metadata coexist")
@@ -182,13 +182,13 @@ TEST_CASE("S142: single PD — owned (object-scoped) + borrowed (attached/global
     // a Set materializes one) — coexisting with the owned local prop on the same
     // single-PD store.
     UIElement element;
-    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "S142Owner"))).ShouldBe(Value::Double(1.0)));
+    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "UIElement"))).ShouldBe(Value::Double(1.0)));
     SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp", "S142Owner"))).ShouldBe(Value::Int32(30)));
 
     // Materializing a borrowed entry (a Set on the global property) works.
-    SHOULD(ShouldlyString(element.Set(PropertyId::of("Opacity", "S142Owner"), Value::Double(0.5)))
+    SHOULD(ShouldlyString(element.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(0.5)))
                .ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "S142Owner"))).ShouldBe(Value::Double(0.5)));
+    SHOULD(ShouldlyString(element.Get(PropertyId::of("Opacity", "UIElement"))).ShouldBe(Value::Double(0.5)));
 
     // The owned local prop is untouched by the borrowed materialization.
     SHOULD(ShouldlyString(obj.Get(PropertyId::of("LocalProp", "S142Owner"))).ShouldBe(Value::Int32(30)));

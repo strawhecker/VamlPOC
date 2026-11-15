@@ -78,7 +78,7 @@ public:
 
     // A non-bindable manual property written through base Set (the documented
     // non-desync path — store-only, no field).
-    void set_manual(std::int32_t v) { (void)ObservableObject::Set(PropertyId::of("S2471Manual"), Value::Int32(v)); }
+    void set_manual(std::int32_t v) { (void)ObservableObject::Set(PropertyId::of("S2471Manual", "ObservableObject"), Value::Int32(v)); }
 };
 
 } // namespace
@@ -107,9 +107,9 @@ TEST_CASE("S247_1 setter: returns true on a real change; getter + store both upd
     // Getter (typed field) updated.
     SHOULD(ShouldlyString(vm.Title()).ShouldBe(std::string("Hello")));
     // The ObservableObject Value store mirrored (S241 Set stored it).
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("Hello")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title", "ObservableObject"))).ShouldBe(Value::String("Hello")));
     // The store knows the property is present.
-    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of("Title"))).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(vm.has(PropertyId::of("Title", "ObservableObject"))).ShouldBe(true));
 }
 
 TEST_CASE("S247_1 setter: INT32 + DOUBLE + BOOL real changes update getter and store")
@@ -117,15 +117,15 @@ TEST_CASE("S247_1 setter: INT32 + DOUBLE + BOOL real changes update getter and s
     TestViewModel vm;
     SHOULD(ShouldlyIntegral(vm.set_Count(42)).ShouldBe(true));
     SHOULD(ShouldlyIntegral(vm.Count()).ShouldBe(std::int32_t{ 42 }));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Count"))).ShouldBe(Value::Int32(42)));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Count", "ObservableObject"))).ShouldBe(Value::Int32(42)));
 
     SHOULD(ShouldlyString(vm.set_Scale(1.5)).ShouldBe(true));
     SHOULD(ShouldlyString(vm.Scale()).ShouldBe(1.5));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Scale"))).ShouldBe(Value::Double(1.5)));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Scale", "ObservableObject"))).ShouldBe(Value::Double(1.5)));
 
     SHOULD(ShouldlyIntegral(vm.set_IsEnabled(true)).ShouldBe(true));
     SHOULD(ShouldlyString(vm.IsEnabled()).ShouldBe(true));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("IsEnabled"))).ShouldBe(Value::Bool(true)));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("IsEnabled", "Button"))).ShouldBe(Value::Bool(true)));
 }
 
 // ===========================================================================
@@ -158,7 +158,7 @@ TEST_CASE("S247_1 signal: per-property subscription receives its property only")
 {
     TestViewModel vm;
     Recorder titleOnly;
-    (void)vm.add_property_changed(PropertyId::of("Title"),
+    (void)vm.add_property_changed(PropertyId::of("Title", "ObservableObject"),
                             [&titleOnly](PropertyId id, const Value& o, const Value& n) {
                                 titleOnly.record(id, o, n);
                             });
@@ -191,7 +191,7 @@ TEST_CASE("S247_1 setter: a same-value set returns false with NO signal and NO s
     SHOULD(ShouldlyIntegral(rec.size()).ShouldBe(std::size_t{ 1 }));
     // Getter + store unchanged (still "same").
     SHOULD(ShouldlyString(vm.Title()).ShouldBe(std::string("same")));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("same")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title", "ObservableObject"))).ShouldBe(Value::String("same")));
 }
 
 TEST_CASE("S247_1 setter: same-value is real-change per type (Color/Thickness/Double)")
@@ -229,8 +229,8 @@ TEST_CASE("S247_1 independence: multiple bindable properties on one VM")
     SHOULD(ShouldlyString(vm.Title()).ShouldBe(std::string("x")));
     SHOULD(ShouldlyString(vm.IsEnabled()).ShouldBe(true));
     SHOULD(ShouldlyIntegral(vm.Count()).ShouldBe(std::int32_t{ 6 }));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Count"))).ShouldBe(Value::Int32(6)));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title"))).ShouldBe(Value::String("x")));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Count", "ObservableObject"))).ShouldBe(Value::Int32(6)));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Title", "ObservableObject"))).ShouldBe(Value::String("x")));
 }
 
 // ===========================================================================
@@ -275,12 +275,12 @@ TEST_CASE("S247_1 set_property: free template works directly on a plain Observab
         rec.record(id, o, n);
     });
 
-    SHOULD(ShouldlyIntegral(set_property(vm, PropertyId::of("Raw"), field, std::int32_t{ 10 })).ShouldBe(true));
+    SHOULD(ShouldlyIntegral(set_property(vm, PropertyId::of("Raw", "ObservableObject"), field, std::int32_t{ 10 })).ShouldBe(true));
     SHOULD(ShouldlyIntegral(field).ShouldBe(std::int32_t{ 10 }));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Raw"))).ShouldBe(Value::Int32(10)));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Raw", "ObservableObject"))).ShouldBe(Value::Int32(10)));
 
     // Same value -> no change.
-    SHOULD(ShouldlyIntegral(set_property(vm, PropertyId::of("Raw"), field, std::int32_t{ 10 })).ShouldBe(false));
+    SHOULD(ShouldlyIntegral(set_property(vm, PropertyId::of("Raw", "ObservableObject"), field, std::int32_t{ 10 })).ShouldBe(false));
     SHOULD(ShouldlyIntegral(rec.size()).ShouldBe(std::size_t{ 1 }));
     SHOULD(ShouldlyString(rec.entries[0].oldValue.isNull()).ShouldBe(true));
     SHOULD(ShouldlyString(rec.entries[0].newValue).ShouldBe(Value::Int32(10)));
@@ -300,6 +300,6 @@ TEST_CASE("S247_1 Color/Thickness round-trip through the Value store")
     SHOULD(ShouldlyString(vm.Accent()).ShouldBe(vaml::Color{ 200, 150, 100, 255 }));
     SHOULD(ShouldlyString(vm.Padding()).ShouldBe(vaml::Thickness{ 5, 6, 7, 8 }));
     // Store holds the same tagged Value (round-trip).
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Accent"))).ShouldBe(Value::Color(vaml::Color{ 200, 150, 100, 255 })));
-    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Padding"))).ShouldBe(Value::Thickness(vaml::Thickness{ 5, 6, 7, 8 })));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Accent", "ObservableObject"))).ShouldBe(Value::Color(vaml::Color{ 200, 150, 100, 255 })));
+    SHOULD(ShouldlyString(vm.Get(PropertyId::of("Padding", "Control"))).ShouldBe(Value::Thickness(vaml::Thickness{ 5, 6, 7, 8 })));
 }

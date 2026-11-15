@@ -42,14 +42,14 @@ namespace {
 // (WPF Window.Background defaults null).
 ClearValue window_clear(const vaml::Window& w)
 {
-    const bool allows = w.Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
-    const vaml::Value bv = w.Get(vaml::PropertyId::of("Background"));
+    const bool allows = w.Get(vaml::PropertyId::of("AllowsTransparency", "Window")).get<bool>();
+    const vaml::Value bv = w.Get(vaml::PropertyId::of("Background", "Control"));
     // S643b-1 (D1): the shared "Background" DP holds a Brush OBJECT — resolve it
     // through the object resolver (handles the Brush object and the legacy
     // BrushId seam). A local value is "resolved" only when it's an authored
     // Brush/BrushId (the DP-default null is not authored).
     const bool authored =
-        w.has_local_value(vaml::PropertyId::of("Background")) &&
+        w.has_local_value(vaml::PropertyId::of("Background", "Control")) &&
         (bv.type() == vaml::ValueType::Brush || bv.type() == vaml::ValueType::BrushId);
     vaml::Color bgColor{ 0, 0, 0, 0 };
     const vaml::Color* resolved = nullptr;
@@ -103,8 +103,8 @@ TEST_CASE("S592 real Window tree: AllowsTransparency=true + Transparent Backgrou
     // Background) + a content child; arrange it; read the decided clear through the
     // REAL Window surface. A transparent window -> alpha 0.
     vaml::Window w;
-    (void)w.Set(vaml::PropertyId::of("AllowsTransparency"), vaml::Value::Bool(true));
-    (void)w.Set(vaml::PropertyId::of("Background"),
+    (void)w.Set(vaml::PropertyId::of("AllowsTransparency", "Window"), vaml::Value::Bool(true));
+    (void)w.Set(vaml::PropertyId::of("Background", "Control"),
                 vaml::test::brush_value(vaml::parse_color("#00000000")));
     w.Measure(vaml::Size{ 400.0f, vaml::Size::Infinite().height });
     w.Arrange(vaml::Rect{ 0.0f, 0.0f, 400.0f, 300.0f });
@@ -118,7 +118,7 @@ TEST_CASE("S592 real Window tree: opaque window + Background -> the resolved Bac
 {
     vaml::Window w;
     // Opaque (AllowsTransparency default false) + an authored opaque blue background.
-    (void)w.Set(vaml::PropertyId::of("Background"), vaml::test::brush_value(vaml::parse_color("#FF0000FF")));
+    (void)w.Set(vaml::PropertyId::of("Background", "Control"), vaml::test::brush_value(vaml::parse_color("#FF0000FF")));
     w.Measure(vaml::Size{ 400.0f, vaml::Size::Infinite().height });
     w.Arrange(vaml::Rect{ 0.0f, 0.0f, 400.0f, 300.0f });
 

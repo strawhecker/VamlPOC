@@ -57,10 +57,10 @@ const DependencyProperty& registerGlobal(const std::string& name, vaml::ValueTyp
 {
     if (seen_names().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S280_1_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S280_1_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 // Registers the S280_1-unique global DPs (a target + a hop) so bindings have a
@@ -168,12 +168,15 @@ TEST_CASE("S280_1: a rootless binding (VM data-context root) is dynamic, never a
 TEST_CASE("S280_1: a malformed binding path is MalformedPath at compile time")
 {
     registerS280_1Properties();
-    // "Toggle..IsChecked" is a Class A syntax error (S240 ConsecutiveDot).
+    // A trailing '/' ends the path mid-language-gate (PropertyPath TrailingDot)
+    // and is a genuine Class A syntax error. (S240 ConsecutiveDot "Address..Street"
+    // is deliberately NOT an error: real WPF treats '.' as DrillIn.Never and a
+    // leading '.' is legal — see PropertyPath.h.)
     bool threw = false;
     try
     {
         (void)vaml::tools::compile(
-            "<StackPanel S280_1Text=\"{Binding Toggle..IsChecked}\"/>");
+            "<StackPanel S280_1Text=\"{Binding Toggle/}\"/>");
     }
     catch (const vaml::tools::VamlcException& e)
     {

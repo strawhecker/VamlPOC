@@ -76,10 +76,10 @@ const DependencyProperty& registerS284Global(const std::string& name, ValueType 
 {
     if (s284_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S284_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S284_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 // The S284-unique global DPs the golden document sets from text. Registered

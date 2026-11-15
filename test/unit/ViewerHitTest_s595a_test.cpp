@@ -53,8 +53,8 @@ TEST_CASE("S595a round-trip: typed set (false->true->false) + the Set/Get path")
 
     // The standard Set/Get path on PropertyId("IsHitTestVisible") agrees (Bool
     // payload).
-    (void)e.Set(vaml::PropertyId::of("IsHitTestVisible"), vaml::Value::Bool(true));
-    CHECK(e.Get(vaml::PropertyId::of("IsHitTestVisible")).get<bool>() == true);
+    (void)e.Set(vaml::PropertyId::of("IsHitTestVisible", "UIElement"), vaml::Value::Bool(true));
+    CHECK(e.Get(vaml::PropertyId::of("IsHitTestVisible", "UIElement")).get<bool>() == true);
     CHECK(e.is_hit_test_visible() == true);
 }
 

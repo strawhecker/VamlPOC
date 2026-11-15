@@ -86,7 +86,7 @@ PropertyId registerObject(DependencyObject& obj, const char* name,
     PropertyKey key(name, ValueType::Int32, "S045Owner", flags);
     (void)obj.register_property(std::move(key),
                                 PropertyMetadata::WithDefault(def, flags));
-    return PropertyId::of(name);
+    return PropertyId::of(name, "S045Owner");
 }
 
 // Registers an ATTACHED Int32 property GLOBALLY (once per literal name, owner
@@ -172,7 +172,7 @@ TEST_CASE("S045: globally-registered read-only attached property — Set throws,
     (void)registerGlobal(name, kRO, Value::Int32(2));
 
     DependencyObject b;
-    const PropertyId id = PropertyId::of(name); // literal -> static lifetime
+    const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
 
     SHOULD(ShouldlyString(b.Get(id)).ShouldBe(Value::Int32(2))); // global default
     SHOULD(ShouldThrow<PropertyReadOnlyException>([&] {
@@ -197,7 +197,7 @@ TEST_CASE("S045: read-only throw precedes the pipeline (coerce + validate never 
              })
              .with_validate([](const Value&) { return false; }); // would reject if it ran
     (void)obj.register_property(std::move(key), std::move(md));
-    const PropertyId id = PropertyId::of(name);
+    const PropertyId id = PropertyId::of(name, "S045Owner");
 
     // If coerce ran, -3 -> -6; if validate ran it would REJECT. The read-only
     // throw must come FIRST: PropertyReadOnlyException, never a validation result.
@@ -224,7 +224,7 @@ TEST_CASE("S045: validate out-of-range rejects (read-write property)")
              })
              .with_changed([&fires](const Value&, const Value&) { ++fires; });
     (void)rangeObj.register_property(std::move(key), std::move(rm));
-    const PropertyId rid = PropertyId::of(name);
+    const PropertyId rid = PropertyId::of(name, "S045Owner");
 
     // In-range 8 -> APPLIED, store = 8, cb fired once (5 -> 8).
     SHOULD(ShouldlyString(rangeObj.Set(rid, Value::Int32(8))).ShouldBe(SetResult::APPLIED));
@@ -260,7 +260,7 @@ TEST_CASE("S045: all flags honored (consolidated)")
         PropertyKey key(name, ValueType::Int32, "S045Owner", kRO | kTwo);
         (void)obj.register_property(std::move(key),
                                     PropertyMetadata::WithDefault(Value::Int32(0), kRO | kTwo));
-        const PropertyId id = PropertyId::of(name);
+        const PropertyId id = PropertyId::of(name, "S045Owner");
         SHOULD(ShouldThrow<PropertyReadOnlyException>([&] {
             (void)obj.Set(id, Value::Int32(1));
         }));
@@ -274,7 +274,7 @@ TEST_CASE("S045: all flags honored (consolidated)")
         (void)registerGlobal(name, kInh | kIO, Value::Int32(0));
         DependencyObject parent, child;
         child.set_parent(&parent);
-        const PropertyId id = PropertyId::of(name);
+        const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
 
         // Parent sets the inherited value; child (InheritOnly) inherits it.
         SHOULD(ShouldlyString(parent.Set(id, Value::Int32(5))).ShouldBe(SetResult::APPLIED));

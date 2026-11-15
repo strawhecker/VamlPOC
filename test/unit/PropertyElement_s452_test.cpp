@@ -71,10 +71,10 @@ const DependencyProperty& registerS452Global(const std::string& name, ValueType 
 {
     if (s452_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S452_Owner",
+        return DependencyProperty::Register(name, type, "StackPanel",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S452_Owner");
+    return DependencyProperty::Get(name, "StackPanel");
 }
 
 void registerS452Properties()
@@ -156,7 +156,7 @@ TEST_CASE("S452: <X.Content><StackPanel/></X.Content> sets parent DP (object, no
             // the panel's S452Content DP (an UntypedPtr), not added to
             // children_. A property-element is not auto-attached as a render
             // child (S452 scope).
-            void* contentPtr = panel->Get(PropertyId::of("S452Content")).get<void*>();
+            void* contentPtr = panel->Get(PropertyId::of("S452Content", "StackPanel")).get<void*>();
             SHOULD(ShouldlyIntegral(contentPtr != nullptr).ShouldBe(true));
             // The retained TextBlock is that object.
             SHOULD(ShouldlyIntegral(contentPtr == retained[0].get()).ShouldBe(true));
@@ -177,7 +177,7 @@ TEST_CASE("S452: object property-element parent-chain: the retained object's par
     {
         // The object that filled the DP has the PARENT as its S039 parent link.
         SHOULD(ShouldlyIntegral(retained[0].get()->parent() == root.get()).ShouldBe(true));
-        (void)retained[0].get()->Get(PropertyId::of("S452Content"));
+        (void)retained[0].get()->Get(PropertyId::of("S452Content", "StackPanel"));
     }
 }
 
@@ -193,7 +193,7 @@ TEST_CASE("S452: <X.S452Fill>Red</X.S452Fill> converts the literal onto the pare
         reader.Load("<StackPanel><StackPanel.S452Fill>#FF0000</StackPanel.S452Fill></StackPanel>");
 
     // The owned panel is the root; S452Fill (Color) was converted + set.
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Fill")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Fill", "StackPanel")))
                .ShouldBe(Value::Color(Color{255, 0, 0, 255})));
     // No visual children were produced by the property-element.
     SHOULD(ShouldlyIntegral(reader.retained_objects().size()).ShouldBe(0u));
@@ -205,7 +205,7 @@ TEST_CASE("S452: a String-typed property-element takes the literal verbatim")
     VamlReader reader;
     std::unique_ptr<DependencyObject> root =
         reader.Load("<StackPanel><StackPanel.S452Text>Hello</StackPanel.S452Text></StackPanel>");
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Text")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Text", "StackPanel")))
                .ShouldBe(Value::String("Hello")));
 }
 
@@ -229,7 +229,7 @@ TEST_CASE("S452: nested property-elements build at each level")
     {
         const auto& inner = reader.retained_objects()[0];
         SHOULD(ShouldlyIntegral(dynamic_cast<StackPanel*>(inner.get()) != nullptr).ShouldBe(true));
-        SHOULD(ShouldlyString(inner->Get(PropertyId::of("S452Text")))
+        SHOULD(ShouldlyString(inner->Get(PropertyId::of("S452Text", "StackPanel")))
                    .ShouldBe(Value::String("inner")));
     }
 }
@@ -246,7 +246,7 @@ TEST_CASE("S452: an empty property-element <X.Prop/> is skipped (nothing set)")
         reader.Load("<StackPanel><StackPanel.S452Text/></StackPanel>");
 
     // S452Text default "" is unchanged, no error, no retained object.
-    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Text")))
+    SHOULD(ShouldlyString(root->Get(PropertyId::of("S452Text", "StackPanel")))
                .ShouldBe(Value::String("")));
     SHOULD(ShouldlyIntegral(reader.retained_objects().size()).ShouldBe(0u));
 }

@@ -13,7 +13,8 @@
 //   3  Strict + malformed path -> SHOULD_THROW BindingPolicyException with
 //      matching kind() + path; the MalformedPath diagnostic is STILL emitted
 //      (ADR-016: observation is never the control flow).
-//   4  Strict + empty/whitespace path -> throws EmptyPath-kinded exception.
+//   4  Strict + empty/whitespace path -> a VALID Direct self-binding (no Empty
+//      throw — Sprint 11af retired the Empty-as-error premise, S848).
 //   5  policy() carried through create (Strict + Fallback round-trip).
 //   6  Class B NEVER throws under Strict: MissingProperty / NullIntermediate /
 //      NotReadable / converter-fail -> TransferResult + exact reason codes,
@@ -85,13 +86,17 @@ DependencyObject make_target()
     return obj;
 }
 
-// RAII guard: swaps in the recorder, restores the previous sink at scope exit.
+// RAII guard: swaps in the recorder, restores the PERMANENT default sink at
+// scope exit (the process-global sink must be restored so tests can run in any
+// order). Restoring to default_binding_diagnostics() — never a captured
+// `previous` reference — guarantees the restored sink outlives every test (a
+// captured reference can dangle into a prior test's freed stack RecordingSink,
+// which is the exact use-after-free that surfaces as a stray `reasons[0]`
+// crash in a full in-process run).
 struct SinkGuard
 {
-    IBindingDiagnostics& previous;
-    explicit SinkGuard(IBindingDiagnostics& sink)
-        : previous(set_binding_diagnostics(sink)) {}
-    ~SinkGuard() { (void)set_binding_diagnostics(previous); }
+    explicit SinkGuard(IBindingDiagnostics& sink) { (void)set_binding_diagnostics(sink); }
+    ~SinkGuard() { (void)set_binding_diagnostics(vaml::default_binding_diagnostics()); }
 };
 
 struct RecordingSink final : IBindingDiagnostics
@@ -129,16 +134,17 @@ TEST_CASE("S242_1 Fallback: malformed path -> create nullptr, MalformedPath emit
 
     BindingExpressionSpec spec;
     spec.source = &vm;
-    spec.sourcePath = "S2421Text.."; // Class A
+    spec.sourcePath = "S2421Text["; // UnterminatedIndexer — a genuine Class A error
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     // policy left at default (Fallback)
 
     auto expr = BindingExpression::create(spec);
     SHOULD(ShouldlyIntegral(expr == nullptr).ShouldBe(true));
     // Target untouched — nothing bound, nothing applied.
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("DEFAULT_TEXT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
     // The diagnostic WAS emitted (observation is orthogonal to the policy).
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::MalformedPath)));
@@ -157,9 +163,10 @@ TEST_CASE("S242_1 Strict: malformed path -> throws BindingPolicyException; diagn
 
     BindingExpressionSpec spec;
     spec.source = &vm;
-    spec.sourcePath = "S2421Text.."; // ConsecutiveDot / TrailingDot Class A
+    spec.sourcePath = "S2421Text["; // UnterminatedIndexer — a genuine Class A error
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
 
@@ -179,7 +186,7 @@ TEST_CASE("S242_1 Strict: malformed path -> throws BindingPolicyException; diagn
     }
     SHOULD(ShouldlyIntegral(threw).ShouldBe(true));
     // The exception names the authored path.
-    SHOULD(ShouldlyString(caughtPath).ShouldBe(std::string("S2421Text..")));
+    SHOULD(ShouldlyString(caughtPath).ShouldBe(std::string("S2421Text[")));
     // A Class A syntax kind (not a degenerate Empty).
     SHOULD(ShouldlyIntegral(err_int(caughtKind)).ShouldNotBe(err_int(PropertyPathError::Empty)));
 
@@ -193,8 +200,12 @@ TEST_CASE("S242_1 Strict: malformed path -> throws BindingPolicyException; diagn
 // 4 - STRICT + EMPTY/WHITESPACE PATH -> EMPTY-KINDED THROW
 // ===========================================================================
 
-TEST_CASE("S242_1 Strict: empty/whitespace path -> throws EmptyPath-kinded BindingPolicyException")
+TEST_CASE("S242_1 Strict: empty/whitespace path -> a valid Direct self-binding (no Empty throw)")
 {
+    // Sprint 11af (S845/S847): an empty / whitespace-only path is a VALID
+    // Direct self-binding (WPF PathParser.cs:83-89) — it is NOT a Class A
+    // Empty error, so Strict does NOT throw (a valid path is never a Strict
+    // bind-time throw). The retired Empty-path-kinded throw is gone (S848).
     ObservableObject vm;
     DependencyObject target = make_target();
     RecordingSink sink;
@@ -202,28 +213,26 @@ TEST_CASE("S242_1 Strict: empty/whitespace path -> throws EmptyPath-kinded Bindi
 
     BindingExpressionSpec spec;
     spec.source = &vm;
-    spec.sourcePath = "   "; // whitespace-only -> Empty (Class A)
+    spec.sourcePath = "   "; // whitespace-only -> Direct (valid, not an error)
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
 
+    // Strict with a VALID (Direct) path is NOT a throw — create succeeds.
     bool threw = false;
-    PropertyPathError caughtKind = PropertyPathError::TrailingDot;
     try
     {
         (void)BindingExpression::create(spec);
     }
-    catch (const BindingPolicyException& e)
+    catch (const BindingPolicyException&)
     {
         threw = true;
-        caughtKind = e.kind();
     }
-    SHOULD(ShouldlyIntegral(threw).ShouldBe(true));
-    SHOULD(ShouldlyIntegral(err_int(caughtKind)).ShouldBe(err_int(PropertyPathError::Empty)));
-    // The Empty reason code is the diagnostic arm.
-    SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
-    SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::EmptyPath)));
+    SHOULD(ShouldlyIntegral(threw).ShouldBe(false));
+    // No Empty diagnostic for a valid Direct path.
+    SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true));
 }
 
 // ===========================================================================
@@ -233,7 +242,7 @@ TEST_CASE("S242_1 Strict: empty/whitespace path -> throws EmptyPath-kinded Bindi
 TEST_CASE("S242_1 policy: policy() is carried through create (Strict and Fallback)")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S2421Text", "ObservableObject"), Value::String("x"));
     DependencyObject target = make_target();
 
     BindingExpressionSpec strictSpec;
@@ -270,6 +279,7 @@ TEST_CASE("S242_1 Strict: Class B (MissingProperty) never throws -> ResolveFaile
     spec.sourcePath = kNameNope; // absent -> MissingProperty (Class B)
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
 
@@ -279,7 +289,7 @@ TEST_CASE("S242_1 Strict: Class B (MissingProperty) never throws -> ResolveFaile
     // Strict must NOT promote Class B to a throw.
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::ResolveFailed)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("DEFAULT_TEXT")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("DEFAULT_TEXT")));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{1}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::MissingProperty)));
 }
@@ -287,7 +297,7 @@ TEST_CASE("S242_1 Strict: Class B (MissingProperty) never throws -> ResolveFaile
 TEST_CASE("S242_1 Strict: Class B (NullIntermediate) never throws -> FallbackApplied + NullIntermediate reason")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameEmpty), Value::Null());
+    (void)vm.Set(PropertyId::of("S2421Empty", "ObservableObject"), Value::Null());
     DependencyObject target = make_target();
     RecordingSink sink;
     SinkGuard guard(sink);
@@ -297,6 +307,7 @@ TEST_CASE("S242_1 Strict: Class B (NullIntermediate) never throws -> FallbackApp
     spec.sourcePath = std::string(kNameEmpty) + "." + kNameText; // intermediate null
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
     spec.fallback = Value::String("FB");
@@ -306,7 +317,7 @@ TEST_CASE("S242_1 Strict: Class B (NullIntermediate) never throws -> FallbackApp
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("FB")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("FB")));
     // NullIntermediate + then FallbackApplied (zero throw).
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{2}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::NullIntermediate)));
@@ -324,6 +335,7 @@ TEST_CASE("S242_1 Strict: Class B (NotReadable) never throws -> ResolveFailed + 
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
 
@@ -339,7 +351,7 @@ TEST_CASE("S242_1 Strict: Class B (NotReadable) never throws -> ResolveFailed + 
 TEST_CASE("S242_1 Strict: Class B (converter fail) never throws -> ConverterFailed + fallback applied")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("x"));
+    (void)vm.Set(PropertyId::of("S2421Text", "ObservableObject"), Value::String("x"));
     DependencyObject target = make_target();
     RecordingSink sink;
     SinkGuard guard(sink);
@@ -349,6 +361,7 @@ TEST_CASE("S242_1 Strict: Class B (converter fail) never throws -> ConverterFail
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameNumber;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
     spec.converter.convert = [](const Value&) -> BindingConversion {
@@ -363,7 +376,7 @@ TEST_CASE("S242_1 Strict: Class B (converter fail) never throws -> ConverterFail
     TransferResult r = expr->TransferSourceToTarget();
     // Strict does NOT promote a converter failure to a throw — fallback applies.
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::FallbackApplied)));
-    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of(kNameNumber)).get<std::int32_t>()).ShouldBe(5));
+    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S2421Number", "S2421Test")).get<std::int32_t>()).ShouldBe(5));
     SHOULD(ShouldlyIntegral(sink.reasons.size()).ShouldBe(std::size_t{2}));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[0])).ShouldBe(rc_int(BindingReasonCode::ConverterFailed)));
     SHOULD(ShouldlyIntegral(rc_int(sink.reasons[1])).ShouldBe(rc_int(BindingReasonCode::FallbackApplied)));
@@ -376,7 +389,7 @@ TEST_CASE("S242_1 Strict: Class B (converter fail) never throws -> ConverterFail
 TEST_CASE("S242_1 Strict: valid path -> normal Applied transfer works under Strict")
 {
     ObservableObject vm;
-    (void)vm.Set(PropertyId::of(kNameText), Value::String("Hello"));
+    (void)vm.Set(PropertyId::of("S2421Text", "ObservableObject"), Value::String("Hello"));
     DependencyObject target = make_target();
 
     BindingExpressionSpec spec;
@@ -384,6 +397,7 @@ TEST_CASE("S242_1 Strict: valid path -> normal Applied transfer works under Stri
     spec.sourcePath = kNameText;
     spec.target = &target;
     spec.targetProp = kNameText;
+    spec.targetOwner = "S2421Test";
     spec.mode = BindingMode::OneTime;
     spec.policy = BindingPolicy::Strict;
 
@@ -392,5 +406,5 @@ TEST_CASE("S242_1 Strict: valid path -> normal Applied transfer works under Stri
 
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::Applied)));
-    SHOULD(ShouldlyString(target.Get(PropertyId::of(kNameText))).ShouldBe(Value::String("Hello")));
+    SHOULD(ShouldlyString(target.Get(PropertyId::of("S2421Text", "S2421Test"))).ShouldBe(Value::String("Hello")));
 }

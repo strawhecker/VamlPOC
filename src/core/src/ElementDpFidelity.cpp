@@ -157,6 +157,12 @@ void run_dp_fidelity_closure()
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
     dp_register_guard("Background",          ValueType::Brush, "Control",
         PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
+    // InkCanvas also owns a Background brush (Element.cpp:3894, lazy). Register
+    // here by guard so `of("Background","InkCanvas")` resolves WITHOUT
+    // constructing a real InkCanvas (S803 composite; the 11k-9 audit pin + the
+    // Button/ControlTemplate suites read it explicitly by owner).
+    dp_register_guard("Background",          ValueType::Brush, "InkCanvas",
+        PropertyMetadata::WithDefault(Value::Brush(default_black_brush()), PropertyFlags::None));
     dp_register_guard("TabIndex",            ValueType::Int32,  "Control",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     dp_register_guard("IsTabStop",           ValueType::Int32,  "Control",
@@ -374,6 +380,14 @@ void run_dp_fidelity_closure()
     // ---- Expander (ExpandDirection beyond IsExpanded owned) ----
     dp_register_guard("ExpandDirection",     ValueType::Int32,  "Expander",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // IsExpanded/Expander (+ Header) are registered lazily by Element.cpp's
+    // register_expander_properties() on Expander construction; re-register here
+    // by guard so the 11k-9 audit pin (dp_exists) sees them WITHOUT constructing
+    // an element, and to keep the closure genuinely complete (never-lazy pin).
+    dp_register_guard("Header",             ValueType::String, "Expander",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    dp_register_guard("IsExpanded",          ValueType::Int32,  "Expander",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 
     // ---- GroupBox: header already owned; ContentControl surface via base ----
 
@@ -393,6 +407,12 @@ void run_dp_fidelity_closure()
     //      registration; the S043 attached-aware read resolves it on a Popup) ----
     dp_register_guard("PopupAnimation",      ValueType::Int32,  "Popup",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // StaysOpen/Popup + IsOpen/Placement/HorizontalOffset/VerticalOffset are
+    // registered lazily by Element.cpp's register_popup_properties() on Popup
+    // construction; re-register StaysOpen here by guard so the 11k-9 audit pin
+    // (dp_exists) sees it without constructing an element (never-lazy pin).
+    dp_register_guard("StaysOpen",           ValueType::Int32,  "Popup",
+        PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
 
     // ---- Window (beyond 11j-4 set; adds Title/SizeToContent/WindowState) ----
     dp_register_guard("Title",               ValueType::String, "Window",
@@ -431,6 +451,10 @@ void run_dp_fidelity_closure()
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
     // TextWrapping/TextAlignment/TextTrimming are also shared TextBlock text
     // DPs — register under TextBlock so the unprefixed corpus form resolves.
+    dp_register_guard("TextWrapping",        ValueType::Int32,  "TextBlock",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    dp_register_guard("TextAlignment",       ValueType::Int32,  "TextBlock",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     dp_register_guard("TextTrimming",        ValueType::Int32,  "TextBlock",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 
@@ -484,22 +508,37 @@ void run_dp_fidelity_closure()
 
     // ---- TreeView/TreeViewItem (the 11k-8 audit rows) ----
     // S803: the flattened composite keys (SelectedItem/SelectedValue/IsExpanded
-    // with owners TreeView/TreeViewItem) are now OWNED + registered by
+    // with owners TreeView/TreeViewItem) are OWNED + registered lazily by
     // Element.cpp's register_treeview_properties()/register_treeviewitem_properties()
-    // (the accessors' Set/Get use that registration). These were once DOTTED
-    // (owner-qualified) registrations that did not collide; post-flatten they
-    // became the same composite key, so the duplicate guard rows are REMOVED
-    // (Element.cpp is the single authority). The routed event stays here.
+    // on tree construction. Re-register the audit-pinned rows here by guard so
+    // they resolve WITHOUT constructing an element and the 11k-9 dp_exists pin
+    // holds (never-lazy). The routed event stays here.
     event_register("SelectedItemChanged", RouteEventDirection::Bubble);
+    dp_register_guard("ItemsSource",         ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    dp_register_guard("SelectedItem",        ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    dp_register_guard("SelectedValue",       ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    dp_register_guard("SelectedValuePath",   ValueType::String, "TreeView",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    dp_register_guard("IsExpanded",          ValueType::Int32,  "TreeViewItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    dp_register_guard("IsSelected",          ValueType::Int32,  "TreeViewItem",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    dp_register_guard("Header",              ValueType::String, "TreeViewItem",
+        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 
     // ---- MenuItem own (already owned) + the shared HeaderedItems surface ----
     // ---- DatePicker rows (the 11k-8 audit) ----
-    // S803: SelectedDate is now OWNED + registered by Element.cpp's
-    // register_datepicker_properties() as ValueType::Int64 (the accessor
-    // DatePicker::selected_date()/set_selected_date(std::int64_t) reads/writes
-    // Value::Int64). The old guard row registered it as String and collides
+    // S803: SelectedDate is OWNED + registered lazily by Element.cpp's
+    // register_datepicker_properties() as ValueType::Int64. Re-register here by
+    // guard so the 11k-9 audit pin resolves WITHOUT constructing a DatePicker
+    // (never-lazy). The old guard row registered it as String and collides
     // post-flatten — REMOVED. The remaining DatePicker rows below are genuinely
     // missing from Element.cpp and stay here.
+    dp_register_guard("SelectedDate",         ValueType::Int64,  "DatePicker",
+        PropertyMetadata::WithDefault(Value::Int64(0), PropertyFlags::None));
     dp_register_guard("SelectedDateFormat",   ValueType::Int32,  "DatePicker",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     dp_register_guard("FirstDayOfWeek",        ValueType::Int32,  "DatePicker",

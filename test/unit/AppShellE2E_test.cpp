@@ -116,7 +116,7 @@ TEST_CASE("S445: a click on the RunButton updates the VM + re-paints the bound S
     SHOULD(ShouldlyIntegral(plan.vm->service().counter()).ShouldBe(1));
     SHOULD(ShouldlyString(plan.vm->Status()).ShouldBe(std::string("ran #1")));
     // The bound target DP repainted end-to-end.
-    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("ran #1")));
 }
 
@@ -138,7 +138,7 @@ TEST_CASE("S445: typing into the InputBox writes the Text back to the VM (two-wa
     // two-way write-back writes the observable store, not the PROPERTY_BINDABLE
     // C++ backing field; the field is the app's set_Text source of truth).
     (void)inputBox->set_text("typed by the user");
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("typed by the user")));
 }
 
@@ -155,7 +155,7 @@ TEST_CASE("S445: dragging the slider writes the ratio back to the VM SliderValue
 
     // The S252 FirstTransfer at BindExtensions already pushed the VM's initial
     // SliderValue (50.0, since the service dim is 0.5) onto the Slider.Value DP.
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(50.0)));
     SHOULD(ShouldlyString(dimSlider->value()).ShouldBe(50.0));
 
@@ -167,12 +167,12 @@ TEST_CASE("S445: dragging the slider writes the ratio back to the VM SliderValue
     const double newVal = dimSlider->set_value_from_ratio(0.8);
     SHOULD(ShouldlyString(newVal).ShouldBe(80.0));
     // The VM prop (its observable store) updated end-to-end via the write-back.
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(80.0)));
 
     // A second drag — the live write-back stays armed (the retained reader/VM).
     (void)dimSlider->set_value_from_ratio(0.25);
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(25.0)));
 }
 
@@ -232,7 +232,7 @@ TEST_CASE("S445: click + type + slide + check drive the SAME VM + bound targets 
 
     // SLIDE — the two-way write-back moves the slider value into the VM.
     (void)dimSlider->set_value_from_ratio(0.6);
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(60.0)));
 
     // CLICK — the RunCommand runs (gate checked, counter under cap) + re-paints
@@ -240,13 +240,13 @@ TEST_CASE("S445: click + type + slide + check drive the SAME VM + bound targets 
     (void)runButton->raise_click();
     SHOULD(ShouldlyIntegral(plan.vm->service().counter()).ShouldBe(1));
     SHOULD(ShouldlyString(plan.vm->Status()).ShouldBe(std::string("ran #1")));
-    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(statusText->Get(vaml::PropertyId::of("Text", "TextBlock")))
                .ShouldBe(vaml::Value::String("ran #1")));
 
     // The type + slide writes survived alongside the click (one shared VM). The
     // two-way write-backs land in the S241 observable store (vm->Get convention).
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("Text", "ObservableObject")))
                .ShouldBe(vaml::Value::String("hello e2e")));
-    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue")))
+    SHOULD(ShouldlyString(plan.vm->Get(vaml::PropertyId::of("SliderValue", "ObservableObject")))
                .ShouldBe(vaml::Value::Double(60.0)));
 }

@@ -89,10 +89,10 @@ const DependencyProperty& registerS11k3Global(const std::string& name, ValueType
 {
     if (s11k3_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "11k3_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "11k3_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 void registerS11k3()
@@ -299,7 +299,7 @@ TEST_CASE("11k-3: {StaticResource} on a Color DP applies the authored PLAIN Colo
     SHOULD(ShouldlyIntegral(inner != nullptr).ShouldBe(true));
     if (inner)
     {
-        const Value applied = inner->Get(vaml::PropertyId::of("S11k3Color"));
+        const Value applied = inner->Get(vaml::PropertyId::of("S11k3Color", "FrameworkElement"));
         SHOULD(ShouldlyIntegral(static_cast<int>(applied.type()) == static_cast<int>(ValueType::Color)).ShouldBe(true));
         const Color got = applied.get<Color>();
         SHOULD(ShouldlyIntegral(got.r).ShouldBe(0x12));

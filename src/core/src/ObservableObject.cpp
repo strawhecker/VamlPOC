@@ -97,7 +97,11 @@ PropertyReader observable_object_reader()
         }
 
         auto* obj = static_cast<ObservableObject*>(raw);
-        const PropertyId id = PropertyId::of(segment.name);
+        // The ObservableObject store is name-keyed (the INotifyPropertyChanged
+        // analog: PropertyChangedEventArgs.PropertyName has no owner Type), so
+        // the composite id carries the owning type here as the source axis'
+        // faithful S800 owner — the read (has/Get) resolves on name alone.
+        const PropertyId id = PropertyId::of(segment.name, "ObservableObject");
         if (!obj->has(id))
         {
             // Absent name -> Class B MissingProperty (NEVER a raw throw, per

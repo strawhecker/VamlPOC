@@ -140,7 +140,7 @@ TEST_CASE("S361: Static resolution applies a Plain resource to the target DP onc
 
     SHOULD(ShouldlyString(applied).ShouldBe(1u));
     SHOULD(ShouldlyString(links.size()).ShouldBe(0u)); // static records no dynamic link
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint"))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(5)));
 }
 
 TEST_CASE("S361: a MISSING static key throws the SHARED ResourceLookupException(MissingKey)")
@@ -180,7 +180,7 @@ TEST_CASE("S361: merge precedence through markup — a merged child supplies the
     std::vector<DynamicResourceLink> links;
     const std::size_t applied = resolver.apply_markup(el, "S361Tint", "{StaticResource MergedKey}", links);
     SHOULD(ShouldlyString(applied).ShouldBe(1u));
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint"))).ShouldBe(Value::Int32(9)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(9)));
 }
 
 TEST_CASE("S361: Dynamic applies now + records a link; reapply re-pushes on a source change")
@@ -196,7 +196,7 @@ TEST_CASE("S361: Dynamic applies now + records a link; reapply re-pushes on a so
     const std::size_t first = resolver.apply_markup(el, "S361Tint", "{DynamicResource DynTint}", links);
     SHOULD(ShouldlyString(first).ShouldBe(1u));
     SHOULD(ShouldlyString(links.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint"))).ShouldBe(Value::Int32(1)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(1)));
 
     // Change the source dictionary key -> reapply re-pushes the new value.
     // (The S361-approved re-evaluation seam: the viewer/app calls reapply after
@@ -208,7 +208,7 @@ TEST_CASE("S361: Dynamic applies now + records a link; reapply re-pushes on a so
 
     const std::size_t reapplied = resolver.reapply_dynamic_resources(links);
     SHOULD(ShouldlyString(reapplied).ShouldBe(1u));
-    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint"))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(el.Get(PropertyId::of("S361Tint", "S361_Owner"))).ShouldBe(Value::Int32(7)));
 }
 
 TEST_CASE("S361: Dynamic NEVER throws on a transiently-missing key (holds)")

@@ -38,6 +38,7 @@ BindingExpressionSpec Binding::make_spec() const
     spec.sourcePath = path_;
     spec.target     = target_;
     spec.targetProp = targetProp_;
+    spec.targetOwner = targetOwner_;
     fill_spec(spec);
     return spec;
 }

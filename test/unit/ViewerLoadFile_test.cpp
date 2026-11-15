@@ -107,7 +107,7 @@ void registerS221Properties()
 
 // The S221 golden document — one realistic golden fixture mirroring the S095
 // shape (Window root + nested real built-ins + converted literal properties).
-inline const char* kGolden221 = R"(<Window S221Title="Viewer" S221Width="800" S221Margin="2,3,4,5" S221Fill="#FF0000"><StackPanel><Button S221Content="Go" S221Width="100"/><TextBlock S221Content="Hello">Hi</TextBlock></StackPanel></Window>)";
+inline const char* kGolden221 = R"(<Window S221_Owner.S221Title="Viewer" S221_Owner.S221Width="800" S221_Owner.S221Margin="2,3,4,5" S221_Owner.S221Fill="#FF0000"><StackPanel><Button S221_Owner.S221Content="Go" S221_Owner.S221Width="100"/><TextBlock S221_Owner.S221Content="Hello">Hi</TextBlock></StackPanel></Window>)";
 
 } // namespace
 
@@ -128,13 +128,13 @@ TEST_CASE("S221: load_text(golden) builds a live tree and maps a typed SUCCESS")
     {
         // Root is a real Window carrying the converted literal properties.
         SHOULD(ShouldlyIntegral(dynamic_cast<Window*>(r.root.get()) != nullptr).ShouldBe(1));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title", "S221_Owner")))
                    .ShouldBe(Value::String("Viewer")));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Width")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Width", "S221_Owner")))
                    .ShouldBe(Value::Int32(800)));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Margin")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Margin", "S221_Owner")))
                    .ShouldBe(Value::Thickness(Thickness{2, 3, 4, 5})));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Fill")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Fill", "S221_Owner")))
                    .ShouldBe(Value::Color(Color{255, 0, 0, 255})));
     }
 }
@@ -197,7 +197,7 @@ TEST_CASE("11d-DEBUG: Width=\"Auto\" resolves to the auto-size NaN sentinel end-
     if (r.root)
     {
         SHOULD(ShouldlyIntegral(static_cast<int>(
-            std::isnan(r.root->Get(PropertyId::of("Width")).get<double>()))).ShouldBe(1));
+            std::isnan(r.root->Get(PropertyId::of("Width", "UIElement")).get<double>()))).ShouldBe(1));
     }
 }
 
@@ -247,9 +247,9 @@ TEST_CASE("S221: load_file(temp real .vaml with golden) builds the live tree (pa
     if (r.root)
     {
         SHOULD(ShouldlyIntegral(dynamic_cast<Window*>(r.root.get()) != nullptr).ShouldBe(1));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title", "S221_Owner")))
                    .ShouldBe(Value::String("Viewer")));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Margin")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Margin", "S221_Owner")))
                    .ShouldBe(Value::Thickness(Thickness{2, 3, 4, 5})));
     }
 
@@ -277,7 +277,7 @@ TEST_CASE("S450_1: a real .xaml golden loads through the text path (the .xaml ac
     // resolves through the existing namespace + resolution machinery.
     registerS221Properties();
 
-    const char* kXamlDoc = R"(<Window S221Title="Xaml" S221Width="320" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Demo.MainWindow"><StackPanel x:Name="root"><Button S221Content="OK" S221Width="64"/></StackPanel></Window>)";
+    const char* kXamlDoc = R"(<Window S221_Owner.S221Title="Xaml" S221_Owner.S221Width="320" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Demo.MainWindow"><StackPanel x:Name="root"><Button S221_Owner.S221Content="OK" S221_Owner.S221Width="64"/></StackPanel></Window>)";
 
     const LoadResult r = load_text(kXamlDoc);
     SHOULD(ShouldlyIntegral(r.ok).ShouldBe(1));
@@ -286,7 +286,7 @@ TEST_CASE("S450_1: a real .xaml golden loads through the text path (the .xaml ac
     {
         // Root resolves by local_name "Window" (the presentation root); title set.
         SHOULD(ShouldlyIntegral(dynamic_cast<Window*>(r.root.get()) != nullptr).ShouldBe(1));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title", "S221_Owner")))
                    .ShouldBe(Value::String("Xaml")));
         // x:Class consumed on the root (root_class decodes "Demo.MainWindow");
         // the nested Button resolves + sets content through the same machinery.
@@ -303,7 +303,7 @@ TEST_CASE("S450_1: a real .xaml FILE loads through the I/O path (parity with .va
         std::ofstream f(kTmp, std::ios::binary);
         REQUIRE(f.is_open());
         const char* doc =
-            R"(<Window S221Title="Xaml" S221Width="320" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Demo.MainWindow"><StackPanel><Button S221Content="OK"/></StackPanel></Window>)";
+            R"(<Window S221_Owner.S221Title="Xaml" S221_Owner.S221Width="320" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="Demo.MainWindow"><StackPanel><Button S221_Owner.S221Content="OK"/></StackPanel></Window>)";
         f.write(doc, static_cast<std::streamsize>(std::char_traits<char>::length(doc)));
         f.close();
     }
@@ -314,7 +314,7 @@ TEST_CASE("S450_1: a real .xaml FILE loads through the I/O path (parity with .va
     if (r.root)
     {
         SHOULD(ShouldlyIntegral(dynamic_cast<Window*>(r.root.get()) != nullptr).ShouldBe(1));
-        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title")))
+        SHOULD(ShouldlyString(r.root->Get(PropertyId::of("S221Title", "S221_Owner")))
                    .ShouldBe(Value::String("Xaml")));
     }
     std::remove(kTmp);

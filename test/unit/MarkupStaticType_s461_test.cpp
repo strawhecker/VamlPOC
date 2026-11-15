@@ -67,11 +67,11 @@ const DependencyProperty& registerS461Global(const std::string& name)
 {
     if (s461_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, ValueType::String, "S461_Owner",
+        return DependencyProperty::Register(name, ValueType::String, "FrameworkElement",
                                             PropertyMetadata::WithDefault(
                                                 Value::String(std::string{}), PropertyFlags::None));
     }
-    return DependencyProperty::Get(name, "S461_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 } // namespace
@@ -133,7 +133,7 @@ TEST_CASE("S461: {x:Static local:Constants.AppName} resolves a registered static
     SHOULD(ShouldlyIntegral(inner != nullptr).ShouldBe(1));
     if (inner)
     {
-        SHOULD(ShouldlyString(std::string(inner->Get(PropertyId::of("S461Text")).get<std::string>()))
+        SHOULD(ShouldlyString(std::string(inner->Get(PropertyId::of("S461Text", "FrameworkElement")).get<std::string>()))
                    .ShouldBe(std::string("VAML Viewer")));
     }
 }

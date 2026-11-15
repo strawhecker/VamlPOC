@@ -283,12 +283,12 @@ TEST_CASE("S501: {Binding Bool, Converter={StaticResource BoolVis}} pushes Visib
 
     // bool=true -> Visible (0) landed on the target Int32 DP.
     const DependencyObject* target = reader.deferred_extensions()[0].target;
-    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible")).get<std::int32_t>())
+    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
                .ShouldBe(0));
 
     // A live VM change -> the S243 one-way re-push re-converts: false -> Collapsed (2).
     (void)vm.set_IsAvailable(false);
-    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible")).get<std::int32_t>())
+    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
                .ShouldBe(2));
 }
 
@@ -305,7 +305,7 @@ TEST_CASE("S501: {Binding Bool, Converter=BoolVis} — bare-key form binds too")
         "<StackPanel S501Visible=\"{Binding IsAvailable, Converter=BoolVis}\"/>");
     SHOULD(ShouldlyIntegral(reader.BindExtensions()).ShouldBe(1u));
     const DependencyObject* target = reader.deferred_extensions()[0].target;
-    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible")).get<std::int32_t>())
+    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
                .ShouldBe(0));
 }
 
@@ -352,6 +352,6 @@ TEST_CASE("S501: {Binding X, Converter=...} authoring — register_converter is 
         "<StackPanel S501Visible=\"{Binding IsAvailable, Converter=BoolVis}\"/>");
     SHOULD(ShouldlyIntegral(reader.BindExtensions()).ShouldBe(1u));
     const DependencyObject* target = reader.deferred_extensions()[0].target;
-    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible")).get<std::int32_t>())
+    SHOULD(ShouldlyIntegral(target->Get(PropertyId::of("S501Visible", "S501_Converter_Owner")).get<std::int32_t>())
                .ShouldBe(0));
 }

@@ -100,8 +100,8 @@ TEST_CASE("S132: attached Grid.RowSpan / Grid.ColumnSpan set + read (S043)")
     SHOULD(ShouldlyString(Grid::row_span(child)).ShouldBe(3));
     SHOULD(ShouldlyString(Grid::column_span(child)).ShouldBe(2));
     // Raw attached-aware Set/Get path (global name resolution).
-    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Grid.RowSpan")).get<std::int32_t>()).ShouldBe(3));
-    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("Grid.ColumnSpan")).get<std::int32_t>()).ShouldBe(2));
+    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("RowSpan", "Grid")).get<std::int32_t>()).ShouldBe(3));
+    SHOULD(ShouldlyString(child.Get(vaml::PropertyId::of("ColumnSpan", "Grid")).get<std::int32_t>()).ShouldBe(2));
 }
 
 // --- D2: Auto equal-division across a span ---------------------------------

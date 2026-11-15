@@ -43,7 +43,7 @@ namespace {
 // under a DIFFERENT owner would create a DISTINCT (ambiguous) property and every
 // bare-name binding-target lookup would fail. To keep the shared DP a SINGLE
 // unambiguous (name, owner) registration, this TU uses the SAME canonical owner
-// ("S280_1_Owner") as Vamlc_s280_1_test.cpp; re-registering the identical pair is
+// ("FrameworkElement") as Vamlc_s280_1_test.cpp; re-registering the identical pair is
 // a harmless no-op (PropertyAlreadyRegistered → nothing stored, original kept).
 void registerS283Properties()
 {
@@ -56,7 +56,7 @@ void registerS283Properties()
     try
     {
         (void)DependencyProperty::Register("S280_1Text", vaml::ValueType::String,
-                                           "S280_1_Owner",
+                                           "FrameworkElement",
                                            PropertyMetadata::WithDefault(Value::String(""), PropertyFlags::None));
     }
     catch (const vaml::PropertyAlreadyRegistered&)

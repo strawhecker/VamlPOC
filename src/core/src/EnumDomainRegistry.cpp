@@ -261,12 +261,14 @@ void register_builtin_enum_domains()
 
     // Dock { Left=0, Top=1, Right=2, Bottom=3 } (WPF Dock.cs) — REAL A1 fix:
     // `DockPanel.Dock="Left"` previously resolved to 1 (=Top) via the shared
-    // Left=1 map. The DP's canonical registry name is the DOTTED "DockPanel.Dock"
-    // (Element.cpp:379), which is exactly what convert_int32_for_dp sees via
-    // dp.property_id().name() — so the domain is keyed by that dotted name.
+    // Left=1 map. S803 composite identity: the DP is registered BARE "Dock"
+    // under owner "DockPanel" (Element.cpp:379), so dp.property_id().name() ==
+    // "Dock" — the domain is therefore keyed by that BARE name (not the dotted
+    // "DockPanel.Dock", which the pre-rekey registry used). The authored dotted
+    // `DockPanel.Dock` splits to TryGet("Dock","DockPanel") → name "Dock".
     // NO `Fill` member: WPF's Dock enum has exactly Left/Top/Right/Bottom; the
     // LAST-child fill is the positional rule + LastChildFill bool, never a value.
-    registry.register_domain("DockPanel.Dock",
+    registry.register_domain("Dock",
         make_domain("Dock", {
             {"Left", 0}, {"Top", 1}, {"Right", 2}, {"Bottom", 3},
         }));

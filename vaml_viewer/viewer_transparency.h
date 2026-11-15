@@ -67,7 +67,7 @@ run_viewer_transparency_plan(const std::string& text)
         // construction; read it verbatim (default false).
         if (const auto* w = dynamic_cast<const vaml::Window*>(r.root.get()))
         {
-            r.allowsTransparency = w->Get(vaml::PropertyId::of("AllowsTransparency")).get<bool>();
+            r.allowsTransparency = w->Get(vaml::PropertyId::of("AllowsTransparency", "Window")).get<bool>();
         }
         r.ok = true;
     }

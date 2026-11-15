@@ -72,10 +72,10 @@ const DependencyProperty& registerS286Global(const std::string& name, ValueType 
 {
     if (s286_seen().insert(name).second)
     {
-        return DependencyProperty::Register(name, type, "S286_Owner",
+        return DependencyProperty::Register(name, type, "FrameworkElement",
                                             PropertyMetadata::WithDefault(def, flags));
     }
-    return DependencyProperty::Get(name, "S286_Owner");
+    return DependencyProperty::Get(name, "FrameworkElement");
 }
 
 void registerS286Properties()
@@ -255,7 +255,7 @@ TEST_CASE("S286: {Binding} extension is NOT set as a property, NOT resolved")
     if (search != nullptr)
     {
         // Never converted/set: the default (empty string) must remain.
-        SHOULD(ShouldlyString(search->Get(PropertyId::of("S286Text")))
+        SHOULD(ShouldlyString(search->Get(PropertyId::of("S286Text", "FrameworkElement")))
                    .ShouldBe(Value::String("")));
     }
 }

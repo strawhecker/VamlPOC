@@ -54,7 +54,7 @@ const char* kInteractiveDoc =
 
 double opacity_of(vaml::UIElement& el)
 {
-    return el.Get(vaml::PropertyId::of("Opacity")).get<double>();
+    return el.Get(vaml::PropertyId::of("Opacity", "UIElement")).get<double>();
 }
 
 } // namespace

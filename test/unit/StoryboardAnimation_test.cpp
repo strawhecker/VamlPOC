@@ -57,7 +57,7 @@ TEST_CASE("S510: a Storyboard animates a NAMED child resolved by the resolver")
     Storyboard sb;
     auto fade = std::make_unique<DoubleAnimation>();
     fade->set_target_name("FadeMe");
-    fade->set_target_property(vaml::PropertyId::of("Opacity"));
+    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fade->set_from(1.0);
     fade->set_to(0.0);
     fade->set_duration(2.0);
@@ -82,7 +82,7 @@ TEST_CASE("S510: an unresolvable named target is skipped (recorded, not a crash)
     Storyboard sb;
     auto fade = std::make_unique<DoubleAnimation>();
     fade->set_target_name("Ghost");
-    fade->set_target_property(vaml::PropertyId::of("Opacity"));
+    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fade->set_from(0.0);
     fade->set_to(1.0);
     fade->set_duration(1.0);

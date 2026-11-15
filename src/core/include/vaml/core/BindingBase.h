@@ -112,6 +112,8 @@ public:
         target_ = target;
         targetProp_ = std::move(targetProp);
     }
+    void set_target_owner(std::string owner) { targetOwner_ = std::move(owner); }
+    [[nodiscard]] const std::string& target_owner() const noexcept { return targetOwner_; }
 
     // Builds a BindingExpressionSpec for the existing engine.
     [[nodiscard]] BindingExpressionSpec make_spec() const;
@@ -123,6 +125,7 @@ private:
     ObservableObject* source_ = nullptr;
     DependencyObject* target_ = nullptr;
     std::string      targetProp_;
+    std::string      targetOwner_;
 };
 
 // MultiBinding — SEVERAL source properties -> ONE target value via an

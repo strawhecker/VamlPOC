@@ -47,7 +47,7 @@ using vaml::enter_state;
 
 TEST_CASE("S365: TemplateBinding wire carries part-prop -> control-prop")
 {
-    Setter setter{ PropertyId::of("Background"),
+    Setter setter{ PropertyId::of("Background", "InkCanvas"),
                    SetterValue::TemplateBinding("Background") };
     SHOULD(ShouldlyIntegral(static_cast<int>(setter.value.is_template_binding())).ShouldBe(1));
     SHOULD(ShouldlyString(std::string(setter.value.reference())).
@@ -81,7 +81,7 @@ TEST_CASE("S365: TemplateBinding reads the control's DP")
     UIElement control;
     auto blackBrush = std::make_shared<SolidColorBrush>();
     (void)blackBrush->set_color(vaml::Color{ 0, 0, 0, 255 });
-    (void)control.Set(PropertyId::of("Background"), Value::Brush(std::move(blackBrush)));
+    (void)control.Set(PropertyId::of("Background", "InkCanvas"), Value::Brush(std::move(blackBrush)));
 
     // apply_control_template builds content + wires the TemplateBinding from the
     // control's current Background DP.
@@ -92,7 +92,7 @@ TEST_CASE("S365: TemplateBinding reads the control's DP")
     // reads it (the S365 read-the-control-DP mechanism). S643b-1: Background is
     // a Brush OBJECT — read its color().
     const vaml::Color resolvedBlack =
-        control.Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        control.Get(PropertyId::of("Background", "InkCanvas")).get<std::shared_ptr<::vaml::Brush>>()->color();
     SHOULD(ShouldlyString(vaml::Value::Color(resolvedBlack)).
                ShouldBe(Value::Color(vaml::Color{ 0, 0, 0, 255 })));
 }
@@ -116,9 +116,9 @@ TEST_CASE("S365: control DP change is observed + the bound wire re-reads (re-ski
     // The wire's source is the control DP, so a later read observes the change.
     auto blueBrush = std::make_shared<SolidColorBrush>();
     (void)blueBrush->set_color(vaml::Color{ 0, 0, 255, 255 });
-    (void)control.Set(PropertyId::of("Background"), Value::Brush(std::move(blueBrush)));
+    (void)control.Set(PropertyId::of("Background", "InkCanvas"), Value::Brush(std::move(blueBrush)));
     const vaml::Color resolvedBlue =
-        control.Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+        control.Get(PropertyId::of("Background", "InkCanvas")).get<std::shared_ptr<::vaml::Brush>>()->color();
     SHOULD(ShouldlyString(vaml::Value::Color(resolvedBlue)).
                ShouldBe(Value::Color(vaml::Color{ 0, 0, 255, 255 })));
 }
@@ -151,7 +151,7 @@ TEST_CASE("S365: templated control restyle attaches visual states + brightness")
     {
         enter_state(control, *shover);
         const vaml::Color resolvedRed =
-            control.Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+            control.Get(PropertyId::of("Background", "Control")).get<std::shared_ptr<::vaml::Brush>>()->color();
         SHOULD(ShouldlyString(vaml::Value::Color(resolvedRed)).
                    ShouldBe(Value::Color(vaml::Color{ 255, 0, 0, 255 })));
     }

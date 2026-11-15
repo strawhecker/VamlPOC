@@ -48,8 +48,8 @@ TEST_CASE("S280: compile() produces non-empty records for a golden StackPanel/Gr
     // element type, so the {Binding StackPanel.Orientation} hop validates
     // statically (S280_1).
     const std::string doc =
-        "<StackPanel>"
-        "  <Grid Grid.Row=\"1\" Orientation=\"{Binding StackPanel.Orientation}\">"
+        "<StackPanel Orientation=\"{Binding StackPanel.Orientation}\">"
+        "  <Grid Grid.Row=\"1\">"
         "    <TextBlock/>"
         "  </Grid>"
         "</StackPanel>";

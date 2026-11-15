@@ -89,7 +89,7 @@ TEST_CASE("S441: VM is a final ObservableObject with the markup-bound props")
     (void)vm.set_Status("ok");
 
     SHOULD(ShouldlyString(vm.Text()).ShouldBe(std::string("hello")));
-    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("Text"))).ShouldBe(Value::String("hello")));
+    SHOULD(ShouldlyString(vm.Get(vaml::PropertyId::of("Text", "ObservableObject"))).ShouldBe(Value::String("hello")));
     SHOULD(ShouldlyString(vm.Checked()).ShouldBe(true));
     SHOULD(ShouldlyString(vm.Dim()).ShouldBe(0.8));
     SHOULD(ShouldlyString(vm.SliderValue()).ShouldBe(80.0));

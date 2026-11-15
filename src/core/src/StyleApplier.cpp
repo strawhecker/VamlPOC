@@ -262,16 +262,24 @@ StyleApplier::apply_style(UIElement& element, const Style& style,
                 }
                 break;
             case TriggerKind::Data:
-            {
-                // DataTrigger: resolve the S240 path against the element itself
-                // (the default dependency_object_reader reads registered DPs). A
-                // match on the resolved Value fires.
-                const Value root = Value::UntypedPtr(&element);
-                const PropertyRead pr = evaluate_property_path(root, trig.data.path,
-                                                              dependency_object_reader());
-                fires = (pr.ok && pr.value == trig.data.value);
+                // S803: evaluate the DataTrigger's path as a composite DP key
+                // on the styled element. The authored path text is a valid
+                // composite key (bare `S363DataMatch` resolves via the guarded
+                // unique-name bridge; `Owner.Prop` is a dotted composite). Read
+                // that DP's effective value and fire when it equals `value`.
+                try
+                {
+                    const vaml::DependencyProperty* dp =
+                        vaml::DependencyProperty::ResolveForElement(trig.data.path.original(),
+                                                                    "UIElement");
+                    fires = (dp != nullptr) &&
+                            (element.Get(dp->property_id()) == trig.data.value);
+                }
+                catch (...)
+                {
+                    fires = false;
+                }
                 break;
-            }
             default:
                 fires = false;
                 break;

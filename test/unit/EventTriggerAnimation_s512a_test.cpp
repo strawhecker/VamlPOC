@@ -68,7 +68,7 @@ std::vector<Trigger> click_begin_storyboard_triggers()
     move->set_duration(1.0);
     auto fade = std::make_unique<DoubleAnimation>();
     fade->set_target_name("Ball");
-    fade->set_target_property(vaml::PropertyId::of("Opacity"));
+    fade->set_target_property(vaml::PropertyId::of("Opacity", "UIElement"));
     fade->set_from(1.0);
     fade->set_to(0.0);
     fade->set_duration(1.0);

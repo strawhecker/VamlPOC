@@ -145,7 +145,7 @@ TEST_CASE("S094: an unknown element throws ElementResolutionException(UnknownTyp
     {
         (void)reader.Load(
             "<StackPanel>\n"
-            "  <Button S094Text=\"ok\"/>\n"
+            "  <Button S094_Owner.S094Text=\"ok\"/>\n"
             "  <S094Zorp/>\n"
             "</StackPanel>");
     }
@@ -212,7 +212,7 @@ TEST_CASE("S094: a malformed value throws ValueConversionException(MalformedValu
     bool threw = false;
     try
     {
-        (void)reader.Load("<Button S094Width=\"abc\"/>"); // Int32, not a number
+        (void)reader.Load("<Button S094_Owner.S094Width=\"abc\"/>"); // Int32, not a number
     }
     catch (const ValueConversionException& e)
     {
@@ -264,7 +264,7 @@ TEST_CASE("S094: x:Class on the ROOT is still accepted (root-only contract)")
     VamlReader reader;
     std::unique_ptr<DependencyObject> root = reader.Load(
         std::string("<StackPanel ") + kXamlNs + " x:Class=\"GoodRoot\">"
-        "  <Button S094Width=\"1\"/>"
+        "  <Button S094_Owner.S094Width=\"1\"/>"
         "</StackPanel>");
 
     // No throw; the authored root class name is recorded.
@@ -292,7 +292,7 @@ TEST_CASE("S094: the three error families stay distinct by kind, not by message"
     bool resolver = false;
     try
     {
-        (void)reader.Load("<NotAThing S094Width=\"1\"/>");
+        (void)reader.Load("<NotAThing S094_Owner.S094Width=\"1\"/>");
     }
     catch (const ElementResolutionException&)
     {
@@ -305,7 +305,7 @@ TEST_CASE("S094: the three error families stay distinct by kind, not by message"
     bool converter = false;
     try
     {
-        (void)reader.Load("<Button S094Width=\"zz\"/>");
+        (void)reader.Load("<Button S094_Owner.S094Width=\"zz\"/>");
     }
     catch (const ValueConversionException& e)
     {
@@ -338,8 +338,8 @@ TEST_CASE("S094: a doc exercising all four happy paths loads without error")
 
     const std::string doc =
         std::string("<StackPanel ") + kXamlNs + " x:Class=\"AppRoot\" x:Name=\"root\">"
-        "  <Button S094Width=\"100\" S094Text=\"Go\"/>"
-        "  <TextBlock S094Text=\"Label\"/>"
+        "  <Button S094_Owner.S094Width=\"100\" S094_Owner.S094Text=\"Go\"/>"
+        "  <TextBlock S094_Owner.S094Text=\"Label\"/>"
         "</StackPanel>";
 
     std::unique_ptr<DependencyObject> root = reader.Load(doc);
@@ -354,10 +354,10 @@ TEST_CASE("S094: a doc exercising all four happy paths loads without error")
     {
         // Known property set from a valid plain literal — the integer converted.
         SHOULD(ShouldlyString(
-                   reader.retained_objects()[0]->Get(PropertyId::of("S094Width")))
+                   reader.retained_objects()[0]->Get(PropertyId::of("S094Width", "S094_Owner")))
                    .ShouldBe(Value::Int32(100)));
         SHOULD(ShouldlyString(
-                   reader.retained_objects()[0]->Get(PropertyId::of("S094Text")))
+                   reader.retained_objects()[0]->Get(PropertyId::of("S094Text", "S094_Owner")))
                    .ShouldBe(Value::String("Go")));
     }
 }

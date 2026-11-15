@@ -96,10 +96,10 @@ TEST_CASE("S595 half-alpha panel keeps partial alpha through the single-fold (S5
     // authored Background semi-alpha × Opacity (single fold, S593). The transparent
     // window composites over the see-through clear (alpha 0).
     vaml::Window w;
-    (void)w.Set(vaml::PropertyId::of("AllowsTransparency"), vaml::Value::Bool(true));
+    (void)w.Set(vaml::PropertyId::of("AllowsTransparency", "Window"), vaml::Value::Bool(true));
     auto panel = std::make_unique<vaml::StackPanel>();
     vaml::StackPanel* panelRaw = panel.get();
-    (void)panelRaw->Set(vaml::PropertyId::of("Background"),
+    (void)panelRaw->Set(vaml::PropertyId::of("Background", "Control"),
                         vaml::test::brush_value(vaml::parse_color("#80FF0000")));  // half-alpha red
     (void)panelRaw->set_opacity(0.5);
     w.set_content(std::move(panel));   // the Window's single-content slot (arranges the child to fill)

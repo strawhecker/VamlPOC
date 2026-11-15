@@ -252,7 +252,7 @@ TEST_CASE("S092: an isExtension attribute is retained as DeferredExtension (S2 t
     const auto& retained = reader.retained_objects();
     if (retained.size() == 1)
     {
-        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S092Text")))
+        SHOULD(ShouldlyString(retained[0].get()->Get(PropertyId::of("S092Text", "S092_Owner")))
                    .ShouldBe(Value::String("")));
     }
 }
@@ -280,7 +280,7 @@ TEST_CASE("S092: deferred_extensions() is empty when no extension is present")
 {
     registerS092Properties();
     VamlReader reader;
-    (void)reader.Load("<StackPanel><Button S092Text=\"plain\"/></StackPanel>");
+    (void)reader.Load("<StackPanel><Button S092_Owner.S092Text=\"plain\"/></StackPanel>");
     SHOULD(ShouldlyIntegral(reader.deferred_extensions().size()).ShouldBe(0u));
 }
 

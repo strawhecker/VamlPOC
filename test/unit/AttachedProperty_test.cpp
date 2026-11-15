@@ -102,16 +102,16 @@ TEST_CASE("S043: attached Set/Get on B without B calling register_property (key 
 
     // B is a plain object that NEVER calls register_property for this property.
     DependencyObject b;
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(0))); // global default resolves
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(0))); // global default resolves
 
     // Set on B without any local registration -> APPLIED (attached write lands).
-    SHOULD(ShouldlyString(b.Set(PropertyId::of(name), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(b.Set(PropertyId::of(name, "CanvasOwner_A"), Value::Int32(5))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(5)));
 
     // A second, independent B object does NOT see the first B's value (value is
     // stored PER-OBJECT, the definition is owned once by A).
     DependencyObject b2;
-    SHOULD(ShouldlyString(b2.Get(PropertyId::of(name))).ShouldBe(Value::Int32(0)));
+    SHOULD(ShouldlyString(b2.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(0)));
 }
 
 TEST_CASE("S043: effective value = local ?? inherited ?? global-default (orphan -> global default)")
@@ -121,21 +121,21 @@ TEST_CASE("S043: effective value = local ?? inherited ?? global-default (orphan 
 
     // An orphan (no parent) with NO local registration resolves the global default.
     DependencyObject orphan;
-    SHOULD(ShouldlyString(orphan.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(0)));
+    SHOULD(ShouldlyString(orphan.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(0)));
 
     // A parent->child chain: neither registers the property locally. The parent
     // holds an attached value; the child (no local entry) INHERITS it through the
     // global-resolved read, never having called register_property.
     DependencyObject parent, child;
     child.set_parent(&parent);
-    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name), Value::Int32(7))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(parent.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner"), Value::Int32(7))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(parent.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(7)));
     // Child, unattached, no local override -> inherits the parent's 7.
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(7)));
 
     // A child local override wins (local ?? inherited ?? default).
-    SHOULD(ShouldlyString(child.Set(PropertyId::of(name), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name))).ShouldBe(Value::Int32(9)));
+    SHOULD(ShouldlyString(child.Set(PropertyId::of(name, "AppOwner"), Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "AppOwner"))).ShouldBe(Value::Int32(9)));
 }
 
 TEST_CASE("S043: owner != class — key owned by A settable on B; owner_type_id reads back A")
@@ -149,10 +149,10 @@ TEST_CASE("S043: owner != class — key owned by A settable on B; owner_type_id 
 
     // B is a DIFFERENT class: it stores and reads A's attached key fine.
     DependencyObject b;
-    (void)b.Set(PropertyId::of(name), Value::Int32(4));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(4)));
-    (void)b.Set(PropertyId::of(name), Value::Int32(0)); // clear back toward default
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(0)));
+    (void)b.Set(PropertyId::of(name, "DockPanelOwner_A"), Value::Int32(4));
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "DockPanelOwner_A"))).ShouldBe(Value::Int32(4)));
+    (void)b.Set(PropertyId::of(name, "DockPanelOwner_A"), Value::Int32(0)); // clear back toward default
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "DockPanelOwner_A"))).ShouldBe(Value::Int32(0)));
 
     // The global descriptor still reports owner A even after B stored a value.
     SHOULD(ShouldlyString(dp.owner_type_id()).ShouldBe(std::string("DockPanelOwner_A")));
@@ -166,20 +166,20 @@ TEST_CASE("S043: wrong-thread attached Set -> QUEUED; the attached drain applies
     DependencyObject b; // never locally registers the property
 
     // Affine attached Set applies normally, queued count stays 0.
-    SHOULD(ShouldlyString(b.Set(PropertyId::of(name), Value::Int32(1))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(b.Set(PropertyId::of(name, "CanvasOwner_A"), Value::Int32(1))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(b.pending_change_count()).ShouldBe(0u));
 
     // Wrong-thread attached Set -> QUEUED, NOT applied, store untouched.
     SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(b, PropertyId::of(name), Value::Int32(8), &r);
+    setFromOtherThread(b, PropertyId::of(name, "CanvasOwner_A"), Value::Int32(8), &r);
     SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
     SHOULD(ShouldlyString(b.pending_change_count()).ShouldBe(1u));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(1))); // not applied
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(1))); // not applied
 
     // Affinity-thread drain applies the queued attached write.
     b.ProcessPendingChanges();
     SHOULD(ShouldlyString(b.pending_change_count()).ShouldBe(0u));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(8)));
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(8)));
 }
 
 TEST_CASE("S043: local registration still shadows the global path; unregistered name throws")
@@ -195,16 +195,16 @@ TEST_CASE("S043: local registration still shadows the global path; unregistered 
     PropertyKey localKey(name, ValueType::Int32, "LocalOwner_B", PropertyFlags::None);
     (void)b.register_property(std::move(localKey),
                               PropertyMetadata::WithDefault(Value::Int32(99), PropertyFlags::None));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(99))); // local default, not global 0
-    (void)b.Set(PropertyId::of(name), Value::Int32(3));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name))).ShouldBe(Value::Int32(3))); // local path
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "LocalOwner_B"))).ShouldBe(Value::Int32(99))); // local default, not global 0
+    (void)b.Set(PropertyId::of(name, "LocalOwner_B"), Value::Int32(3));
+    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "LocalOwner_B"))).ShouldBe(Value::Int32(3))); // local path
 
     // An UNREGISTERED (not local, not global) name still throws PropertyNotFound.
     DependencyObject c;
     SHOULD(ShouldThrow<PropertyNotFound>([&] {
-        (void)c.Get(PropertyId::of("NoSuchAttached_S043_5"));
+        (void)c.Get(PropertyId::of("NoSuchAttached_S043_5", "LocalOwner_B"));
     }));
     SHOULD(ShouldThrow<PropertyNotFound>([&] {
-        (void)c.Set(PropertyId::of("NoSuchAttached_S043_5"), Value::Int32(1));
+        (void)c.Set(PropertyId::of("NoSuchAttached_S043_5", "LocalOwner_B"), Value::Int32(1));
     }));
 }

@@ -76,7 +76,7 @@ TEST_CASE("S369: live re-skin — an edited brush re-skis the rendered element r
     if (element)
     {
         const vaml::Color bg =
-            element->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+            element->Get(PropertyId::of("Background", "Control")).get<std::shared_ptr<::vaml::Brush>>()->color();
         SHOULD(ShouldlyString(vaml::Value::Color(bg)).
                    ShouldBe(Value::Color(Color{ 255, 0, 0, 255 })));
     }
@@ -91,7 +91,7 @@ TEST_CASE("S369: live re-skin — an edited brush re-skis the rendered element r
     if (element2)
     {
         const vaml::Color bg2 =
-            element2->Get(PropertyId::of("Background")).get<std::shared_ptr<::vaml::Brush>>()->color();
+            element2->Get(PropertyId::of("Background", "Control")).get<std::shared_ptr<::vaml::Brush>>()->color();
         SHOULD(ShouldlyString(vaml::Value::Color(bg2)).
                    ShouldBe(Value::Color(Color{ 0, 255, 0, 255 })));
     }

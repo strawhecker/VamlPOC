@@ -132,6 +132,15 @@ namespace {
 // type) + "Offset" (this Double DP).
 void register_gradientstop_properties()
 {
+    // S803 composite identity: "Color" under owner "GradientStop" is a DISTINCT
+    // (name, owner) pair from SolidColorBrush's (Color, SolidColorBrush) — WPF
+    // ground truth is that GradientStop.Color is owned by GradientStop, separate
+    // from SolidColorBrush.Color (GradientStop.cs). A bare `Color=` authored on a
+    // <GradientStop> resolves against this row via the owner-chain walk.
+    (void)DependencyProperty::Register(
+        "Color", ValueType::Color, "GradientStop",
+        PropertyMetadata::WithDefault(Value::Color(vaml::Color{ 0, 0, 0, 255 }),
+                                      PropertyFlags::None));
     (void)DependencyProperty::Register(
         "Offset", ValueType::Double, "GradientStop",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
@@ -156,13 +165,13 @@ GradientStopHost::~GradientStopHost() = default;
 VAML_CORE_EXPORT
 SetResult GradientStopHost::set_color(const vaml::Color& value)
 {
-    return Set(PropertyId::of("Color", "SolidColorBrush"), Value::Color(value));
+    return Set(PropertyId::of("Color", "GradientStop"), Value::Color(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Color GradientStopHost::color() const
 {
-    const Value v = Get(PropertyId::of("Color", "SolidColorBrush"));
+    const Value v = Get(PropertyId::of("Color", "GradientStop"));
     return v.type() == ValueType::Color ? v.get<vaml::Color>() : vaml::Color{ 0, 0, 0, 255 };
 }
 

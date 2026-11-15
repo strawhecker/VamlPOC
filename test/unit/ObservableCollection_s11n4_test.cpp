@@ -50,11 +50,11 @@ TEST_CASE("11n-4: ObservableCollection Add raises CollectionChanged + PropertyCh
     std::vector<std::string> signalOrder;
     std::vector<CollectionChangedAction> actions;
 
-    (void)col.add_property_changed(vaml::PropertyId::of("Count"),
+    (void)col.add_property_changed(vaml::PropertyId::of("Count", "ObservableCollectionBase"),
                              [&](vaml::PropertyId, const Value&, const Value&) {
                                  signalOrder.push_back("P:Count");
                              });
-    (void)col.add_property_changed(vaml::PropertyId::of("Item[]"),
+    (void)col.add_property_changed(vaml::PropertyId::of("Item[]", "ObservableCollectionBase"),
                              [&](vaml::PropertyId, const Value&, const Value&) {
                                  signalOrder.push_back("P:Item[]");
                              });

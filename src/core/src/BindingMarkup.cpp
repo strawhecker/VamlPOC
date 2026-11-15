@@ -116,10 +116,19 @@ BindingMarkup parse_markup_binding(std::string_view source) noexcept
         return out;
     }
 
-    // {Binding <path>[, Mode=<mode>]}
+    // {Binding [<path>][, Mode=<mode>]}
+    // An EMPTY path is a VALID self-binding (Direct) — WPF binds the whole
+    // data context with no Path (PathParser.cs:83-89), so `{Binding}` and
+    // `{Binding Mode=TwoWay}` are legal markup, NOT malformed.
     if (rB >= inE || source[rB] == ',')
     {
-        out.malformed = true; // {Binding} with no path, or a leading comma
+        if (rB >= inE)
+        {
+            // Plain `{Binding}` — an empty path (Direct) is valid.
+            out.path = std::string_view();
+            return out;
+        }
+        out.malformed = true; // a leading comma with no path
         return out;
     }
 

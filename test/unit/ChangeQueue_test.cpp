@@ -80,7 +80,7 @@ TEST_CASE("S041: enqueue is cross-thread — worker enqueue, owner-thread drain"
 
     // Worker-thread enqueue (cross-thread postbox; the queue lives on `this`
     // thread = its affinity thread).
-    enqueueFromOtherThread(q, PropertyId::of("Width"), Value::Int32(0), Value::Int32(10));
+    enqueueFromOtherThread(q, PropertyId::of("Width", "ChangeQueue"), Value::Int32(0), Value::Int32(10));
     SHOULD(ShouldlyString(q.pending_count()).ShouldBe(1u));
 
     Trace trace;
@@ -94,9 +94,9 @@ TEST_CASE("S041: enqueue is cross-thread — worker enqueue, owner-thread drain"
 TEST_CASE("S041: FIFO enqueue order preserved through the drain")
 {
     ChangeQueue q;
-    q.enqueue(PropertyId::of("A"), Value::Int32(0), Value::Int32(1));
-    q.enqueue(PropertyId::of("B"), Value::Int32(0), Value::Int32(2));
-    q.enqueue(PropertyId::of("C"), Value::Int32(0), Value::Int32(3));
+    q.enqueue(PropertyId::of("A", "ChangeQueue"), Value::Int32(0), Value::Int32(1));
+    q.enqueue(PropertyId::of("B", "ChangeQueue"), Value::Int32(0), Value::Int32(2));
+    q.enqueue(PropertyId::of("C", "ChangeQueue"), Value::Int32(0), Value::Int32(3));
 
     Trace trace;
     SHOULD(ShouldlyString(q.process(trace.fn())).ShouldBe(3u));
@@ -119,7 +119,7 @@ TEST_CASE("S041: empty drain returns 0 and invokes nothing")
 TEST_CASE("S041: process from a non-affine thread throws WrongThreadException")
 {
     ChangeQueue q;
-    q.enqueue(PropertyId::of("W"), Value::Int32(0), Value::Int32(9));
+    q.enqueue(PropertyId::of("W", "ChangeQueue"), Value::Int32(0), Value::Int32(9));
     SHOULD(ShouldlyString(q.pending_count()).ShouldBe(1u));
 
     bool caught = false;
@@ -142,7 +142,7 @@ TEST_CASE("S041: process from a non-affine thread throws WrongThreadException")
 TEST_CASE("S041: clear from a non-affine thread throws WrongThreadException")
 {
     ChangeQueue q;
-    q.enqueue(PropertyId::of("W"), Value::Int32(0), Value::Int32(9));
+    q.enqueue(PropertyId::of("W", "ChangeQueue"), Value::Int32(0), Value::Int32(9));
 
     bool caught = false;
     std::thread t([&] {
@@ -164,7 +164,7 @@ TEST_CASE("S041: clear from a non-affine thread throws WrongThreadException")
 TEST_CASE("S041: record during process lands in a fresh queue — not double-emitted this pass")
 {
     ChangeQueue q;
-    q.enqueue(PropertyId::of("A"), Value::Int32(0), Value::Int32(1));
+    q.enqueue(PropertyId::of("A", "ChangeQueue"), Value::Int32(0), Value::Int32(1));
 
     int emitted = 0;
     auto fn = [&](PropertyId id, const Value&, const Value&) {
@@ -190,8 +190,8 @@ TEST_CASE("S041: record during process lands in a fresh queue — not double-emi
 TEST_CASE("S041: clear drops all pending; drain after clear returns 0")
 {
     ChangeQueue q;
-    q.enqueue(PropertyId::of("W"), Value::Int32(0), Value::Int32(1));
-    q.enqueue(PropertyId::of("H"), Value::Int32(0), Value::Int32(2));
+    q.enqueue(PropertyId::of("W", "ChangeQueue"), Value::Int32(0), Value::Int32(1));
+    q.enqueue(PropertyId::of("H", "ChangeQueue"), Value::Int32(0), Value::Int32(2));
     SHOULD(ShouldlyString(q.pending_count()).ShouldBe(2u));
 
     q.clear();
@@ -209,7 +209,7 @@ TEST_CASE("S041: owned-name gotcha — replayed item survives a short-lived key 
     {
         // A short-lived key source whose storage dies after this block.
         std::string temp(W);
-        q.enqueue(PropertyId::of(temp), Value::Int32(0), Value::Int32(5));
+        q.enqueue(PropertyId::of(temp, "ChangeQueue"), Value::Int32(0), Value::Int32(5));
     }
     // The drain must replay the CORRECT name and values even though the source
     // key storage is long gone.
