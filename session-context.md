@@ -1,6 +1,6 @@
 # session-context.md
 
-last_command: implementit (all pre-existing core failures RESOLVED — TextBox:159/172 dangling PropertyId, VamlReader_binding:187 Direct no-path; S443/S256 re-based onto a genuinely-malformed leading-comma form; verify_s803 GREEN both lanes)
+last_command: full clean build+test, BOTH CI lanes PROVEN GREEN (user committed locally: d01bdba "# S803 — finish composite (name, owner) re-key to GREEN"; clean working tree — git status --porcelain empty)
 plan_digest: S803 makes the reader's dotted-key authoring native `(name, owner)` composite lookup (drop the
 flatten), removes the S095/S09x name-unique global-DP discipline, and retires owner-less bridges. WPF ground
 truth (audited DependencyProperty.cs:959-979): the ONLY locate is FromName(name, ownerType), owner REQUIRED,
@@ -56,12 +56,18 @@ no name-only locate. Every site must carry its real owner.
 - RESULT: MSVC "vector subscript out of range" crash GONE. vaml-core-tests runs to completion on BOTH lanes
   (no SIGABRT / no RC=-1073740791). The re-baselined Direct/malformed tests all pass.
 
-## build_status (as of this session)
-- Compile: ALL targets warning-as-error CLEAN (both CI lanes).
-- vaml-tools-tests: 151/151 PASS.
-- vaml-presentation-tests: PASS.
-- vaml-core-tests: **1332/1332 PASS — the last 2 pre-existing core failures are RESOLVED** (TextBox TwoWay +
-  VamlReader Direct no-path). verify_s803 = GREEN (windows-msvc + ubuntu-clang).
+## build_status (as of this session — CLEAN REBUILD, both lanes GREEN, first principles)
+- **Hard clean**: `git clean -fdx build/` (wiped the incremental cache). Fresh `cmake --preset <lane>` +
+  `cmake --build` + `ctest --output-on-failure`, no caching.
+- **windows-msvc** (msvc-debug): 4/4 test suites PASSED (core 16.36s / tools 2.71s / vulkan 0.51s /
+  presentation 5.79s); vaml-core-tests **1332/1332, 8791 assertions (8790 passed + 1 EXPECTED S036_1
+  should_fail), Status SUCCESS!** Compile warning-as-error clean.
+- **ubuntu-clang** (VM, clang 21, shared folder /mnt/hgfs/VamlPOC): `rm -rf build/clang-debug` then fresh
+  configure+build+ctest — 4/4 suites PASSED; vaml-core-tests **1332/1332, 8791 assertions, Status SUCCESS!**
+- Local commit d01bdba present; `git status --porcelain` EMPTY (clean tree). Reparative fix path: baseline
+  now = clean-tested S803. CI remains the authoritative remote gate; the VM has to-date predicted every CI pass
+  (the only prior false-greens were build-not-actually-built / tests-not-passing confusion, both eliminated
+  by this clean first-principles rebuild).
 
 ## ControlTemplate/TemplateBinding color-DP fix (this fix, user directive)
 - Root cause: the S803 composite re-key split the visual-state engine write target from the test read. enter_state/exit_state resolve the bare `Background` against the element owner-chain -> owner `Control` (Control.Background). The tests read(`Background`, `InkCanvas`) — a DISTINCT DP that stays at its default black, so red reads as black.
@@ -76,11 +82,14 @@ no name-only locate. Every site must carry its real owner.
   VamlReader_binding:187 Direct empty-path boundary.
 
 ## next_step
-- ALL S803 core failures RESOLVED; verify_s803 GREEN (windows-msvc + ubuntu-clang).
-- Flip docs/roadmap.md S803 row [INCOMPLETE] → [DONE], then continue to S804. No commit made.
+- S803 closed: roadmap [DONE] + plan green + clean two-lane proof + local commit d01bdba.
+- Perma-verify `build/verify_s803.cmd` restored (was wiped by the hard clean; backup placed back).
+- S804 (viewer coexistence live-proof) is next. Remote-build (GH CI) check-in remains OPEN (user committed
+  locally; the outstanding action is commit + push, which fires only on explicit commitit).
 
 ## notes
-- No commit made (commitit fires only on explicit command).
+- LOCAL COMMIT MADE BY USER: d01bdba "# S803 — finish composite (name, owner) re-key to GREEN". NO push yet.
+- Perma-verify restored to build/verify_s803.cmd after the clean wipe (temp backup deleted).
 - The earlier "empty-path Direct change REGRESSED AppShellBinding + ViewerBindingPlan" note is SUPERSEDED:
   those were stale tests encoding the retired pre-11af premise. Re-based S443/S256 onto the genuinely
   malformed `{Binding ,Mode=TwoWay}` (leading comma, no path) form, which still throws MalformedBindingMarkup
