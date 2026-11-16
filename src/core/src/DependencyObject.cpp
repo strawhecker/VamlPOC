@@ -565,10 +565,17 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
             "DependencyObject::Set: cannot Set a read-only property");
     }
 
-    // S035 pipeline step 1: coerce.
+    // D1 (S810) pipeline step 1: validate ON THE RAW input - WPF
+    // DependencyObject.cs:653 validates the incoming value BEFORE coercion.
+    if (!md.validate(input))
+    {
+        return SetResult::REJECTED; // store unchanged, no cb
+    }
+
+    // D1 (S810) pipeline step 2: coerce (WPF DO.cs:1692 coerces AFTER the raw validation).
     const Value coerced = md.coerce(input);
 
-    // S035 pipeline step 2: validate ON THE COERCED value.
+    // D1 (S810) pipeline step 3: re-validate ON THE COERCED value (WPF DO.cs:1692).
     if (!md.validate(coerced))
     {
         return SetResult::REJECTED; // store unchanged, no cb
@@ -625,7 +632,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // both the change comparison and the changed cb's `old`.
     const Value currentEffective = entry->local.isNull() ? md.defaultValue() : entry->local;
 
-    // S035 pipeline step 3: fire changed cb ONLY on a real change.
+    // D1 (S810) pipeline step 4: fire changed cb ONLY on a real change.
     if (coerced == currentEffective)
     {
         return SetResult::NO_CHANGE;
@@ -661,7 +668,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
 
     md.notifyChanged(currentEffective, coerced);
 
-    // S035 pipeline step 4: store.
+    // D1 (S810) pipeline step 5: store.
     entry->local = coerced;
 
     // S041 §2.5 (S244 completion): fire THIS object's own registration-ordered

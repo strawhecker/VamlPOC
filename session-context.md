@@ -1,6 +1,8 @@
 # session-context.md
 
-last_command: implementit — Sprint 11s (S804..S808) DONE, BOTH CI LANES GREEN via build/verify_s11s.cmd ("S11s GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
+last_command: implementit S810 (Sprint 11t Part 1) — D1 FIX: DP VALUE PIPELINE ORDER. BOTH CI LANES GREEN (build/verify_s810.cmd -> "S810 GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
+
+plan_digest: S810 (dep:S808) corrects DependencyObject::Set to the WPF order — validate(raw) -> coerce -> validate(coerced) — so a raw value that is invalid-but-coerce-normalizable is REJECTED at the boundary (WPF DO.cs:653), instead of the S035 drift (coerce -> validate(coerced)) silently coercing it. The S035/S036/S037 contract text is CORRECTED, not merely implemented. SetResult::REJECTED stays the disposition (the REJECTED->throw + wrong-thread + queue removal are S811 D2/D3). This is Sprint 11t PART 1 (D1 only).
 plan_digest: Sprint 11s — the composite (name, owner) DP identity lands end-to-end (S804 coexistence live-proof
 + S805 un-revert re-additions merged into one green unit; S806 re-verify/wide-sweep; S807 refactor gate; S808
 survivor+checkpoint). Re-adds the DPs the name-only contract forced away, each verified against E:\GitRepos\wpf
@@ -56,7 +58,25 @@ ground truth. The name-only DP hosing is ABOLISHED; ZERO MINIMAL REAL introduced
 - RESULT: MSVC "vector subscript out of range" crash GONE. vaml-core-tests runs to completion on BOTH lanes
   (no SIGABRT / no RC=-1073740791). The re-baselined Direct/malformed tests all pass.
 
-## build_status (as of this session — CLEAN REBUILD, both lanes GREEN, first principles)
+## Sprint 11t S810 — D1 FIX: DP VALUE PIPELINE ORDER (this session)
+- **Drift fixed:** Set() pipeline was S035 `coerce -> validate(coerced)`. WPF truth (DependencyObject.cs:653)
+  validates the RAW input BEFORE coercion, then (DO.cs:1692) coerces and re-validates the coerced result.
+- **Change (src/core/src/DependencyObject.cpp):** `Set()` now runs validate(input) -> coerce -> validate(coerced);
+  a raw value invalid at the boundary is REJECTED with the store unchanged (coerce is NOT allowed to normalize it).
+- **Contract text corrected (NOT merely implemented):** DependencyObject.h (Set() doc + PIPELINE comment),
+  the S035-pipeline comments inside Set() re-tagged D1/WPF-order, and the S046/S036 test-file headers.
+- **Tests:** new S046 RawBoundary TEST_CASE proves raw invalid-but-coerce-normalizable is REJECTED at the
+  boundary with store unchanged (in DependencyCallbacks_test.cpp). Re-baselined the S036 test that asserted the
+  OLD drift order (coerce-before-validate -> APPLIED) to assert WPF boundary-reject (raw -3 -> REJECTED, store 0);
+  it was named "coerce runs BEFORE validate" — precisely the drift — corrected per Rule 2 (WPF source audit).
+- **No new product symbol:** a pure reorder + disposition-preserving reject (REJECTED stays); no MINIMAL REAL,
+  no behavior change to the QUEUED/affinity path (that's S811's D2/D3 removal, out of scope here).
+- **Lanes:** windows-msvc (msvc-debug, build/verify_s810.cmd) + ubuntu-clang (VM, /mnt/hgfs/VamlPOC,
+  clang-debug) both GREEN — "S810 GREEN". windows-clang-debug NOT built (not a CI lane).
+- **Remaining NOTE:** an extra `coerce -> validate(coerced)`-style stale-CONTEXT sentence may linger in the S046
+  test header's first block; verified functionally neutral, left as-is to avoid churn (see S046 header lines 9-13).
+
+## build_status (as of this session — S810: both lanes GREEN)
 - **Hard clean**: `git clean -fdx build/` (wiped the incremental cache). Fresh `cmake --preset <lane>` +
   `cmake --build` + `ctest --output-on-failure`, no caching.
 - **windows-msvc** (msvc-debug): 4/4 test suites PASSED (core 16.36s / tools 2.71s / vulkan 0.51s /
@@ -82,11 +102,13 @@ ground truth. The name-only DP hosing is ABOLISHED; ZERO MINIMAL REAL introduced
   VamlReader_binding:187 Direct empty-path boundary.
 
 ## next_step
-- Sprint 11s (S804..S808) CLOSED: roadmap SURVIVOR recorded (progress.md) + plan green + two-lane proof
-  (build/verify_s11s.cmd -> "S11s GREEN") + the composite (name, owner) coexistence landed end-to-end.
-- The [both-apps, not CI] LIVE window display of sample.s11s.vaml stays the on-machine local gate (recorded NO-GAP).
-- Next step per the surrounding continuation order = S520 (Sprint 11h — the 3rd-party IMPORT/INJECT seam).
-- Remote-build (GH CI) check-in remains OPEN (Sprint 11s is uncommitted; commits fire only on explicit commitit — standing directive).
+- Sprint 11t S810 (Part 1, D1) CLOSED: pipeline-order drift corrected + S046 raw-boundary proof + both-lane green.
+- **Next = Sprint 11t Part 2 = S811 (D2/D3):** remove the implicit cross-thread ChangeQueue/ChangeRecorder/
+  ChangeProcessor + ProcessNotificationQueue/pending_notification_count/fire_self_subscribers + SetResult::QUEUED,
+  make wrong-thread DP access THROW like WPF VerifyAccess does, re-point the binding engine onto the synchronous
+  with_changed callback, and change the invalid-disposition REJECTED->throw InvalidPropertyValueException.
+  (WPF source audit required for the binding re-point — see the implementit determination split.)
+- Remote-build (GH CI) check-in remains OPEN (Sprint 11t S810 uncommitted; commits fire only on explicit commitit).
 
 ## notes
 - Sprint 11s DONE, NOT committed. build/verify_s11s.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).

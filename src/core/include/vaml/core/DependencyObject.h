@@ -60,11 +60,13 @@
 //   - Get() RETURNS BY VALUE. No reference into the store is exposed, so
 //     callers are immune to future store mutation/coalescing (S037 marshalling,
 //     S039 effective-value), and there is no ref-invalidation hazard.
-//   - PIPELINE IN Set(). coerce runs BEFORE validate (validate sees the
-//     coerced value — S035 ordering contract). The changed cb fires with the
-//     OLD effective (local override if present else default) and the coerced
-//     NEW value, and ONLY when they differ (real change). A rejected value
-//     leaves the store unchanged and fires nothing.
+//   - PIPELINE IN Set(). validate runs on the RAW input FIRST (WPF
+//     DO.cs:653 — a raw value invalid at the boundary is rejected/thrown
+//     before coercion), then coerce, then validate ON THE COERCED value (WPF
+//     DO.cs:1692) — the corrected D1 (S810) ordering. The changed cb fires with
+//     the OLD effective (local override if present else default) and the
+//     coerced NEW value, and ONLY when they differ (real change). A rejected
+//     value leaves the store unchanged and fires nothing.
 //   - THREAD-AFFINITY MARKER. The ctor captures std::this_thread::get_id().
 //     S036 records + exposes it (thread_affinity_id / is_affine_to_current_thread);
 //     S037 (this step) consumes it as the basis for wrong-thread detection.
@@ -236,9 +238,11 @@ public:
     // VALUE. Throws PropertyNotFound for an unregistered PropertyId.
     [[nodiscard]] Value Get(PropertyId id) const;
 
-    // Writes `input` through the S035 pipeline (coerce -> validate(coerced) ->
-    // fire-on-real-change -> store). Throws PropertyNotFound for an
-    // unregistered PropertyId, ValueTypeMismatch for a wrong-tag input.
+    // Writes `input` through the D1 (S810) pipeline (validate(raw) -> coerce ->
+    // validate(coerced) -> fire-on-real-change -> store) — the WPF order
+    // (DO.cs:653 raw-validate, DO.cs:1692 coerce + re-validate). Throws
+    // PropertyNotFound for an unregistered PropertyId, ValueTypeMismatch for a
+    // wrong-tag input.
     //
     // S037 affinity-aware behavior: on the AFFINE thread this is exactly the
     // S035 pipeline (APPLIED/REJECTED/NO_CHANGE). On a NON-affine thread,

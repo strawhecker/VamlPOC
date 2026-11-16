@@ -7,9 +7,10 @@
 //   validation (ValidateDependencies)". Reviewed against real commercial WPF
 //   MVVM, this was REDIRECTED (user-accepted) to the WPF-faithful value hooks —
 //   coercion + per-set validation — which are what DPs actually ship for
-//   property coupling. The coerce -> validate(coerced) -> fire-on-real-change
-//   -> store pipeline is ALREADY implemented in DependencyObject::Set /
-//   ProcessPendingChanges (S036/S037/S045) and the callbacks already live in
+//   property coupling. The validate(raw) -> coerce -> validate(coerced) -> fire-on-real-change
+//   -> store pipeline - the WPF order (DO.cs:653 raw validate, DO.cs:1692
+//   coerce + re-validate) - is ALREADY implemented in DependencyObject::Set /
+//   ProcessPendingChanges (S036/S037/S045, ordering corrected by S810/D1) and the callbacks already live in
 //   PropertyMetadata (S034). Therefore S046 introduces NO new product symbol
 //   (a standalone DependencyProperty::CoerceValue seam or a duplicated
 //   CoerceValueCallback alias would be DEAD/redundant surface — precisely what
@@ -263,4 +264,44 @@ TEST_CASE("S046: wrong-thread queued coercion clamps a sub-zero raw write to 0")
     SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(0)));
     SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(0u));
     SHOULD(ShouldlyString(fire).ShouldBe(1));
+}
+
+
+TEST_CASE("S046: raw invalid-but-coerce-normalizable is REJECTED at the boundary (WPF DO.cs:653)")
+{
+    // D1 (S810) pipeline-order proof: WPF validates the RAW input BEFORE
+    // coercion (DO.cs:653) and rejects at the boundary - coercion is NOT given
+    // a chance to normalize an invalid raw value. Setup: a property whose
+    // validate REJECTS any raw value below a floor of 0, but whose coerce
+    // WOULD clamp a negative raw to 0 (the value the OLD coerce-first order
+    // would have silently accepted). Under the corrected order the raw negative
+    // is REJECTED at the boundary: store unchanged, no changed cb.
+    DependencyObject obj;
+    const char* name = "RawBoundary_S046";
+    PropertyKey key(name, ValueType::Int32, "S046Owner", PropertyFlags::None);
+    int fire = 0;
+    PropertyMetadata md = PropertyMetadata::WithDefault(Value::Int32(10), PropertyFlags::None);
+    md = std::move(md)
+             .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0; })
+             .with_coerce([](const Value& v) {
+                 const std::int32_t n = v.get<std::int32_t>();
+                 return Value::Int32(n < 0 ? 0 : n); // clamps negatives to 0
+             })
+             .with_changed([&fire](const Value&, const Value&) { ++fire; });
+    (void)obj.register_property(std::move(key), std::move(md));
+    const PropertyId id = PropertyId::of(name, "S046Owner");
+
+    // Raw -5 is INVALID on entry (validate(-5) rejects), even though coerce
+    // could normalize it to 0. WPF rejects at the boundary (DO.cs:653): the
+    // store is unchanged (still default 10) and the changed cb NEVER fires.
+    SHOULD(ShouldlyString(obj.Set(id, Value::Int32(-5))).ShouldBe(SetResult::REJECTED));
+    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(10))); // unchanged
+    SHOULD(ShouldlyString(fire).ShouldBe(0));                        // no cb
+
+    // Cross-check the split stays coherent: a raw value that IS valid on entry
+    // (>= 0) AND valid after coerce still applies normally - coerce runs and
+    // stores the COERCED value (WPF DO.cs:1692).
+    SHOULD(ShouldlyString(obj.Set(id, Value::Int32(7))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(7)));
+    SHOULD(ShouldlyString(fire).ShouldBe(1)); // real change 10 -> 7 fired once
 }

@@ -135,8 +135,13 @@ TEST_CASE("S036 apply: coerce is applied — stored value is the coerced value, 
     SHOULD(ShouldlyString(newV).ShouldBe(8));
 }
 
-TEST_CASE("S036 apply: coerce runs BEFORE validate — validate sees the coerced value")
+TEST_CASE("S036 apply: D1/S810 validate raw BEFORE coerce — an invalid raw is REJECTED at the boundary")
 {
+    // Drift corrected by S810/D1: the S035 order asserted "coerce BEFORE validate
+    // (validate sees the coerced value)". WPF (DO.cs:653) validates the RAW input
+    // BEFORE coercion and rejects at the boundary — coercion is NOT given a chance
+    // to normalize an invalid raw value. Raw -3 fails validate (>= 0) on entry ->
+    // REJECTED, store unchanged (default 0).
     DependencyObject obj;
     obj.register_property(
         int32Key("Fixed"),
@@ -146,10 +151,12 @@ TEST_CASE("S036 apply: coerce runs BEFORE validate — validate sees the coerced
             })
             .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0; }));
 
-    // Raw -3 would fail validate (>= 0) on its own; coerce turns it into 5 and
-    // validate(5) passes -> APPLIED with a real change (default 0 -> 5).
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Fixed", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Fixed", "TestOwner"))).ShouldBe(Value::Int32(5))); // the COERCED value stored
+    // Raw -3 is INVALID on entry (validate(-3) rejects) even though coerce
+    // could normalize it to 5. WPF rejects at the boundary (DO.cs:653): REJECTED
+    // and the store is unchanged (still the default 0). The coerce-normalized
+    // path for a VALID raw is proven separately in the S046 RawBoundary test.
+    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Fixed", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::REJECTED));
+    SHOULD(ShouldlyString(obj.Get(PropertyId::of("Fixed", "TestOwner"))).ShouldBe(Value::Int32(0))); // store unchanged
 }
 
 TEST_CASE("S036 apply: validate rejects — store unchanged, cb NOT fired")
