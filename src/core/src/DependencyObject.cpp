@@ -1,11 +1,20 @@
-// S036 + S037 — DependencyObject out-of-line definitions.
+// S036 + S037 (corrected by S811) — DependencyObject out-of-line definitions.
 // S036 (dep:S035): implements the S035 apply pipeline verbatim in Set():
 //   coerce -> validate(on the coerced value) -> fire changed cb ONLY on a
 //   real change -> store.
-// S037 (dep:S036_5): adds wrong-thread write QUEUING — a Set() from a non-affine
-//   thread runs coerce+validate at queue time but POSTS (queued-not-applied),
-//   and ProcessPendingChanges() (affinity-thread-only) later drains FIFO through
-//   the same store half.
+// S037 (dep:S036_5, corrected by S811): adds wrong-thread access THROWING — a
+//   Set()/Get() from a NON-affine thread THROWS WrongThreadException (mirror
+//   WPF DependencyObject.VerifyAccess, DO.cs:161/412/...). S811 RETRACTS S037's
+//   original write-QUEUING (queued-not-applied + ProcessPendingChanges drain +
+//   SetResult::QUEUED) and S041's fabricated change-notification pipeline
+//   (per-object subscriber registry, ProcessNotificationQueue, descendant-push
+//   Inherits postbox, ChangeQueue/ChangeProcessor/ChangeRecorder). There is NO
+//   per-object multi-subscriber list in WPF (DO.cs:1704/1732/2039).
+//
+// S811 introduces the expression-as-value write-back seam (WPF Expression,
+// DO.cs:705-708): a bound target DP holds one live expression; a Set() on the
+// affinity thread is routed through `expr->SetValue(...)` for the two-way
+// write-back BEFORE the plain store.
 //
 // S142 (dep:S141): the pimpl is COLLAPSED. The per-object store + all inline
 // state live directly in the object's allocation as ONE block-resident unit
@@ -19,8 +28,8 @@
 
 #include "ObjectPool.h"                  // S145: the thread-local object block pool
 
-#include "vaml/core/ChangeRecorder.h"    // S041: per-property coalescing at drain
 #include "vaml/core/DependencyProperty.h" // global descriptor for S039 inheritance
+#include "vaml/core/DependencyPropertyExpression.h" // S811: the expression-as-value interface
 #include "vaml/core/Intern.h"            // S140: affinity-thread interned name keys (string_view)
 
 #include <algorithm>
@@ -229,36 +238,35 @@ DependencyObject::~DependencyObject()
     // member teardown disposes the store/subs — so an observer (e.g. a binding
     // expression's "detach on element destroy" wire) can still read the
     // object's own value store during the notification. Copy-before-invoke
-    // (a handler that (un)subscribes mid-fire is safe), same discipline as
-    // fire_self_subscribers/ProcessNotificationQueue. The handler vector is
+    // (a handler that (un)subscribes mid-fire is safe). The handler vector is
     // intentionally copied OUT of the moving-to-destruction object; the members
     // are torn down after.
     fire_destroyed();
-    // Members (store_, subs_, destroyed_, queue_, ...) are disposed here by the
-    // implicit member destructors.
+    // Members (store_, destroyed_, expressions_, ...) are disposed here by the
+    // implicit member destructors. The expressions_ map holds NON-OWNING
+    // pointers to live expressions (the BindingExpression owns itself; it
+    // detaches via add_destroyed/Detach) — no deletion here.
 }
 
-// S142 + S143 move: the pimpl collapsed so the S037 pending mutex was a DIRECT
-// std::mutex member (non-movable) — S143 relocates that mutex INTO the ChangeQueue
-// (the queue is move-only and movable), so the custom move simplifies to moving
-// every member; the single ChangeQueue carries both families. The moved-from
-// object is left in a valid-but-unspecified state (empty store, no parent, empty
-// scopes/queues), matching the pre-S142 moved-from semantics.
+// S142 + S811 move: the pimpl is collapsed and the fabricated notification
+// surface (subs_, inheritance_scope_, queue_) is removed by S811, so the custom
+// move moves only the real members (store, affinity, parent, destroyed list,
+// and the S811 expression store). The moved-from object is left in a
+// valid-but-unspecified state (empty store, no parent, empty expressions),
+// matching the pre-S142 moved-from semantics.
 VAML_CORE_EXPORT
 DependencyObject::DependencyObject(DependencyObject&& other) noexcept
     : store_(std::move(other.store_)),
       affinity_(other.affinity_),
       parent_(other.parent_),
-      subs_(std::move(other.subs_)),
-      next_sub_token_(other.next_sub_token_),
       destroyed_(std::move(other.destroyed_)),
       next_destroyed_token_(other.next_destroyed_token_),
-      inheritance_scope_(std::move(other.inheritance_scope_)),
-      queue_(std::move(other.queue_))
+      expressions_(std::move(other.expressions_))
 {
     other.parent_ = nullptr;
     other.destroyed_.clear();
     other.next_destroyed_token_ = 1;
+    other.expressions_.clear();
 }
 
 VAML_CORE_EXPORT
@@ -271,15 +279,13 @@ DependencyObject& DependencyObject::operator=(DependencyObject&& other) noexcept
     store_ = std::move(other.store_);
     affinity_ = other.affinity_;
     parent_ = other.parent_;
-    subs_ = std::move(other.subs_);
-    next_sub_token_ = other.next_sub_token_;
     destroyed_ = std::move(other.destroyed_);
     next_destroyed_token_ = other.next_destroyed_token_;
-    inheritance_scope_ = std::move(other.inheritance_scope_);
-    queue_ = std::move(other.queue_);
+    expressions_ = std::move(other.expressions_);
     other.parent_ = nullptr;
     other.destroyed_.clear();
     other.next_destroyed_token_ = 1;
+    other.expressions_.clear();
     return *this;
 }
 
@@ -386,6 +392,15 @@ bool DependencyObject::has_local_value(PropertyId id) const noexcept
 VAML_CORE_EXPORT
 Value DependencyObject::GetEffectiveValue(PropertyId id) const
 {
+    // S811: a non-affine Get THROWS (WPF DependencyObject.GetValue calls
+    // this.VerifyAccess(), DO.cs:161). There is no cross-thread read queue; a
+    // wrong-thread read is refused with a clear error (VERIFY the affinity
+    // marker against the current thread before touching the store).
+    if (affinity_ != std::this_thread::get_id())
+    {
+        throw WrongThreadException("DependencyObject::GetEffectiveValue: cannot read from a thread other than the object's affinity thread");
+    }
+
     // S802/S803: the per-object store resolves on the composite (name, owner)
     // pair — the id always carries its owner (WPF: no name-only DP lookup).
     const PD* entry = resolve_entry(id);
@@ -472,34 +487,13 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
 VAML_CORE_EXPORT
 void DependencyObject::set_parent(DependencyObject* parent) noexcept
 {
-    // S041: unwind the reverse edge from the CURRENT parent (remove this from
-    // its inheritance-scope) before installing a new one.
-    if (parent_ != nullptr)
-    {
-        auto& scope = parent_->inheritance_scope_;
-        const auto it = std::find(scope.begin(), scope.end(), this);
-        if (it != scope.end())
-        {
-            scope.erase(it);
-        }
-    }
-
+    // S811: the S041 inverse-edge (registering `this` into the parent's
+    // inheritance-scope for a descendant-push postbox) is RETRACTED. Only the
+    // single non-owning parent link is installed. The INHERITANCE VALUE still
+    // propagates through the S039 ancestor walk in Get()/GetEffectiveValue()
+    // (pull model) — there is no per-object notification queue in WPF
+    // (DO.cs:1704/1732/2039).
     parent_ = parent;
-
-    // S041 §2.4: register this object into the NEW parent's inheritance-scope
-    // (the inverse edge, non-owning). A parent walks this scope to push
-    // Inherits/InheritOnly changes to inheriting descendants.
-    if (parent_ != nullptr)
-    {
-        auto& scope = parent_->inheritance_scope_;
-        // Guard against a duplicate registration (defensive; a well-formed
-        // reparent never double-adds, but set_parent may be called with the
-        // same parent twice).
-        if (std::find(scope.begin(), scope.end(), this) == scope.end())
-        {
-            scope.push_back(this);
-        }
-    }
 }
 
 VAML_CORE_EXPORT
@@ -558,6 +552,17 @@ Value DependencyObject::nearest_ancestor_local(
 VAML_CORE_EXPORT
 SetResult DependencyObject::Set(PropertyId id, const Value& input)
 {
+    // S811: a NON-affine Set THROWS WrongThreadException (WPF
+    // DependencyObject.SetValue calls this.VerifyAccess(), DO.cs:412) BEFORE
+    // resolving the property / running any pipeline — there is NO cross-thread
+    // value queue, no deferral, no queued-not-applied. A wrong-thread writer is
+    // refused with a clear error (the exact S1724 "blocked with clear error"
+    // instinct, WPF-confirmed).
+    if (affinity_ != std::this_thread::get_id())
+    {
+        throw WrongThreadException("DependencyObject::Set: cannot Set from a thread other than the object's affinity thread");
+    }
+
     // The canonical interned name + owner views (thread-local, content-equal —
     // S140). Used against this object's affinity-thread store and the interned-
     // global DependencyProperty read path. NO transient std::string is
@@ -566,7 +571,7 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     const std::string_view owner = id.owner();
 
     // Resolve the metadata PROVIDER (non-owning) WITHOUT mutating the store
-    // (S043 attached-aware global resolution + S037 cross-thread contract):
+    // (S043 attached-aware global resolution):
     //   - in the local store: the stored entry's metadata (owned ODR or an
     //     already-materialized borrowed attached entry);
     //   - NOT in the store but globally registered: the GLOBAL metadata — an
@@ -577,11 +582,6 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     //
     // S802/S803: a composite (name, owner) id resolves by its pair (the id
     // always carries its owner — WPF has no name-only lookup).
-    //
-    // coerce + validate MUST run before any store touch (S037 instant writer
-    // feedback), and a NON-affine Set must NOT mutate the store (the store is
-    // affinity-thread-owned by construction) — so materialization is deferred
-    // to the on-affine path / the drain below, never to a wrong-thread writer.
     const PropertyMetadata* mdPtr = nullptr;
     PD* entry = resolve_entry(id);
     if (entry != nullptr)
@@ -599,10 +599,34 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     }
     const PropertyMetadata& md = *mdPtr;
 
+    // S811 expression-as-value interception (WPF SetValueCommon, DO.cs:705-708):
+    // if the target DP currently holds a live expression (a bound TwoWay
+    // BindingExpression is "current value = expression"), a Set() arriving here
+    // is first offered to the expression via `SetValue`. If the expression
+    // HANDLES the value (a reflective binding stores + writes it back to the
+    // source), the plain local-store write is skipped — the expression owns the
+    // target value. If it declines (non-reflective), we fall through to the
+    // plain store and DETACH the expression (WPF's `return false` + OnDetach,
+    // BindingExpressionBase.cs:412, DO.cs:753-761).
+    // S811 expression-as-value interception (WPF SetValueCommon, DO.cs:705-708):
+    // if the target DP currently holds a live expression (a TwoWay
+    // BindingExpression is "current value = expression"), a Set() arriving here
+    // is first offered to the expression via `SetValue`. If the expression
+    // HANDLES the value (a reflective TwoWay binding stores it + writes it back
+    // to the source), the expression stays attached; either way we FALL THROUGH
+    // to the plain store so the target's local value reflects the incoming edit
+    // (WPF: the target's effective value holds what was set). If the expression
+    // DECLINES (a non-reflective OneWay/OneTime binding), it is detached (WPF's
+    // `return false` + OnDetach, BindingExpressionBase.cs:412, DO.cs:753-761).
+    DependencyPropertyExpression* expr = current_expression(id);
+    if (expr != nullptr && !expr->SetValue(input))
+    {
+        // Non-reflective expression declined: detach it.
+        set_current_expression(id, nullptr);
+    }
+
     // S045 read-only guard: structural + value-independent. Placed BEFORE
-    // coerce/validate (the pipeline never runs) AND before the S037 affinity
-    // branch (a wrong-thread read-only Set THROWS, it is never QUEUED; a
-    // read-only rejection must not be deferrable to a drain). Throws even when
+    // coerce/validate (the pipeline never runs). Throws even when
     // `input` equals the current/default value, and never materializes a
     // borrowed store entry for a refused read-only write.
     if (has_flag(md.flags(), PropertyFlags::ReadOnly))
@@ -641,23 +665,6 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
             render_value_for_diagnostic(coerced));
     }
 
-    // S037 affinity branch: if this thread is NOT the object's affinity thread,
-    // the accepted (coerced+validated) value is POSTED, not applied. coerce and
-    // validate ALREADY ran above, so the writer got instant feedback; the drain
-    // (ProcessPendingChanges) later replays this value through the store half.
-    // NOTE: no store materialization happens here — a wrong-thread writer never
-    // mutates the affinity-owned store.
-    if (affinity_ != std::this_thread::get_id())
-    {
-        // S143 relocation: post the S037 value-write into the object's SINGLE
-        // ChangeQueue (queue_.enqueue_value keeps OWNED name + owner std::strings
-        // — the queue traverses threads, so it cannot hold thread-local intern
-        // views; the affinity-thread drain re-interns them to canonical views).
-        // S802 (name, owner) composite.
-        queue_.enqueue_value(name, owner, coerced);
-        return SetResult::QUEUED;
-    }
-
     // On the AFFINE thread, lazily materialize a BORROWED store entry for an
     // attached property so the local override has a home (S043). The global
     // descriptor is guaranteed present (we resolved `md` from it above).
@@ -685,9 +692,6 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
         });
     }
 
-    // The canonical owner the subscribers/descendant push key on.
-    const std::string_view canonicalOwner = entry->owner;
-
     // Compute the current EFFECTIVE value (local override else default) for
     // both the change comparison and the changed cb's `old`.
     const Value currentEffective = entry->local.isNull() ? md.defaultValue() : entry->local;
@@ -698,181 +702,16 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
         return SetResult::NO_CHANGE;
     }
 
-    // S041 §2.4: if this is an Inherits/InheritOnly property, capture each
-    // descendant's CURRENT effective value (BEFORE the store) so the push can
-    // carry each descendant's own old->new delta after the store (S039 pull
-    // model, S040 local-wins respected through an intermediate). S802: keyed on
-    // the composite pair.
-    const DependencyProperty* dp = resolve_global(id);
-    const bool inherits =
-        has_flag(md.flags(), PropertyFlags::Inherits)
-        || (dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits));
-
-    // S044: an ATTACHED Inherits/InheritOnly property must also capture purely
-    // passive descendants (those with NO local store entry). The precise
-    // "attached" signal is that the ORIGIN's own store entry is BORROWED
-    // (entry->owned == nullptr): the origin hosts the value but does NOT own the
-    // property (S043 borrowed metadata). An object-scoped Inherits property
-    // (the origin owns its entry) keeps the S041 behavior — a non-registering
-    // child cannot inherit it. Together with the global Inherits flag this
-    // triggers the broadened capture so passive ATTACHED descendants are
-    // notified on the parent's change (not just materialized ones).
-    std::vector<std::pair<DependencyObject*, Value>> descendantBefore;
-    if (inherits)
-    {
-        const bool captureAttachedInherits =
-            dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits)
-            && entry->owned == nullptr;
-        collect_descendant_effectives(*this, name, canonicalOwner, captureAttachedInherits, descendantBefore);
-    }
-
+    // S811: the changed notification is the SINGLE synchronous metadata
+    // PropertyChangedCallback (WPF DO.cs:2037) — `md.notifyChanged(old, new)`.
+    // There is NO subscriber registry, NO descendant-push postbox, NO deferred
+    // notification.
     md.notifyChanged(currentEffective, coerced);
 
     // D1 (S810) pipeline step 5: store.
     entry->local = coerced;
 
-    // S041 §2.5 (S244 completion): fire THIS object's own registration-ordered
-    // add_property_changed subscribers for this on-affine real change. The
-    // header contract has always documented this ("handlers fire on an
-    // on-affine Set that produced a real change"), but the implementation only
-    // ever fired the descendant-push path (ProcessNotificationQueue). S041's
-    // descendant-push suites never exercised the self-fire because they only
-    // drove pushed/queued changes — S244's target->source write-back needs the
-    // self-change seam (a TextBox edit landing on the target DP fires the
-    // binding's write-back). Copy-before-invoke (a handler that (un)subscribes
-    // mid-fire is safe) — same discipline as ProcessNotificationQueue.
-    fire_self_subscribers(name, canonicalOwner, currentEffective, coerced);
-
-    // S041 §2.4: propagate the real change to inheriting descendants (S040's
-    // recorded obligation, delivered here, NOT silent).
-    if (inherits)
-    {
-        notify_descendants(name, canonicalOwner, descendantBefore);
-    }
     return SetResult::APPLIED;
-}
-
-VAML_CORE_EXPORT
-void DependencyObject::ProcessPendingChanges()
-{
-    // Drain is affinity-thread-only (S037 D3): a wrong-thread drain would
-    // mutate the affinity-owned store from the wrong thread — throw rather than
-    // silently no-op (NO-LAZY).
-    if (affinity_ != std::this_thread::get_id())
-    {
-        throw WrongThreadException("DependencyObject::ProcessPendingChanges: must be called from the object's affinity thread");
-    }
-
-    // S143 relocation: drain the S037 value-write family from the object's
-    // SINGLE ChangeQueue (guard moved with the queue). The queue swaps the deque
-    // out under its mutex (snapshot-then-run) so wrong-thread writers hitting
-    // during the drain land in a FRESH deque (their writes drain next call),
-    // never into the one we consume — then the store half runs lock-free on
-    // the affinity thread. drain_values also re-interns each name to the
-    // canonical view (S143 B2).
-    queue_.drain_values([this](std::string_view name, std::string_view owner, const Value& coerced) {
-        // S802/S803 composite: resolve the store entry by the (name, owner) pair
-        // (owner always carried).
-        PD* entry = store_.find(name, owner);
-
-        // S045 DEFENSIVE guard at apply time: resolve the metadata provider
-        // BEFORE materializing anything, and skip a write to a property that is
-        // NOW read-only. The Set() read-only guard already prevents a read-only
-        // write from ever being QUEUED, so this only defends the narrow edge case
-        // where a property's metadata became read-only between queue-time and the
-        // drain (NO-LAZY: never apply a write to a read-only property, and never
-        // materialize a borrowed entry for a refused read-only write).
-        const PropertyMetadata* drainMd = nullptr;
-        const DependencyProperty* globalDpDrain = nullptr;
-        if (entry != nullptr)
-        {
-            drainMd = &entry->md();
-        }
-        else
-        {
-            globalDpDrain = DependencyProperty::TryGet(name, owner);
-            if (globalDpDrain == nullptr)
-            {
-                return; // unregistered after the write was queued; skip
-            }
-            drainMd = &globalDpDrain->metadata();
-        }
-        if (has_flag(drainMd->flags(), PropertyFlags::ReadOnly))
-        {
-            return; // property is read-only at apply time; skip the queued write
-        }
-
-        if (entry == nullptr)
-        {
-            // Not in the local store. If the property is globally registered, this
-            // is an ATTACHED property a wrong-thread writer targeted before the
-            // object had a store entry — materialize a BORROWED entry (affinity
-            // thread, legal) and apply. If it is NOT globally registered, skip it
-            // (property was never registered; nothing to do).
-            const std::string_view canonicalOwner = vaml::intern(globalDpDrain->owner_type_id());
-            PropertyKey* attachedKey = new PropertyKey(
-                std::string(name), globalDpDrain->metadata().boundType(),
-                globalDpDrain->owner_type_id(), globalDpDrain->flags());
-            entry = store_.emplace(PD{
-                vaml::intern(name),
-                canonicalOwner,
-                Value::Null(),
-                nullptr, // owned
-                &globalDpDrain->metadata(), // borrowed
-                attachedKey,
-            });
-        }
-        const PropertyMetadata& md = entry->md();
-        const std::string_view canonicalOwner = entry->owner;
-
-        const Value currentEffective = entry->local.isNull() ? md.defaultValue() : entry->local;
-        if (coerced == currentEffective)
-        {
-            return; // no real change at apply time -> no cb
-        }
-
-        // S041 §2.4: capture descendants' current effective values (BEFORE the
-        // store) so the push carries each descendant's own old->new delta.
-        // S044: for an ATTACHED Inherits/InheritOnly property (origin's entry is
-        // BORROWED — owned == nullptr), also capture purely passive descendants
-        // with no local store entry (broadened walk). An object-scoped Inherits
-        // property keeps the S041 behavior. S802: composite pair throughout.
-        const DependencyProperty* dp = DependencyProperty::TryGet(name, owner);
-        const bool inherits =
-            has_flag(md.flags(), PropertyFlags::Inherits)
-            || (dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits));
-        std::vector<std::pair<DependencyObject*, Value>> descendantBefore;
-        if (inherits)
-        {
-            const bool captureAttachedInherits =
-                dp != nullptr && has_flag(dp->flags(), PropertyFlags::Inherits)
-                && entry->owned == nullptr;
-            collect_descendant_effectives(*this, name, canonicalOwner, captureAttachedInherits, descendantBefore);
-        }
-
-        md.notifyChanged(currentEffective, coerced);
-        entry->local = coerced;
-
-        // S041 §2.5 (S244 completion): fire THIS object's own registration-
-        // ordered subscribers on an applied queued change, exactly like an
-        // on-affine one.
-        fire_self_subscribers(name, canonicalOwner, currentEffective, coerced);
-
-        // S041 §2.4: propagate the applied queued change to inheriting descendants
-        // exactly like an on-affine one.
-        if (inherits)
-        {
-            notify_descendants(name, canonicalOwner, descendantBefore);
-        }
-    });
-}
-
-VAML_CORE_EXPORT
-std::size_t DependencyObject::pending_change_count() const noexcept
-{
-    // S143 relocation: the S037 value-write depth is now the queue's own
-    // value-write family (drain reads the single mutex-protected deque).
-    return queue_.value_pending_count();
 }
 
 VAML_CORE_EXPORT
@@ -881,53 +720,27 @@ std::thread::id DependencyObject::thread_affinity_id() const noexcept
     return affinity_;
 }
 
+// S811 expression-as-value accessors. `expressions_` is a per-DP single-slot
+// holder of the live expression that holds a bound target DP's value (WPF's
+// "the expression IS the value", DO.cs:705-708). Lookup is on the composite
+// PropertyId; a null Result means "not bound / plain local value".
 VAML_CORE_EXPORT
-DependencyObject::PropertyChangedToken DependencyObject::add_property_changed(
-    PropertyId id, PropertyChangedHandler handler)
+DependencyPropertyExpression* DependencyObject::current_expression(PropertyId id) const noexcept
 {
-    // S146 (refactor gate): the subscriber key is forced through vaml::intern()
-    // so the map's key is a POOL-STABLE (retain-forever, thread-affine) view,
-    // NOT a transient caller-owned view. add_property_changed accepts an
-    // arbitrary user-authored PropertyId whose backing storage the caller may
-    // own (or point into transient parser storage) — a raw view key could dangle
-    // after the caller's string dies. Interning removes the dangling-key class
-    // entirely (subscriptions are thread-affine, matching S037/ADR-018 — zero
-    // locks). Content-equal dedup is preserved (S140).
-    //
-    // S802/S803 composite: the subscriber key is the (name, owner) PAIR — BOTH
-    // interned canonical views. A same-name/different-owner pair is its OWN
-    // subscription list. A subscription is keyed strictly on the pair (S803:
-    // the owner-less legacy list is removed).
-    const std::string_view stableName  = vaml::intern(id.name());
-    const std::string_view stableOwner = vaml::intern(id.owner());
-    const SubKey key{stableName, stableOwner};
-
-    // Append in REGISTRATION ORDER. The token is a monotonically-increasing
-    // counter that is never reused, so an expired token can never alias a live
-    // one.
-    const DependencyObject::PropertyChangedToken token = next_sub_token_++;
-    subs_[key].emplace_back(token, std::move(handler));
-    return token;
+    const auto it = expressions_.find(id);
+    return (it != expressions_.end()) ? it->second : nullptr;
 }
 
 VAML_CORE_EXPORT
-void DependencyObject::remove_property_changed(PropertyChangedToken token)
+void DependencyObject::set_current_expression(PropertyId id, DependencyPropertyExpression* expr) noexcept
 {
-    // Removal is O(n) per property, but preserves the registration order of
-    // what remains. We iterate every subscribed property because the token is
-    // global (not per-property); this is correct and simple, and the subscriber
-    // list is expected to be small.
-    for (auto& [key, handlers] : subs_)
+    if (expr == nullptr)
     {
-        (void)key;
-        for (auto it = handlers.begin(); it != handlers.end(); ++it)
-        {
-            if (it->first == token)
-            {
-                handlers.erase(it);
-                return;
-            }
-        }
+        expressions_.erase(id);
+    }
+    else
+    {
+        expressions_[id] = expr;
     }
 }
 
@@ -971,167 +784,6 @@ void DependencyObject::fire_destroyed()
         if (handler)
         {
             handler();
-        }
-    }
-}
-
-void DependencyObject::fire_self_subscribers(
-    std::string_view name, std::string_view owner, const Value& oldEffective, const Value& newEffective)
-{
-    // S041 §2.5 (S244 completion): fire THIS object's own registration-ordered
-    // subscribers on an actually-applied real change. The key is the canonical
-    // interned (name, owner) pair (content-equal to the add_property_changed
-    // key — S802 composite).
-    fire_subscribers_for(name, owner, oldEffective, newEffective);
-}
-
-// Fires the registration-ordered subscribers for the (name, owner) pair. S803:
-// the owner-less legacy subscription list is REMOVED (bindings + every consumer
-// now carry the composite (name, owner) pair — WPF has no name-only DP lookup),
-// so a subscription is keyed strictly on the pair. The handle vector is COPIED
-// before invoking so a handler that (un)subscribes mid-fire does not invalidate
-// iteration (registration ORDER preserved for the captured snapshot).
-void DependencyObject::fire_subscribers_for(
-    std::string_view name, std::string_view owner, const Value& oldEffective, const Value& newEffective)
-{
-    const SubKey key{vaml::intern(name), vaml::intern(owner)};
-    const auto it = subs_.find(key);
-    if (it == subs_.end())
-    {
-        return;
-    }
-    const std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>> snapshot = it->second;
-    for (const auto& [token, handler] : snapshot)
-    {
-        (void)token;
-        if (handler)
-        {
-            handler(PropertyId::of(name, owner), oldEffective, newEffective);
-        }
-    }
-}
-
-VAML_CORE_EXPORT
-void DependencyObject::ProcessNotificationQueue()
-{
-    // Drain is affinity-thread-only (mirrors S037's ProcessPendingChanges):
-    // a wrong-thread drain would fire subscribers on the wrong thread — throw
-    // rather than silently no-op (NO-LAZY).
-    if (affinity_ != std::this_thread::get_id())
-    {
-        throw WrongThreadException("DependencyObject::ProcessNotificationQueue: must be called from the object's affinity thread");
-    }
-
-    // Drain the object's own ChangeQueue (swap-out inside ChangeQueue::process)
-    // and fire this object's registration-ordered subscribers for each pushed
-    // change. Two pushed changes of the same property before this drain collapse
-    // to one notification (S038 coalescing, consumed end-to-end — S042 outcome).
-    vaml::ChangeRecorder recorder;
-    const std::size_t drained = queue_.process(
-        [&recorder](PropertyId id, const Value& o, const Value& n) {
-            recorder.record(id, o, n);
-        });
-    if (drained == 0)
-    {
-        return;
-    }
-    recorder.flush([this](PropertyId id, const Value& o, const Value& n) {
-        // Fire THIS object's registration-ordered subscribers for the pushed
-        // property (composite pair — S803, owner always carried).
-        fire_subscribers_for(id.name(), id.owner(), o, n);
-    });
-}
-
-VAML_CORE_EXPORT
-std::size_t DependencyObject::pending_notification_count() const noexcept
-{
-    return queue_.pending_count();
-}
-
-// S041 descendant push, walk 1 (BEFORE the origin stores its new value):
-// capture every descendant in this object's inheritance-scope (recursively) that
-// REGISTERS `name`, along with its CURRENT effective value. This snapshot is the
-// "before" side of each descendant's own old->new delta. Descendants that do NOT
-// register the property are skipped (they cannot inherit it).
-//
-// S044 broadening: when `captureAttachedInherits` is set (the property is a
-// globally registered Inherits/InheritOnly ATTACHED property), a descendant is
-// captured even if it has NO local store entry — a purely-passive attached
-// descendant inherits the value through the global-resolved read (S043) and must
-// be notified on the parent's change, not just materialized/registering ones.
-VAML_CORE_EXPORT
-void DependencyObject::collect_descendant_effectives(
-    const DependencyObject& root, std::string_view name, std::string_view owner,
-    bool captureAttachedInherits,
-    std::vector<std::pair<DependencyObject*, Value>>& out)
-{
-    // S144: out-param accessor (no return-by-value). `out` is the caller's sink.
-    out.clear();
-    root.visit_scope(name, owner, out, captureAttachedInherits);
-}
-
-// Recursive scope walker used by collect_descendant_effectives. `self` is the
-// object whose inheritance-scope we walk; if `self` itself is the root (the
-// origin) we do NOT include it (we only care about descendants). Each visited
-// object contributes (object, its CURRENT effective value) when it registers
-// the (name, owner) pair OR (S044) when `captureAttachedInherits` is set — a
-// passive attached Inherits descendant that has no local store entry is still
-// captured so it can be notified. Notify-side filtering (old != new) makes
-// over-capture harmless. S802: the pair is the identity.
-void DependencyObject::visit_scope(
-    std::string_view name, std::string_view owner,
-    std::vector<std::pair<DependencyObject*, Value>>& out,
-    bool captureAttachedInherits) const
-{
-    for (DependencyObject* child : inheritance_scope_)
-    {
-        if (child == nullptr)
-        {
-            continue;
-        }
-        // A descendant that registers the (name, owner) pair is captured with
-        // its current effective value; one that does not is captured ONLY when
-        // the property is a globally-registered attached Inherits/InheritOnly
-        // property (S044). The descendant's store is affinity-keyed on interned
-        // views; intern `name` + `owner` to the canonical (content-equal) views
-        // for the composite lookup.
-        const PD* entry = child->store_.find(intern(name), intern(owner));
-        if (entry != nullptr || captureAttachedInherits)
-        {
-            out.emplace_back(child, child->GetEffectiveValue(PropertyId::of(name, owner)));
-        }
-        // Recurse into this child's own scope so great-grandchildren are captured.
-        child->visit_scope(name, owner, out, captureAttachedInherits);
-    }
-}
-
-// S041 descendant push, walk 2 (AFTER the origin has stored its new value):
-// for each captured descendant, recompute the NEW effective value and enqueue a
-// pushed notification into that descendant's OWN notification queue ONLY when
-// old != new. A descendant whose effective is unchanged (local-wins node, or one
-// shielded by a nearer ancestor's still-present local override) produces no
-// notification — S040's local-wins is respected through an intermediate, not just
-// at the direct child. S802: the pair is the identity.
-VAML_CORE_EXPORT
-void DependencyObject::notify_descendants(
-    std::string_view name, std::string_view owner,
-    const std::vector<std::pair<DependencyObject*, Value>>& before)
-{
-    for (const auto& [desc, oldEffective] : before)
-    {
-        if (desc == nullptr)
-        {
-            continue;
-        }
-        // Recompute this descendant's NEW effective value AFTER the origin stored.
-        const Value newEffective = desc->GetEffectiveValue(PropertyId::of(name, owner));
-
-        // Only a descendant whose effective value ACTUALLY changed gets pushed
-        // (NO-LAZY: never over-notify). The pushed id carries the composite
-        // (name, owner) pair (S802).
-        if (!(oldEffective == newEffective))
-        {
-            desc->queue_.enqueue(PropertyId::of(name, owner), oldEffective, newEffective);
         }
     }
 }

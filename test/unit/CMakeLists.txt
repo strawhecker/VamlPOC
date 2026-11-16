@@ -26,13 +26,9 @@ add_executable(vaml-core-tests
     DependencyObject_marshalling_test.cpp
     HeapChurn_test.cpp
     Asan_teardown_test.cpp
-    ChangeRecorder_test.cpp
-    ChangeQueue_test.cpp
-    ChangeNotificationPipeline_test.cpp
     DependencyProperty_test.cpp
     EffectiveValue_test.cpp
     InheritanceCascade_test.cpp
-    Coalescing_test.cpp
     AttachedProperty_test.cpp
     AttachedInheritanceNotification_test.cpp
     ReadOnlyAndValidation_test.cpp

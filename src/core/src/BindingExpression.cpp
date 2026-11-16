@@ -8,12 +8,22 @@
 // S243 (dep:S242) added the LIVE ONE-WAY source->target subscription + the
 // SetTargetFailed emission (the S240_1 forward arm).
 //
-// S244 (this step, dep:S243) adds the TARGET->SOURCE WRITE-BACK of a TwoWay
+// S244 (this step, dep:S243) added the TARGET->SOURCE WRITE-BACK of a TwoWay
 // binding + the convertBack reverse wire + the WriteBackRejected emission (the
 // S240_1 forward arm): the forward (source->target) wire is now armed for BOTH
 // OneWay and TwoWay (shared S243 layer), and a TwoWay target-change (a TextBox
 // edit landing on the target DP) writes the target value back to the source.
 // See BindingExpression.h for the full contract.
+//
+// S811 (this corrective, dep:S810) RECASTS the S244 target->source write-back
+// from a per-property subscriber subscription on the target DependencyObject
+// (DependencyObject::add_property_changed — REMOVED) onto the WPF-faithful
+// EXPRESSION-AS-VALUE primitive: BindingExpression implements
+// DependencyPropertyExpression, registers itself as the target DP's current
+// expression, and intercepts a subsequent target Set() via SetValue →
+// transfer_write_back (WPF SetValueCommon DO.cs:705-708 →
+// BindingExpressionBase.SetValue BindingExpressionBase.cs:397-414). See
+// BindingExpression.h for the full contract.
 
 #include "vaml/core/BindingExpression.h"
 #include "vaml/core/DependencyProperty.h" // S803 composite target-DP resolution (ResolveForElement)
@@ -55,17 +65,6 @@ std::string policy_what(PropertyPathError kind, const std::string& path)
 //   - otherwise → the verbatim pair (fallback, keeps owner-carrying specs).
 PropertyId resolve_target_id(const std::string& prop, const std::string& owner)
 {
-    // Build string_views OVER `prop`/`owner` FIRST, then substr those views —
-    // never std::string::substr. PropertyId is a NON-OWNING pair of
-    // std::string_views (S800 contract), so the views must point into storage
-    // that outlives the id. `prop`/`owner` at every call site are the binding's
-    // member `targetProp_`/`targetOwner_` strings (stable for the binding's
-    // lifetime); a std::string_view::substr stays inside that storage, whereas
-    // std::string::substr returns a temporary std::string whose buffer dies at
-    // the end of the full expression — producing a DANGLING id (the S803
-    // composite-re-key regression that dropped the TextBox Text forward push
-    // AND its S244 write-back: the appliance resolved to an empty "no property
-    // registered" id).
     const std::string_view propView = prop;
     const std::string_view ownerView = owner;
     if (!ownerView.empty())
@@ -142,26 +141,24 @@ BindingExpression::BindingExpression(BindingExpression&& other) noexcept
       subscribed_(other.subscribed_),
       liveToken_(other.liveToken_),
       writeback_(other.writeback_),
-      targetToken_(other.targetToken_),
       detached_(other.detached_),
       detachedEmitted_(other.detachedEmitted_)
 {
-    // Transfer the live subscriptions onto THIS instance so a moved binding
-    // stays live. Each handler captures `this`, so it must point at the
-    // moved-to object, never the dangling moved-from: remove the old
+    // Transfer the live wires onto THIS instance so a moved binding stays live.
+    // Each handler / expression register captures `this`, so it must point at
+    // the moved-to object, never the dangling moved-from: remove the old
     // (moved-from-capturing) tokens from the UNCHANGED source/target, then
-    // re-arm new tokens capturing `this`. Mark the moved-from inert so its dtor
+    // re-arm new ones capturing `this`. Mark the moved-from inert so its dtor
     // does not double-remove.
     other.subscribed_ = false;
     other.liveToken_  = 0;
     other.writeback_  = false;
-    other.targetToken_= 0;
     other.detached_   = false;
     other.detachedEmitted_ = false;
 
-    std::string_view forwardKey{};
     if (!detached_)
     {
+        std::string_view forwardKey{};
         if (subscribed_ && source_ != nullptr)
         {
             forwardKey = first_segment_name(path_);
@@ -170,12 +167,11 @@ BindingExpression::BindingExpression(BindingExpression&& other) noexcept
                 PropertyId::of(forwardKey, "ObservableObject"),
                 [this](PropertyId, const Value&, const Value&) { transfer_one_way(); });
         }
+        // S811: re-REGISTER this expression as the target DP's current value
+        // (the write-back seam — was: target_->add_property_changed).
         if (writeback_ && target_ != nullptr)
         {
-            target_->remove_property_changed(targetToken_);
-            targetToken_ = target_->add_property_changed(
-                resolve_target_id(targetProp_, targetOwner_),
-                [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
+            target_->set_current_expression(resolve_target_id(targetProp_, targetOwner_), this);
         }
         // Re-arm the S245 destruction wire: a moved binding keeps auto-detaching
         // when its target element is destroyed.
@@ -216,13 +212,11 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
     subscribed_   = other.subscribed_;
     liveToken_    = other.liveToken_;
     writeback_    = other.writeback_;
-    targetToken_  = other.targetToken_;
     detached_     = other.detached_;
     detachedEmitted_ = other.detachedEmitted_;
     other.subscribed_ = false;
     other.liveToken_  = 0;
     other.writeback_  = false;
-    other.targetToken_= 0;
     other.detached_   = false;
     other.detachedEmitted_ = false;
     if (!detached_)
@@ -236,10 +230,7 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
         }
         if (writeback_ && target_ != nullptr)
         {
-            target_->remove_property_changed(targetToken_);
-            targetToken_ = target_->add_property_changed(
-                resolve_target_id(targetProp_, targetOwner_),
-                [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
+            target_->set_current_expression(resolve_target_id(targetProp_, targetOwner_), this);
         }
         if (target_ != nullptr)
         {
@@ -256,7 +247,7 @@ BindingExpression& BindingExpression::operator=(BindingExpression&& other) noexc
 BindingExpression::~BindingExpression()
 {
     unsubscribe();        // S243 forward wire
-    unsubscribe_writeback(); // S244 reverse wire
+    unsubscribe_writeback(); // S244 reverse wire (S811: expression registration)
     unsubscribe_destroyed(); // S245 destruction wire
 }
 
@@ -333,7 +324,7 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
     e->targetType_  = spec.targetType;
     e->path_        = std::move(path);
     e->arm_subscription();   // S243 forward wire (OneWay OR TwoWay in S244)
-    e->arm_writeback();      // S244 reverse wire (TwoWay only)
+    e->arm_writeback();      // S244 reverse wire (TwoWay only), S811-recast
     e->arm_destroyed();      // S245 destruction wire (detach on element destroy)
     return e;
 }
@@ -404,15 +395,14 @@ void BindingExpression::transfer_one_way()
 
 void BindingExpression::unsubscribe_writeback()
 {
+    // S811: the write-back is the expression-as-value registration. Removing it
+    // makes the target treat the property as an unbound local again (no
+    // SetValue interception). Idempotent.
     if (writeback_ && target_ != nullptr)
     {
-        // Idempotent, global token-based: removing an already-removed/unknown
-        // token is a no-op (S041), so this is safe even if the token was
-        // superseded by a move.
-        target_->remove_property_changed(targetToken_);
+        target_->set_current_expression(resolve_target_id(targetProp_, targetOwner_), nullptr);
     }
-    writeback_   = false;
-    targetToken_ = 0;
+    writeback_ = false;
 }
 
 // --- S245 detach-on-element-destroy lifecycle ------------------------------
@@ -461,7 +451,7 @@ void BindingExpression::Detach()
         return;
     }
     unsubscribe();          // S243 forward wire
-    unsubscribe_writeback(); // S244 reverse wire
+    unsubscribe_writeback(); // S244 reverse wire (S811: expression registration)
     unsubscribe_destroyed(); // S245 destruction wire
     detached_ = true;
 }
@@ -492,9 +482,11 @@ void BindingExpression::emit_detached()
 
 void BindingExpression::arm_writeback()
 {
-    // Only TwoWay arms a target->source WRITE-BACK. OneWay/OneTime never write
-    // back (their writes are one direction only). The FORWARD wire for TwoWay
-    // is armed separately by arm_subscription (the shared S243 layer).
+    // S811-recast: only a TwoWay binding registers itself as the target DP's
+    // current expression (the write-back seam). OneWay/OneTime never write back
+    // (their writes are one direction only) — they are NOT registered, so a
+    // target Set is NOT routed to them. The FORWARD wire for TwoWay is armed
+    // separately by arm_subscription (the shared S243 layer).
     if (mode_ != BindingMode::TwoWay)
     {
         return;
@@ -505,31 +497,46 @@ void BindingExpression::arm_writeback()
     }
     if (target_ == nullptr || targetProp_.empty())
     {
-        return; // no target property to observe (nothing to write back from)
+        return; // no target property (nothing to write back from)
     }
-    // No leading source key -> a write-back would have nowhere to land; the
-    // arm still holds (the key check is the write-back path's, not the arm's)
-    // so the introspection reflects "armed to observe the target".
-    targetToken_ = target_->add_property_changed(
-        resolve_target_id(targetProp_, targetOwner_),
-        [this](PropertyId, const Value&, const Value&) { transfer_write_back(); });
+    // Register this expression as the target DP's current value. A subsequent
+    // target_->Set(...) (a TextBox edit) is offered to SetValue → write-back.
+    target_->set_current_expression(resolve_target_id(targetProp_, targetOwner_), this);
     writeback_ = true;
 }
 
-void BindingExpression::transfer_write_back()
+bool BindingExpression::SetValue(const Value& value)
+{
+    // S811: the WPF BindingExpressionBase.SetValue (BindingExpressionBase.cs:397-414)
+    // "handles" a target Set when the binding is reflective: the incoming VALUE
+    // (a TextBox edit) is written back to the source. In VAML a binding is
+    // reflective (writes back to the source) ONLY when it is TwoWay. For a
+    // non-reflective (OneWay/OneTime) binding, return false so the caller
+    // (DependencyObject::Set) falls through to the plain store and detaches
+    // this expression (WPF's `return false` branch, BindingExpressionBase.cs:412).
+    if (mode_ != BindingMode::TwoWay)
+    {
+        return false;
+    }
+    if (detached_)
+    {
+        emit_detached();
+        // Detached: the binding is inert — decline so the caller stores the
+        // value directly (and detaches the expression).
+        return false;
+    }
+    // Handle: write the incoming target-side value back to the source.
+    transfer_write_back(value);
+    return true;
+}
+
+void BindingExpression::transfer_write_back(const Value& incoming)
 {
     // The S244 TARGET->SOURCE write-back body. Runs when the target DP fires a
-    // REAL change (a TextBox edit landing on the target DP). Class B: a
+    // Set() that was routed through SetValue (a TextBox edit landing on the
+    // target DP); `incoming` is the NEW value from that edit. Class B: a
     // rejection is emitted (WriteBackRejected), NEVER thrown — the target value
     // is not written to the source on a rejection.
-    //
-    // Loop-safety (the forward direction): writing back to a source that
-    // already HOLDS the value makes ObservableObject::Set return false (the
-    // real-change discipline, S241) -> no source signal -> the forward wire
-    // does not re-fire. And a forward push via TransferValue stays under the
-    // `transferring_` guard, so a target change raised WHILE the write-back is
-    // landing cannot echo back. Both legs are BOUNDED (proven by a
-    // bounded-cycle test).
 
     // IsInTransfer-equivalent guard: while a forward source->target transfer
     // is in flight, a target change is NOT written back (authoritative WPF
@@ -541,30 +548,9 @@ void BindingExpression::transfer_write_back()
         return;
     }
 
-    // S245: a DETACHED binding writes NOTHING to the source. Emit Detached
-    // (Class B, silenced non-error) ONCE and skip WITHOUT writing.
-    if (detached_)
-    {
-        emit_detached();
-        return;
-    }
-
-    // 1. Read the target's current value.
-    Value value = Value::Null();
-    if (target_ == nullptr || targetProp_.empty())
-    {
-        emit_write_back_rejected("no target");
-        return;
-    }
-    try
-    {
-        value = target_->Get(resolve_target_id(targetProp_, targetOwner_));
-    }
-    catch (const PropertyNotFound&)
-    {
-        emit_write_back_rejected("target property not found");
-        return;
-    }
+    // 1. The value to write back is the incoming edit value (not a stale re-read
+    //    of the target store — the store has not been updated yet for this edit).
+    Value value = incoming;
 
     // 2. Reverse converter wire (S244 resolves S242's convertBack seam).
     if (converter_.convertBack)
@@ -675,12 +661,11 @@ TransferResult BindingExpression::apply_to_target(const Value& value)
         {
             case SetResult::APPLIED:   return TransferResult::Applied;
             case SetResult::NO_CHANGE: return TransferResult::NoChange;
-            case SetResult::QUEUED:    return TransferResult::TargetRejected; // wrong-thread queued (S242: no emission)
             case SetResult::REJECTED:  return TransferResult::TargetRejected; // S810_1: kept only as a compile-time-known unreachable
                 // arm — the Set pipeline no longer RETURNS REJECTED for a
                 // validate refusal (it throws InvalidPropertyValueException,
-                // caught below). Retained so the enum member's retirement
-                // doesn't force an exhaustive-switch break; S811 removes it.
+                // caught below). S811 removed SetResult::QUEUED (S037's
+                // wrong-thread value queueing tail).
         }
     }
     catch (const ValueTypeMismatch&)
@@ -705,6 +690,13 @@ TransferResult BindingExpression::apply_to_target(const Value& value)
         // (TransferResult::TargetRejected) is preserved. The throw is converted
         // HERE at the binding boundary, never suppressed in the core. No
         // SetTargetFailed emission (S243's arm).
+        return TransferResult::TargetRejected;
+    }
+    catch (const WrongThreadException&)
+    {
+        // S811: a wrong-thread target Set THROWS (WPF VerifyAccess). Map the
+        // throw to TargetRejected at the binding boundary like any other target
+        // rejection (Class B, observation never control-flow).
         return TransferResult::TargetRejected;
     }
     return TransferResult::TargetRejected;
@@ -732,6 +724,28 @@ TransferResult BindingExpression::TransferSourceToTarget()
         explicit TransferGuard(bool& f) : flag(f) { flag = true; }
         ~TransferGuard() { flag = false; }
     } guard(transferring_);
+
+    // S811: the forward source->target push is the BINDING's OWN write — it must
+    // store the resolved value in the target's local store, NOT be intercepted
+    // by the expression's SetValue (which is for EXTERNAL edits → write-back).
+    // Temporarily detach the expression registration for the duration of the
+    // transfer and restore it on scope exit (RAII covers every return path).
+    // (WPF: the binding's UpdateTarget sets the expression's value directly; it
+    // does not route through the object's SetValueCommon.)
+    struct WritebackRestoreGuard
+    {
+        BindingExpression& self;
+        const bool armed;
+        explicit WritebackRestoreGuard(BindingExpression& e)
+            : self(e), armed(e.live_writeback())
+        {
+            if (armed) { self.unsubscribe_writeback(); }
+        }
+        ~WritebackRestoreGuard()
+        {
+            if (armed) { self.arm_writeback(); }
+        }
+    } wbRestore(*this);
 
     // --- Resolve the source (S240 evaluator over the S241 reader) ----------
     PropertyRead read;

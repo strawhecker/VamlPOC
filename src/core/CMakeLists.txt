@@ -16,9 +16,7 @@ vaml_add_library(core
     src/PropertyMetadata.cpp
     src/DependencyObject.cpp
     src/DependencyProperty.cpp
-    src/ChangeRecorder.cpp
-    src/ChangeQueue.cpp
-    src/ChangeProcessor.cpp
+    src/DependencyPropertyExpression.cpp # S811 — the expression-as-value interface (WPF Expression)
     src/XmlScanner.cpp
     src/ParsedElement.cpp
     src/ElementFactoryRegistry.cpp

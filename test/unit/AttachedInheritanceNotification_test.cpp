@@ -78,6 +78,7 @@ using vaml::PropertyNotFound;
 using vaml::SetResult;
 using vaml::Value;
 using vaml::ValueType;
+using vaml::WrongThreadException;
 using vaml::test::ShouldThrow;
 
 namespace {
@@ -108,26 +109,39 @@ const DependencyProperty& registerAttachedGlobal(const std::string& name, const 
 
 constexpr PropertyFlags kInh = PropertyFlags::Inherits;
 
-// A non-affine Set() executed on a fresh thread; the result captured back by a
-// join barrier (mirrors S037 / S043's marshalling harness).
-void setFromOtherThread(DependencyObject& obj, const PropertyId& id, Value v, SetResult* out)
+// A non-affine Set() executed on a fresh thread; the thrown WrongThreadException
+// is captured by a join barrier (S811: a wrong-thread Set THROWS, WPF VerifyAccess).
+void setFromOtherThreadThrows(DependencyObject& obj, const PropertyId& id, Value v,
+                              std::exception_ptr& excOut)
 {
-    std::thread t([&] { *out = obj.Set(id, v); });
+    std::thread t([&] {
+        try
+        {
+            (void)obj.Set(id, v);
+        }
+        catch (...)
+        {
+            excOut = std::current_exception();
+        }
+    });
     t.join();
 }
 
-// Collects fired subscriber notifications into (name, old, new) Int32 triples —
-// the same trace harness as S042's Coalescing proof.
+// Collects fired SYNCHRONOUS metadata PropertyChangedCallback (with_changed)
+// notifications into (name, old, new) Int32 triples. S811: the changed
+// notification is the metadata callback fired inside Set (WPF DO.cs:2037/2039),
+// NOT the removed per-object subscriber registry / descendant-push postbox.
 struct SubTrace
 {
     std::vector<std::string> names;
     std::vector<std::int32_t> olds;
     std::vector<std::int32_t> news;
 
-    DependencyObject::PropertyChangedHandler handler()
+    // A metadata property-changed callback that appends to this trace.
+    PropertyMetadata::ChangedFunc changed(const char* name)
     {
-        return [this](PropertyId id, const Value& o, const Value& n) {
-            names.emplace_back(id.name());
+        return [this, name](const Value& o, const Value& n) {
+            names.emplace_back(name);
             olds.push_back(o.get<std::int32_t>());
             news.push_back(n.get<std::int32_t>());
         };
@@ -180,99 +194,95 @@ TEST_CASE("S044: attached inherited + local-wins — child override not clobbere
     SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(7)));
 }
 
-TEST_CASE("S044: passive attached-Inherits descendant IS notified (gap-fix under test)")
+TEST_CASE("S044(S811): attached-Inherits VALUE propagates to a passive child; origin fires the synchronous metadata cb")
 {
-    // S044's product gap-fix in action: a PURELY-PASSIVE child (never registers,
-    // never Set, never materializes a store entry) that INHERITS an attached
-    // Inherits property must be NOTIFIED when the parent's value changes. This
-    // failed before S044's push-walk broadening and passes after.
+    // S811: there is NO per-object notification pipeline (no child subscriber,
+    // no descendant-push postbox — removed). What survives is (A) the inherited
+    // VALUE propagating to a purely-passive child (it never registers, never Set,
+    // never materializes a store entry — it reads the inherited value through
+    // S043 global resolution + the S039 ancestor walk), and (B) the ORIGIN's
+    // synchronous PropertyChangedCallback (metadata with_changed, WPF DO.cs:
+    // 2037) firing once inside its Set. This is the WPF-faithful notification:
+    // the changed callback lives on the metadata of the property being Set, not
+    // on a spurious per-object subscriber list.
     const std::string name = "AttachedBrush_S044_3";
-    (void)registerAttachedGlobal(name, "AppOwner_A", kInh, Value::Int32(0));
+    SubTrace trace;
+    const DependencyProperty& dp =
+        DependencyProperty::Register(name, ValueType::Int32, "AppOwner_A",
+                                     PropertyMetadata::WithDefault(Value::Int32(0), kInh)
+                                         .with_changed(trace.changed(name.c_str())));
+    (void)dp;
 
     DependencyObject parent, child;
     child.set_parent(&parent); // child is passive — no Set, no register ever
 
-    SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
-
-    // Parent's attached Inherits write pushes to the passive child.
+    // Parent's attached Inherits write fires the ORIGIN's metadata cb exactly
+    // once (0 -> 8) AND the child's inherited value follows (8).
     SHOULD(ShouldlyString(parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(8))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
-
-    // Child drain fires EXACTLY once, old=0 (inherited default) -> new=8.
-    child.ProcessNotificationQueue();
     SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
     SHOULD(ShouldlyString(trace.names[0]).ShouldBe(std::string(name)));
     SHOULD(ShouldlyString(trace.olds[0]).ShouldBe(0));
     SHOULD(ShouldlyString(trace.news[0]).ShouldBe(8));
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(8)));
 }
 
-TEST_CASE("S044: attached coalescing — two Sets before one drain == one notification")
+TEST_CASE("S044(S811): attached inheritance — each parent Set fires the origin cb synchronously; child follows the latest")
 {
-    // S042's coalescing contract on the attached axis: two attached Inherits
-    // Sets BEFORE the passive child's drain collapse to ONE notification, with
-    // first-old kept and latest-new adopted.
+    // S811: NO coalescing / deferred drain — each Set fires the origin's
+    // synchronous metadata cb with its own old->new delta, and the child's
+    // effective value follows the latest parent move (the pull-model ancestor
+    // walk).
     const std::string name = "AttachedCoalesce_S044_4";
-    (void)registerAttachedGlobal(name, "AppOwner_A", kInh, Value::Int32(0));
+    SubTrace trace;
+    const DependencyProperty& dp =
+        DependencyProperty::Register(name, ValueType::Int32, "AppOwner_A",
+                                     PropertyMetadata::WithDefault(Value::Int32(0), kInh)
+                                         .with_changed(trace.changed(name.c_str())));
+    (void)dp;
 
     DependencyObject parent, child;
     child.set_parent(&parent); // passive child
 
-    SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
+    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(5)); // cb (0 -> 5)
+    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(8)); // cb (5 -> 8)
 
-    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(5)); // push (0 -> 5)
-    (void)parent.Set(PropertyId::of(name, "AppOwner_A"), Value::Int32(8)); // push (5 -> 8)
-
-    // RAW depth 2: coalescing happens AT DRAIN, not enqueue.
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(2u));
-
-    // ONE drain collapses to ONE notification, first old (0) kept / latest new (8).
-    child.ProcessNotificationQueue();
-    SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(trace.names[0]).ShouldBe(std::string(name)));
+    // Two SYNCHRONOUS origin callbacks, in order, each its own delta.
+    SHOULD(ShouldlyString(trace.names.size()).ShouldBe(2u));
     SHOULD(ShouldlyString(trace.olds[0]).ShouldBe(0));
-    SHOULD(ShouldlyString(trace.news[0]).ShouldBe(8));
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
+    SHOULD(ShouldlyString(trace.news[0]).ShouldBe(5));
+    SHOULD(ShouldlyString(trace.olds[1]).ShouldBe(5));
+    SHOULD(ShouldlyString(trace.news[1]).ShouldBe(8));
+
+    // The child's inherited value follows the latest (8).
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(8)));
 }
 
-TEST_CASE("S044: wrong-thread attached Inherits -> QUEUED; drain applies -> descendant notified")
+TEST_CASE("S044(S811): wrong-thread attached Inherits Set THROWS; value and metadata cb untouched")
 {
-    // S037 marshalling on the attached-Inherits axis: a NON-affine parent Set is
-    // QUEUED (not applied, child not yet notified); the affinity-thread drain
-    // applies it (ProcessPendingChanges) which then pushes to the passive child;
-    // the child's drain (ProcessNotificationQueue) fires (old, new).
+    // S811: a NON-affine parent Set THROWS WrongThreadException (WPF
+    // VerifyAccess). Nothing is applied, the origin's metadata cb does NOT fire,
+    // and the child's inherited value stays the default.
     const std::string name = "AttachedMarshalled_S044_5";
-    (void)registerAttachedGlobal(name, "AppOwner_A", kInh, Value::Int32(0));
+    SubTrace trace;
+    const DependencyProperty& dp =
+        DependencyProperty::Register(name, ValueType::Int32, "AppOwner_A",
+                                     PropertyMetadata::WithDefault(Value::Int32(0), kInh)
+                                         .with_changed(trace.changed(name.c_str())));
+    (void)dp;
 
     DependencyObject parent, child;
     child.set_parent(&parent); // passive child
 
-    SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of(name, "AppOwner_A"), trace.handler());
-
-    // Non-affine attached Inherits Set -> QUEUED, NOT applied.
-    SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(parent, PropertyId::of(name, "AppOwner_A"), Value::Int32(9), &r);
-    SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
-    SHOULD(ShouldlyString(parent.pending_change_count()).ShouldBe(1u));
+    // Non-affine attached Inherits Set -> THROWS; nothing applied, no cb.
+    std::exception_ptr exc;
+    setFromOtherThreadThrows(parent, PropertyId::of(name, "AppOwner_A"), Value::Int32(9), exc);
+    SHOULD(ShouldlyString(exc != nullptr).ShouldBe(true));
+    SHOULD(ShouldThrow<WrongThreadException>([&] { std::rethrow_exception(exc); }));
     SHOULD(ShouldlyString(parent.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(0)));
-    // Child not yet notified.
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
-
-    // Affinity-thread drain applies the queued attached write -> pushes to child.
-    parent.ProcessPendingChanges();
-    SHOULD(ShouldlyString(parent.pending_change_count()).ShouldBe(0u));
-    SHOULD(ShouldlyString(parent.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(9)));
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
-
-    // Child drain fires (0 -> 9).
-    child.ProcessNotificationQueue();
-    SHOULD(ShouldlyString(trace.names.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(trace.olds[0]).ShouldBe(0));
-    SHOULD(ShouldlyString(trace.news[0]).ShouldBe(9));
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
+    // The origin's metadata cb did NOT fire (nothing was applied).
+    SHOULD(ShouldlyString(trace.names.size()).ShouldBe(0u));
+    // The child's inherited value is unchanged (default 0).
+    SHOULD(ShouldlyString(child.Get(PropertyId::of(name, "AppOwner_A"))).ShouldBe(Value::Int32(0)));
 }
 
 TEST_CASE("S044: owner != class preserved; local registration shadows global; unregistered throws")

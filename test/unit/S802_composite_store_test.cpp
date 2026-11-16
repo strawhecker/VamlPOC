@@ -25,8 +25,11 @@
 //      same pair overwrites that pair only.
 //   5. same-pair re-register throws (PropertyAlreadyRegistered), same-name/
 //      different-owner re-register succeeds as a DISTINCT store entry.
-//   6. SUBSCRIBERS are pair-keyed: add_property_changed((name, ownerA)) fires
-//      on ownerA's Set, NOT ownerB's (composite registration-ordered registry).
+//   6. PER-PAIR NOTIFICATIONS are pair-keyed: each pair's metadata
+//      PropertyChangedCallback (with_changed, fired synchronously inside Set —
+//      WPF DO.cs:2037) fires on ITS OWN pair's Set, NOT the other's. S811
+//      retracts the fabricated add_property_changed subscriber registry; the
+//      synchronous metadata callback preserves composite identity.
 //
 // Uses the Shouldly-for-doctest vocabulary (S036_5 standing convention).
 
@@ -119,27 +122,29 @@ TEST_CASE("S802: same-pair re-register throws; same-name/different-owner is a di
     SHOULD(ShouldlyString(obj.Get(PropertyId::of("Width", "ownerA"))).ShouldBe(Value::Int32(1)));
 }
 
-TEST_CASE("S802: subscribers are pair-keyed — ownerA fires, ownerB does not")
+TEST_CASE("S802: per-pair synchronous callbacks are pair-keyed — ownerA's metadata cb fires, ownerB's does not")
 {
+    // S811: the pair-keyed NOTIFICATION is the synchronous metadata
+    // PropertyChangedCallback (PropertyMetadata::with_changed, fired inside
+    // Set — WPF DO.cs:2037/2039). Two same-name/different-owner DPs each carry
+    // their OWN metadata with_changed, so a Set on one pair fires ONLY that
+    // pair's callback — the per-object composite identity is preserved without
+    // the removed (fabricated) add_property_changed subscriber registry.
+    int fireA = 0;
+    int fireB = 0;
     DependencyObject obj;
-    (void)obj.register_property(int32Key("Opacity", "ownerA"), int32Md(0));
-    (void)obj.register_property(int32Key("Opacity", "ownerB"), int32Md(0));
+    (void)obj.register_property(int32Key("Opacity", "ownerA"), int32Md(0).with_changed([&](const Value&, const Value&) { ++fireA; }));
+    (void)obj.register_property(int32Key("Opacity", "ownerB"), int32Md(0).with_changed([&](const Value&, const Value&) { ++fireB; }));
 
     const PropertyId idA = PropertyId::of("Opacity", "ownerA");
     const PropertyId idB = PropertyId::of("Opacity", "ownerB");
 
-    int fireA = 0;
-    int fireB = 0;
-    // Subscribe to EACH pair separately with a per-pair counter.
-    (void)obj.add_property_changed(idA, [&](PropertyId, const Value&, const Value&) { ++fireA; });
-    (void)obj.add_property_changed(idB, [&](PropertyId, const Value&, const Value&) { ++fireB; });
-
-    // Setting ownerA's Opacity fires ONLY the ownerA subscription.
+    // Setting ownerA's Opacity fires ONLY ownerA's metadata callback.
     (void)obj.Set(idA, Value::Int32(5));
     SHOULD(ShouldlyString(fireA).ShouldBe(1));
     SHOULD(ShouldlyString(fireB).ShouldBe(0));
 
-    // Setting ownerB's Opacity fires ONLY the ownerB subscription.
+    // Setting ownerB's Opacity fires ONLY ownerB's metadata callback.
     (void)obj.Set(idB, Value::Int32(7));
     SHOULD(ShouldlyString(fireA).ShouldBe(1));
     SHOULD(ShouldlyString(fireB).ShouldBe(1));

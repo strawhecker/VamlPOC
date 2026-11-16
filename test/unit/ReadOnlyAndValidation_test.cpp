@@ -62,6 +62,7 @@ using vaml::InvalidPropertyValueException;
 using vaml::SetResult;
 using vaml::Value;
 using vaml::ValueType;
+using vaml::WrongThreadException;
 using vaml::test::ShouldThrow;
 
 namespace {
@@ -137,20 +138,21 @@ TEST_CASE("S045: read-only throws even for value == current default (value-indep
     }));
 }
 
-TEST_CASE("S045: read-only from wrong thread throws (never QUEUED)")
+TEST_CASE("S045: read-only from wrong thread throws (S811 — a wrong-thread Set THROWS, no deferral)")
 {
-    // The S045 guard precedes the S037 affinity branch: a WRONG-THREAD
-    // read-only Set must THROW, never return QUEUED/defer to a drain.
+    // S811: the affinity guard is FIRST, so a WRONG-THREAD read-only Set throws
+    // WrongThreadException (WPF VerifyAccess) — it is never QUEUED, never
+    // deferred, and the read-only store is never written. (On the affine thread
+    // the S045 read-only guard throws PropertyReadOnlyException.)
     DependencyObject obj;
     const char* name = "ROWrongThread_S045";
     const PropertyId id = registerObject(obj, name, kRO, Value::Int32(0));
 
     std::exception_ptr exc;
-    SetResult r = SetResult::NO_CHANGE;
     std::thread t([&] {
         try
         {
-            r = obj.Set(id, Value::Int32(9));
+            (void)obj.Set(id, Value::Int32(9));
         }
         catch (...)
         {
@@ -160,10 +162,8 @@ TEST_CASE("S045: read-only from wrong thread throws (never QUEUED)")
     t.join();
 
     SHOULD(ShouldlyString(exc != nullptr).ShouldBe(true)); // threw
-    SHOULD(ShouldThrow<PropertyReadOnlyException>([&] { std::rethrow_exception(exc); }));
-    SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(0u)); // never queued
-    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(0)));   // unchanged
-    (void)r;
+    SHOULD(ShouldThrow<WrongThreadException>([&] { std::rethrow_exception(exc); }));
+    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(0))); // unchanged
 }
 
 TEST_CASE("S045: globally-registered read-only attached property — Set throws, Get works")

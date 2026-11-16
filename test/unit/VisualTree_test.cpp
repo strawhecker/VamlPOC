@@ -153,44 +153,31 @@ TEST_CASE("S121: take_child detaches by transferring ownership and clearing the 
     SHOULD(ShouldlyString(detached != nullptr).ShouldBe(true));
 }
 
-TEST_CASE("S121: take_child unwinds the inheritance-scope edge — parent no longer pushes to a detached child")
+TEST_CASE("S121(S811): take_child unwinds the parent edge — a detached child no longer inherits the parent's value")
 {
-    // Composition distinctness: the visual list and the S041 inheritance-scope
-    // are DISTINCT structures that compose via set_parent. Attaching wires the
-    // edge (Opacity cascades through the visual child); detaching must UNWIND
-    // that edge so no stale push survives (NO-LAZY — never leave a dangling
-    // scope edge).
+    // S811: the inheritance-scope edge + descendant-push postbox are REMOVED.
+    // Inheritance is the PULL-model ancestor walk driven by set_parent: an
+    // attached child inherits a parent's Opacity; a DETACHED child has no parent
+    // edge, so it falls back to the Opacity default. This proves the edge
+    // lifecycle via the surviving pull-model value, with no subscriber surface.
     UIElement parent;
     UIElement* child = parent.create_child<UIElement>();
-    (void)child; // owned by parent
 
-    // Subscriber on the child records any pushed Opacity notification.
-    // The S120 tests prove the cascade; here we prove the EDGE lifecycle.
-    struct Trace
-    {
-        std::size_t notified = 0;
-    } trace;
-
-    auto handler = [&trace](PropertyId, const Value&, const Value&) {
-        ++trace.notified;
-    };
-    (void)child->add_property_changed(PropertyId::of("Opacity", "UIElement"), handler);
-
-    // Attached: parent's Opacity change should push to the child (edge live).
+    // Attached: the child inherits the parent's Opacity (pull model).
     (void)parent.set_opacity(0.5);
-    child->ProcessNotificationQueue();
-    SHOULD(ShouldlyString(trace.notified).ShouldBe(1u));
+    SHOULD(ShouldlyString(child->opacity()).ShouldBe(0.5));
 
-    // Detach: unwinds the inheritance-scope edge.
+    // Detach: unwinds the parent edge.
     std::unique_ptr<UIElement> detached = parent.take_child(0);
     SHOULD(ShouldlyString(parent.child_count()).ShouldBe(0u));
     SHOULD(ShouldlyString(detached->parent() == nullptr).ShouldBe(true));
 
-    // After detach, a further parent Opacity change must NOT reach the child
-    // (the edge is gone). A clean push-silence is the NO-LAZY guarantee.
+    // After detach, a further parent Opacity change must NOT reach the child —
+    // the detached child has no parent edge, so it resolves to the default 1.0
+    // (S039 ancestor walk over a null parent yields the default).
     (void)parent.set_opacity(0.2);
-    detached->ProcessNotificationQueue();
-    SHOULD(ShouldlyString(trace.notified).ShouldBe(1u));
+    SHOULD(ShouldlyString(detached->opacity()).ShouldBe(1.0));
+    SHOULD(ShouldlyString(parent.opacity()).ShouldBe(0.2));
 }
 
 TEST_CASE("S121: remove_child detaches + destroys; count decremented")

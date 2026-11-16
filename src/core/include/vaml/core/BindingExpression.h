@@ -51,39 +51,35 @@
 //
 // S244 OWNS (this step, dep:S243): the TARGET->SOURCE write-back direction of
 // a TwoWay binding. The forward (source->target) wire is the EXACT S243 layer,
-// now armed for BOTH OneWay and TwoWay (the shared wire, no duplication); the
-// reverse direction is a SECOND, additive subscription on the TARGET
-// DependencyObject (S041 add_property_changed keyed on targetProp_) — the
-// "target changed" signal, which models a TextBox edit landing on the target
-// DP. On a real target change, `transfer_write_back()` reads the target's
-// current value, runs the `convertBack` reverse-converter wire (S242 declared
-// convertBack an empty seam; S244 RESOLVES it — NO-GAP, in place), and writes
-// it back to the source via the FIRST PATH SEGMENT's key. A rejection (no
-// source, no leading key, or a failed convertBack) emits
-// BindingReasonCode::WriteBackRejected (the S240_1 `[fwd->S244]` arm, Class B,
-// observation never control-flow per ADR-016 — never a throw). Loop-safety is
-// TWO-fold, matching the authoritative WPF primitive (BindingExpressionBase:
+// now armed for BOTH OneWay and TwoWay (the shared wire, no duplication).
+//
+// S811 (this corrective, dep:S810) RECASTS the S244 target->source write-back:
+// it is NO LONGER a per-property subscriber subscription on the TARGET
+// DependencyObject (`add_property_changed`). WPF ground truth: the target
+// write-back is EXPRESSION-AS-VALUE — the BindingExpression IS the target DP's
+// local value, and a target Set (a TextBox edit) is routed through
+// `Expression.SetValue` (DependencyObject.cs:705-708) →
+// `BindingExpressionBase.SetValue` (BindingExpressionBase.cs:397-414) →
+// `UpdateValue/UpdateTargetToSource` → write-back to source. S811 therefore:
+//   - makes BindingExpression implement `DependencyPropertyExpression`
+//     (the Expression-as-value interface);
+//   - when a TwoWay binding transfers, it registers itself as the target DP's
+//     current expression (target_->set_current_expression(targetProp_));
+//   - a subsequent target_ Set() on the affinity thread is offered to
+//     expr->SetValue(value); "handling" it (a reflective/TwoWay binding) =
+//     write the value back to the source (transfer_write_back). The
+//     fabricated subscriber registry + write-back token are gone.
+// There is NO per-object multi-subscriber list in WPF (DO.cs:1704/1732/2039);
+// the removed S041 `add_property_changed` surface is retracted in full.
+//
+// Loop-safety remains the authoritative WPF primitive (BindingExpressionBase
 // NeedsUpdate + IsInTransfer):
-//   (a) the real-change discipline ALREADY established (S241 source Set fires
-//       only on a real change; S035 target Set returns NO_CHANGE on an equal
-//       push) — a write-back to an equal source and a forward push to an equal
-//       target both terminate, and
+//   (a) the real-change discipline — S241 source Set fires only on a real
+//       change; a write-back to an equal source returns false (no signal);
 //   (b) the `transferring_` IsInTransfer-equivalent guard — the WHOLE forward
-//       source->target transfer (first push AND live re-push) runs with
-//       `transferring_` set, and while it is set a target change is NOT written
-//       back to the source. This closes the non-injective-converter round-trip
-//       that (a) alone cannot (a forward push that lands on the target with a
-//       value different from the user's typed value would otherwise write back).
-//       A source->target->write-back->source cycle is therefore BOUNDED
-//       (proven by a bounded-cycle test).
-// The write-back subscription is RAII-bound (dtor unsubscribes both; move re-arms
-// both onto the new `this`). Emission is gated to the LIVE TwoWay write-back
-// path exactly as S243 gated SetTargetFailed to the live one-way path: the
-// caller-driven first push and the OneWay/OneTime paths emit NOTHING for the
-// write-back arm. `WriteBackRejected != SetTargetFailed` (rejected write-back
-// vs rejected forward Set are distinct, tested). Caller lifetime contract
-// UNCHANGED (a binding must not outlive its source ObservableObject or target
-// DependencyObject).
+//       source->target transfer runs with `transferring_` set, and while set a
+//       target change is NOT written back to the source (closes the
+//       non-injective-converter round-trip).
 //
 // The two deliberately-split responsibility classes (S240 split, carried):
 //   - Class A (StaticAuthoring): the binding TEXT is wrong. `create` fails fast:
@@ -98,13 +94,13 @@
 //     control flow; Class B never throws).
 //
 // ADR-018: ZERO new locks. A binding is used on a single thread (its target's
-// affinity thread for Set, which S037 marshals wrong-thread writes to QUEUED —
-// mapped to TargetRejected at S242; live cross-thread marshalling is
-// S326/S211 territory, recorded not silent). bindingId is a monotonic
-// function-local counter (ADR-018: no shared mutable state).
+// affinity thread; a wrong-thread Set THROWS — S811), so the expression-as-value
+// interception is single-threaded. bindingId is a monotonic function-local
+// counter (ADR-018: no shared mutable state).
 
 #include "vaml/core/BindingDiagnostics.h" // BindingDirection, IBindingDiagnostics, factories
 #include "vaml/core/DependencyObject.h"   // DependencyObject (the target)
+#include "vaml/core/DependencyPropertyExpression.h" // S811: the expression-as-value write-back seam
 #include "vaml/core/ObservableObject.h"   // ObservableObject (the source) + its reader
 #include "vaml/core/PropertyPath.h"       // PropertyPath, PropertyRead, evaluate_property_path
 #include "vaml/core/Value.h"              // Value
@@ -224,9 +220,9 @@ struct VAML_CORE_EXPORT BindingExpressionSpec
     DependencyObject* target = nullptr;
     std::string targetProp;
     // The target property's OWNER (declaring-type/step-scoped id), always
-    // carried per S803/ADR-002 so the target Set/Get/add_property_changed are
-    // resolved on the composite (name, owner) pair — WPF has no name-only DP
-    // lookup. Empty when the target DP is unresolved (the transfer then maps to
+    // carried per S803/ADR-002 so the target Set/Get are resolved on the
+    // composite (name, owner) pair — WPF has no name-only DP lookup. Empty when
+    // the target DP is unresolved (the transfer then maps to
     // TargetRejected defensively).
     std::string targetOwner;
     BindingMode mode = BindingMode::OneTime;
@@ -247,7 +243,12 @@ struct VAML_CORE_EXPORT BindingExpressionSpec
 // target DP. Live subscription (S243 one-way / S244 two-way) is a forward step —
 // OneTime semantics are fully realized here; OneWay/TwoWay carry their mode
 // (tested) and reuse this same first push.
-class VAML_CORE_EXPORT BindingExpression
+//
+// S811: implements `DependencyPropertyExpression` — a bound TwoWay expression
+// registers itself as the target DP's current expression and intercepts a
+// subsequent target Set() for the write-back (WPF Expression-as-value,
+// DO.cs:705-708 / BindingExpressionBase.cs:397-414).
+class VAML_CORE_EXPORT BindingExpression : public DependencyPropertyExpression
 {
 public:
     BindingExpression(const BindingExpression&) = delete;
@@ -281,10 +282,10 @@ public:
     // S244 broadens the arm to TwoWay too (TwoWay reuses this forward wire).
     [[nodiscard]] bool live_subscribed() const noexcept { return subscribed_; }
 
-    // --- Live write-back introspection (S244) ------------------------------
-    // True when this TwoWay expression currently holds a live target->source
-    // write-back subscription (TwoWay mode + a valid target + a keyable path).
-    // OneWay/OneTime never write back.
+    // --- Live write-back introspection (S244, S811-recast) -----------------
+    // True when this TwoWay expression currently holds the target DP's value as
+    // an expression (registered via set_current_expression), i.e. the write-back
+    // seam is live. OneWay/OneTime never write back.
     [[nodiscard]] bool live_writeback() const noexcept { return writeback_; }
 
     // --- S245 detach lifecycle (detach on element destroy) -----------------
@@ -297,10 +298,11 @@ public:
     // it NEVER dereferences a destroyed target.
     [[nodiscard]] bool detached() const noexcept { return detached_; }
 
-    // Detaches the binding: unsubscribes the forward (S243/S244 shared) + the
-    // write-back (S244) wires, marks the expression detached. Idempotent, never
-    // throws, emits NOTHING (normal teardown — the lifecycle emission is gated
-    // to an ATTEMPTED WRITE on an already-detached binding, not to this call).
+    // Detaches the binding: unsubscribes the forward (S243/S244 shared) wire,
+    // removes the expression-as-value write-back registration (S811), marks the
+    // expression detached. Idempotent, never throws, emits NOTHING (normal
+    // teardown — the lifecycle emission is gated to an ATTEMPTED WRITE on an
+    // already-detached binding, not to this call).
     void Detach();
 
     // --- Introspection -----------------------------------------------------
@@ -312,6 +314,16 @@ public:
     [[nodiscard]] const std::string& source_path() const noexcept { return sourcePath_; }
     [[nodiscard]] const std::string& target_prop() const noexcept { return targetProp_; }
     [[nodiscard]] const std::string& target_owner() const noexcept { return targetOwner_; }
+
+    // S811: the expression-as-value `SetValue` (WPF BindingExpressionBase.SetValue,
+    // BindingExpressionBase.cs:397-414). Called by DependencyObject::Set on the
+    // affinity thread when THIS expression currently holds the target DP's value
+    // and a non-expression value arrives (a TextBox edit). For a reflective
+    // (TwoWay) binding, "handles" the value by writing it back to the source and
+    // returns true; a non-reflective (OneWay/OneTime) binding returns false
+    // (the caller then falls through to the plain store, detaching this
+    // expression).
+    [[nodiscard]] bool SetValue(const Value& value) override;
 
 private:
     BindingExpression() = default;
@@ -360,20 +372,21 @@ private:
     // one-way path so S242's OneTime no-emission tests stay green.
     void transfer_one_way();
 
-    // --- S244 two-way write-back layer -------------------------------------
-    // Arms a per-property subscription on the TARGET DependencyObject
-    // (S041 add_property_changed keyed on targetProp_) — the "target changed"
-    // signal (a TextBox edit landing on the target DP). On a real target
-    // change the handler runs transfer_write_back(). Idempotent; no-op when
-    // the mode is not TwoWay, when already armed, when there is no target or
-    // no keyable path. Never throws.
+    // --- S244 two-way write-back layer (S811-recast) -----------------------
+    // S811: registers THIS expression as the target DP's current expression
+    // (target_->set_current_expression), so a subsequent target Set() is routed
+    // through SetValue -> transfer_write_back (WPF Expression-as-value). A
+    // OneWay/OneTime binding does NOT register (its write-back must not fire).
+    // Idempotent; no-op when the mode is not TwoWay, when already armed, when
+    // there is no target or no keyable path. Never throws.
     void arm_writeback();
-    // Removes the write-back subscription (no-op when not armed). Idempotent.
+    // S811: removes the expression registration (no-op when not armed; the
+    // target then treats the property as an unbound local again). Idempotent.
     void unsubscribe_writeback();
-    // The target->source write-back body (see the class header comment): reads
-    // the target value, runs convertBack (S244 wire), writes back to the
+    // The target->source write-back body (see the class header comment): takes
+    // the incoming edit value, runs convertBack (S244 wire), writes back to the
     // source. Emits WriteBackRejected on a rejection (Class B, never throws).
-    void transfer_write_back();
+    void transfer_write_back(const Value& incoming);
     // Emits BindingReasonCode::WriteBackRejected (the S240_1 forward arm,
     // Class B) with the given detail. Gated to the live TwoWay write-back
     // path — the caller-driven first push and OneWay/OneTime never reach here.
@@ -401,20 +414,18 @@ private:
     bool subscribed_ = false;
     ObservableObject::PropertyChangedToken liveToken_ = 0;
 
-    // S244 two-way write-back state. `targetToken_` is valid only while
-    // `writeback_`; a moved-from / destroyed expression never fires a dangling
-    // `this` (move re-arms, dtor unsubscribes). Default token meaningless for a
-    // never-armed expression.
+    // S244 (S811-recast) write-back state. `writeback_` is true while THIS
+    // expression is registered as the target DP's current expression. There is
+    // NO target subscriber token — the write-back is the expression-as-value
+    // registration.
     bool writeback_ = false;
-    DependencyObject::PropertyChangedToken targetToken_ = 0;
 
     // S244 IsInTransfer-equivalent guard (the authoritative WPF primitive):
     // true while a forward source->target transfer is in flight (set in
     // TransferSourceToTarget, cleared at scope exit). While true, a target
     // change is suppressed from writing back to the source. This closes the
     // non-injective-converter round-trip gap that the real-change discipline
-    // alone cannot (a forward push landing on the target with a value different
-    // from what the user typed). Not copied on move (moved-from is inert).
+    // alone cannot. Not copied on move (moved-from is inert).
     bool transferring_ = false;
 
     // S245 lifecycle state. `detached_` marks an inert binding (see Detach()).

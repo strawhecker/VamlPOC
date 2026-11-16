@@ -124,7 +124,7 @@ inline std::ostream& operator<<(std::ostream& os, SetResult const& s)
         case SetResult::APPLIED:   return os << "SetResult::APPLIED";
         case SetResult::REJECTED:  return os << "SetResult::REJECTED";
         case SetResult::NO_CHANGE: return os << "SetResult::NO_CHANGE";
-        case SetResult::QUEUED:    return os << "SetResult::QUEUED"; // S037
+        // S811: SetResult::QUEUED (S037 wrong-thread write queueing) is removed.
     }
     return os << "SetResult::?";
 }
@@ -213,7 +213,7 @@ struct StringMaker<vaml::SetResult>
             case vaml::SetResult::APPLIED:   return "SetResult::APPLIED";
             case vaml::SetResult::REJECTED:  return "SetResult::REJECTED";
             case vaml::SetResult::NO_CHANGE: return "SetResult::NO_CHANGE";
-            case vaml::SetResult::QUEUED:    return "SetResult::QUEUED"; // S037
+            // S811: SetResult::QUEUED (S037 wrong-thread write queueing) is removed.
         }
         return "SetResult::?";
     }

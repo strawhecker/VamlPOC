@@ -20,22 +20,16 @@
 //                                defaultValue) per property on the object;
 //   4. thread-affinity marker   — the object records its creating thread.
 //
-// S037 (this step) title contract — wrong-thread write QUEUING:
-//   5. Set() is thread-affinity aware: a write from any thread other than the
-//      object's creating (affinity) thread is QUEUED-not-applied — it runs
-//      coerce + validate immediately (instant writer feedback) but does NOT
-//      store and does NOT fire the changed cb; on accept it is posted to a
-//      mutex-protected per-object pending queue and Set() returns
-//      SetResult::QUEUED.
-//   6. ProcessPendingChanges() drains that queue (FIFO) on the affinity
-//      thread, replaying each queued write through the S036 store half — so a
-//      real change fires the same cb(old,new) with the correct effective
-//      value chain (queued [5,7] on a default-0 prop fires cb(0->5) then
-//      cb(5->7)). Drain is affinity-thread-only; calling it from a non-affine
-//      thread throws WrongThreadException (NO-LAZY — a silent wrong-thread
-//      no-op would hide bugs).
-//   7. pending_change_count() exposes the queue depth (mutex-protected) so a
-//      test can observe "queued-not-applied" before a drain runs.
+// S037 (this step) title contract — wrong-thread access THROWS:
+//   5. Set()/Get() are thread-affinity aware: any access from a thread other
+//      than the object's creating (affinity) thread THROWS WrongThreadException
+//      (mirror WPF DependencyObject.VerifyAccess, DO.cs:161/412/...). There is
+//      NO cross-thread value queue — a non-affine write is refused with a clear
+//      error, never silently deferred. S811 retracts S037's original write-
+//      QUEUING (queued-not-applied + ProcessPendingChanges drain).
+//   6. (removed by S811) — no pending queue, no ProcessPendingChanges, no
+//      pending_change_count.
+//   7. (removed by S811) — no queue depth to observe.
 //
 // Set() (on the AFFINE thread) MUST reproduce exactly the S035 apply pipeline
 // (the MiniStore harness in test/unit/PropertyMetadata_semantics_test.cpp is
@@ -70,23 +64,25 @@
 //   - THREAD-AFFINITY MARKER. The ctor captures std::this_thread::get_id().
 //     S036 records + exposes it (thread_affinity_id / is_affine_to_current_thread);
 //     S037 (this step) consumes it as the basis for wrong-thread detection.
-//   - WRONG-THREAD WRITE QUEUING (S037). A Set() from a non-affine thread
-//     returns SetResult::QUEUED on an accepted (coerced+validated) value — the
-//     write is posted, not applied. The write is NOT stored and the changed cb
-//     is NOT fired until ProcessPendingChanges() (affinity thread only) drains
-//     it. Coerce + validate run AT QUEUE TIME so the wrong-thread writer gets
-//     immediate feedback (REJECTED on refusal, ValueTypeMismatch on wrong tag);
-//     the drain only ever sees accepted, coerced values. The pending queue is
-//     the ONE genuinely cross-thread datum and is mutex-protected.
-//   - CROSS-THREAD CONTRACT (S037). The value store stays affinity-thread-owned
-//     by construction: only the affinity thread stores (via on-affine Set or
-//     via ProcessPendingChanges). Get() reads the store and is declared safe on
-//     the affinity thread or when no concurrent affinity-thread mutation is in
-//     flight (WPF-faithful; full store-race freedom is TSan/S620/S723 territory,
-//     recorded not silent). The S037 tests use a join barrier so no concurrent
-//     drain/read occurs in the demonstration. S041 generalizes the per-object
-//     queue into the per-thread ChangeQueue + notification processor (its own
-//     resolution step — NO backfill).
+//   - WRONG-THREAD ACCESS THROWS (S037 corrected by S811). Set()/Get() from a
+//     non-affine thread THROW WrongThreadException (WPF VerifyAccess,
+//     DO.cs:161/412/...). S037's original cross-thread value QUEUE (queued-not-
+//     applied + ProcessPendingChanges drain + SetResult::QUEUED) and S041's
+//     fabricated change-notification pipeline (per-object subscriber registry,
+//     ProcessNotificationQueue, descendant-push Inherits postbox,
+//     ChangeQueue/ChangeProcessor/ChangeRecorder) are RETRACTED by S811 — there
+//     is NO per-object multi-subscriber list in WPF (DO.cs:1704/1732/2039).
+//   - CROSS-THREAD CONTRACT (S037 corrected). The value store stays affinity-
+//     thread-owned by construction: only the affinity thread stores (any Set
+//     from a non-affine thread throws before touching the store). Get() reads
+//     the store and is declared safe on the affinity thread or when no
+//     concurrent affinity-thread mutation is in flight (WPF-faithful; full
+//     store-race freedom is TSan/S620/S723 territory, recorded not silent).
+//   - SYNCHRONOUS NOTIFICATION (S811). The changed notification is the single
+//     PropertyMetadata::with_changed/notifyChanged callback fired inside Set()
+//     on a real change (== WPF PropertyChangedCallback, DO.cs:2039). There is
+//     NO deferred/queued notification, NO subscriber list, NO coalescing —
+//     WPF has none of those.
 //
 // Storage is pimpl'd (class Impl + unique_ptr) so the public header exposes
 // no std::unordered_map / no PropertyMetadata value — keeping the ABI surface
@@ -101,7 +97,6 @@
 // inline-started unit (pimpl removed, not preserved). This comment is a RECORD
 // of the superseded rationale.
 
-#include "vaml/core/ChangeQueue.h"      // S041/S143 per-object postbox (inline member)
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyKey.h"
 #include "vaml/core/PropertyMetadata.h" // PropertyMetadata, ValueTypeMismatch
@@ -126,6 +121,13 @@ namespace vaml {
 // (included only by DependencyObject.cpp to avoid a heavier public dependency).
 class DependencyProperty;
 
+// Forward declaration of the expression-as-value interface (WPF `Expression`,
+// DO.cs:705-708 / Expression.cs:140-155). A bound target DP holds ONE live
+// expression (e.g. a BindingExpression); a Set() on the affinity thread is
+// routed through its `SetValue` for the two-way write-back. The full definition
+// lives in DependencyPropertyExpression.h (included only where needed).
+class DependencyPropertyExpression;
+
 // Set() outcome, mirroring the S035 MiniStore pipeline + the S037 marshalling
 // extension. The first three mirror S035 exactly; QUEUED is S037's addition
 // (backward-compatible — the three original values are unshifted).
@@ -135,13 +137,16 @@ enum class SetResult
     REJECTED,  // S810_1: RETIRED as the out-of-range disposition. A Set() whose
                // ValidateFunc refuses the value now THROWS InvalidPropertyValueException
                // (WPF ArgumentException(InvalidPropertyValue), DO.cs:653/1692) instead
-               // of returning this. This enum member REMAINS DEFINED (removal is S811's
-               // scope) so existing code and the binding pipeline still compile, but the
-               // Set pipeline no longer returns it for validation refusal.
+               // of returning this. This enum member REMAINS DEFINED (for binary/
+               // source backward compatibility with any surviving consumer) but the
+               // Set pipeline never returns it. Removal of the appended S037 tail
+               // (QUEUED) is S811's scope; REJECTED is a pre-S811 member and stays.
     NO_CHANGE, // coerced == current effective; no cb (real change only)
-    QUEUED,    // S037: write from a NON-affine thread was accepted (coerced+
-               // validated) and POSTED to the pending queue — not yet applied.
-               // cb NOT fired, store NOT written until ProcessPendingChanges().
+    // S811: SetResult::QUEUED (the S037 wrong-thread write-queueing appended
+    // tail) is REMOVED. A non-affine Set/Get now THROWS WrongThreadException
+    // (mirror WPF DependencyObject.VerifyAccess, DO.cs:161/412/...). This is a
+    // BACKWARD-COMPATIBLE enum change: only the appended tail is dropped, so
+    // the pre-S037 members (APPLIED/REJECTED/NO_CHANGE) keep their values.
 };
 
 // S037: ProcessPendingChanges() (and a future affinity-required API) was
@@ -210,11 +215,11 @@ public:
     // semantics are UNCHANGED, only the allocation/deallocation path beneath
     // them routes through the pool (ADR-018: thread-local + LOCKLESS).
     //
-    // The object's internal dynamic state (Store overflow, children_/subs_/
-    // inheritance_scope_ vectors, owned PropertyMetadata/PropertyKey nodes,
-    // Grid::Impl) is torn down NORMALLY by the destructor; only the object's
-    // slab bytes are retained on the free-list and reused — recycle == slab
-    // reuse, not state carryover.
+    // The object's internal dynamic state (Store overflow, children_/
+    // expressions_ map, destroyed_ list, owned PropertyMetadata/PropertyKey
+    // nodes, Grid::Impl) is torn down NORMALLY by the destructor; only the
+    // object's slab bytes are retained on the free-list and reused — recycle ==
+    // slab reuse, not state carryover.
     static void* operator new(std::size_t size);
     static void  operator delete(void* p) noexcept;
     static void  operator delete(void* p, std::size_t) noexcept;
@@ -282,39 +287,23 @@ public:
     // defined; removal is S811). A refused value leaves the store unchanged and
     // fires nothing.
     //
-    // S037 affinity-aware behavior: on the AFFINE thread this is exactly the
+    // S037 (corrected by S811) affinity-aware behavior: this is exactly the
     // S035 pipeline (APPLIED/NO_CHANGE, or InvalidPropertyValueException on a
-    // validate refusal). On a NON-affine thread, coerce + validate still run
-    // immediately (a validate refusal THROWS there too; ValueTypeMismatch gives
-    // type feedback) but a passing value is POSTED to the pending queue and
-    // Set() returns SetResult::QUEUED — the store is NOT written and the
-    // changed cb is NOT fired until ProcessPendingChanges() drains on the
-    // affinity thread.
+    // validate refusal) ON THE AFFINE THREAD. On a NON-affine thread, Set()
+    // THROWS WrongThreadException (mirror WPF DependencyObject.VerifyAccess,
+    // DO.cs:412) BEFORE coerce/validate — there is no cross-thread value queue,
+    // no deferral. The store is NEVER written from a non-affine thread.
     //
     // S045 read-only contract: if the resolved property carries
     // PropertyFlags::ReadOnly, Set() throws PropertyReadOnlyException. The
     // check runs IMMEDIATELY after resolving the metadata provider and BEFORE
-    // coerce / validate / the S037 affinity branch — so a read-only refusal is
+    // coerce / validate / the affinity branch — so a read-only refusal is
     // structural and value-independent (throws even for value == current
-    // effective, never NO_CHANGE/QUEUED, and never a validate refusal) and
-    // fires on ANY thread (a wrong-thread read-only Set throws, it is never
-    // deferred to a drain). No local override is materialized for a refused
-    // read-only write.
+    // effective, never NO_CHANGE, never a validate refusal) and fires on ANY
+    // thread (a wrong-thread read-only Set throws WrongThreadException or
+    // PropertyReadOnlyException, whichever its guard reaches first). No local
+    // override is materialized for a refused read-only write.
     [[nodiscard]] SetResult Set(PropertyId id, const Value& input);
-
-    // S037 (S143 relocation): drains the pending VALUE queue (FIFO) on the
-    // affinity thread via the object's single ChangeQueue (queue_.drain_values),
-    // replaying each queued write through the S036 store half (fire
-    // cb(old=new-effective?) -> store). Must be called from the object's affinity
-    // thread — otherwise throws WrongThreadException (NO-LAZY guard).
-    void ProcessPendingChanges();
-
-    // S037 (S143 relocation): number of writes currently sitting in the pending
-    // VALUE queue (i.e. queued-not-applied), via queue_.value_pending_count().
-    // Mutex-protected (the queue's single mutex); observable from any thread. A
-    // test uses this to confirm a wrong-thread Set() did NOT apply (depth 1) and
-    // that a drain returns it to 0.
-    [[nodiscard]] std::size_t pending_change_count() const noexcept;
 
     // --- Thread-affinity marker (S036 records/exposes; S037 consumes) ----
     [[nodiscard]] std::thread::id thread_affinity_id() const noexcept;
@@ -330,39 +319,17 @@ public:
     // (UIElement -> visual tree, create/attach/detach children) both consume
     // it. It is deliberately a LOOSE (non-owning) pointer: a DependencyObject
     // never owns its parent. Setting it does NOT trigger a cascade in S039 —
-    // S039 is read-side only; S040 owns the write/cascade side (recorded,
-    // NOT silent).
+    // S039 is read-side only.
     //
-    // S041 (this step) adds the INVERSE EDGE: set_parent() ALSO registers this
-    // object into the parent's non-owning inheritance-scope (the reverse edge
-    // of this parent link). S041's descendant push consumes it: when an
-    // Inherits/InheritOnly property changes on a parent, the parent walks its
-    // inheritance-scope and enqueues a pushed notification for each inheriting
-    // descendant (S040's recorded obligation — delivered here, NOT silent).
-    // Reparent/detach updates the scope. The inheritance-scope is DISTINCT from
-    // the visual children list (S121's create/attach/detach + visual walk),
-    // which composes with set_parent — recorded, no overlap, no gap.
+    // S811: the S041 inverse-edge (set_parent registering this object into the
+    // parent's inheritance-scope for a descendant-push postbox) is RETRACTED.
+    // The INHERITANCE VALUE still propagates through the S039 ancestor walk in
+    // Get()/GetEffectiveValue() (pull model) — only the fabricated "push a
+    // notification into a descendant's queue" surface is gone. There is no
+    // inheritance-scope member, no descendant push, no per-object notification
+    // queue in WPF (DO.cs:1704/1732/2039).
     void set_parent(DependencyObject* parent) noexcept;
     [[nodiscard]] DependencyObject* parent() const noexcept;
-
-    // --- Registration-ordered property-changed subscribers (S041 §2.3) ----
-    // The processor's dispatch TARGET. `add_property_changed` appends a handler
-    // for `id` in REGISTRATION ORDER (never hash order, never reverse) and
-    // returns a removal token; `remove_property_changed(token)` removes it
-    // (remaining handlers keep their registration order; a re-add appends at
-    // the end). Handlers fire ONLY on an ACTUALLY APPLIED change to `id` —
-    // either an on-affine Set that produced a real change, or a drain-applied
-    // queued write (ProcessPendingChanges), OR a pushed descendant notification
-    // flushed via ProcessNotificationQueue() (below). The existing metadata
-    // `with_changed` cb is UNTOUCHED — this subscriber dispatch is additive
-    // (S037 SetResult + marshalling tests stay green).
-    using PropertyChangedHandler = std::function<void(PropertyId, const Value&, const Value&)>;
-    using PropertyChangedToken   = std::size_t;
-
-    // Adds a handler for `id`, firing in registration order. Returns a token
-    // usable with remove_property_changed. Recovery from an exception during a
-    // fire is the caller's concern (matches the metadata changed-cb contract).
-    [[nodiscard]] PropertyChangedToken add_property_changed(PropertyId id, PropertyChangedHandler handler);
 
     // --- S245 destruction lifecycle (the "element destroy" notification) ----
     // A real destruction-lifecycle notification. `add_destroyed` registers a
@@ -379,26 +346,14 @@ public:
     [[nodiscard]] DestroyedToken add_destroyed(DestroyedHandler handler);
     void remove_destroyed(DestroyedToken token);
 
-    // Removes the handler identified by `token`. No-op for an unknown/expired
-    // token. Removal is O(n) but preserves the registration order of what
-    // remains.
-    void remove_property_changed(PropertyChangedToken token);
-
-    // --- S041 descendant-push drain (the object's own notification queue) --
-    // Each DependencyObject owns ONE per-thread ChangeQueue `queue_` (affinity
-    // == this object's affinity) whose S041 notification family receives
-    // descendant-push notifications (oldEffective -> newEffective) for inheriting
-    // descendants, and whose S037 value-write family receives wrong-thread
-    // writes (S143 unified postbox). ProcessNotificationQueue() drains the NOTIFICATION
-    // half on the object's affinity thread (throws WrongThreadException from a
-    // non-affine thread, mirroring S037's ProcessPendingChanges contract),
-    // firing this object's registration-ordered subscribers for each pushed
-    // property.
-    void ProcessNotificationQueue();
-
-    // Number of pushed notifications currently sitting in this object's
-    // notification queue (queued-not-yet-fired). Cross-thread safe.
-    [[nodiscard]] std::size_t pending_notification_count() const noexcept;
+    // --- S811 expression-as-value accessors (public: the binding attachment ---
+    // seam). A bound target DP holds ONE live expression (e.g. a
+    // BindingExpression); a Set() on the affinity thread is routed through
+    // `expr->SetValue(...)` for the two-way write-back BEFORE the plain store
+    // (WPF SetValueCommon, DO.cs:705-708). `set_current_expression(id, null)`
+    // detaches. There is NO per-object subscriber list (DO.cs:1704/1732/2039).
+    [[nodiscard]] DependencyPropertyExpression* current_expression(PropertyId id) const noexcept;
+    void set_current_expression(PropertyId id, DependencyPropertyExpression* expr) noexcept;
 
 private:
     // -- ONE block-resident property-record type (no common/root) -------
@@ -542,75 +497,11 @@ private:
     [[nodiscard]] PD* resolve_entry(PropertyId id) noexcept;
     [[nodiscard]] const DependencyProperty* resolve_global(PropertyId id) const noexcept;
 
-    // S041 §2.4 descendant push, driven by S039's pull model so each descendant
-    // receives its OWN effective-old -> effective-new delta (never the parent's
-    // coarse delta) and is notified ONLY when its effective value actually
-    // changes (S040 local-wins respected through an intermediate, not just at the
-    // direct child).
-    //
-    // collect_descendant_effectives() walks this object's inheritance-scope (and
-    // recursively each child's scope) and captures each descendant with its
-    // CURRENT effective value (computed pre-change by the caller, BEFORE the
-    // origin stores its new value) into `out` (S144 — out-param, no return-by-
-    // value). A descendant is captured when it either REGISTERS `name` (has a
-    // local store entry) OR — S044 broadening — the property is a GLOBALLY
-    // registered Inherits/InheritOnly attached property
-    // (`captureAttachedInherits`): a purely-passive attached-Inherits descendant
-    // never materializes a store entry, yet it reads (and must be notified of)
-    // the inherited value. notify_descendants still filters to real change, so
-    // over-capturing a passive descendant that ends up unchanged is harmless.
-    //
-    // notify_descendants() is called AFTER the origin has stored its new value:
-    // for each captured descendant it recomputes the NEW effective value and
-    // enqueues a pushed notification {name, oldEffective, newEffective} into that
-    // descendant's OWN notification queue ONLY when old != new (local-wins /
-    // inherited-unchanged descendants produce no notification).
-    static void collect_descendant_effectives(
-        const DependencyObject& root, std::string_view name, std::string_view owner,
-        bool captureAttachedInherits,
-        std::vector<std::pair<DependencyObject*, Value>>& out);
-    void notify_descendants(
-        std::string_view name, std::string_view owner,
-        const std::vector<std::pair<DependencyObject*, Value>>& before);
-
     // S245: fires THIS object's registered destruction handlers (copy-before-
     // invoke, in registration order). Called at the START of the destructor,
     // BEFORE any member teardown, so an observer can still safely consult the
     // object's own value store / subscription state during the notification.
     void fire_destroyed();
-
-    // S041 §2.5 (S244 completion): fires THIS object's own registration-ordered
-    // add_property_changed subscribers for an actually-applied real change to
-    // `name` (oldEffective -> newEffective). Called from BOTH the on-affine
-    // Set() apply and the pending-drain apply (ProcessPendingChanges). This is
-    // the object's SELF-change observation seam — the S041 header has always
-    // documented it ("handlers fire on an on-affine Set that produced a real
-    // change") but the implementation only ever fired the descendant-push
-    // path; S244's target->source write-back needs the self-change seam (a
-    // TextBox edit landing on the target DP fires the binding's write-back).
-    // Copy-before-invoke (a handler that (un)subscribes mid-fire is safe) —
-    // same discipline as ProcessNotificationQueue.
-    void fire_self_subscribers(
-        std::string_view name, std::string_view owner, const Value& oldEffective, const Value& newEffective);
-
-    // S802: fires the registration-ordered subscribers for the (name, owner)
-    // pair, ALSO falling back to the [MINIMAL REAL] owner-less legacy
-    // subscription list (S803-resolved). Used by both the on-affine self-fire
-    // and the pushed-notification drain.
-    void fire_subscribers_for(
-        std::string_view name, std::string_view owner, const Value& oldEffective, const Value& newEffective);
-
-    // Recursive scope walker used by collect_descendant_effectives(): walks
-    // `this`'s inheritance-scope, capturing each descendant with its current
-    // effective value (recursing into each child's scope). A descendant is
-    // captured when it REGISTERS the (name, owner) pair (local store entry) or,
-    // when `captureAttachedInherits` is set, whenever the property is a globally
-    // registered attached Inherits/InheritOnly property (S044: passive attached
-    // descendants must be notified even without a local store entry).
-    void visit_scope(
-        std::string_view name, std::string_view owner,
-        std::vector<std::pair<DependencyObject*, Value>>& out,
-        bool captureAttachedInherits) const;
 
     // ------------------------------------------------------------------
     // ONE block-resident unit: the per-object store + all inline state live
@@ -621,49 +512,18 @@ private:
     std::thread::id       affinity_ = std::this_thread::get_id();
     DependencyObject*     parent_ = nullptr; // S039 loose non-owning parent link
 
-    // S041 §2.3 registration-ordered subscribers, S802-re-keyed onto the
-    // composite (name, owner) pair — BOTH interned canonical views (content-
-    // equal, thread-affine). A same-name/different-owner pair has its own
-    // subscription list, exactly like the per-object store. SubKey is a tiny
-    // (name, owner) key with pair-keyed equality + hash.
-    struct SubKey
-    {
-        std::string_view name;
-        std::string_view owner;
-
-        bool operator==(const SubKey& o) const noexcept
-        {
-            return name == o.name && owner == o.owner;
-        }
-    };
-    struct SubKeyHash
-    {
-        std::size_t operator()(const SubKey& k) const noexcept
-        {
-            std::size_t h = std::hash<std::string_view>{}(k.name);
-            h ^= std::hash<std::string_view>{}(k.owner) + 0x9e3779b9U + (h << 6U) + (h >> 2U);
-            return h;
-        }
-    };
-    std::unordered_map<SubKey,
-        std::vector<std::pair<PropertyChangedToken, PropertyChangedHandler>>, SubKeyHash> subs_;
-    PropertyChangedToken  next_sub_token_ = 1;
-
     // S245 destruction-lifecycle subscribers (registration order). A monotonic
     // token that is never reused; empty by default (zero cost unless subscribed).
     std::vector<std::pair<DestroyedToken, DestroyedHandler>> destroyed_;
     DestroyedToken next_destroyed_token_ = 1;
 
-    // S041 §2.4 non-owning inheritance-scope (the inverse edge of parent_).
-    std::vector<DependencyObject*> inheritance_scope_;
-
-    // S143 (rewrites S037/S041): the SINGLE per-thread cross-thread postbox —
-    // one ChangeQueue owning BOTH the S041 notification family and the S037
-    // value-write family under ONE mutex + ONE affinity marker. The per-object
-    // pending mutex physically relocated OUT of DependencyObject INTO the queue
-    // (pending_/queue_mutex_ removed). Executed under ADR-018 — the kept
-    // S037/S041 lock, moved not created; ZERO new locks.
-    ChangeQueue           queue_;
+    // S811 expression store: the DP->expression map for expression-as-value
+    // (WPF's effective-value expression marker). A bound target DP holds one
+    // live expression (e.g. a BindingExpression) that intercepts subsequent
+    // Set() calls on the affinity thread (see current_expression/set_ and Set).
+    // There is NO per-object subscriber list — only this per-DP single
+    // expression slot.
+    std::unordered_map<PropertyId, DependencyPropertyExpression*> expressions_;
 };
 
 } // namespace vaml

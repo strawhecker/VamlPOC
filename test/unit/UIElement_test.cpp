@@ -49,35 +49,6 @@ using vaml::Visibility;
 using vaml::test::ShouldThrow;
 
 namespace {
-
-// Collects fired subscriber notifications into (old, new) Double/S32 triples —
-// the same trace harness as S042/S044's SubTrace, on the Opacity axis.
-struct SubTrace
-{
-    std::vector<std::int32_t> visOld;
-    std::vector<std::int32_t> visNew;
-    std::vector<double> opOld;
-    std::vector<double> opNew;
-
-    DependencyObject::PropertyChangedHandler opacity_handler()
-    {
-        return [this](PropertyId id, const Value& o, const Value& n) {
-            (void)id;
-            opOld.push_back(o.get<double>());
-            opNew.push_back(n.get<double>());
-        };
-    }
-
-    DependencyObject::PropertyChangedHandler visibility_handler()
-    {
-        return [this](PropertyId id, const Value& o, const Value& n) {
-            (void)id;
-            visOld.push_back(o.get<std::int32_t>());
-            visNew.push_back(n.get<std::int32_t>());
-        };
-    }
-};
-
 } // namespace
 
 TEST_CASE("S120: UIElement derives DependencyObject and reveals itself at runtime")
@@ -222,26 +193,32 @@ TEST_CASE("S120: Opacity inheritance — child local wins and is not clobbered b
     SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.9));
 }
 
-TEST_CASE("S120: Opacity descendant push — a parent opacity change notifies an inheriting descendant")
+TEST_CASE("S120(S811): Opacity inherited VALUE propagates to a passive child (pull model — no notification postbox)")
 {
+    // S811: the fabricated descendant-push postbox is REMOVED (there is NO
+    // per-object subscriber list in WPF, DO.cs:1704/1732/2039). What survives
+    // is the INHERITED VALUE propagating to a passive child: it has no local
+    // opacity of its own, so after a parent opacity write its effective value
+    // follows the parent (0.6) via the S039 ancestor walk on Get.
     UIElement parent;
     UIElement child;
     child.set_parent(&parent); // child inherits Opacity (global Inherits) but
                                // has no local store entry of its own (passive)
 
-    SubTrace trace;
-    (void)child.add_property_changed(PropertyId::of("Opacity", "UIElement"), trace.opacity_handler());
-
-    // Parent's inherited Opacity write pushes to the passive child.
+    // The parent's inherited Opacity write changes the parent's local value.
     SHOULD(ShouldlyString(parent.set_opacity(0.6)).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(1u));
 
-    // Child drain fires EXACTLY once, old=1.0 (inherited default) -> new=0.6.
-    child.ProcessNotificationQueue();
-    SHOULD(ShouldlyString(trace.opOld.size()).ShouldBe(1u));
-    SHOULD(ShouldlyString(trace.opOld[0]).ShouldBe(1.0));
-    SHOULD(ShouldlyString(trace.opNew[0]).ShouldBe(0.6));
-    SHOULD(ShouldlyString(child.pending_notification_count()).ShouldBe(0u));
+    // The passive child's effective opacity follows the parent (pull model).
+    SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.6));
+
+    // A child with its OWN local opacity is NOT clobbered (local-wins).
+    UIElement child2;
+    child2.set_parent(&parent);
+    (void)child2.set_opacity(0.9);
+    SHOULD(ShouldlyString(child2.opacity()).ShouldBe(0.9));
+    (void)parent.set_opacity(0.2);
+    SHOULD(ShouldlyString(child2.opacity()).ShouldBe(0.9));
+    SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.2)); // passive follows
 }
 
 TEST_CASE("S120: Visibility + Opacity resolve globally against plain DependencyObjects too (S043)")

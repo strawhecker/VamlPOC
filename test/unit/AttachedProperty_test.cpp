@@ -56,6 +56,7 @@ using vaml::PropertyNotFound;
 using vaml::SetResult;
 using vaml::Value;
 using vaml::ValueType;
+using vaml::WrongThreadException;
 using vaml::test::ShouldThrow;
 
 namespace {
@@ -84,11 +85,22 @@ const DependencyProperty& registerAttachedGlobal(const std::string& name, const 
     return DependencyProperty::Get(name, owner);
 }
 
-// A non-affine Set() executed on a fresh thread; the result captured back by a
-// join barrier (mirrors S037's marshalling harness).
-void setFromOtherThread(DependencyObject& obj, const PropertyId& id, Value v, SetResult* out)
+// A non-affine Set() executed on a fresh thread; the thrown
+// WrongThreadException is captured by a join barrier (S811: a wrong-thread Set
+// THROWS, WPF VerifyAccess).
+void setFromOtherThreadThrows(DependencyObject& obj, const PropertyId& id, Value v,
+                              std::exception_ptr& excOut)
 {
-    std::thread t([&] { *out = obj.Set(id, v); });
+    std::thread t([&] {
+        try
+        {
+            (void)obj.Set(id, v);
+        }
+        catch (...)
+        {
+            excOut = std::current_exception();
+        }
+    });
     t.join();
 }
 
@@ -158,28 +170,22 @@ TEST_CASE("S043: owner != class — key owned by A settable on B; owner_type_id 
     SHOULD(ShouldlyString(dp.owner_type_id()).ShouldBe(std::string("DockPanelOwner_A")));
 }
 
-TEST_CASE("S043: wrong-thread attached Set -> QUEUED; the attached drain applies it (marshalling parity)")
+TEST_CASE("S043: wrong-thread attached Set THROWS (S811 — no drain, no queued-not-applied)")
 {
     const std::string name = "CanvasTop_S043_4";
     (void)registerAttachedGlobal(name, "CanvasOwner_A", PropertyFlags::None, Value::Int32(0));
 
     DependencyObject b; // never locally registers the property
 
-    // Affine attached Set applies normally, queued count stays 0.
+    // Affine attached Set applies normally.
     SHOULD(ShouldlyString(b.Set(PropertyId::of(name, "CanvasOwner_A"), Value::Int32(1))).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(b.pending_change_count()).ShouldBe(0u));
 
-    // Wrong-thread attached Set -> QUEUED, NOT applied, store untouched.
-    SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(b, PropertyId::of(name, "CanvasOwner_A"), Value::Int32(8), &r);
-    SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
-    SHOULD(ShouldlyString(b.pending_change_count()).ShouldBe(1u));
+    // Wrong-thread attached Set -> THROWS WrongThreadException; store untouched.
+    std::exception_ptr exc;
+    setFromOtherThreadThrows(b, PropertyId::of(name, "CanvasOwner_A"), Value::Int32(8), exc);
+    SHOULD(ShouldlyString(exc != nullptr).ShouldBe(true));
+    SHOULD(ShouldThrow<WrongThreadException>([&] { std::rethrow_exception(exc); }));
     SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(1))); // not applied
-
-    // Affinity-thread drain applies the queued attached write.
-    b.ProcessPendingChanges();
-    SHOULD(ShouldlyString(b.pending_change_count()).ShouldBe(0u));
-    SHOULD(ShouldlyString(b.Get(PropertyId::of(name, "CanvasOwner_A"))).ShouldBe(Value::Int32(8)));
 }
 
 TEST_CASE("S043: local registration still shadows the global path; unregistered name throws")

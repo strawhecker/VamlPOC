@@ -67,6 +67,7 @@ using vaml::InvalidPropertyValueException;
 using vaml::Value;
 using vaml::ValueType;
 using vaml::ValueTypeMismatch;
+using vaml::WrongThreadException;
 using vaml::test::ShouldThrow;
 
 namespace {
@@ -106,13 +107,21 @@ const DependencyProperty& registerGlobal(const char* name,
     return DependencyProperty::Get(name, "AttachedOwner_A");
 }
 
-// A non-affine Set() on an Int32 property, executed on a fresh thread, the
-// result captured back into `out` by a join barrier (no concurrency) — the
-// S037 marshalling harness pattern.
-void setFromOtherThread(DependencyObject& obj, const PropertyId& id, Value v, SetResult* out)
+// A non-affine Set() on an Int32 property, executed on a fresh thread. S811: a
+// wrong-thread Set always THROWS WrongThreadException (WPF VerifyAccess); the
+// throw is captured into `excOut` by a join barrier (no concurrency).
+void setFromOtherThreadThrows(DependencyObject& obj, const PropertyId& id, Value v,
+                              std::exception_ptr& excOut)
 {
     std::thread t([&] {
-        *out = obj.Set(id, v);
+        try
+        {
+            (void)obj.Set(id, v);
+        }
+        catch (...)
+        {
+            excOut = std::current_exception();
+        }
     });
     t.join();
 }
@@ -192,11 +201,14 @@ TEST_CASE("S046: attached/global property with NO hooks stores as-given (backwar
     SHOULD(ShouldlyString(b.Get(id)).ShouldBe(Value::Int32(42)));
 }
 
-TEST_CASE("S046: wrong-thread queued coercion — the COERCED value is what the drain stores")
+TEST_CASE("S046: wrong-thread coerced Set THROWS (S811 — coercing a wrong-thread write is refused, not deferred)")
 {
-    // S037: a non-affine Set runs coerce+validate AT QUEUE TIME and POSTS the
-    // accepted (coerced) value. S046 proves the coercion actually ran: the
-    // drain stores the COERCED value, not the raw input.
+    // S811: a non-affine Set ALWAYS THROWS WrongThreadException (WPF
+    // VerifyAccess, DO.cs:412) — there is no queued-not-applied, no drain to
+    // store a "coerced" value. Coerce/validate do NOT run for a wrong-thread
+    // write either (the affinity guard precedes the pipeline). This test keeps
+    // the S046 coercer on the property and proves a wrong-thread write is
+    // refused outright; an AFFINE Set still coerces normally.
     DependencyObject obj;
     const char* name = "QueuedClamp_S046";
     PropertyKey key(name, ValueType::Int32, "S046Owner", PropertyFlags::None);
@@ -221,28 +233,28 @@ TEST_CASE("S046: wrong-thread queued coercion — the COERCED value is what the 
     SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(50)));
     SHOULD(ShouldlyString(fire).ShouldBe(1));
 
-    // Non-affine Set(150): coerce runs at queue time -> 100, validate passes,
-    // POSTED (coerced). Get still 50 (not applied); queue depth 1.
-    SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(obj, id, Value::Int32(150), &r);
-    SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
-    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(50))); // not applied
-    SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(1u));
+    // Non-affine Set(150): THROWS WrongThreadException; Get still 50 (nothing
+    // applied); no cb.
+    std::exception_ptr exc;
+    setFromOtherThreadThrows(obj, id, Value::Int32(150), exc);
+    SHOULD(ShouldlyString(exc != nullptr).ShouldBe(true));
+    SHOULD(ShouldThrow<WrongThreadException>([&] { std::rethrow_exception(exc); }));
+    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(50)));
+    SHOULD(ShouldlyString(fire).ShouldBe(1));
 
-    // Drain on the affinity thread: stores the COERCED value 100, not the raw
-    // 150, and fires the changed cb a second time (50 -> 100).
-    obj.ProcessPendingChanges();
-    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(100))); // coerced queued value
-    SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(0u));
+    // An AFFINE Set(150) still coerces to 100 and fires the changed cb.
+    SHOULD(ShouldlyString(obj.Set(id, Value::Int32(150))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(100))); // coerced
     SHOULD(ShouldlyString(fire).ShouldBe(2));
     SHOULD(ShouldlyString(oldV).ShouldBe(50));
     SHOULD(ShouldlyString(newV).ShouldBe(100)); // the coerced delta, not raw 150
 }
 
-TEST_CASE("S046: wrong-thread queued coercion clamps a sub-zero raw write to 0")
+TEST_CASE("S046: wrong-thread sub-zero Set THROWS (S811); an AFFINE sub-zero Set still coerces to 0")
 {
-    // Second coercion-at-queue proof: a raw negative is clamped to 0 BEFORE
-    // it is queued, so the drain applies 0 (a real change 10 -> 0).
+    // S811: a wrong-thread write is refused outright (no queue to clamp into).
+    // An AFFINE Set(-5) still runs coerce -> 0 (a real change 10 -> 0, cb
+    // fires).
     DependencyObject obj;
     const char* name = "QueuedClampNeg_S046";
     PropertyKey key(name, ValueType::Int32, "S046Owner", PropertyFlags::None);
@@ -257,18 +269,17 @@ TEST_CASE("S046: wrong-thread queued coercion clamps a sub-zero raw write to 0")
     (void)obj.register_property(std::move(key), std::move(md));
     const PropertyId id = PropertyId::of(name, "S046Owner");
 
-    // Non-affine Set(-5): coerce -> 0 at queue time, POSTED; default 10 -> Get
-    // still 10.
-    SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(obj, id, Value::Int32(-5), &r);
-    SHOULD(ShouldlyString(r).ShouldBe(SetResult::QUEUED));
+    // Non-affine Set(-5): THROWS WrongThreadException; Get still 10.
+    std::exception_ptr exc;
+    setFromOtherThreadThrows(obj, id, Value::Int32(-5), exc);
+    SHOULD(ShouldlyString(exc != nullptr).ShouldBe(true));
+    SHOULD(ShouldThrow<WrongThreadException>([&] { std::rethrow_exception(exc); }));
     SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(10)));
-    SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(1u));
+    SHOULD(ShouldlyString(fire).ShouldBe(0));
 
-    // Drain: applies the COERCED 0 (not -5) — a real change 10 -> 0, cb fires.
-    obj.ProcessPendingChanges();
+    // Affine Set(-5): coerces to 0, a real change 10 -> 0, cb fires once.
+    SHOULD(ShouldlyString(obj.Set(id, Value::Int32(-5))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(0)));
-    SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(0u));
     SHOULD(ShouldlyString(fire).ShouldBe(1));
 }
 
