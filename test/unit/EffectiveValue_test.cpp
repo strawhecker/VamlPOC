@@ -1,8 +1,8 @@
 // S039 — Effective-value resolution tests (dep:S038).
 //
 // Verifies DependencyObject::GetEffectiveValue — the read-side pull model:
-//   local ?? inherited-from-parent ?? default, with the InheritOnly flag
-//   (own local override does NOT contribute).
+//   local ?? inherited-from-parent ?? default. (S814 retires the InheritOnly
+//   flag: every inheriting property resolves local ?? inherited ?? default.)
 //
 // Scope (S039 is READ-side only; Set / write/cascade is S040):
 //   1. non-inheriting:           local ?? default (unchanged S036 semantics).
@@ -10,8 +10,8 @@
 //   3. plain Inherits, multi-level: child inherits a great-grandparent's value.
 //   4. nearest-ancestor-with-value: an intermediate ancestor with no local
 //      defers to ITS ancestor (child still resolves the grandparent's value).
-//   5. InheritOnly: own local override is IGNORED; value comes from the
-//      ancestor chain (else default).
+//   5. local-wins on an inheriting child: a child's authored local overrides
+//      the inherited ancestor value (S814 — the WPF-faithful resolution).
 //   6. empty parent chain -> default (nothing to inherit from).
 //   7. Get() delegates to GetEffectiveValue (synonym).
 //   8. unregistered property -> PropertyNotFound.
@@ -144,30 +144,35 @@ TEST_CASE("S039: nearest-ancestor-with-value — intermediate empty local defers
     SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(9)));
 }
 
-TEST_CASE("S039: InheritOnly ignores own local override and still inherits from the chain")
+TEST_CASE("S039/S814: inheriting child's local override WINS over the inherited ancestor value")
 {
     DependencyObject parent, child;
-    const std::string name = "InhOnly_S039_4";
-    hostInherited(parent, name, PropertyFlags::Inherits | PropertyFlags::InheritOnly, Value::Int32(0));
-    hostInherited(child, name, PropertyFlags::Inherits | PropertyFlags::InheritOnly, Value::Int32(0));
+    const std::string name = "InhLocalWins_S039_4";
+    hostInherited(parent, name, PropertyFlags::Inherits, Value::Int32(0));
+    hostInherited(child, name, PropertyFlags::Inherits, Value::Int32(0));
 
     (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(7));
     child.set_parent(&parent);
 
-    // Child SETS its own local override ... but InheritOnly means it must be
-    // IGNORED — the value comes from the parent's chain instead.
-    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
+    // Child has NO local -> inherits parent's 7.
     SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
+
+    // Child sets its OWN local override -> it WINS (WPF-faithful: local wins
+    // over the inherited ancestor value).
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(100)));
 }
 
-TEST_CASE("S039: InheritOnly with no ancestor value falls back to default")
+TEST_CASE("S039/S814: inheriting child with a local and no ancestor falls back to default only when no local")
 {
     DependencyObject child;
-    const std::string name = "InhOnly_S039_5";
-    hostInherited(child, name, PropertyFlags::Inherits | PropertyFlags::InheritOnly, Value::Int32(3));
-    // Set a local override — ignored (InheritOnly) — and there is no parent.
+    const std::string name = "InhLocalWins_S039_5";
+    hostInherited(child, name, PropertyFlags::Inherits, Value::Int32(3));
+    // No parent. A local override is honored; only the absence of a local
+    // falls back to the default.
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3))); // default, no local
     (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(77));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3))); // default
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(77))); // local wins
 }
 
 TEST_CASE("S039: empty parent chain — inheriting property resolves to default")

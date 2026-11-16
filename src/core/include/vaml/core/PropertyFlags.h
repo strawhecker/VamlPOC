@@ -2,7 +2,7 @@
 // VAML PropertyKey flags — the declarative bit-set carried by a dependency
 // property key. S032 (dep:S031). Foundation for the DP property system.
 //
-// The three bits here are exactly the roadmap's S032/S034 flag set
+// The bits here are exactly the roadmap's S032/S034 flag set
 // (inherits | readonly | bindsTwoWayByDefault). They are pure *declaration*
 // flags with no runtime behavior. Anything with behavior (default value,
 // CoerceValue, ValidateValue callbacks) is metadata delivered by S034, not a
@@ -24,9 +24,6 @@ enum class PropertyFlags : std::uint32_t
     Inherits               = 1 << 0, // participates in the inheritance cascade (S039/S040)
     ReadOnly               = 1 << 1, // Set() throws (S045)
     BindsTwoWayByDefault   = 1 << 2, // default binding mode is two-way (S242-S244)
-    InheritOnly            = 1 << 3, // S039: value comes ONLY from the ancestor chain;
-                                     // the object's own local override does NOT contribute.
-                                     // Meaningful only when Inherits is ALSO set (S039).
 };
 
 // Bitwise OR — combines independent flags into a single PropertyFlags value.

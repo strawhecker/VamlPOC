@@ -4,10 +4,11 @@
 // S039 (dep:S038, effective-value resolution).
 //
 // S039 title contract (read-side, pull model):
-//   8. GetEffectiveValue() — locals ?? inherited-from-parent ?? default, and
-//      the InheritOnly flag (own local override does not contribute). `Get`
-//      delegates to it (backward compatible: no existing test uses Inherits/
-//      InheritOnly, so local??default semantics are unchanged for them).
+//   8. GetEffectiveValue() — locals ?? inherited-from-parent ?? default. The
+//      InheritOnly arm is RETIRED by S814: every inheriting property resolves
+//      local ?? inherited ?? default (a local override on the object WINS,
+//      mirroring EvaluateEffectiveValue / GetValueEntry in WPF). `Get`
+//      delegates to it (non-inheriting properties keep local??default).
 //   9. Parent link — single non-owning parent; seed consumed by S040 (cascade)
 //      and S120 (visual tree). NO-GAP, NOT lazy.
 //   Set/ProcessPendingChanges are UNTOUCHED here (read-side only); the
@@ -254,10 +255,11 @@ public:
     // Reads the property's current EFFECTIVE value. S039 is the read-side
     // resolution primitive; `Get` delegates to it. Resolution order:
     //   - NOT Inherits:          local ?? default
-    //   - Inherits (no InheritOnly): local ?? inherited-from-parent ?? default
-    //   - InheritOnly:           inherited-from-parent ?? default
-    //                            (the object's OWN local override does NOT
-    //                             contribute)
+    //   - Inherits:              local ?? inherited-from-parent ?? default
+    //                            (a local override on this object WINS, exactly
+    //                             as EvaluateEffectiveValue / GetValueEntry do
+    //                             in WPF — the InheritOnly arm is retired by
+    //                             S814)
     // The inheritance descriptor (flags + default) is sourced from the global
     // DependencyProperty table when the property is globally registered,
     // else from this object's own store metadata. The local value always

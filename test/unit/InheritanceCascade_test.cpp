@@ -23,12 +23,10 @@
 //      great-grandparent -> great-grandchild recomputes, no child write.
 //   3. local-wins                 — child holds its own local override -> a
 //      parent change does NOT sweep it; child effective stays its own value.
-//   4. InheritOnly recompute      — child has its own local but InheritOnly ->
-//      a parent change DOES recompute it (own local ignored, follows chain).
-//   5. child Set vs inherited old — child writes its own local AFTER
+//   4. child Set vs inherited old — child writes its own local AFTER
 //      inheriting -> its effective is the local; a later parent change leaves
 //      it untouched (the cascade never clobbers a child write).
-//   6. parent reverts             — parent Set to a new value then to another
+//   5. parent reverts             — parent Set to a new value then to another
 //      -> child follows both, no child write.
 //
 // Uses the Shouldly-for-doctest vocabulary (SHOULD / ShouldThrow), mirroring
@@ -154,28 +152,28 @@ TEST_CASE("S040: local-wins — a child's own local override is NOT swept by a p
     SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(7)));
 }
 
-TEST_CASE("S040: InheritOnly recompute — own local is IGNORED, so a parent change DOES recompute")
+TEST_CASE("S040/S814: inheriting child local-wins across a parent change — a local override is never swept")
 {
     DependencyObject parent;
     DependencyObject child;
     const std::string name = "Cascade_S040_4";
-    const PropertyFlags inhInheritOnly = PropertyFlags::Inherits | PropertyFlags::InheritOnly;
-    hostInherited(parent, name, inhInheritOnly, Value::Int32(0));
-    hostInherited(child, name, inhInheritOnly, Value::Int32(0));
+    hostInherited(parent, name, kInh, Value::Int32(0));
+    hostInherited(child, name, kInh, Value::Int32(0));
 
     child.set_parent(&parent);
 
-    // Child SETS its own local override — but InheritOnly means it is IGNORED,
-    // so the value comes from the parent's chain instead.
-    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
-
+    // Child first inherits the parent's value, then writes its OWN local
+    // override (S814: local ?? inherited ?? default — the local WINS).
     (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(3));
     SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(3)));
 
-    // A second parent change still recomputes the InheritOnly child (its own
-    // local never contributes), again with no child write.
+    (void)child.Set(PropertyId::of(name, "PropOwner"), Value::Int32(100));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(100)));
+
+    // A second parent change must NOT sweep the child's local override — the
+    // child effective stays its own 100 (local-wins, WPF-faithful).
     (void)parent.Set(PropertyId::of(name, "PropOwner"), Value::Int32(4));
-    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(4)));
+    SHOULD(ShouldlyString(child.GetEffectiveValue(PropertyId::of(name, "PropOwner"))).ShouldBe(Value::Int32(100)));
 }
 
 TEST_CASE("S040: child Set vs inherited old — a child write after inheriting is never clobbered by a later parent change")

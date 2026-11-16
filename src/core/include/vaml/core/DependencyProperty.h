@@ -56,7 +56,7 @@ public:
     // a same-name/different-owner pair is a DISTINCT property). Type coherence
     // enforced: `type` must equal metadata.boundType() (else ValueTypeMismatch,
     // NO-LAZY guard). Stores the full (key, metadata) definition including
-    // flags (Inherits / InheritOnly) and the defaultValue. Returns a const
+    // flags (Inherits) and the defaultValue. Returns a const
     // reference valid for the process lifetime.
     [[nodiscard]] static const DependencyProperty& Register(
         std::string_view name, ValueType type, std::string_view ownerTypeId,

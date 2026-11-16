@@ -19,7 +19,8 @@
 //   S044 broadens the push walk (DependencyObject.cpp, visit_scope /
 //   collect_descendant_effectives): a descendant is captured when it registers
 //   the property OR when the property is a globally-registered attached
-//   Inherits/InheritOnly property (contextual captureAttachedInherits flag).
+//   Inherits property (contextual captureAttachedInherits flag; S814 retires
+//   InheritOnly).
 //   notify_descendants still filters to real change (old != new), so
 //   over-capturing a passive descendant that ends up unchanged is harmless —
 //   shielded / local-wins descendants still produce zero notifications.

@@ -456,9 +456,6 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
     const bool inherits =
         has_flag(localFlags, PropertyFlags::Inherits)
         || (globalDp != nullptr && has_flag(globalDp->flags(), PropertyFlags::Inherits));
-    const bool inheritOnly =
-        has_flag(localFlags, PropertyFlags::InheritOnly)
-        || (globalDp != nullptr && has_flag(globalDp->flags(), PropertyFlags::InheritOnly));
 
     const Value defaultValue = md.defaultValue();
 
@@ -473,14 +470,10 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
     // the composite pair (S802).
     const Value inherited = nearest_ancestor_local(*this, id.name(), effectiveOwner);
 
-    if (inheritOnly)
-    {
-        // InheritOnly: the object's OWN local override does NOT contribute.
-        // Value is the inherited value, else default.
-        return inherited.isNull() ? defaultValue : inherited;
-    }
-
-    // Plain Inherits: local ?? inherited ?? default.
+    // S814: InheritOnly is retired. Every inheriting property resolves
+    // local ?? inherited ?? default — a local override on the object WINS,
+    // exactly as EvaluateEffectiveValue / GetValueEntry do in WPF (a child's
+    // authored/Set local overrides the inherited ancestor value).
     return local.isNull() ? (inherited.isNull() ? defaultValue : inherited) : local;
 }
 

@@ -13,7 +13,8 @@
 //      (ValueTypeMismatch).
 //   4. TryGet(name, owner) / Get(name, owner) look the definition up by its
 //      composite pair (null / throw).
-//   5. flags() and metadata() round-trip the InheritOnly flag + default.
+//   5. flags() and metadata() round-trip multiple surviving flags + default
+//      (S814: InheritOnly retired — round-trip uses the surviving flag set).
 //
 // Uses the Shouldly-for-doctest vocabulary (S036_5 standing convention).
 
@@ -111,17 +112,21 @@ TEST_CASE("S039/S801: TryGet returns null / Get throws for an unregistered pair"
     }));
 }
 
-TEST_CASE("S039/S801: flags() round-trips InheritOnly + multiple flags")
+TEST_CASE("S039/S801: flags() round-trips multiple surviving flags")
 {
     const std::string name = "ThemeColor_S039_D";
-    const auto combined = PropertyFlags::Inherits | PropertyFlags::InheritOnly;
+    // S814: InheritOnly is retired — exercise the round-trip with the
+    // surviving multi-flag combination (Inherits | ReadOnly | BindsTwoWayByDefault).
+    const auto combined = PropertyFlags::Inherits | PropertyFlags::ReadOnly
+                        | PropertyFlags::BindsTwoWayByDefault;
     (void)DependencyProperty::Register(
         name, ValueType::Int32, "Owner",
         PropertyMetadata::WithDefault(Value::Int32(0), combined));
 
     const DependencyProperty& dp = DependencyProperty::Get(name, "Owner");
     SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::Inherits)).ShouldBe(true));
-    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::InheritOnly)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::ReadOnly)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::BindsTwoWayByDefault)).ShouldBe(true));
 }
 
 // ---- S810_2 — REGISTRATION-TIME DEFAULT VALIDATION (the S034/S039 Register

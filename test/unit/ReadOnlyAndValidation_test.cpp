@@ -15,10 +15,12 @@
 //     InvalidPropertyValueException (S810_1 — WPF ArgumentException(
 //     InvalidPropertyValue), SetResult::REJECTED retired) with the store
 //     unchanged and no changed cb.
-//   - all flags honored: Inherits (effective resolution), InheritOnly,
+//   - all flags honored: Inherits (effective resolution),
 //     ReadOnly (throws), BindsTwoWayByDefault (carried through the key +
 //     metadata flags; no runtime behavior in this step — genuine binding
 //     behavior is S242's scope, recorded NO-GAP, not faked).
+//     (S814: InheritOnly is retired — a child's local override WINS over the
+//     inherited value, exactly as in WPF.)
 //
 // IMPORTANT LIFETIME CONTRACT: PropertyId wraps a NON-OWNING std::string_view.
 // Every PropertyId in this TU is built from a STRING LITERAL (static storage
@@ -78,7 +80,6 @@ std::unordered_set<std::string>& global_seen()
 
 constexpr PropertyFlags kRO  = PropertyFlags::ReadOnly;
 constexpr PropertyFlags kInh = PropertyFlags::Inherits;
-constexpr PropertyFlags kIO  = PropertyFlags::InheritOnly;
 constexpr PropertyFlags kTwo = PropertyFlags::BindsTwoWayByDefault;
 
 // Registers an object-scoped Int32 property on `obj` under the given literal
@@ -263,8 +264,9 @@ TEST_CASE("S045: all flags honored (consolidated)")
     //   - BindsTwoWayByDefault: carried through BOTH the key and metadata flags
     //     (no runtime behavior yet — genuine two-way binding is S242's scope,
     //     recorded NO-GAP, not faked).
-    //   - Inherits + InheritOnly: effective-value resolution via the read-side
-    //     pull model (parent change recomputes the child effective).
+    //   - Inherits: effective-value resolution via the read-side pull model
+    //     (parent change recomputes the child effective; a child's local
+    //     override WINS — S814, WPF-faithful).
     //
     // (a) ReadOnly + BindsTwoWayByDefault combined on one property key.
     {
@@ -280,17 +282,21 @@ TEST_CASE("S045: all flags honored (consolidated)")
         SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(0)));
     }
 
-    // (b) Inherits + InheritOnly effective resolution: an InheritOnly property
-    // ignores the object's OWN local override and inherits from the parent.
+    // (b) Inherits effective resolution: a child with a local override WINS
+    // over the inherited ancestor value (S814 — local ?? inherited ?? default).
     {
-        const char* name = "InhOnlyFlags_S045";
-        (void)registerGlobal(name, kInh | kIO, Value::Int32(0));
+        const char* name = "InheritsFlags_S045";
+        (void)registerGlobal(name, kInh, Value::Int32(0));
         DependencyObject parent, child;
         child.set_parent(&parent);
         const PropertyId id = PropertyId::of(name, "AttachedOwner_A");
 
-        // Parent sets the inherited value; child (InheritOnly) inherits it.
+        // Parent sets the inherited value; child inherits it (no local).
         SHOULD(ShouldlyString(parent.Set(id, Value::Int32(5))).ShouldBe(SetResult::APPLIED));
         SHOULD(ShouldlyString(child.Get(id)).ShouldBe(Value::Int32(5)));
+
+        // Child acquires its OWN local override -> it WINS over the inherited 5.
+        SHOULD(ShouldlyString(child.Set(id, Value::Int32(9))).ShouldBe(SetResult::APPLIED));
+        SHOULD(ShouldlyString(child.Get(id)).ShouldBe(Value::Int32(9)));
     }
 }
