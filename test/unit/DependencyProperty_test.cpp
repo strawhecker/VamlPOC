@@ -123,3 +123,69 @@ TEST_CASE("S039/S801: flags() round-trips InheritOnly + multiple flags")
     SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::Inherits)).ShouldBe(true));
     SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::InheritOnly)).ShouldBe(true));
 }
+
+// ---- S810_2 — REGISTRATION-TIME DEFAULT VALIDATION (the S034/S039 Register
+// ---- gate). WPF `ValidateDefaultValueCommon` (DependencyProperty.cs:376-434)
+// ---- validates the DEFAULT against type AND the `ValidateValueCallback` at
+// ---- registration, throwing ArgumentException(DefaultValuePropertyTypeMismatch)
+// ---- on a wrong-typed default and ArgumentException(DefaultValueInvalid) when
+// ---- validateValueCallback(defaultValue) returns false. A false result FAILS
+// ---- ATOMICALLY: no GlobalTable entry is installed, no partial state.
+
+TEST_CASE("S810_2: Register rejects a default that fails its ValidateFunc (DefaultValueInvalid)")
+{
+    const std::string name = "S810_2_InvalidDefault_A";
+    // The default 42 is outside the validate range [0,10] — WPF throws
+    // ArgumentException(DefaultValueInvalid) at registration for exactly this.
+    auto md = PropertyMetadata::WithDefault(Value::Int32(42), PropertyFlags::None)
+        .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0 && v.get<std::int32_t>() <= 10; });
+
+    SHOULD(ShouldThrow<vaml::InvalidPropertyValueException>([&] {
+        (void)DependencyProperty::Register(
+            name, ValueType::Int32, "S810_2Owner",
+            std::move(md));
+    }));
+
+    // ATOMICITY: the failed Register installed NO GlobalTable entry. The pair
+    // is still free (TryGet == nullptr) so a valid Registrer can later take it.
+    SHOULD(ShouldlyString(DependencyProperty::TryGet(name, "S810_2Owner") == nullptr).ShouldBe(true));
+
+    // The same pair registers fine once the default satisfies the func — proof
+    // the gate is what refused it, not the pair being reserved.
+    (void)DependencyProperty::Register(
+        name, ValueType::Int32, "S810_2Owner",
+        PropertyMetadata::WithDefault(Value::Int32(5), PropertyFlags::None)
+            .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0 && v.get<std::int32_t>() <= 10; }));
+    SHOULD(ShouldlyString(DependencyProperty::TryGet(name, "S810_2Owner") != nullptr).ShouldBe(true));
+}
+
+TEST_CASE("S810_2: Register rejects a wrong-typed default (DefaultValuePropertyTypeMismatch)")
+{
+    const std::string name = "S810_2_WrongTypeDefault_A";
+    // key type Int32 but the default is a Double (bound type Double) — WPF
+    // throws ArgumentException(DefaultValuePropertyTypeMismatch). VAML's
+    // type-coherence check (ValueTypeMismatch) is the established analogue.
+    SHOULD(ShouldThrow<vaml::ValueTypeMismatch>([&] {
+        (void)DependencyProperty::Register(
+            name, ValueType::Int32, "S810_2Owner",
+            PropertyMetadata::WithDefault(Value::Double(1.5), PropertyFlags::None));
+    }));
+
+    // ATOMICITY: nothing installed, pair not reserved.
+    SHOULD(ShouldlyString(DependencyProperty::TryGet(name, "S810_2Owner") == nullptr).ShouldBe(true));
+}
+
+TEST_CASE("S810_2: happy-path control — a valid default satisfying its ValidateFunc registers")
+{
+    const std::string name = "S810_2_ValidDefault_A";
+    // Default 5 is inside the range; the gate runs the ValidateFunc and it
+    // passes, so registration succeeds normally.
+    (void)DependencyProperty::Register(
+        name, ValueType::Int32, "S810_2Owner",
+        PropertyMetadata::WithDefault(Value::Int32(5), PropertyFlags::None)
+            .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0 && v.get<std::int32_t>() <= 10; }));
+
+    const DependencyProperty& dp = DependencyProperty::Get(name, "S810_2Owner");
+    SHOULD(ShouldlyString(dp.metadata().defaultValue()).ShouldBe(Value::Int32(5)));
+    SHOULD(ShouldlyString(dp.metadata().validate(Value::Int32(5))).ShouldBe(true));
+}

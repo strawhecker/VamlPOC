@@ -1,6 +1,6 @@
 # session-context.md
 
-last_command: implementit S810_1 (Sprint 11t) — VALIDATION DISPOSITION: out-of-range VALIDATE THROWS, not REJECTED. BOTH CI LANES GREEN (build/verify_s810_1.cmd -> "S810_1 GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
+last_command: implementit S810_2 (Sprint 11t) — REGISTRATION-TIME DEFAULT VALIDATION (the S034/S039 Register gate). BOTH CI LANES GREEN (build/verify_s810_2.cmd -> "S810_2 GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
 
 plan_digest: S810_1 (dep:S810) changes DependencyObject::Set so a false ValidateFunc (raw gate DO.cs:653 OR post-coerce re-check DO.cs:1692) THROWS vaml::InvalidPropertyValueException : std::invalid_argument (naming the property + the offending value), matching WPF ArgumentException(InvalidPropertyValue). SetResult::REJECTED is RETIRED as the out-of-range disposition on the Set pipeline (the enum member stays defined; removal = S811). NO-GAP: BindingExpression CATCHES the core throw and maps it to TransferResult::TargetRejected at the binding boundary (ADR-016 observation, never control-flow in the core); the throw is converted at the binding boundary, not suppressed in the core. Tests: S045/S046 REJECTED asserts -> ShouldThrow<InvalidPropertyValueException> + dependent sweep of every DP-backed REJECTED assert + a new explicit BindingExpression NO-GAP TargetRejected test. BOTH CI lanes green from first principles.
 plan_digest: Sprint 11s — the composite (name, owner) DP identity lands end-to-end (S804 coexistence live-proof
@@ -101,53 +101,53 @@ ground truth. The name-only DP hosing is ABOLISHED; ZERO MINIMAL REAL introduced
 - **Out of scope (recorded):** Effect/Viewport3D direct-field setters are NOT DP-backed (untouched);
   PropertyMetadata_semantics_test.cpp's own MiniStore Outcome::REJECTED enum is unrelated; windows-clang-debug NOT a CI lane.
 
-## build_status (as of this session — S810_1: both lanes GREEN)
-- **Hard clean**: `git clean -fdx build/` (wiped the incremental cache). Fresh `cmake --preset <lane>` +
-  `cmake --build` + `ctest --output-on-failure`, no caching.
-- **windows-msvc** (msvc-debug): 4/4 test suites PASSED (core 16.36s / tools 2.71s / vulkan 0.51s /
-  presentation 5.79s); vaml-core-tests **1332/1332, 8791 assertions (8790 passed + 1 EXPECTED S036_1
-  should_fail), Status SUCCESS!** Compile warning-as-error clean.
-- **ubuntu-clang** (VM, clang 21, shared folder /mnt/hgfs/VamlPOC): `rm -rf build/clang-debug` then fresh
-  configure+build+ctest — 4/4 suites PASSED; vaml-core-tests **1332/1332, 8791 assertions, Status SUCCESS!**
-- Local commit d01bdba present; `git status --porcelain` EMPTY (clean tree). Reparative fix path: baseline
-  now = clean-tested S803. CI remains the authoritative remote gate; the VM has to-date predicted every CI pass
-  (the only prior false-greens were build-not-actually-built / tests-not-passing confusion, both eliminated
-  by this clean first-principles rebuild).
+## Sprint 11t S810_2 — REGISTRATION-TIME DEFAULT VALIDATION (this session)
+- **Gate added:** WPF `ValidateDefaultValueCommon` (DependencyProperty.cs:376-434) validates the DEFAULT at
+  registration against type AND the `ValidateValueCallback`. VAML's Register/register_property validated NO default.
+- **(a) type-mismatch arm:** already present — both register sites enforce key type == metadata.boundType()
+  (== defaultValue().type()) and throw ValueTypeMismatch (the DefaultValuePropertyTypeMismatch analogue). No change.
+- **(b) validate-on-default arm (NEW):** `if (!metadata.validate(metadata.defaultValue()))` throws
+  InvalidPropertyValueException (S810_1, naming owner.name + the rendered default), mirroring DefaultValueInvalid.
+  - **DependencyProperty.cpp Register:** inserted BEFORE the registry + GlobalTable side-effect -> atomic.
+    New local render_default_for_diagnostic helper. Include DependencyObject.h for InvalidPropertyValueException.
+  - **DependencyObject.cpp register_property:** inserted AFTER the duplicate-pair check, BEFORE the
+    owned-metadata/stableKey heap nodes + store_.emplace -> atomic (nothing installed/allocated).
+- **Tests:** PropertyMetadata_test.cpp (S034) + DependencyProperty_test.cpp (S039) each gained the TWO rejection
+  arms (validate-false-default -> throws + TryGet nullptr / PropertyNotFound; wrong-typed-default -> ValueTypeMismatch
+  + nothing stored) + a happy-path control (valid default satisfying its ValidateFunc registers + the gate runs).
+  6 new S810_2 cases / 13 assertions, all green.
+- **PRE-EXISTING TEST RE-BASE (correct WPF behavior surfaced):** S045 ROPipeline_S045 (ReadOnlyAndValidation_test.cpp)
+  registered a read-only property with `with_validate([](const Value&) { return false; })` to prove the read-only
+  throw precedes coerce/validate on Set. Under the new gate its default now fails registration (WPF-true). Re-based
+  the validate to reject negatives (default 0 passes; the Set(-3) read-only-throw-before-pipeline intent preserved).
+- **Lanes:** windows-msvc (build/verify_s810_2.cmd, msvc-debug warning-as-error clean + ctest 4/4 100%;
+  vaml-core-tests 1341/1341 incl. 6 new S810_2 cases / 13 assertions, Status SUCCESS) + ubuntu-clang (VM,
+  /mnt/hgfs/VamlPOC, clang-debug UBUNTU-GREEN) — "S810_2 GREEN".
+- **Fidelity note:** WPF ValidateDefaultValueCommon throws ArgumentException for both arms; VAML reuses
+  ValueTypeMismatch (type-refusal) + InvalidPropertyValueException (S810_1, ArgumentException lineage). No new type.
+- **NO-GAP:** no MINIMAL REAL introduced; ADR-018 ZERO new locks (registration single-threaded).
 
-## ControlTemplate/TemplateBinding color-DP fix (this fix, user directive)
-- Root cause: the S803 composite re-key split the visual-state engine write target from the test read. enter_state/exit_state resolve the bare `Background` against the element owner-chain -> owner `Control` (Control.Background). The tests read(`Background`, `InkCanvas`) — a DISTINCT DP that stays at its default black, so red reads as black.
-- Fix: re-keyed the three color reads in ControlTemplate_test and the enter_state read in TemplateBinding_test to owner `Control`. Self-consistent Set/Get `InkCanvas` pairs in TemplateBinding left alone.
-- msvc-debug: ControlTemplate_test + TemplateBinding_test now PASS. Remaining core failures: TextBox:159/172 (TwoWay forward transfer), VamlReader_binding:187 (Direct empty-path boundary) — pre-existing, out of this directive's scope.
-
-## ABORT — TextBox TwoWay debug halted by user
-- User aborted the TextBox:159/172 forward-transfer probe debug. Probe (_probe_tb) crashed; the user clicked
-  abort. No source/header files were modified this session; the throwaway build/_probe_tb.obj was deleted.
-  In-flight state rolled back to last ✅ (the ControlTemplate/TemplateBinding color-DP fix baseline).
-- REMAINING core failures (both pre-existing, untouched): TextBox:159/172 TwoWay forward transfer,
-  VamlReader_binding:187 Direct empty-path boundary.
+## build_status (as of this session — S810_2: both lanes GREEN)
+- **windows-msvc** (msvc-debug): 4/4 test suites PASSED; vaml-core-tests 1341/1341, 8841 assertions
+  (8840 passed + 1 EXPECTED S036_1 should_fail), Status SUCCESS; 6 new S810_2 cases / 13 assertions green.
+  Compile warning-as-error clean (the DependencyProperty.cpp obj failed first on the missing
+  InvalidPropertyValueException symbol; fixed by including DependencyObject.h).
+- **ubuntu-clang** (VM, clang 21, shared folder /mnt/hgfs/VamlPOC): configure+build+ctest — UBUNTU-GREEN.
 
 ## next_step
-- Sprint 11t S810_1 CLOSED: validation disposition (out-of-range validate THROWS InvalidPropertyValueException,
-  REJECTED retired as the out-of-range disposition on Set) + NO-GAP binding-boundary TargetRejected mapping +
+- Sprint 11t S810_2 CLOSED: registration-time default validation (type + ValidateFunc against default, atomic) +
   both-lane green.
-- **Next = S810_2 (dep:S810_1):** registration-time default validation (WPF ValidateDefaultValueCommon,
-  DependencyProperty.cs:376-434) — type-check default + run ValidateFunc against default at Register, throws
-  DefaultValuePropertyTypeMismatch / DefaultValueInvalid analogues.
-- Followed by Sprint 11t S811 (D2/D3): remove the implicit cross-thread ChangeQueue/ChangeRecorder/ChangeProcessor
-  + ProcessNotificationQueue/pending_notification_count/fire_self_subscribers + SetResult::QUEUED, make wrong-thread
+- **Next = Sprint 11t S811 (D2/D3):** remove the implicit cross-thread ChangeQueue/ChangeRecorder/ChangeProcessor +
+  ProcessNotificationQueue/pending_notification_count/fire_self_subscribers + SetResult::QUEUED, make wrong-thread
   DP access THROW like WPF VerifyAccess, re-point the binding engine onto the synchronous with_changed callback,
-  and remove SetResult::REJECTED (which S810_1 consciously kept defined for the exhaustive switch until S811).
-- Remote-build (GH CI) check-in remains OPEN (S810_1 + prior uncommitted work; commits fire only on explicit commitit).
+  remove SetResult::REJECTED (kept defined since S810_1 for the exhaustive switch until S811).
+- Remote-build (GH CI) check-in remains OPEN (S810_1 + S810_2 + prior uncommitted work; commits fire only on
+  explicit commitit).
 
 ## notes
-- Sprint 11t S810_1 DONE, NOT committed. build/verify_s810_1.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).
-- Sprint 11t S810 (Part 1, D1) DONE, NOT committed. build/verify_s810.cmd GREEN. (Now superseded by S810_1's
-  REJECTED->throw disposition, which is the S810_1 scope — history preserved un-edited.)
-- Sprint 11s DONE, NOT committed. build/verify_s11s.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).
-- WPF ground-truth honored: each re-addition verified line-by-line from E:\GitRepos\wpf (Slider.cs:295/320,
-  Popup.cs:794, Image.cs:135, TextBlock.cs:776, Border.cs:142). **WPF correction:** Label has NO own Font* DPs
-  (Label.cs:30 : ContentControl) — correctly NOT re-registered (no invented names).
-- S804+S805 merged into one green unit (S804's proof required S805's re-additions first).
-- The S640 external-source note (sample.s11s.vaml uses Source="11s-sample.png" only as a resolvable DP slot;
-  the S640 S483/S202_1 icon-asset pipeline is the named render path) is recorded in the viewer seam.
+- Sprint 11t S810_2 DONE, NOT committed. build/verify_s810_2.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).
+- Sprint 11t S810_1 DONE, NOT committed. build/verify_s810_1.cmd GREEN. (Superseded-within-11t by S810_2's
+  registration gate — history preserved un-edited; the Set-pipeline disposition is unchanged.)
+- Sprint 11t S810 (Part 1, D1) DONE, NOT committed. build/verify_s810.cmd GREEN.
+- Sprint 11s DONE, NOT committed. build/verify_s11s.cmd GREEN.
 - Prior S803/S11af notes above remain as historical state (superseded by the 11s completion).

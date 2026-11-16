@@ -20,11 +20,16 @@
 #include "vaml_test_stringmakers.h"       // S036_2 StringMaker + S036_4 operator<<
 #include <vaml/assert/Shouldly.h>         // ShouldlyString / ShouldThrow (SHOULD seam, S036_1)
 
+#include "vaml/core/DependencyObject.h"   // S810_2: object-scoped register_property gate
+#include "vaml/core/PropertyKey.h"        // PropertyKey (name,type,owner,flags)
 #include "vaml/core/PropertyMetadata.h"
 
 #include <type_traits>
 
+using vaml::DependencyObject;
+using vaml::InvalidPropertyValueException;
 using vaml::PropertyFlags;
+using vaml::PropertyKey;
 using vaml::PropertyMetadata;
 using vaml::Value;
 using vaml::ValueType;
@@ -198,4 +203,64 @@ TEST_CASE("S034 PropertyMetadata: builder is return-by-value, source untouched f
     SHOULD(ShouldlyString(result.has_validate()).ShouldBe(true));
     SHOULD(ShouldlyString(result.validate(Value::Int32(0))).ShouldNotBe(true));
     SHOULD(ShouldlyString(result.validate(Value::Int32(9))).ShouldBe(true));
+}
+
+// ---- S810_2 — REGISTRATION-TIME DEFAULT VALIDATION at the OBJECT-SCOPED gate.
+// ---- WPF `ValidateDefaultValueCommon` (DependencyProperty.cs:376-434) validates
+// ---- the DEFAULT against the `ValidateValueCallback` at registration and throws
+// ---- ArgumentException(DefaultValueInvalid) when it fails. `register_property`
+// ---- (S036) now runs the metadata `ValidateFunc` against the default ATOMICALLY
+// ---- (no store entry), mirroring the S039 global Register gate.
+
+TEST_CASE("S810_2: register_property rejects a default that fails its ValidateFunc")
+{
+    DependencyObject obj;
+    // Default 42 is outside [0,10] — WPF DefaultValueInvalid at registration.
+    auto md = PropertyMetadata::WithDefault(Value::Int32(42), PropertyFlags::None)
+        .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0 && v.get<std::int32_t>() <= 10; });
+
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)obj.register_property(
+            PropertyKey("S810_2ObjDefault_A", ValueType::Int32, "S810_2Owner", PropertyFlags::None),
+            std::move(md));
+    }));
+
+    // ATOMICITY: NO store entry was installed (the failed register left the
+    // object's store empty), so the same (name, owner) pair is still free.
+    SHOULD(ShouldlyString(obj.has_local_value(vaml::PropertyId::of("S810_2ObjDefault_A", "S810_2Owner"))).ShouldNotBe(true));
+    // The property is not even registered (an unregistered read throws).
+    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] {
+        (void)obj.Get(vaml::PropertyId::of("S810_2ObjDefault_A", "S810_2Owner"));
+    }));
+}
+
+TEST_CASE("S810_2: register_property rejects a wrong-typed default (DefaultValuePropertyTypeMismatch)")
+{
+    DependencyObject obj;
+    // key type Int32 but the default is a Double (bound type Double) — the
+    // type-coherence gate (ValueTypeMismatch) is the DefaultValuePropertyTypeMismatch
+    // analogue. Nothing stored.
+    SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
+        (void)obj.register_property(
+            PropertyKey("S810_2ObjWrongType_A", ValueType::Int32, "S810_2Owner", PropertyFlags::None),
+            PropertyMetadata::WithDefault(Value::Double(1.5), PropertyFlags::None));
+    }));
+
+    SHOULD(ShouldThrow<vaml::PropertyNotFound>([&] {
+        (void)obj.Get(vaml::PropertyId::of("S810_2ObjWrongType_A", "S810_2Owner"));
+    }));
+}
+
+TEST_CASE("S810_2: register_property happy path — a valid default satisfying its ValidateFunc registers")
+{
+    DependencyObject obj;
+    // Default 5 is inside [0,10]; the gate runs the ValidateFunc and it passes,
+    // so the property registers + Get returns the default.
+    (void)obj.register_property(
+        PropertyKey("S810_2ObjValid_A", ValueType::Int32, "S810_2Owner", PropertyFlags::None),
+        PropertyMetadata::WithDefault(Value::Int32(5), PropertyFlags::None)
+            .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0 && v.get<std::int32_t>() <= 10; }));
+
+    SHOULD(ShouldlyString(obj.Get(vaml::PropertyId::of("S810_2ObjValid_A", "S810_2Owner")))
+              .ShouldBe(Value::Int32(5)));
 }

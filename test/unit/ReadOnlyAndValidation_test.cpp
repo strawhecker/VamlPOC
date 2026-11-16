@@ -189,7 +189,10 @@ TEST_CASE("S045: read-only throw precedes the pipeline (coerce + validate never 
     // A read-only property that ALSO carries a coerce + validate: the throw
     // fires BEFORE either runs — a read-only refusal is structural and must not
     // depend on (or mutate through) the value pipeline. Coerce doubles negative
-    // input; validate would reject everything if it ran.
+    // input; validate rejects a NEGATIVE value (so the default 0 is a legal
+    // registration under S810_2's registration-time default validation, while a
+    // Set of -3 would be refused by validate — had it run before the read-only
+    // throw).
     DependencyObject obj;
     const char* name = "ROPipeline_S045";
     PropertyKey key(name, ValueType::Int32, "S045Owner", kRO);
@@ -198,7 +201,7 @@ TEST_CASE("S045: read-only throw precedes the pipeline (coerce + validate never 
              .with_coerce([](const Value& v) {
                  return Value::Int32(v.get<std::int32_t>() * 2);
              })
-             .with_validate([](const Value&) { return false; }); // would reject if it ran
+             .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0; }); // rejects negative; default 0 passes
     (void)obj.register_property(std::move(key), std::move(md));
     const PropertyId id = PropertyId::of(name, "S045Owner");
 

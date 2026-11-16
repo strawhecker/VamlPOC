@@ -287,16 +287,18 @@ VAML_CORE_EXPORT
 const PropertyKey& DependencyObject::register_property(PropertyKey key, PropertyMetadata metadata)
 {
     // Type coherence: never register a key/metadata pair that disagree on the
-    // bound value type (NO-LAZY guard).
+    // bound value type (NO-LAZY guard). This is the WPF
+    // `DefaultValuePropertyTypeMismatch` analogue (DependencyProperty.cs:376-434) —
+    // a key type != metadata bound type (== defaultValue().type()) refuses.
     if (key.type() != metadata.boundType())
     {
         throw ValueTypeMismatch("DependencyObject::register_property: key.type() does not match metadata's bound value type");
     }
 
-    // The canonical interned name + owner (composite store key, S802) BEFORE
-    // moving `key` into the stable key node. The thread-local intern views are
-    // stable for the life of this object's affinity thread (S140, ADR-018) — a
-    // safe store key. The owner comes from the key's OWNER-TYPE identity (the
+    // The canonical interned name + owner (composite store key, S802) NEXT —
+    // before the duplicate-pair check. The thread-local intern views are stable
+    // for the life of this object's affinity thread (S140, ADR-018) — a safe
+    // store key. The owner comes from the key's OWNER-TYPE identity (the
     // declaring type), exactly WPF's (name, ownerType) pair.
     const std::string_view name  = vaml::intern(key.name());
     const std::string_view owner = vaml::intern(key.ownerTypeId());
@@ -308,6 +310,29 @@ const PropertyKey& DependencyObject::register_property(PropertyKey key, Property
     {
         throw PropertyAlreadyRegistered(
             "DependencyObject::register_property: a property with this (name, owner) pair is already registered");
+    }
+
+    // S810_2 — REGISTRATION-TIME DEFAULT VALIDATION (the WPF
+    // `ValidateDefaultValueCommon` / `DefaultValueInvalid` analogue). The
+    // metadata `ValidateFunc` is run against the DEFAULT here, AFTER the
+    // duplicate-pair check above (WPF `RegisterCommon` throws on an existing
+    // name/owner before validating defaults) and BEFORE the owned-metadata/
+    // stableKey heap nodes + `store_.emplace(...)` — so a false result throws
+    // ATOMICALLY (no entry installed, nothing allocated, no partial state).
+    // Mirrors WPF throwing ArgumentException(DefaultValueInvalid) from
+    // ValidateDefaultValueCommon (DependencyProperty.cs:376-434) when
+    // validateValueCallback(defaultValue) returns false. Reuses the S810_1
+    // InvalidPropertyValueException (std::invalid_argument -> WPF
+    // ArgumentException lineage), naming the property in canonical
+    // `owner.name` form + the offending default.
+    if (!metadata.validate(metadata.defaultValue()))
+    {
+        throw InvalidPropertyValueException(
+            "DependencyObject::register_property: default value for property " +
+                std::string(key.ownerTypeId()) + "." + std::string(key.name()) +
+                " failed its ValidateFunc at registration (DefaultValueInvalid)",
+            std::string(key.ownerTypeId()) + "." + std::string(key.name()),
+            render_value_for_diagnostic(metadata.defaultValue()));
     }
 
     // The OWNED metadata bundle lives in its own heap node (move-only,

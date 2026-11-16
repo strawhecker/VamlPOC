@@ -12,14 +12,36 @@
 
 #include "vaml/core/DependencyProperty.h"
 
+#include "vaml/core/DependencyObject.h"  // S810_2: InvalidPropertyValueException (DefaultValueInvalid)
 #include "vaml/core/PropertyRegistry.h"
 #include "vaml/core/detail/NameTable.h" // S143 (B4): content-keyed probe store for GlobalTable
 
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector> // S803: owner-chain resolution (std::vector<owner> chain)
 
 namespace vaml {
+
+// S810_2 helper: render the offending default Value to a readable one-line
+// diagnostic for InvalidPropertyValueException::value(). Mirrors the primitive
+// rendering in DependencyObject.cpp (registration-time defaults are primitives
+// in practice); anything else falls back to the tag name.
+namespace {
+std::string render_default_for_diagnostic(const Value& v)
+{
+    switch (v.type())
+    {
+        case ValueType::Bool:    return v.get<bool>() ? "true" : "false";
+        case ValueType::Int32:   return std::to_string(v.get<std::int32_t>());
+        case ValueType::Int64:   return std::to_string(v.get<std::int64_t>());
+        case ValueType::Float:   { std::ostringstream os; os << v.get<float>(); return os.str(); }
+        case ValueType::Double:  { std::ostringstream os; os << v.get<double>(); return os.str(); }
+        case ValueType::String:  return "\"" + v.get<std::string>() + "\"";
+        default:                 return "<" + std::to_string(static_cast<int>(v.type())) + ">";
+    }
+}
+} // namespace
 
 VAML_CORE_EXPORT
 DependencyProperty::DependencyProperty(std::string name,
@@ -70,10 +92,37 @@ const DependencyProperty& DependencyProperty::Register(
     std::string_view name, ValueType type, std::string_view ownerTypeId, PropertyMetadata metadata)
 {
     // Type coherence: never register a key/metadata pair that disagree on the
-    // bound value type (NO-LAZY guard).
+    // bound value type (NO-LAZY guard). This is the WPF
+    // `DefaultValuePropertyTypeMismatch` analogue (ValidateDefaultValueCommon,
+    // DependencyProperty.cs:376-434 throws ArgumentException on a wrong-typed
+    // default) — a key type != metadata bound type (== defaultValue().type())
+    // refuses the registration.
     if (type != metadata.boundType())
     {
         throw ValueTypeMismatch("DependencyProperty::Register: key type does not match metadata's bound value type");
+    }
+
+    // S810_2 — REGISTRATION-TIME DEFAULT VALIDATION (the WPF
+    // `ValidateDefaultValueCommon` / `DefaultValueInvalid` analogue). WPF
+    // validates the DEFAULT against the `ValidateValueCallback` at registration:
+    // `DependencyProperty.cs:376-434` throws ArgumentException(DefaultValueInvalid)
+    // when `validateValueCallback(defaultValue)` returns false. VAML's metadata
+    // `ValidateFunc` (PropertyMetadata.h) is the same callback, so Register runs
+    // it against the default HERE — BEFORE any registry / companion-table
+    // side-effect — and a false result throws atomically (no entry installed, no
+    // partial state), exactly as the existing type-coherence check above.
+    //
+    // The thrown `InvalidPropertyValueException` (S810_1, std::invalid_argument
+    // -> WPF ArgumentException lineage) names the property in canonical
+    // `owner.name` form + the offending default, mirroring the WPF disposition.
+    if (!metadata.validate(metadata.defaultValue()))
+    {
+        throw InvalidPropertyValueException(
+            "DependencyProperty::Register: default value for property " +
+                std::string(ownerTypeId) + "." + std::string(name) +
+                " failed its ValidateFunc at registration (DefaultValueInvalid)",
+            std::string(ownerTypeId) + "." + std::string(name),
+            render_default_for_diagnostic(metadata.defaultValue()));
     }
 
     const std::string ownedName(name);
