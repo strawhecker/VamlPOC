@@ -1,10 +1,10 @@
 # session-context.md
 
-last_command: full clean build+test, BOTH CI lanes PROVEN GREEN (user committed locally: d01bdba "# S803 — finish composite (name, owner) re-key to GREEN"; clean working tree — git status --porcelain empty)
-plan_digest: S803 makes the reader's dotted-key authoring native `(name, owner)` composite lookup (drop the
-flatten), removes the S095/S09x name-unique global-DP discipline, and retires owner-less bridges. WPF ground
-truth (audited DependencyProperty.cs:959-979): the ONLY locate is FromName(name, ownerType), owner REQUIRED,
-no name-only locate. Every site must carry its real owner.
+last_command: implementit — Sprint 11s (S804..S808) DONE, BOTH CI LANES GREEN via build/verify_s11s.cmd ("S11s GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
+plan_digest: Sprint 11s — the composite (name, owner) DP identity lands end-to-end (S804 coexistence live-proof
++ S805 un-revert re-additions merged into one green unit; S806 re-verify/wide-sweep; S807 refactor gate; S808
+survivor+checkpoint). Re-adds the DPs the name-only contract forced away, each verified against E:\GitRepos\wpf
+ground truth. The name-only DP hosing is ABOLISHED; ZERO MINIMAL REAL introduced (grep-audit PASS).
 
 ## COMPOSITE RE-KEY (this session — COMPILE + most RUNTIME done)
 - FULL COMPILE green across ALL 4 targets (vaml-core, core-tests, tools-tests, presentation-tests).
@@ -82,15 +82,18 @@ no name-only locate. Every site must carry its real owner.
   VamlReader_binding:187 Direct empty-path boundary.
 
 ## next_step
-- S803 closed: roadmap [DONE] + plan green + clean two-lane proof + local commit d01bdba.
-- Perma-verify `build/verify_s803.cmd` restored (was wiped by the hard clean; backup placed back).
-- S804 (viewer coexistence live-proof) is next. Remote-build (GH CI) check-in remains OPEN (user committed
-  locally; the outstanding action is commit + push, which fires only on explicit commitit).
+- Sprint 11s (S804..S808) CLOSED: roadmap SURVIVOR recorded (progress.md) + plan green + two-lane proof
+  (build/verify_s11s.cmd -> "S11s GREEN") + the composite (name, owner) coexistence landed end-to-end.
+- The [both-apps, not CI] LIVE window display of sample.s11s.vaml stays the on-machine local gate (recorded NO-GAP).
+- Next step per the surrounding continuation order = S520 (Sprint 11h — the 3rd-party IMPORT/INJECT seam).
+- Remote-build (GH CI) check-in remains OPEN (Sprint 11s is uncommitted; commits fire only on explicit commitit — standing directive).
 
 ## notes
-- LOCAL COMMIT MADE BY USER: d01bdba "# S803 — finish composite (name, owner) re-key to GREEN". NO push yet.
-- Perma-verify restored to build/verify_s803.cmd after the clean wipe (temp backup deleted).
-- The earlier "empty-path Direct change REGRESSED AppShellBinding + ViewerBindingPlan" note is SUPERSEDED:
-  those were stale tests encoding the retired pre-11af premise. Re-based S443/S256 onto the genuinely
-  malformed `{Binding ,Mode=TwoWay}` (leading comma, no path) form, which still throws MalformedBindingMarkup
-  while `{Binding}` stays a valid Direct self-binding. All green.
+- Sprint 11s DONE, NOT committed. build/verify_s11s.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).
+- WPF ground-truth honored: each re-addition verified line-by-line from E:\GitRepos\wpf (Slider.cs:295/320,
+  Popup.cs:794, Image.cs:135, TextBlock.cs:776, Border.cs:142). **WPF correction:** Label has NO own Font* DPs
+  (Label.cs:30 : ContentControl) — correctly NOT re-registered (no invented names).
+- S804+S805 merged into one green unit (S804's proof required S805's re-additions first).
+- The S640 external-source note (sample.s11s.vaml uses Source="11s-sample.png" only as a resolvable DP slot;
+  the S640 S483/S202_1 icon-asset pipeline is the named render path) is recorded in the viewer seam.
+- Prior S803/S11af notes above remain as historical state (superseded by the 11s completion).

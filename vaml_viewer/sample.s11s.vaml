@@ -1,0 +1,75 @@
+<!-- vaml_viewer — Sprint 11s VIEWER-GROWTH sample (dep:S803): the COEXISTENCE
+     LIVE proof that the name-only DP hosing is ABOLISHED by the composite
+     (name, owner) key.
+
+     The sample authors THREE same-name/different-owner DP pairs, each of which
+     must RESOLVE + RENDER through the generic renderer (the S222_1/11k-6 RELOAD
+     re-demonstrated). Before the composite key these were impossible to author
+     simultaneously without a name collision; 11s makes each resolve to its own
+     owner's store:
+
+       1. Slider.Delay      (WPF Slider.cs:295 AddOwner)  AND
+          RepeatButton.Delay (RepeatButton.cs:49 Register)
+          — two controls, both author Delay, independent values.
+          (Interval mirrors this: Slider.cs:320 + RepeatButton.cs:76.)
+       2. Popup.AllowsTransparency   (Popup.cs:794 AddOwner) AND
+          Window.AllowsTransparency (Window.cs)
+          — two controls, same Bool DP name, distinct owners.
+       3. TextBlock.FontSize (TextBlock.cs:776 AddOwner, the FrameworkElement
+          TextElement branch) AND
+          Control.FontSize   (Control.cs:182, the Control branch)
+          — the FrameworkElement vs Control base-branch separation.
+
+     Plus the Image/Viewbox StretchDirection pair (Image.cs:135 AddOwner) and
+     the Border/Control Padding pair (Border.cs:142 Register) round out the
+     re-addition (S805) surface. The LIVE window display is the [both-apps,
+     not CI] on-machine gate (the SEAM — vaml_viewer/viewer_growth_s11s.h +
+     its headless test — is the CI-checkable half of the exact code path).
+
+     ADR-021 consumer path. NO MINIMAL REAL. ADR-018 ZERO new locks. -->
+
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="Root" Width="720" Height="520" Margin="6"
+            Background="#F0F0F0">
+  <TextBlock Text="11s — the composite (name, owner) DP key: coexistence, LIVE"
+             FontSize="16" Margin="4"/>
+
+  <!-- PAIR 1 — Slider.Delay vs RepeatButton.Delay (independent repeat-delay
+       stores). Slider.Delay=500 (its OWN owner) and RepeatButton.Delay=120
+       (its OWN owner) MUST NOT collide; each renders its authored value. -->
+  <StackPanel Orientation="0" Margin="4">
+    <Slider x:Name="SliderDelay" Minimum="0" Maximum="1000" Value="40"
+            Width="300" Height="28" Delay="500"/>
+    <RepeatButton x:Name="RepeatDelay" Delay="120" Interval="80"
+                  Width="300" Height="24" Margin="2"/>
+  </StackPanel>
+
+  <!-- PAIR 2 — Popup.AllowsTransparency vs Window.AllowsTransparency
+       (same Bool DP name, distinct owners). -->
+  <StackPanel Orientation="1" Margin="4">
+    <Popup x:Name="PopupAT" Popup.IsOpen="0" AllowsTransparency="true"
+           Width="140" Height="60" HorizontalOffset="4" VerticalOffset="4"/>
+    <Window x:Name="WindowAT" AllowsTransparency="false" Title="11s window"
+            Width="160" Height="70"/>
+  </StackPanel>
+
+  <!-- PAIR 3 — TextBlock.FontSize (FrameworkElement TextElement branch) vs
+       Control.FontSize (Control branch). Two FontSize owners, independent. -->
+  <StackPanel Orientation="0" Margin="4">
+    <TextBlock x:Name="TbFe" Text="TextBlock.FontSize=24 (own owner)"
+               FontSize="24"/>
+    <Button x:Name="BtnCtrl" FontSize="14" Width="280" Height="26"
+            IsDefault="1">Control.FontSize=14 (Control owner)</Button>
+  </StackPanel>
+
+  <!-- re-addition surface: Image/Viewbox StretchDirection + Border/Control
+       Padding (S805). -->
+  <StackPanel Orientation="1" Margin="4">
+    <Image x:Name="ImgSD" StretchDirection="1" Source="11s-sample.png"
+           Width="80" Height="60"/>
+    <Viewbox x:Name="VbSD" StretchDirection="2" Width="100" Height="60">
+      <Border x:Name="BrdPad" Padding="4" BorderThickness="2"
+              CornerRadius="2" Width="80" Height="40" Background="#CCCCFF"/>
+    </Viewbox>
+  </StackPanel>
+</StackPanel>

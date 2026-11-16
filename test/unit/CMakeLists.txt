@@ -1331,6 +1331,20 @@ add_executable(vaml-presentation-tests
     # viewer_growth_11k.h (ADR-021) + links vaml-presentation (which PUBLIC-links
     # vaml-vulkan, so the vaml::vulkan::vector raster seam + UiScene are provable).
     ViewerGrowth11k_test.cpp
+    # 11s (dep:S803) — VIEWER-GROWTH(11s): THE COEXISTENCE LIVE PROOF (S804) +
+    # the un-revert re-addition (S805) headless half. sample.s11s.vaml authors
+    # THREE same-name/different-owner DP pairs (Slider.Delay/RepeatButton.Delay;
+    # Popup.AllowsTransparency/Window.AllowsTransparency; TextBlock.FontSize/
+    # Control.FontSize) + the re-addition surface (Image/Viewbox StretchDirection;
+    # Border/Control Padding). Each must RESOLVE + RENDER independently via the
+    # generic renderer (the S222_1/11k-6 RELOAD re-demonstration against the
+    # composite (name, owner) key) — the on-screen proof the name-only hosting is
+    # abolished. Compiles the seam viewer_growth_s11s.h (ADR-021) + links
+    # vaml-presentation (which PUBLIC-links vaml-vulkan, so the S212 encode_visual
+    # slice render-plan + UiScene are provable).
+    # [both-apps, not CI]: the LIVE WINDOW display of the coexistence sample
+    # stays the on-machine local gate (recorded NO-GAP).
+    ViewerGrowthS11s_test.cpp
     # 11k-A (S-kA-5, dep:S-kA-1..4 + 11n-6 + 11k_12/S554) — VIEWER-GROWTH
     # (StickyNote): the ADR-021 consumer seam viewer_growth_s11ka.h runs the
     # exact code the live viewer uses to render an ADORNER-ANCHORED StickyNote

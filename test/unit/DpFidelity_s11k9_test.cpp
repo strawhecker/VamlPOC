@@ -221,6 +221,35 @@ TEST_CASE("11k-9 full closure: idempotent (no duplicate-Register throw) + shared
     CHECK(dp_exists("Padding", "Control"));
     CHECK(dp_exists("HorizontalContentAlignment", "Control"));
     CHECK(dp_exists("VerticalContentAlignment", "Control"));
+
+    // 11s — COEXISTENCE: the same-name/different-owner DPs the name-only
+    // contract forced away are re-added owner-qualified. Every pair coexists
+    // under the composite (name, owner) key — BOTH owners resolve, never a
+    // bare-name pick.
+    //   Slider.Delay / RepeatButton.Delay  (WPF Slider.cs:295 AddOwner)
+    //   Slider.Interval / RepeatButton.Interval (WPF Slider.cs:320 AddOwner)
+    CHECK(dp_exists("Delay", "Slider"));
+    CHECK(dp_exists("Delay", "RepeatButton"));
+    CHECK(dp_exists("Interval", "Slider"));
+    CHECK(dp_exists("Interval", "RepeatButton"));
+    //   Popup.AllowsTransparency / Window.AllowsTransparency (Popup.cs:794)
+    CHECK(dp_exists("AllowsTransparency", "Popup"));
+    CHECK(dp_exists("AllowsTransparency", "Window"));
+    //   Image.StretchDirection / Viewbox.StretchDirection (Image.cs:135)
+    CHECK(dp_exists("StretchDirection", "Image"));
+    CHECK(dp_exists("StretchDirection", "Viewbox"));
+    //   TextBlock.FontSize / Control.FontSize (TextBlock.cs:776)
+    CHECK(dp_exists("FontSize", "TextBlock"));
+    CHECK(dp_exists("FontSize", "Control"));
+    //   Border.Padding / Control.Padding (Border.cs:142)
+    CHECK(dp_exists("Padding", "Border"));
+    CHECK(dp_exists("Padding", "Control"));
+    // And the owners are DISTINCT (each pair is two registrations, not one).
+    CHECK(DependencyProperty::TryGet("Delay", "Slider") != DependencyProperty::TryGet("Delay", "RepeatButton"));
+    CHECK(DependencyProperty::TryGet("AllowsTransparency", "Popup") != DependencyProperty::TryGet("AllowsTransparency", "Window"));
+    CHECK(DependencyProperty::TryGet("StretchDirection", "Image") != DependencyProperty::TryGet("StretchDirection", "Viewbox"));
+    CHECK(DependencyProperty::TryGet("FontSize", "TextBlock") != DependencyProperty::TryGet("FontSize", "Control"));
+    CHECK(DependencyProperty::TryGet("Padding", "Border") != DependencyProperty::TryGet("Padding", "Control"));
 }
 
 TEST_CASE("11k-9 the VIEWER-GROWTH corpus spread authors + resolves end-to-end (never UnknownProperty)")

@@ -285,13 +285,20 @@ void run_dp_fidelity_closure()
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 
     // ---- Slider (RangeBase + own; Value/Min/Max already dotted) ----
-    // NOTE: Slider's WPF-authentic `Delay`/`Interval` (the repeat-delay prop
-    // names) are NOT registered HERE because RepeatButton ALREADY owns the
-    // bare `Delay`/`Interval` registrations (11k-2, in its ctor). The name-
-    // unique registry forbids a second bare registration; the S043 attached-
-    // aware read resolves bare `Delay`/`Interval` against that owner on any
-    // object, so a corpus `<Slider Delay=...>` resolves against RepeatButton's
-    // registration too (WPF-observable surface preserved; no duplicate).
+    // 11s — Slider.Delay / Slider.Interval are registered OWNER-QUALIFIED under
+    // "Slider" (in register_slider_properties, WPF Slider.cs:295/320 AddOwner),
+    // coexisting with RepeatButton.Delay / RepeatButton.Interval by the
+    // composite (name, owner) key. The name-unique disambiguation that forced
+    // Slider onto RepeatButton's bare Delay/Interval is ABOLISHED by 11s; a
+    // corpus `<Slider Delay=...>` resolves against Slider's OWN registration.
+    // Re-registered here by guard so the 11k-9 audit pin (dp_exists) sees them
+    // WITHOUT constructing a Slider (never-lazy pin) — dp_register_guard is
+    // idempotent by the (name, owner) pair, so it coexists with the ctor.
+    dp_register_guard("Delay",   ValueType::Int32,  "Slider",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    dp_register_guard("Interval",ValueType::Int32,  "Slider",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // The remaining Slider-only guards stay under Slider.
     dp_register_guard("IsDirectionReversed", ValueType::Int32,  "Slider",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
@@ -365,10 +372,28 @@ void run_dp_fidelity_closure()
     // ---- ScrollBar: Orientation present; nothing more (ViewportSize owned) ----
     // (RangeBase LargeChange/SmallChange registered above under "RangeBase".)
 
-    // ---- RepeatButton: Delay/Interval/IsPressed already owned (11k-2) ----
-    // The ButtonBase Command/ClickMode + Control surface now resolve via base.
+    // ---- RepeatButton: Delay/Interval/IsPressed (11k-2, lazily in ctor) ----
+    // 11s re-registers Delay/Interval HERE by guard so the 11k-9 audit pin
+    // (dp_exists) sees RepeatButton's own owners WITHOUT constructing a
+    // RepeatButton (never-lazy; idempotent by the (name, owner) pair with the
+    // ctor's register_repeatbutton_properties, whichever runs first). They
+    // coexist with the 11s-re-added Slider.Delay/Slider.Interval by the
+    // composite key (WPF Slider.cs:295/320 AddOwner).
+    dp_register_guard("Delay",   ValueType::Int32,  "RepeatButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    dp_register_guard("Interval",ValueType::Int32,  "RepeatButton",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 
-    // ---- Viewbox: Stretch/StretchDirection already owned (11k-2) ----
+    // ---- Viewbox: Stretch/StretchDirection (11k-2, lazily in ctor) ----
+    // 11s re-registers Viewbox.StretchDirection HERE by guard so the audit pin
+    // (dp_exists) sees Viewbox's own owner WITHOUT constructing a Viewbox
+    // (never-lazy; idempotent with the ctor). It coexists with the 11s-re-added
+    // Image.StretchDirection by the composite key (WPF Image.cs:135 AddOwner).
+    dp_register_guard("StretchDirection", ValueType::Int32,  "Viewbox",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // (Image.StretchDirection itself is a 11s re-addition — guard just above.)
+    dp_register_guard("StretchDirection", ValueType::Int32,  "Image",
+        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 
     // ---- ToolBar (own: IsOverflowItem/OverflowMode missing beyond 11k-2) ----
     dp_register_guard("IsOverflowItem",      ValueType::Int32,  "ToolBar",
@@ -402,11 +427,16 @@ void run_dp_fidelity_closure()
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 
     // ---- Popup (own: PopupAnimation beyond 11k-2 StaysOpen; AllowsTransparency
-    //      is NOT registered here — Window ALREADY owns bare AllowsTransparency
-    //      (11j-4), and the name-unique registry forbids a second bare
-    //      registration; the S043 attached-aware read resolves it on a Popup) ----
+    //      is Popup-owned — 11s re-added under "Popup", WPF Popup.cs:794-795
+    //      AddOwner, coexisting with Window.AllowsTransparency by the composite
+    //      key) ----
     dp_register_guard("PopupAnimation",      ValueType::Int32,  "Popup",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // 11s — the audit pin (dp_exists) for Popup.AllowsTransparency; re-added by
+    // guard so it registers WITHOUT constructing a Popup (never-lazy pin).
+    dp_register_guard("AllowsTransparency",  ValueType::Bool,   "Popup",
+        std::move(PropertyMetadata::WithDefault(Value::Bool(false), PropertyFlags::None))
+            .with_validate([](const Value& v) { return v.type() == ValueType::Bool; }));
     // StaysOpen/Popup + IsOpen/Placement/HorizontalOffset/VerticalOffset are
     // registered lazily by Element.cpp's register_popup_properties() on Popup
     // construction; re-register StaysOpen here by guard so the 11k-9 audit pin
@@ -432,8 +462,13 @@ void run_dp_fidelity_closure()
     dp_register_guard("Left",                ValueType::Double, "Window",
         PropertyMetadata::WithDefault(Value::Double(0.0), PropertyFlags::None));
 
-    // ---- TextBlock (own; FontSize/FontFamily/Foreground/Text/Padding shared;
-    //       the remaining text DPs register here per the 11k-8 TextBlock row) ----
+    // ---- TextBlock (own; 11s re-added TextBlock.FontSize under its REAL WPF
+    //       owner "TextBlock", WPF TextBlock.cs:776 AddOwner, coexisting with
+    //       Control.FontSize by the composite key; the remaining text DPs
+    //       register here per the 11k-8 TextBlock row) ----
+    dp_register_guard("FontSize",            ValueType::Double,  "TextBlock",
+        std::move(PropertyMetadata::WithDefault(Value::Double(12.0), PropertyFlags::None))
+            .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
     dp_register_guard("FontStyle",           ValueType::Int32,  "TextBlock",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     dp_register_guard("FontStretch",         ValueType::Int32,  "TextBlock",
@@ -458,8 +493,13 @@ void run_dp_fidelity_closure()
     dp_register_guard("TextTrimming",        ValueType::Int32,  "TextBlock",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 
-    // ---- Border (already owns BorderBrush/Thickness/CornerRadius + Padding
-    //      via base; the Border own-surface is complete) ----
+    // ---- Border: BorderBrush/Thickness/CornerRadius + Padding all Border-
+    //      owned. 11s re-added Border.Padding under its REAL WPF owner "Border"
+    //      (WPF Border.cs:142-143 Register), coexisting with Control.Padding by
+    //      the composite key; re-registered here by guard for the audit pin
+    //      (never-lazy; idempotent with the ctor). ----
+    dp_register_guard("Padding",             ValueType::Thickness, "Border",
+        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
 
     // ---- DockPanel: LastChildFill ----
     dp_register_guard("LastChildFill",       ValueType::Int32,  "DockPanel",
@@ -471,11 +511,9 @@ void run_dp_fidelity_closure()
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
 
     // ---- Image: Source/IconKey/Stretch + Width/Height; StretchDirection is
-    //      NOT registered here — Viewbox ALREADY owns bare `StretchDirection`
-    //      (11k-2), and the name-unique registry forbids a second bare
-    //      registration; the S043 attached-aware read resolves it on an Image
-    //      too (WPF-observable surface preserved). Image.Stretch itself is
-    //      Image-owned (dotted) — both resolve. ----
+    //      Image-owned (11s — re-added under "Image", WPF Image.cs:135
+    //      AddOwner, coexisting with Viewbox.StretchDirection by the composite
+    //      key). Image.Stretch is Image-owned (dotted) — both resolve. ----
 
     // ---- 11k-4 brush surfaces (Geometry/Drawing common Transform already
     //      owned; the remaining 11k-8 brush rows) ----

@@ -1205,6 +1205,25 @@ void register_textblock_properties()
     (void)DependencyProperty::Register(
         "Text", ValueType::String, "TextBlock",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // 11s — TextBlock.FontSize (SAME-NAME/different-OWNER DP coexisting with
+    // Control.FontSize via the composite (name, owner) key). WPF ground truth
+    // (E:\GitRepos\wpf):
+    //     TextBlock.cs:776-777  FontSizeProperty
+    //         = TextElement.FontSizeProperty.AddOwner(typeof(TextBlock))
+    // TextBlock is FrameworkElement-derived (TextBlock.cs:44) — its OWN
+    // FontSize (TextElement-branched) is genuinely distinct from Control's
+    // (Control.cs:182). The TextBlock::set_font_size/font_size accessors
+    // re-point to this owner below (the shared Control-bundle read was the
+    // 11j-5 name-only re-point; 11s restores the WPF owner separation). Default
+    // 12.0 matches the Control bundle (WPF's live default is the OS theme
+    // message-font size at 96 DPI). GUARDED (TryGet) so the 11s fidelity
+    // closure (which registers TextBlock.FontSize by dp_register_guard for the
+    // audit pin) and this ctor coexist regardless of construction order.
+    if (DependencyProperty::TryGet("FontSize", "TextBlock") == nullptr)
+        (void)DependencyProperty::Register(
+            "FontSize", ValueType::Double, "TextBlock",
+            std::move(PropertyMetadata::WithDefault(Value::Double(12.0), PropertyFlags::None))
+                .with_validate([](const Value& v) { return v.get<double>() >= 0.0; }));
     // FontWeight: Int32, default Normal=0 (the S206 glyph convention).
     (void)DependencyProperty::Register(
         "FontWeight", ValueType::Int32, "TextBlock",
@@ -1254,13 +1273,13 @@ std::string TextBlock::text() const
 VAML_CORE_EXPORT
 SetResult TextBlock::set_font_size(double value)
 {
-    return Set(PropertyId::of("FontSize", "Control"), Value::Double(value));
+    return Set(PropertyId::of("FontSize", "TextBlock"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double TextBlock::font_size() const
 {
-    return Get(PropertyId::of("FontSize", "Control")).get<double>();
+    return Get(PropertyId::of("FontSize", "TextBlock")).get<double>();
 }
 
 VAML_CORE_EXPORT
@@ -1784,6 +1803,27 @@ void register_slider_properties()
     (void)DependencyProperty::Register(
         "Maximum", ValueType::Double, "Slider",
         PropertyMetadata::WithDefault(Value::Double(100.0), PropertyFlags::None));
+    // 11s — Slider.Delay / Slider.Interval (each a SAME-NAME/different-OWNER
+    // DP coexisting with RepeatButton.Delay / RepeatButton.Interval via the
+    // composite (name, owner) key). WPF ground truth (E:\GitRepos\wpf):
+    //     Slider.cs:295  DelayProperty    = RepeatButton.DelayProperty.AddOwner(typeof(Slider))
+    //     Slider.cs:320  IntervalProperty = RepeatButton.IntervalProperty.AddOwner(typeof(Slider))
+    // The WPF AddOwner semantics = a distinct Slider-owned registration with
+    // Slider metadata; the composite key houses both owners (never a bare-name
+    // pick). Slider repeats from its OWN independent Delay/Interval, distinct
+    // from RepeatButton's. Default 0 matches the existing RepeatButton
+    // registration convention. GUARDED (TryGet) so the 11s fidelity closure
+    // (ElementDpFidelity run_dp_fidelity_closure, which registers Slider.Delay/
+    // Interval by dp_register_guard for the audit pin) and this ctor coexist
+    // regardless of construction order — never a duplicate-Register throw.
+    if (DependencyProperty::TryGet("Delay", "Slider") == nullptr)
+        (void)DependencyProperty::Register(
+            "Delay", ValueType::Int32, "Slider",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("Interval", "Slider") == nullptr)
+        (void)DependencyProperty::Register(
+            "Interval", ValueType::Int32, "Slider",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // The S403 "routed change event" identity (Bubbling).
     (void)RoutedEvent::registered("ValueChanged", RouteEventDirection::Bubble);
 }
@@ -4284,8 +4324,22 @@ void register_border_properties()
     (void)DependencyProperty::Register(
         "CornerRadius", ValueType::Thickness, "Border",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
-    // (11j-5) Border.Padding is REMOVED — Padding is the shared Control base DP
-    // (bare "Padding", owner "Control"); Border re-points its padding accessor.
+    // 11s — Border.Padding (SAME-NAME/different-OWNER DP coexisting with
+    // Control.Padding via the composite (name, owner) key). 11j-5 REMOVED this
+    // (the name-only contract forced Border to re-point to Control's bare
+    // Padding); 11s re-adds it owner-qualified under its REAL WPF owner.
+    // WPF ground truth (E:\GitRepos\wpf):
+    //     Border.cs:142-143  PaddingProperty
+    //         = DependencyProperty.Register("Padding", typeof(Thickness), typeof(Border), ...)
+    // A Border REGISTERS its own Padding (distinct from Control.Padding — WPF
+    // has no cross "shared" Padding; Control and Border each own theirs). The
+    // Border::set_padding accessor re-points to this owner below. GUARDED
+    // (TryGet) so the 11s fidelity closure (which registers Border.Padding by
+    // dp_register_guard) and this ctor coexist regardless of construction order.
+    if (DependencyProperty::TryGet("Padding", "Border") == nullptr)
+        (void)DependencyProperty::Register(
+            "Padding", ValueType::Thickness, "Border",
+            PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
 }
 
 void ensure_border_properties_registered()
@@ -4351,14 +4405,15 @@ vaml::Thickness Border::corner_radius() const
 VAML_CORE_EXPORT
 SetResult Border::set_padding(vaml::Thickness value)
 {
-    // 11j-5: Padding is the shared Control base DP (bare "Padding").
-    return Set(PropertyId::of("Padding", "Control"), Value::Thickness(value));
+    // 11s: Padding is re-added owner-qualified under Border's real WPF owner
+    // (distinct from Control.Padding; see register_border_properties).
+    return Set(PropertyId::of("Padding", "Border"), Value::Thickness(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Thickness Border::padding() const
 {
-    return Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>();
+    return Get(PropertyId::of("Padding", "Border")).get<vaml::Thickness>();
 }
 
 VAML_CORE_EXPORT
@@ -5196,6 +5251,19 @@ void register_image_properties()
     (void)DependencyProperty::Register(
         "Stretch", ValueType::Int32, "Image",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // 11s — Image.StretchDirection (SAME-NAME/different-OWNER DP coexisting
+    // with Viewbox.StretchDirection via the composite (name, owner) key).
+    // WPF ground truth (E:\GitRepos\wpf):
+    //     Image.cs:135  StretchDirectionProperty
+    //         = Viewbox.StretchDirectionProperty.AddOwner(typeof(Image))
+    // Int32 (the WPF {UpOnly=0,DownOnly=1,Both=2} enum, as the Viewbox carrier).
+    // GUARDED (TryGet) so the 11s fidelity closure (which registers
+    // Image.StretchDirection by dp_register_guard) and this ctor coexist
+    // regardless of construction order.
+    if (DependencyProperty::TryGet("StretchDirection", "Image") == nullptr)
+        (void)DependencyProperty::Register(
+            "StretchDirection", ValueType::Int32, "Image",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // Width/Height ride the base UIElement S123 layout DPs (auto/NaN) — the
     // image box is the inherited WPF-style Width/Height the reconciler applies.
 }
@@ -6098,13 +6166,19 @@ void register_repeatbutton_properties()
 {
     // Delay / Interval / IsPressed are registered BARE so a corpus-shaped
     // `<RepeatButton Delay=... Interval=.../>` resolves (the reader resolves
-    // bare attribute keys by name). None of these names is taken globally.
-    (void)DependencyProperty::Register(
-        "Delay", ValueType::Int32, "RepeatButton",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Interval", ValueType::Int32, "RepeatButton",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // bare attribute keys by name). GUARDED (TryGet) so the 11s fidelity
+    // closure (which registers RepeatButton.Delay/Interval by dp_register_guard
+    // for the audit pin) and this ctor coexist regardless of construction order
+    // — never a duplicate-Register throw. None of these names is taken globally
+    // as a bare unique name.
+    if (DependencyProperty::TryGet("Delay", "RepeatButton") == nullptr)
+        (void)DependencyProperty::Register(
+            "Delay", ValueType::Int32, "RepeatButton",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    if (DependencyProperty::TryGet("Interval", "RepeatButton") == nullptr)
+        (void)DependencyProperty::Register(
+            "Interval", ValueType::Int32, "RepeatButton",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // IsPressed: Bool via Int32, default false.
     (void)DependencyProperty::Register(
         "IsPressed", ValueType::Int32, "RepeatButton",
@@ -6271,10 +6345,15 @@ void register_viewbox_properties()
         "Stretch", ValueType::Int32, "Viewbox",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
     // StretchDirection: Int32 default UpOnly=0 (the WPF-faithful enum
-    // {UpOnly=0, DownOnly=1, Both=2}; carried as Int32).
-    (void)DependencyProperty::Register(
-        "StretchDirection", ValueType::Int32, "Viewbox",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+    // {UpOnly=0, DownOnly=1, Both=2}; carried as Int32). GUARDED (TryGet) so
+    // the 11s fidelity closure (which registers Viewbox.StretchDirection by
+    // dp_register_guard for the audit pin) and this ctor coexist regardless of
+    // construction order. It coexists with Image.StretchDirection (11s
+    // re-addition) by the composite (name, owner) key, WPF Image.cs:135 AddOwner.
+    if (DependencyProperty::TryGet("StretchDirection", "Viewbox") == nullptr)
+        (void)DependencyProperty::Register(
+            "StretchDirection", ValueType::Int32, "Viewbox",
+            PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 }
 
 void ensure_viewbox_properties_registered()
@@ -7683,6 +7762,17 @@ void register_popup_properties()
         (void)DependencyProperty::Register(
             "StaysOpen", ValueType::Int32, "Popup",
             PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None));
+    // 11s — Popup.AllowsTransparency (SAME-NAME/different-OWNER DP coexisting
+    // with Window.AllowsTransparency via the composite (name, owner) key).
+    // WPF ground truth (E:\GitRepos\wpf):
+    //     Popup.cs:794-795  AllowsTransparencyProperty
+    //         = Window.AllowsTransparencyProperty.AddOwner(typeof(Popup), ...)
+    // Bool (WPF-faithful) — a distinct Popup-owned registration, never a
+    // bare-name pick against Window's.
+    if (DependencyProperty::TryGet("AllowsTransparency", "Popup") == nullptr)
+        (void)DependencyProperty::Register(
+            "AllowsTransparency", ValueType::Bool, "Popup",
+            PropertyMetadata::WithDefault(Value::Bool(false), PropertyFlags::None));
     (void)RoutedEvent::registered("Opened", RouteEventDirection::Bubble);
     (void)RoutedEvent::registered("Closed", RouteEventDirection::Bubble);
 }

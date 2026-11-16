@@ -1,18 +1,16 @@
 // 11j-5 (GAP CLOSE, dep:S400/S480) — the SHARED CONTROL BASE DP-BUNDLE.
 //
-// The VAML property registry is NAME-UNIQUE globally (DependencyProperty::
-// Register throws on a duplicate NAME; owner is a declaration label). WPF
-// resolves Padding / HorizontalContentAlignment / VerticalContentAlignment /
-// FontSize / FontFamily on a Control/TextElement BASE by type-inheritance; the
-// faithful VAML mapping is ONE canonical bare registration (owner "Control") +
-// the affected controls' typed accessors re-pointed to that single owner. This
-// closes the corpus-wide unprefixed-authoring gap across Button/TextBox/
-// TextBlock/…, and MIGRATES the prior conflicting registrations (NO backfill):
-//   - TextBlock (11k-1; formerly the S087 `Text`) owned bare "FontSize"
-//                                        -> removed, re-pointed to Control
-//   - Label owned "Label.FontSize" / "Label.FontFamily" /
-//            "Label.HorizontalContentAlignment" -> removed, re-pointed
-//   - Border owned "Border.Padding"     -> removed, re-pointed
+// 11s SUPERSEDE NOTE (S167_1 corrective-token): the 11j-5 migration (below)
+// that forced the shared Control-bundle to be the SINGLE owner for Nameonly-
+// unique FontSize/Padding/content-align names is **SUPERSEDED BY 11s**. The
+// composite (name, owner) key houses SAME-NAME/different-OWNER DPs, so the
+// controls whose real WPF owner is a DIFFERENT type than Control now own their
+// DPs again: TextBlock.FontSize (TextBlock.cs:776 AddOwner) and Border.Padding
+// (Border.cs:142 Register) coexist with Control.FontSize / Control.Padding.
+// The 11j-5 bundle remains for the genuine Control base (Control.cs:157/182/365
+// — Control DOES own FontSize/Padding), which Label (ContentControl-derived,
+// Label.cs:30, no own Font* DPs in WPF) correctly inherits. This file now
+// ASSERTs the coexistence (the drift's forced disambiguation is abolished).
 //
 // Headless (Rail 1).
 
@@ -124,4 +122,49 @@ TEST_CASE("11j-5: the control DEFAULT for FontSize/Padding/HAlignment is the Con
     CHECK(o.Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>() == vaml::Thickness{});
     CHECK(o.Get(PropertyId::of("HorizontalContentAlignment", "Control")).get<std::int32_t>() == 0);
     CHECK(o.Get(PropertyId::of("VerticalContentAlignment", "Control")).get<std::int32_t>() == 0);
+}
+
+TEST_CASE("11j-5/11s: the Control bundle COEXISTS with the per-owner re-additions")
+{
+    // 11s — the drift's forced disambiguation is abolished: TextBlock.FontSize
+    // and Border.Padding are each under their real WPF owner, distinct from the
+    // Control bundle. Both resolve; the per-object stores are independent.
+    TextBlock text;
+    Border border;
+
+    // TextBlock owns ITS FontSize (TextBlock.cs:776) — distinct from Control's.
+    CHECK(DependencyProperty::TryGet("FontSize", "TextBlock") != nullptr);
+    CHECK(DependencyProperty::TryGet("FontSize", "Control") != nullptr);
+    CHECK(DependencyProperty::TryGet("FontSize", "TextBlock") !=
+          DependencyProperty::TryGet("FontSize", "Control"));
+    // The TextBlock accessor writes+reads its OWN owner (independent of Control).
+    (void)text.set_font_size(33.0);
+    CHECK(text.font_size() == 33.0);
+    // A plain DependencyObject still reads the Control-bundle default (12.0) —
+    // the two owners are physically separate slots.
+    DependencyObject o;
+    CHECK(o.Get(PropertyId::of("FontSize", "Control")).get<double>() == 12.0);
+
+    // Border owns ITS Padding (Border.cs:142) — distinct from Control's.
+    CHECK(DependencyProperty::TryGet("Padding", "Border") != nullptr);
+    CHECK(DependencyProperty::TryGet("Padding", "Control") != nullptr);
+    CHECK(DependencyProperty::TryGet("Padding", "Border") !=
+          DependencyProperty::TryGet("Padding", "Control"));
+    (void)border.set_padding(vaml::Thickness{2, 3, 4, 5});
+    CHECK(border.padding() == vaml::Thickness{2, 3, 4, 5});
+    // Control's own Padding default (0) is independent of Border's.
+    CHECK(o.Get(PropertyId::of("Padding", "Control")).get<vaml::Thickness>() == vaml::Thickness{});
+
+    // Label (ContentControl-derived, NO own Font* DPs in WPF) still inherits
+    // the Control bundle — the WPF-faithful read (Label.cs:30 : ContentControl
+    // with no FontSizeProperty). Its accessor writes Control.FontSize.
+    Label label;
+    (void)label.set_font_size(20.5);
+    CHECK(label.font_size() == 20.5);
+    // Each DependencyObject carries its OWN per-(name,owner) value: an unrelated
+    // DependencyObject reads the Control FontSize DEFAULT (12.0), unaffected by
+    // Label's write; and TextBlock's FontSize is a DIFFERENT owner (33.0 above)
+    // — the coexistence proof: two controls, two FontSize owners, no cross-talk.
+    CHECK(o.Get(PropertyId::of("FontSize", "Control")).get<double>() == 12.0);
+    CHECK(text.font_size() == 33.0);   // TextBlock's own owner, unaffected
 }
