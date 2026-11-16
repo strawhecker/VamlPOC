@@ -1,8 +1,8 @@
 # session-context.md
 
-last_command: implementit S810 (Sprint 11t Part 1) — D1 FIX: DP VALUE PIPELINE ORDER. BOTH CI LANES GREEN (build/verify_s810.cmd -> "S810 GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
+last_command: implementit S810_1 (Sprint 11t) — VALIDATION DISPOSITION: out-of-range VALIDATE THROWS, not REJECTED. BOTH CI LANES GREEN (build/verify_s810_1.cmd -> "S810_1 GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
 
-plan_digest: S810 (dep:S808) corrects DependencyObject::Set to the WPF order — validate(raw) -> coerce -> validate(coerced) — so a raw value that is invalid-but-coerce-normalizable is REJECTED at the boundary (WPF DO.cs:653), instead of the S035 drift (coerce -> validate(coerced)) silently coercing it. The S035/S036/S037 contract text is CORRECTED, not merely implemented. SetResult::REJECTED stays the disposition (the REJECTED->throw + wrong-thread + queue removal are S811 D2/D3). This is Sprint 11t PART 1 (D1 only).
+plan_digest: S810_1 (dep:S810) changes DependencyObject::Set so a false ValidateFunc (raw gate DO.cs:653 OR post-coerce re-check DO.cs:1692) THROWS vaml::InvalidPropertyValueException : std::invalid_argument (naming the property + the offending value), matching WPF ArgumentException(InvalidPropertyValue). SetResult::REJECTED is RETIRED as the out-of-range disposition on the Set pipeline (the enum member stays defined; removal = S811). NO-GAP: BindingExpression CATCHES the core throw and maps it to TransferResult::TargetRejected at the binding boundary (ADR-016 observation, never control-flow in the core); the throw is converted at the binding boundary, not suppressed in the core. Tests: S045/S046 REJECTED asserts -> ShouldThrow<InvalidPropertyValueException> + dependent sweep of every DP-backed REJECTED assert + a new explicit BindingExpression NO-GAP TargetRejected test. BOTH CI lanes green from first principles.
 plan_digest: Sprint 11s — the composite (name, owner) DP identity lands end-to-end (S804 coexistence live-proof
 + S805 un-revert re-additions merged into one green unit; S806 re-verify/wide-sweep; S807 refactor gate; S808
 survivor+checkpoint). Re-adds the DPs the name-only contract forced away, each verified against E:\GitRepos\wpf
@@ -76,7 +76,32 @@ ground truth. The name-only DP hosing is ABOLISHED; ZERO MINIMAL REAL introduced
 - **Remaining NOTE:** an extra `coerce -> validate(coerced)`-style stale-CONTEXT sentence may linger in the S046
   test header's first block; verified functionally neutral, left as-is to avoid churn (see S046 header lines 9-13).
 
-## build_status (as of this session — S810: both lanes GREEN)
+## Sprint 11t S810_1 — VALIDATION DISPOSITION (this session)
+- **Disposition changed:** a false ValidateFunc (raw gate DO.cs:653 OR post-coerce re-check DO.cs:1692) now THROWS
+  vaml::InvalidPropertyValueException : std::invalid_argument (naming the property + the offending value) — WPF
+  ArgumentException(InvalidPropertyValue). SetResult::REJECTED is RETIRED as the out-of-range disposition on the
+  Set pipeline (the enum member stays defined; removal is S811, which this step deliberately defers so the binding's
+  exhaustive switch compiles).
+- **Core (src/core/src/DependencyObject.cpp):** both validate gates throw; the wrong-thread path throws too (never
+  QUEUED for a validate refusal). New local render_to_diagnostic helper formats the refused value into the message.
+- **Header (DependencyObject.h):** new InvalidPropertyValueException : std::invalid_argument; Set()/SetResult docs +
+  contract corrected (REJECTED retired as out-of-range disposition).
+- **Binding boundary (BindingExpression.cpp):** apply_to_target CATCHES the core InvalidPropertyValueException and
+  maps it to TransferResult::TargetRejected (ADR-016 — the conversion happens at the binding boundary, never by
+  suppressing the throw in the core). REJECTED switch arm retained as a compile-time-known-unreachable (S811 removes).
+- **Tests:** S810_1 NO-GAP explicit (BindingExpression_test.cpp — validating target [0,10] + out-of-range push ->
+  TargetRejected, no core throw escapes, target unchanged, no SetTargetFailed emission). Sweep: ReadOnlyAndValidation
+  (S045 REJECTED->throws), DependencyCallbacks (S046 post-coerce + raw-boundary -> throws), DependencyObject
+  (S036 D1 + validate-refuses -> throws), DependencyObject_marshalling (S037 wrong-thread validate refusal -> throws,
+  captured via exception_ptr), UIElement (S120 Opacity x3 -> throws), Text (S400 FontSize negative -> throws),
+  IconGlyphPlan (S400_1 Width/Height -> throws), Transform_render (S208 non-finite -> CHECK_THROWS_AS),
+  AutomationProperties_s11n1 (11n-1 IsOffscreenBehavior -> throws).
+- **Lanes:** windows-msvc (msvc-debug, build/verify_s810_1.cmd) + ubuntu-clang (VM, /mnt/hgfs/VamlPOC, clang-debug)
+  both GREEN — "S810_1 GREEN".
+- **Out of scope (recorded):** Effect/Viewport3D direct-field setters are NOT DP-backed (untouched);
+  PropertyMetadata_semantics_test.cpp's own MiniStore Outcome::REJECTED enum is unrelated; windows-clang-debug NOT a CI lane.
+
+## build_status (as of this session — S810_1: both lanes GREEN)
 - **Hard clean**: `git clean -fdx build/` (wiped the incremental cache). Fresh `cmake --preset <lane>` +
   `cmake --build` + `ctest --output-on-failure`, no caching.
 - **windows-msvc** (msvc-debug): 4/4 test suites PASSED (core 16.36s / tools 2.71s / vulkan 0.51s /
@@ -102,15 +127,22 @@ ground truth. The name-only DP hosing is ABOLISHED; ZERO MINIMAL REAL introduced
   VamlReader_binding:187 Direct empty-path boundary.
 
 ## next_step
-- Sprint 11t S810 (Part 1, D1) CLOSED: pipeline-order drift corrected + S046 raw-boundary proof + both-lane green.
-- **Next = Sprint 11t Part 2 = S811 (D2/D3):** remove the implicit cross-thread ChangeQueue/ChangeRecorder/
-  ChangeProcessor + ProcessNotificationQueue/pending_notification_count/fire_self_subscribers + SetResult::QUEUED,
-  make wrong-thread DP access THROW like WPF VerifyAccess does, re-point the binding engine onto the synchronous
-  with_changed callback, and change the invalid-disposition REJECTED->throw InvalidPropertyValueException.
-  (WPF source audit required for the binding re-point — see the implementit determination split.)
-- Remote-build (GH CI) check-in remains OPEN (Sprint 11t S810 uncommitted; commits fire only on explicit commitit).
+- Sprint 11t S810_1 CLOSED: validation disposition (out-of-range validate THROWS InvalidPropertyValueException,
+  REJECTED retired as the out-of-range disposition on Set) + NO-GAP binding-boundary TargetRejected mapping +
+  both-lane green.
+- **Next = S810_2 (dep:S810_1):** registration-time default validation (WPF ValidateDefaultValueCommon,
+  DependencyProperty.cs:376-434) — type-check default + run ValidateFunc against default at Register, throws
+  DefaultValuePropertyTypeMismatch / DefaultValueInvalid analogues.
+- Followed by Sprint 11t S811 (D2/D3): remove the implicit cross-thread ChangeQueue/ChangeRecorder/ChangeProcessor
+  + ProcessNotificationQueue/pending_notification_count/fire_self_subscribers + SetResult::QUEUED, make wrong-thread
+  DP access THROW like WPF VerifyAccess, re-point the binding engine onto the synchronous with_changed callback,
+  and remove SetResult::REJECTED (which S810_1 consciously kept defined for the exhaustive switch until S811).
+- Remote-build (GH CI) check-in remains OPEN (S810_1 + prior uncommitted work; commits fire only on explicit commitit).
 
 ## notes
+- Sprint 11t S810_1 DONE, NOT committed. build/verify_s810_1.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).
+- Sprint 11t S810 (Part 1, D1) DONE, NOT committed. build/verify_s810.cmd GREEN. (Now superseded by S810_1's
+  REJECTED->throw disposition, which is the S810_1 scope — history preserved un-edited.)
 - Sprint 11s DONE, NOT committed. build/verify_s11s.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).
 - WPF ground-truth honored: each re-addition verified line-by-line from E:\GitRepos\wpf (Slider.cs:295/320,
   Popup.cs:794, Image.cs:135, TextBlock.cs:776, Border.cs:142). **WPF correction:** Label has NO own Font* DPs

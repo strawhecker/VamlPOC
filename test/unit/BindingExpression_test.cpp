@@ -79,6 +79,9 @@ const char* kNameNumber  = "S242Number";  // source Int32 / target Int32
 const char* kNameEmpty   = "S242Empty";   // source (null-valued) / target
 const char* kNameNope    = "S242Nope";    // absent source name (MissingProperty)
 const char* kNameDeep    = "S242Deep";    // nested target for a chain
+const char* kNameValidated = "S242Validated"; // Int32 target with validate [0,10]
+                                             // (S810_1: out-of-range push -> core throw
+                                             //  -> boundary maps to TargetRejected)
 
 PropertyKey key(const std::string& name, ValueType t)
 {
@@ -96,6 +99,9 @@ DependencyObject make_target()
         PropertyMetadata::WithDefault(Value::Null(), PropertyFlags::None));
     obj.register_property(key(kNameDeep, ValueType::String),
         PropertyMetadata::WithDefault(Value::String("DEFAULT_DEEP"), PropertyFlags::None));
+    obj.register_property(key(kNameValidated, ValueType::Int32),
+        PropertyMetadata::WithDefault(Value::Int32(2), PropertyFlags::None)
+            .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0 && v.get<std::int32_t>() <= 10; }));
     return obj;
 }
 
@@ -422,6 +428,42 @@ TEST_CASE("S242 transfer: wrong-typed push -> TargetRejected (returned + recorde
     TransferResult r = expr->TransferSourceToTarget();
     SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::TargetRejected)));
     // The S240_1 SetTargetFailed arm is S243's — it must NOT have been emitted here.
+    SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true));
+}
+
+TEST_CASE("S810_1: out-of-range VALIDATE throw -> TargetRejected at the binding boundary (no core suppression)")
+{
+    // S810_1 NO-GAP proof: the core's out-of-range VALIDATE refusal now THROWS
+    // InvalidPropertyValueException (WPF ArgumentException(InvalidPropertyValue),
+    // SetResult::REJECTED retired). BindingExpression must CATCH that core throw
+    // and map it to TransferResult::TargetRejected — the S242 reporting contract
+    // preserved. ADR-016: the conversion happens HERE (observation at the binding
+    // boundary), never by suppressing the throw in the core. The push must NOT
+    // escape the core throw, and the target must be left unchanged.
+    ObservableObject vm;
+    (void)vm.Set(PropertyId::of("S242Validated", "ObservableObject"), Value::Int32(99)); // source 99 out of target's [0,10]
+    DependencyObject target = make_target();
+    RecordingSink sink;
+    SinkGuard guard(sink);
+
+    BindingExpressionSpec spec;
+    spec.source = &vm;
+    spec.sourcePath = kNameValidated; // Int32; NOTE: source path must match a VM field
+    spec.target = &target;
+    spec.targetProp = kNameValidated; // validating target [0,10]
+    spec.targetOwner = "S242Test";
+    spec.mode = BindingMode::OneTime;
+
+    auto expr = BindingExpression::create(spec);
+    SHOULD(ShouldlyIntegral(expr != nullptr).ShouldBe(true));
+
+    // The core Set() on the validating target refuses 99 -> THROWS; the binding
+    // boundary catches and maps it to TargetRejected. No throw escapes.
+    TransferResult r = expr->TransferSourceToTarget();
+    SHOULD(ShouldlyIntegral(tr_int(r)).ShouldBe(tr_int(TransferResult::TargetRejected)));
+    // The target stays at its default (2) — the refused value is not applied.
+    SHOULD(ShouldlyIntegral(target.Get(PropertyId::of("S242Validated", "S242Test")).get<std::int32_t>()).ShouldBe(2));
+    // No SetTargetFailed emission (S243's arm stays untouched).
     SHOULD(ShouldlyIntegral(sink.reasons.empty()).ShouldBe(true));
 }
 

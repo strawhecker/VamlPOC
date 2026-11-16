@@ -132,7 +132,12 @@ class DependencyProperty;
 enum class SetResult
 {
     APPLIED,   // accepted, changed cb fired, stored
-    REJECTED,  // validate refused the coerced value; store unchanged, no cb
+    REJECTED,  // S810_1: RETIRED as the out-of-range disposition. A Set() whose
+               // ValidateFunc refuses the value now THROWS InvalidPropertyValueException
+               // (WPF ArgumentException(InvalidPropertyValue), DO.cs:653/1692) instead
+               // of returning this. This enum member REMAINS DEFINED (removal is S811's
+               // scope) so existing code and the binding pipeline still compile, but the
+               // Set pipeline no longer returns it for validation refusal.
     NO_CHANGE, // coerced == current effective; no cb (real change only)
     QUEUED,    // S037: write from a NON-affine thread was accepted (coerced+
                // validated) and POSTED to the pending queue — not yet applied.
@@ -158,6 +163,31 @@ class VAML_CORE_EXPORT PropertyReadOnlyException : public std::logic_error
 {
 public:
     explicit PropertyReadOnlyException(const char* what) : std::logic_error(what) {}
+};
+
+// S810_1: a Set() whose ValidateFunc refuses the (raw or coerced) value throws
+// this — the WPF ArgumentException(InvalidPropertyValue) disposition at
+// DO.cs:653 (raw validate) and DO.cs:1692 (post-coerce re-validate). It names
+// the offending property and the value that was refused so a binding can map
+// it to TransferResult::TargetRejected at the binding boundary (ADR-016 —
+// observation, never control-flow in the core). `std::invalid_argument` base
+// matches WPF's ArgumentException lineage.
+class VAML_CORE_EXPORT InvalidPropertyValueException : public std::invalid_argument
+{
+public:
+    InvalidPropertyValueException(std::string what, std::string propertyName, std::string rejectedValue)
+        : std::invalid_argument(std::move(what))
+        , propertyName_(std::move(propertyName))
+        , rejectedValue_(std::move(rejectedValue)) {}
+
+    // The offending property in canonical dotted `owner.name` form.
+    [[nodiscard]] const std::string& property_name() const noexcept { return propertyName_; }
+    // The value that failed validation, rendered as text.
+    [[nodiscard]] const std::string& value() const noexcept { return rejectedValue_; }
+
+private:
+    std::string propertyName_;
+    std::string rejectedValue_;
 };
 
 class VAML_CORE_EXPORT DependencyObject
@@ -244,22 +274,32 @@ public:
     // PropertyNotFound for an unregistered PropertyId, ValueTypeMismatch for a
     // wrong-tag input.
     //
+    // S810_1 validation disposition: a ValidateFunc refusal — at the RAW gate
+    // (DO.cs:653) OR on the POST-COERCE re-check (DO.cs:1692) — THROWS
+    // InvalidPropertyValueException (WPF ArgumentException(InvalidPropertyValue)),
+    // naming the property + the offending value. SetResult::REJECTED is retired
+    // as the out-of-range disposition on this pipeline (the enum member remains
+    // defined; removal is S811). A refused value leaves the store unchanged and
+    // fires nothing.
+    //
     // S037 affinity-aware behavior: on the AFFINE thread this is exactly the
-    // S035 pipeline (APPLIED/REJECTED/NO_CHANGE). On a NON-affine thread,
-    // coerce + validate still run immediately (REJECTED / ValueTypeMismatch
-    // give the writer instant feedback) but a passing value is POSTED to the
-    // pending queue and Set() returns SetResult::QUEUED — the store is NOT
-    // written and the changed cb is NOT fired until ProcessPendingChanges()
-    // drains on the affinity thread.
+    // S035 pipeline (APPLIED/NO_CHANGE, or InvalidPropertyValueException on a
+    // validate refusal). On a NON-affine thread, coerce + validate still run
+    // immediately (a validate refusal THROWS there too; ValueTypeMismatch gives
+    // type feedback) but a passing value is POSTED to the pending queue and
+    // Set() returns SetResult::QUEUED — the store is NOT written and the
+    // changed cb is NOT fired until ProcessPendingChanges() drains on the
+    // affinity thread.
     //
     // S045 read-only contract: if the resolved property carries
     // PropertyFlags::ReadOnly, Set() throws PropertyReadOnlyException. The
     // check runs IMMEDIATELY after resolving the metadata provider and BEFORE
     // coerce / validate / the S037 affinity branch — so a read-only refusal is
     // structural and value-independent (throws even for value == current
-    // effective, never REJECTED/NO_CHANGE/QUEUED) and fires on ANY thread
-    // (a wrong-thread read-only Set throws, it is never deferred to a drain).
-    // No local override is materialized for a refused read-only write.
+    // effective, never NO_CHANGE/QUEUED, and never a validate refusal) and
+    // fires on ANY thread (a wrong-thread read-only Set throws, it is never
+    // deferred to a drain). No local override is materialized for a refused
+    // read-only write.
     [[nodiscard]] SetResult Set(PropertyId id, const Value& input);
 
     // S037 (S143 relocation): drains the pending VALUE queue (FIFO) on the

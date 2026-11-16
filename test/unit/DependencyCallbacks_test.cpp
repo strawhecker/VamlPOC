@@ -63,6 +63,7 @@ using vaml::PropertyId;
 using vaml::PropertyKey;
 using vaml::PropertyMetadata;
 using vaml::SetResult;
+using vaml::InvalidPropertyValueException;
 using vaml::Value;
 using vaml::ValueType;
 using vaml::ValueTypeMismatch;
@@ -143,8 +144,13 @@ TEST_CASE("S046: attached/global coerce+validate — coerced value applied on a 
     SHOULD(ShouldlyString(b.Set(id, Value::Int32(-5))).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(b.Get(id)).ShouldBe(Value::Int32(0))); // coerced 0
 
-    // Raw 7 -> coerced 7, validate(7) rejects -> REJECTED, store unchanged.
-    SHOULD(ShouldlyString(b.Set(id, Value::Int32(7))).ShouldBe(SetResult::REJECTED));
+    // Raw 7 -> coerced 7, validate(7) rejects -> THROWS
+    // InvalidPropertyValueException (S810_1: WPF ArgumentException(
+    // InvalidPropertyValue) at DO.cs:1692 for the post-coerce re-check;
+    // SetResult::REJECTED retired), store unchanged.
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)b.Set(id, Value::Int32(7));
+    }));
     SHOULD(ShouldlyString(b.Get(id)).ShouldBe(Value::Int32(0)));
 }
 
@@ -267,15 +273,16 @@ TEST_CASE("S046: wrong-thread queued coercion clamps a sub-zero raw write to 0")
 }
 
 
-TEST_CASE("S046: raw invalid-but-coerce-normalizable is REJECTED at the boundary (WPF DO.cs:653)")
+TEST_CASE("S046: raw invalid-but-coerce-normalizable THROWS at the boundary (WPF DO.cs:653)")
 {
     // D1 (S810) pipeline-order proof: WPF validates the RAW input BEFORE
-    // coercion (DO.cs:653) and rejects at the boundary - coercion is NOT given
+    // coercion (DO.cs:653) and throws at the boundary - coercion is NOT given
     // a chance to normalize an invalid raw value. Setup: a property whose
     // validate REJECTS any raw value below a floor of 0, but whose coerce
     // WOULD clamp a negative raw to 0 (the value the OLD coerce-first order
     // would have silently accepted). Under the corrected order the raw negative
-    // is REJECTED at the boundary: store unchanged, no changed cb.
+    // THROWS InvalidPropertyValueException at the boundary: store unchanged, no
+    // changed cb.
     DependencyObject obj;
     const char* name = "RawBoundary_S046";
     PropertyKey key(name, ValueType::Int32, "S046Owner", PropertyFlags::None);
@@ -292,9 +299,13 @@ TEST_CASE("S046: raw invalid-but-coerce-normalizable is REJECTED at the boundary
     const PropertyId id = PropertyId::of(name, "S046Owner");
 
     // Raw -5 is INVALID on entry (validate(-5) rejects), even though coerce
-    // could normalize it to 0. WPF rejects at the boundary (DO.cs:653): the
+    // could normalize it to 0. WPF throws at the boundary (DO.cs:653): the
     // store is unchanged (still default 10) and the changed cb NEVER fires.
-    SHOULD(ShouldlyString(obj.Set(id, Value::Int32(-5))).ShouldBe(SetResult::REJECTED));
+    // S810_1: the boundary refusal is a THROWN InvalidPropertyValueException
+    // (SetResult::REJECTED retired as the out-of-range disposition).
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)obj.Set(id, Value::Int32(-5));
+    }));
     SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(10))); // unchanged
     SHOULD(ShouldlyString(fire).ShouldBe(0));                        // no cb
 

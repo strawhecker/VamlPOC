@@ -35,6 +35,7 @@
 #include "vaml/core/PropertyKey.h"
 
 #include <atomic>
+#include <exception>
 #include <string>
 #include <thread>
 #include <vector>
@@ -45,6 +46,7 @@ using vaml::PropertyId;
 using vaml::PropertyKey;
 using vaml::PropertyMetadata;
 using vaml::SetResult;
+using vaml::InvalidPropertyValueException;
 using vaml::Value;
 using vaml::ValueType;
 using vaml::ValueTypeMismatch;
@@ -60,11 +62,31 @@ PropertyKey int32Key(const std::string& name)
 
 // A non-affine Set() on an Int32 property, executed on a fresh thread, the
 // result captured back into `out` by a join barrier (no concurrency).
-void setFromOtherThread(DependencyObject& obj, const PropertyId& id, Value v, SetResult* out)
+// S810_1: a value the ValidateFunc refuses THROWS InvalidPropertyValueException
+// (on any thread, incl. this wrong-thread path). When `excOut` is non-null the
+// throw is captured into it instead of escaping; a later rethrow (for
+// ShouldThrow) reproduces it on the affine thread.
+void setFromOtherThread(DependencyObject& obj, const PropertyId& id, Value v, SetResult* out,
+                        std::exception_ptr* excOut = nullptr)
 {
     std::thread t([&] {
         // This thread is definitely NOT obj's affinity thread.
-        *out = obj.Set(id, v);
+        try
+        {
+            *out = obj.Set(id, v);
+        }
+        catch (...)
+        {
+            const std::exception_ptr ep = std::current_exception();
+            if (excOut != nullptr)
+            {
+                *excOut = ep;
+            }
+            else
+            {
+                std::rethrow_exception(ep);
+            }
+        }
     });
     t.join();
 }
@@ -147,7 +169,7 @@ TEST_CASE("S037: wrong-thread Set on a value equal to the current effective is Q
     SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(0u));
 }
 
-TEST_CASE("S037: wrong-thread reject refused value -> REJECTED, nothing queued")
+TEST_CASE("S037: wrong-thread validate refusal THROWS InvalidPropertyValueException, nothing queued")
 {
     DependencyObject obj;
     obj.register_property(
@@ -155,10 +177,15 @@ TEST_CASE("S037: wrong-thread reject refused value -> REJECTED, nothing queued")
         PropertyMetadata::WithDefault(Value::Int32(1), PropertyFlags::None)
             .with_validate([](const Value& v) { return v.get<std::int32_t>() > 0; }));
 
-    // Wrong-thread write of a value validate refuses -> REJECTED, NOT queued.
+    // Wrong-thread write of a value validate refuses -> THROWS
+    // InvalidPropertyValueException (S810_1 — on ANY thread, incl. this
+    // wrong-thread path; SetResult::REJECTED retired as the out-of-range
+    // disposition), and NOTHING is queued. The throw is captured by the helper
+    // and rethrown here for the ShouldThrow assertion.
     SetResult r = SetResult::NO_CHANGE;
-    setFromOtherThread(obj, PropertyId::of("Age", "TestOwner"), Value::Int32(-3), &r);
-    SHOULD(ShouldlyString(r).ShouldBe(SetResult::REJECTED));
+    std::exception_ptr exc;
+    setFromOtherThread(obj, PropertyId::of("Age", "TestOwner"), Value::Int32(-3), &r, &exc);
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] { std::rethrow_exception(exc); }));
 
     SHOULD(ShouldlyString(obj.pending_change_count()).ShouldBe(0u)); // nothing queued
     SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1))); // store unchanged

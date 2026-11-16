@@ -225,10 +225,10 @@ TEST_CASE("S400: TextBlock is a real UIElement (S087 seed re-based) + DPs round-
     SHOULD(ShouldlyString(v.get<std::string>()).ShouldBe(std::string("")));
 }
 
-TEST_CASE("S400: TextBlock FontSize validated >= 0 (negative REJECTED)")
+TEST_CASE("S400: TextBlock FontSize validated >= 0 (negative THROWS)")
 {
     TextBlock t;
-    SHOULD(ShouldlyString(t.set_font_size(-5.0)).ShouldBe(vaml::SetResult::REJECTED));
+    SHOULD(ShouldThrow<vaml::InvalidPropertyValueException>([&] { (void)t.set_font_size(-5.0); }));
     // Unchanged (still the 12.0 default — SystemFonts.ThemeMessageFontSize @ 96 DPI).
     SHOULD(ShouldlyString(t.font_size()).ShouldBe(12.0));
 }

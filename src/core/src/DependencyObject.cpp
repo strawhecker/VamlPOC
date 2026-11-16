@@ -27,12 +27,33 @@
 #include <cstdlib>
 #include <mutex>
 #include <new>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 namespace vaml {
+
+// S810_1 helper: render a refused Value to a readable one-line diagnostic for
+// InvalidPropertyValueException::value(). Renders the primitive payloads that
+// the validate funcs actually inspect; anything else falls back to the tag name
+// (never a crash, never a half-formed string).
+namespace {
+std::string render_value_for_diagnostic(const Value& v)
+{
+    switch (v.type())
+    {
+        case ValueType::Bool:    return v.get<bool>() ? "true" : "false";
+        case ValueType::Int32:   return std::to_string(v.get<std::int32_t>());
+        case ValueType::Int64:   return std::to_string(v.get<std::int64_t>());
+        case ValueType::Float:   { std::ostringstream os; os << v.get<float>(); return os.str(); }
+        case ValueType::Double:  { std::ostringstream os; os << v.get<double>(); return os.str(); }
+        case ValueType::String:  return "\"" + v.get<std::string>() + "\"";
+        default:                 return "<" + std::to_string(static_cast<int>(v.type())) + ">";
+    }
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // S145 — class-scoped allocation: the object-pool funnel.
@@ -567,18 +588,32 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
 
     // D1 (S810) pipeline step 1: validate ON THE RAW input - WPF
     // DependencyObject.cs:653 validates the incoming value BEFORE coercion.
+    // S810_1: a ValidateFunc refusal THROWS InvalidPropertyValueException (WPF
+    // ArgumentException(InvalidPropertyValue)) — SetResult::REJECTED is retired
+    // as the out-of-range disposition. Store unchanged, no cb.
     if (!md.validate(input))
     {
-        return SetResult::REJECTED; // store unchanged, no cb
+        throw InvalidPropertyValueException(
+            "DependencyObject::Set: invalid value for property " +
+                std::string(id.owner()) + "." + std::string(id.name()),
+            std::string(id.owner()) + "." + std::string(id.name()),
+            render_value_for_diagnostic(input));
     }
 
     // D1 (S810) pipeline step 2: coerce (WPF DO.cs:1692 coerces AFTER the raw validation).
     const Value coerced = md.coerce(input);
 
     // D1 (S810) pipeline step 3: re-validate ON THE COERCED value (WPF DO.cs:1692).
+    // S810_1: same throwing disposition as the raw gate (WPF DO.cs:1692's
+    // `if (!dp.IsValidValue(coercedValue)) throw new ArgumentException(...)`).
     if (!md.validate(coerced))
     {
-        return SetResult::REJECTED; // store unchanged, no cb
+        throw InvalidPropertyValueException(
+            "DependencyObject::Set: coerced value for property " +
+                std::string(id.owner()) + "." + std::string(id.name()) +
+                " failed validation",
+            std::string(id.owner()) + "." + std::string(id.name()),
+            render_value_for_diagnostic(coerced));
     }
 
     // S037 affinity branch: if this thread is NOT the object's affinity thread,

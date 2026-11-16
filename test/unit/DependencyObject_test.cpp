@@ -37,6 +37,7 @@ using vaml::PropertyId;
 using vaml::PropertyKey;
 using vaml::PropertyMetadata;
 using vaml::PropertyNotFound;
+using vaml::InvalidPropertyValueException;
 using vaml::SetResult;
 using vaml::Value;
 using vaml::ValueType;
@@ -152,23 +153,32 @@ TEST_CASE("S036 apply: D1/S810 validate raw BEFORE coerce — an invalid raw is 
             .with_validate([](const Value& v) { return v.get<std::int32_t>() >= 0; }));
 
     // Raw -3 is INVALID on entry (validate(-3) rejects) even though coerce
-    // could normalize it to 5. WPF rejects at the boundary (DO.cs:653): REJECTED
-    // and the store is unchanged (still the default 0). The coerce-normalized
-    // path for a VALID raw is proven separately in the S046 RawBoundary test.
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Fixed", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::REJECTED));
+    // could normalize it to 5. WPF throws at the boundary (DO.cs:653): the store
+    // is unchanged (still the default 0). S810_1: the boundary refusal is a
+    // THROWN InvalidPropertyValueException (SetResult::REJECTED retired as the
+    // out-of-range disposition). The coerce-normalized path for a VALID raw is
+    // proven separately in the S046 RawBoundary test.
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)obj.Set(PropertyId::of("Fixed", "TestOwner"), Value::Int32(-3));
+    }));
     SHOULD(ShouldlyString(obj.Get(PropertyId::of("Fixed", "TestOwner"))).ShouldBe(Value::Int32(0))); // store unchanged
 }
 
-TEST_CASE("S036 apply: validate rejects — store unchanged, cb NOT fired")
+TEST_CASE("S036 apply: validate refuses — THROWS, store unchanged, cb NOT fired")
 {
     DependencyObject obj;
     obj.register_property(int32Key("Age"), int32Md(1, /*withCoerce*/ false, /*withValidate*/ true));
 
-    // -3 rejected: current stays 1 (default), no cb (no recorder => passthrough;
-    // we assert store-unchanged).
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(-3))).ShouldBe(SetResult::REJECTED));
+    // -3 refused: THROWS InvalidPropertyValueException (S810_1 — SetResult::
+    // REJECTED retired as the out-of-range disposition); current stays 1
+    // (default), no cb.
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(-3));
+    }));
     SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1)));
-    SHOULD(ShouldlyString(obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(0))).ShouldBe(SetResult::REJECTED));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)obj.Set(PropertyId::of("Age", "TestOwner"), Value::Int32(0));
+    }));
     SHOULD(ShouldlyString(obj.Get(PropertyId::of("Age", "TestOwner"))).ShouldBe(Value::Int32(1)));
 
     // Valid 5 -> applied.

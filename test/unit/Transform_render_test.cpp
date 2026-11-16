@@ -168,11 +168,14 @@ TEST_CASE("S208 UIElement RenderTransform DP: a no-local child under a transform
     CHECK(is_transform_identity(child->render_transform()));
 }
 
-TEST_CASE("S208 UIElement RenderTransform DP: non-finite matrix is REJECTED")
+TEST_CASE("S208 UIElement RenderTransform DP: non-finite matrix THROWS InvalidPropertyValueException")
 {
     UIElement e;
     const Matrix2D bad = Matrix2D::translation(std::numeric_limits<float>::quiet_NaN(), 0.0f);
-    CHECK(e.set_render_transform(bad) == SetResult::REJECTED);
+    // S810_1: a non-finite RenderTransform is a validate refusal -> THROWS
+    // InvalidPropertyValueException (WPF ArgumentException(InvalidPropertyValue);
+    // SetResult::REJECTED retired as the out-of-range disposition).
+    CHECK_THROWS_AS((void)e.set_render_transform(bad), vaml::InvalidPropertyValueException);
     // Store unchanged (still identity).
     CHECK(is_transform_identity(e.render_transform()));
 }

@@ -41,6 +41,7 @@
 using vaml::DependencyObject;
 using vaml::PropertyId;
 using vaml::SetResult;
+using vaml::InvalidPropertyValueException;
 using vaml::UIElement;
 using vaml::Value;
 using vaml::ValueTypeMismatch;
@@ -152,19 +153,21 @@ TEST_CASE("S120: Opacity — default 1.0; set/get round-trip")
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.5));
 }
 
-TEST_CASE("S120: Opacity — out-of-range Set is REJECTED, store unchanged")
+TEST_CASE("S120: Opacity — out-of-range Set THROWS InvalidPropertyValueException, store unchanged")
 {
     UIElement el;
     // In-range sets move the value.
     SHOULD(ShouldlyString(el.set_opacity(0.75)).ShouldBe(SetResult::APPLIED));
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.75));
 
-    // Above 1.0 -> REJECTED, store stays 0.75 (validate [0,1], S045 path).
-    SHOULD(ShouldlyString(el.set_opacity(2.0)).ShouldBe(SetResult::REJECTED));
+    // Above 1.0 -> THROWS (S810_1: validate [0,1] refusal, WPF
+    // ArgumentException(InvalidPropertyValue); SetResult::REJECTED retired),
+    // store stays 0.75.
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] { (void)el.set_opacity(2.0); }));
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.75));
 
-    // Below 0.0 -> REJECTED, store stays 0.75.
-    SHOULD(ShouldlyString(el.set_opacity(-0.5)).ShouldBe(SetResult::REJECTED));
+    // Below 0.0 -> THROWS, store stays 0.75.
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] { (void)el.set_opacity(-0.5); }));
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.75));
 }
 
@@ -177,8 +180,10 @@ TEST_CASE("S120: Opacity — standard Set/Get(PropertyId) path agrees with typed
     SHOULD(ShouldlyString(el.Get(id).get<double>()).ShouldBe(0.8));
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.8));
 
-    // Out-of-range through the generic path also rejects.
-    SHOULD(ShouldlyString(el.Set(id, Value::Double(3.0))).ShouldBe(SetResult::REJECTED));
+    // Out-of-range through the generic path also THROWS (S810_1).
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(id, Value::Double(3.0));
+    }));
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.8));
 }
 
@@ -254,5 +259,7 @@ TEST_CASE("S120: Visibility + Opacity resolve globally against plain DependencyO
     // Plain object writes Opacity; validate [0,1] still applies globally.
     (void)plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(0.3));
     SHOULD(ShouldlyString(plain.Get(PropertyId::of("Opacity", "UIElement")).get<double>()).ShouldBe(0.3));
-    SHOULD(ShouldlyString(plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(5.0))).ShouldBe(SetResult::REJECTED));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(5.0));
+    }));
 }

@@ -10,9 +10,11 @@
 //     (a read-only property that ALSO has a coerce/validate runs neither
 //     — the throw fires first). A refused read-only write never materializes
 //     a borrowed store entry, so Get() still reads the default.
-//   - validate out-of-range rejects: on a read-write property, an in-range
-//     coerced value is APPLIED; an out-of-range value is SetResult::REJECTED
-//     with the store unchanged and no changed cb.
+//   - validate out-of-range THROWS: on a read-write property, an in-range
+//     coerced value is APPLIED; an out-of-range value THROWS
+//     InvalidPropertyValueException (S810_1 — WPF ArgumentException(
+//     InvalidPropertyValue), SetResult::REJECTED retired) with the store
+//     unchanged and no changed cb.
 //   - all flags honored: Inherits (effective resolution), InheritOnly,
 //     ReadOnly (throws), BindsTwoWayByDefault (carried through the key +
 //     metadata flags; no runtime behavior in this step — genuine binding
@@ -56,6 +58,7 @@ using vaml::PropertyKey;
 using vaml::PropertyMetadata;
 using vaml::PropertyNotFound;
 using vaml::PropertyReadOnlyException;
+using vaml::InvalidPropertyValueException;
 using vaml::SetResult;
 using vaml::Value;
 using vaml::ValueType;
@@ -207,7 +210,7 @@ TEST_CASE("S045: read-only throw precedes the pipeline (coerce + validate never 
     SHOULD(ShouldlyString(obj.Get(id)).ShouldBe(Value::Int32(0))); // default, unchanged
 }
 
-TEST_CASE("S045: validate out-of-range rejects (read-write property)")
+TEST_CASE("S045: validate out-of-range THROWS InvalidPropertyValueException (read-write property)")
 {
     // On a read-write property with a bounded validate, an in-range value is
     // APPLIED (store writes it) and an out-of-range value is REJECTED — the
@@ -231,13 +234,20 @@ TEST_CASE("S045: validate out-of-range rejects (read-write property)")
     SHOULD(ShouldlyString(rangeObj.Get(rid)).ShouldBe(Value::Int32(8)));
     SHOULD(ShouldlyString(fires).ShouldBe(1u));
 
-    // Out-of-range 42 -> REJECTED, store unchanged, no cb.
-    SHOULD(ShouldlyString(rangeObj.Set(rid, Value::Int32(42))).ShouldBe(SetResult::REJECTED));
+    // Out-of-range 42 -> THROWS InvalidPropertyValueException; store unchanged,
+    // no cb. (The throw is also caught at the S810_1 binding boundary into
+    // TargetRejected — the raw-gate disposition is proven here, the boundary
+    // catch in BindingExpression_test.)
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)rangeObj.Set(rid, Value::Int32(42));
+    }));
     SHOULD(ShouldlyString(rangeObj.Get(rid)).ShouldBe(Value::Int32(8)));
     SHOULD(ShouldlyString(fires).ShouldBe(1u));
 
-    // Out-of-range -3 -> REJECTED (below lower bound).
-    SHOULD(ShouldlyString(rangeObj.Set(rid, Value::Int32(-3))).ShouldBe(SetResult::REJECTED));
+    // Out-of-range -3 -> THROWS (below lower bound).
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)rangeObj.Set(rid, Value::Int32(-3));
+    }));
     SHOULD(ShouldlyString(rangeObj.Get(rid)).ShouldBe(Value::Int32(8)));
     SHOULD(ShouldlyString(fires).ShouldBe(1u));
 }

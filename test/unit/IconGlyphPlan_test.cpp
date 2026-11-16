@@ -24,6 +24,8 @@
 #include "vaml_test_stringmakers.h"
 #include <vaml/assert/Shouldly.h>
 
+#include <vaml/core/DependencyObject.h>           // InvalidPropertyValueException (S810_1)
+
 #include <vaml/core/Element.h>                    // Icon, IconTintMode, IconStretch, register_builtin_elements
 #include <vaml/core/UIElement.h>
 #include <vaml/core/Geometry.h>
@@ -44,6 +46,7 @@ using vaml::Icon;
 using vaml::IconStretch;
 using vaml::IconTintMode;
 using vaml::Rect;
+using vaml::test::ShouldThrow;
 
 namespace {
 
@@ -135,11 +138,11 @@ TEST_CASE("S400_1: Icon is a real UIElement + DP defaults + registered built-in"
     }
 }
 
-TEST_CASE("S400_1: Icon Width/Height validated >= 0 (negative REJECTED)")
+TEST_CASE("S400_1: Icon Width/Height validated >= 0 (negative THROWS)")
 {
     Icon ic;
-    SHOULD(ShouldlyString(ic.set_width(-5.0)).ShouldBe(vaml::SetResult::REJECTED));
-    SHOULD(ShouldlyString(ic.set_height(-3.0)).ShouldBe(vaml::SetResult::REJECTED));
+    SHOULD(ShouldThrow<vaml::InvalidPropertyValueException>([&] { (void)ic.set_width(-5.0); }));
+    SHOULD(ShouldThrow<vaml::InvalidPropertyValueException>([&] { (void)ic.set_height(-3.0); }));
     // Unchanged (default 0 = auto).
     SHOULD(ShouldlyString(ic.width()).ShouldBe(0.0));
     SHOULD(ShouldlyString(ic.height()).ShouldBe(0.0));

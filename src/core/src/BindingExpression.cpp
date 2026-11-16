@@ -676,7 +676,11 @@ TransferResult BindingExpression::apply_to_target(const Value& value)
             case SetResult::APPLIED:   return TransferResult::Applied;
             case SetResult::NO_CHANGE: return TransferResult::NoChange;
             case SetResult::QUEUED:    return TransferResult::TargetRejected; // wrong-thread queued (S242: no emission)
-            case SetResult::REJECTED:  return TransferResult::TargetRejected;
+            case SetResult::REJECTED:  return TransferResult::TargetRejected; // S810_1: kept only as a compile-time-known unreachable
+                // arm — the Set pipeline no longer RETURNS REJECTED for a
+                // validate refusal (it throws InvalidPropertyValueException,
+                // caught below). Retained so the enum member's retirement
+                // doesn't force an exhaustive-switch break; S811 removes it.
         }
     }
     catch (const ValueTypeMismatch&)
@@ -690,6 +694,18 @@ TransferResult BindingExpression::apply_to_target(const Value& value)
     catch (const PropertyReadOnlyException&)
     {
         return TransferResult::TargetRejected; // read-only target (no emission)
+    }
+    catch (const InvalidPropertyValueException&)
+    {
+        // S810_1: the core's out-of-range VALIDATE refusal arrives as a thrown
+        // InvalidPropertyValueException (WPF ArgumentException(InvalidPropertyValue)
+        // at DO.cs:653/1692). This is the S242 binding-boundary conversion
+        // (ADR-016): we CATCH the core throw and map it to
+        // TransferResult::TargetRejected — the binding's reporting contract
+        // (TransferResult::TargetRejected) is preserved. The throw is converted
+        // HERE at the binding boundary, never suppressed in the core. No
+        // SetTargetFailed emission (S243's arm).
+        return TransferResult::TargetRejected;
     }
     return TransferResult::TargetRejected;
 }

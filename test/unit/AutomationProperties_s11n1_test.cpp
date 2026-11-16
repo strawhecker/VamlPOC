@@ -44,6 +44,7 @@ using vaml::DependencyObject;
 using vaml::SetResult;
 using vaml::UIElement;
 using vaml::VamlReader;
+using vaml::test::ShouldThrow;
 
 // The Shouldly* fluent factories are MACROS (ShouldlyIntegral/ShouldlyString/
 // ShouldlyPointer) — available globally once Shouldly.h is included after doctest.
@@ -51,7 +52,6 @@ using vaml::VamlReader;
 namespace {
 inline bool is_applied(SetResult r) { return r == SetResult::APPLIED; }
 inline bool is_no_change(SetResult r) { return r == SetResult::NO_CHANGE; }
-inline bool is_rejected(SetResult r) { return r == SetResult::REJECTED; }
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -108,8 +108,12 @@ TEST_CASE("11n-1: IsOffscreenBehavior defaults + validates the OffscreenBehavior
     SHOULD(ShouldlyIntegral(is_applied(AutomationProperties::set_is_offscreen_behavior(target, 2))).ShouldBe(true));
     SHOULD(ShouldlyIntegral(AutomationProperties::is_offscreen_behavior(target)).ShouldBe(2));
 
-    // out-of-range rejected (store unchanged, no cb), value retains the last valid
-    SHOULD(ShouldlyIntegral(is_rejected(AutomationProperties::set_is_offscreen_behavior(target, 7))).ShouldBe(true));
+    // out-of-range -> THROWS InvalidPropertyValueException (S810_1: validate
+    // refusal; SetResult::REJECTED retired), store unchanged — the value
+    // retains the last valid.
+    SHOULD(ShouldThrow<vaml::InvalidPropertyValueException>([&] {
+        (void)AutomationProperties::set_is_offscreen_behavior(target, 7);
+    }));
     SHOULD(ShouldlyIntegral(AutomationProperties::is_offscreen_behavior(target)).ShouldBe(2));
 }
 
