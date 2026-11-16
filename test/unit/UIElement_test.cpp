@@ -9,8 +9,9 @@
 //      out-of-range Set is REJECTED with the store unchanged; a parent's
 //      opacity cascades to a child that reads it (read-side pull, S040); a
 //      child local set WINS and is not clobbered by a later parent change
-//      (S040 local-wins); a parent opacity change PUSHES a notification to an
-//      inheriting descendant (S041/S044 descendant push on a real owned prop).
+//      (S040 local-wins); the parent's synchronous metadata PropChanged fires
+//      on the real change (S811 — WPF PropertyChangedCallback, not a fabricated
+//      descendant-push postbox). Gated on the SINGLE Inherits flag throughout.
 //   3. Transform owner slot — sentinel-only (verified by the searchable
 //      sentinel comment in UIElement.h, resolved by S208); no fabricated
 //      member/type now.

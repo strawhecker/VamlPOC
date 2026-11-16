@@ -65,8 +65,11 @@ void register_uielement_properties()
         "Visibility", ValueType::Int32, "UIElement",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
 
-    // Opacity: default 1.0, INHERITED (S040/S041 cascade to descendants),
-    // bounded [0,1] via validate (out-of-range Set -> REJECTED, unchanged).
+    // Opacity: default 1.0, INHERITED — gates on the SINGLE PropertyFlags::
+    // Inherits flag (no second disposition axis; S814 retired InheritOnly).
+    // A parent's value cascades to descendants via the S039 ancestor walk
+    // (read-side pull, S040 local-wins). Bounded [0,1] via validate
+    // (out-of-range Set -> REJECTED, unchanged).
     (void)DependencyProperty::Register(
         "Opacity", ValueType::Double, "UIElement",
         std::move(PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::Inherits))
@@ -815,10 +818,11 @@ void UIElement::attach_child(std::unique_ptr<UIElement> child)
             "UIElement::add_child: child already has a parent; detach it first (take_child/remove_child)");
     }
     UIElement* raw = child.get();
-    // set_parent(this) registers `raw` into THIS element's inheritance-scope
-    // (S041 inverse edge) so Inherits/InheritOnly (e.g. Opacity) cascade through
-    // the visual child. Order: install the parent link BEFORE owning, so the
-    // inherited-Opacity read inside any observer sees a coherent tree.
+    // set_parent(this) installs the parent link so an INHERITS property
+    // (e.g. Opacity — gated on the SINGLE `Inherits` flag, S814) cascades to
+    // the visual child through the S039 ancestor pull walk. Order: install the
+    // parent link BEFORE owning, so the inherited-Opacity read inside any
+    // observer sees a coherent tree.
     raw->set_parent(this);
     children_.push_back(std::move(child));
 }

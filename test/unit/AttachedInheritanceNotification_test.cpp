@@ -7,23 +7,19 @@
 // GetEffectiveValue resolve a globally-registered DependencyProperty even when
 // the object has not locally registered it (a borrowed non-owning metadata
 // pointer; owner != class). S044 (THIS file) proves the full story on the
-// attached axis AND closes a real gap found while tracing the headline:
+// attached axis:
 //
-//   S041's descendant push captured a descendant ONLY when it already had a
-//   local store entry (store.find(name) != end()). For an attached Inherits
-//   property, a PURELY-PASSIVE inheriting child (never registers, never Set,
-//   never materializes a borrowed entry) reads the inherited value correctly
-//   via GetEffectiveValue (S043) but was NEVER captured -> NEVER notified when
-//   the parent's attached Inherits value changed.
-//
-//   S044 broadens the push walk (DependencyObject.cpp, visit_scope /
-//   collect_descendant_effectives): a descendant is captured when it registers
-//   the property OR when the property is a globally-registered attached
-//   Inherits property (contextual captureAttachedInherits flag; S814 retires
-//   InheritOnly).
-//   notify_descendants still filters to real change (old != new), so
-//   over-capturing a passive descendant that ends up unchanged is harmless —
-//   shielded / local-wins descendants still produce zero notifications.
+//   S041's fabricated descendant-push postbox (the captureAttachedInherits /
+//   collect_descendant_effectives walk that captured a descendant ONLY when it
+//   already had a local store entry) is RETRACTED by S811 — there is NO per-
+//   object notification pipeline in WPF (DO.cs:1704/1732/2039). The S041/S044
+//   behavior now reduces to the SINGLE `Inherits` flag + the S039 ancestor
+//   PULL walk (S814 retired the second InheritOnly disposition axis):
+//   a PURELY-PASSIVE inheriting child (never registers, never Set, never
+//   materializes a borrowed entry) reads the inherited value correctly via
+//   GetEffectiveValue (S043) with no child write; the ORIGIN's synchronous
+//   metadata PropertyChangedCallback fires inside its Set on a real change.
+//   A child with its OWN local value is never clobbered (WPF local-wins).
 //
 // Proves:
 //   1. Attached-inherits cascade (headline): an attached Inherits property

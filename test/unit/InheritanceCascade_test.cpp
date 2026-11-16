@@ -12,9 +12,11 @@
 //      inherited value ("child Set vs inherited old").
 //
 // S040 is a TEST-ONLY step: zero new product symbols. The S039 pull model
-// already delivers correct cascade semantics, and S041 owns the explicit
-// push-notification/ChangeQueue pipeline — so S040 MUST NOT build descendant
-// tracking / notifications (stepping on S041's scope, recorded NOT silent).
+// already delivers correct cascade semantics and the SINGLE `Inherits` flag
+// (S814 retired the InheritOnly disposition axis) — the fabricated S041
+// push-notification / ChangeQueue pipeline and its descendant-push postbox are
+// RETRACTED by S811. So S040 correctly builds NO descendant tracking /
+// notification delivery (stepping on a retired surface, recorded NOT silent).
 //
 // Scope of THIS file:
 //   1. cascade after attach       — parent.Set AFTER child.set_parent ->
@@ -82,7 +84,8 @@ void hostInherited(DependencyObject& obj, const std::string& name, PropertyFlags
     (void)obj.register_property(std::move(key), PropertyMetadata::WithDefault(def, flags));
 }
 
-// Plain inheriting property (local ?? inherited ?? default, no InheritOnly).
+// Plain inheriting property (local ?? inherited ?? default) — gated on the
+// SINGLE Inherits flag; the InheritOnly disposition axis is retired (S814).
 constexpr PropertyFlags kInh = PropertyFlags::Inherits;
 
 } // namespace
