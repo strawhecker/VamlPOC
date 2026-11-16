@@ -1,6 +1,8 @@
 # session-context.md
 
-last_command: implementit S810_2 (Sprint 11t) — REGISTRATION-TIME DEFAULT VALIDATION (the S034/S039 Register gate). BOTH CI LANES GREEN (build/verify_s810_2.cmd -> "S810_2 GREEN"). Working tree extended (NOT committed; commitit outstanding — standing directive).
+last_command: implementit S811 + S812 + S813 (Sprint 11t — D2/D3 pipeline correction + token-strike + GATE). S811 finalized from an unfinalized token (code already green) + S812 docs-correction implemented + S813 the REFACTOR GATE(11t) PASSED. BOTH CI LANES GREEN (build/verify_s813.cmd -> "S813 GREEN (both CI lanes)"). Working tree extended (NOT committed; commitit outstanding — standing directive).
+
+plan_digest: 11t close-out — (1) FINALIZE S811 [DONE]* (the prior conversation left the code green but the roadmap token unmarked; recorded + documented); (2) S812 [DONE]* ROADMAP/RECORD — the S037/S041/S038/S042/S143 mutex-protected queue / notification-pipeline tokens STRUCK + corrected (NO pre-approved DP-value lock; NO "notification ChangeQueue" lock; the ONLY cross-thread change-log is 11n-4's CollectionView opt-in fill->drain deque + swap mutex; S143 relocation rewritten to "moved OUT of the DP layer entirely"; S1724 reconciled — re-verifies, not re-authorizes; ADR-018 rewritten: ZERO new locks); (3) S813 [DONE]* REFACTOR GATE(11t) — both lanes green from first principles + the grep-audit (SetResult::QUEUED / add_property_changed / remove_property_changed / ProcessNotificationQueue / pending_notification_count / fire_self_subscribers / ChangeQueue / ChangeProcessor / ChangeRecorder ALL absent; BindingExpression subscribes via with_changed/notifyChanged only; Set order == DO.cs:653/1692 + sync callback == DO.cs:2039). 11t SURVIVOR + checkpoint in progress.md. ZERO MINIMAL REAL; ZERO new locks (ADR-018).
 
 plan_digest: S810_1 (dep:S810) changes DependencyObject::Set so a false ValidateFunc (raw gate DO.cs:653 OR post-coerce re-check DO.cs:1692) THROWS vaml::InvalidPropertyValueException : std::invalid_argument (naming the property + the offending value), matching WPF ArgumentException(InvalidPropertyValue). SetResult::REJECTED is RETIRED as the out-of-range disposition on the Set pipeline (the enum member stays defined; removal = S811). NO-GAP: BindingExpression CATCHES the core throw and maps it to TransferResult::TargetRejected at the binding boundary (ADR-016 observation, never control-flow in the core); the throw is converted at the binding boundary, not suppressed in the core. Tests: S045/S046 REJECTED asserts -> ShouldThrow<InvalidPropertyValueException> + dependent sweep of every DP-backed REJECTED assert + a new explicit BindingExpression NO-GAP TargetRejected test. BOTH CI lanes green from first principles.
 plan_digest: Sprint 11s — the composite (name, owner) DP identity lands end-to-end (S804 coexistence live-proof
@@ -127,24 +129,17 @@ ground truth. The name-only DP hosing is ABOLISHED; ZERO MINIMAL REAL introduced
   ValueTypeMismatch (type-refusal) + InvalidPropertyValueException (S810_1, ArgumentException lineage). No new type.
 - **NO-GAP:** no MINIMAL REAL introduced; ADR-018 ZERO new locks (registration single-threaded).
 
-## build_status (as of this session — S810_2: both lanes GREEN)
-- **windows-msvc** (msvc-debug): 4/4 test suites PASSED; vaml-core-tests 1341/1341, 8841 assertions
-  (8840 passed + 1 EXPECTED S036_1 should_fail), Status SUCCESS; 6 new S810_2 cases / 13 assertions green.
-  Compile warning-as-error clean (the DependencyProperty.cpp obj failed first on the missing
-  InvalidPropertyValueException symbol; fixed by including DependencyObject.h).
-- **ubuntu-clang** (VM, clang 21, shared folder /mnt/hgfs/VamlPOC): configure+build+ctest — UBUNTU-GREEN.
+## build_status (as of this session — S811/S812/S813: Sprint 11t CLOSED; both lanes GREEN)
+- **windows-msvc** (msvc-debug): S811 code (already landed by the prior conversation) + this session's docs-only S812 + the S813 GATE — build/verify_s813.cmd ran to "S813 GREEN (both CI lanes)" with configure clean + build warning-as-error clean + ctest 4/4 100% pass (vaml-core / vaml-vulkan / vaml-tools / vaml-presentation suites all passed).
+- **ubuntu-clang** (VM, clang 21, shared folder /mnt/hgfs/VamlPOC): configure + build + ctest — UBUNTU-GREEN via verify_s813.cmd.
 
 ## next_step
-- Sprint 11t S810_2 CLOSED: registration-time default validation (type + ValidateFunc against default, atomic) +
-  both-lane green.
-- **Next = Sprint 11t S811 (D2/D3):** remove the implicit cross-thread ChangeQueue/ChangeRecorder/ChangeProcessor +
-  ProcessNotificationQueue/pending_notification_count/fire_self_subscribers + SetResult::QUEUED, make wrong-thread
-  DP access THROW like WPF VerifyAccess, re-point the binding engine onto the synchronous with_changed callback,
-  remove SetResult::REJECTED (kept defined since S810_1 for the exhaustive switch until S811).
-- Remote-build (GH CI) check-in remains OPEN (S810_1 + S810_2 + prior uncommitted work; commits fire only on
-  explicit commitit).
+- Sprint 11t CLOSED (S810..S813): the DP value-pipeline order + the validation-disposition throw + registration-time default validation + the D2/D3 wrong-thread-throw + the invented S041 notification-pipeline removal + the mutex-protected-queue/notification-pipeline token-strike records + the REFACTOR GATE(11t). BOTH CI LANES GREEN at every gate.
+- **Next = Sprint 11h (S520 — the 3rd-party IMPORT/INJECT seam)** per the surrounding continuation order.
+- Remote-build (GH CI) check-in remains OPEN (S810_1/S810_2/S811/S812/S813 + prior uncommitted work; commits fire only on explicit commitit).
 
 ## notes
+- Sprint 11t S811/S812/S813 DONE, NOT committed. build/verify_s811.cmd (S811 code, prior conversation) + build/verify_s813.cmd (the 11t GATE, this session) both GREEN (both CI lanes). The S811 token was finalized here (previously left unmarked).
 - Sprint 11t S810_2 DONE, NOT committed. build/verify_s810_2.cmd GREEN (both CI lanes: windows-msvc + ubuntu-clang).
 - Sprint 11t S810_1 DONE, NOT committed. build/verify_s810_1.cmd GREEN. (Superseded-within-11t by S810_2's
   registration gate — history preserved un-edited; the Set-pipeline disposition is unchanged.)
