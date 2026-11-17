@@ -12,6 +12,20 @@
 //      defers to ITS ancestor (child still resolves the grandparent's value).
 //   5. local-wins on an inheriting child: a child's authored local overrides
 //      the inherited ancestor value (S814 — the WPF-faithful resolution).
+//      WPF-ANCHORED regression (S816): an inheriting child with a local
+//      override reads its OWN local, never the ancestor's. WPF:
+//        - EvaluateEffectiveValue reads the LOCAL when present, and only
+//          defers to the inheritance parent when there is no local entry —
+//          `value = isSetValue ? newEntry.LocalValue : oldEntry.LocalValue;`
+//          then `if (value != DependencyProperty.UnsetValue) { newEntry =
+//          new EffectiveValueEntry(dp, BaseValueSourceInternal.Local) ... }`
+//          (DependencyObject.cs:1888-1909).
+//        - GetValueEntry defers to InheritanceParent ONLY when the entry is
+//          Unset (no local): `if (inheritanceParent != null) { entryIndex =
+//          inheritanceParent.LookupEntry(dp.GlobalIndex); ... }` with
+//          `BaseValueSourceInternal = Inherited` (DependencyObject.cs:236-247).
+//      So `local ?? inherited-from-parent ?? default` — a child local WINS
+//      over the inherited chain, exactly the resolution under test here.
 //   6. empty parent chain -> default (nothing to inherit from).
 //   7. Get() delegates to GetEffectiveValue (synonym).
 //   8. unregistered property -> PropertyNotFound.
