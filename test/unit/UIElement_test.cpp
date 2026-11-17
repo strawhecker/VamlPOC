@@ -89,6 +89,64 @@ TEST_CASE("S120: Visibility — standard Set/Get(PropertyId) path reads the same
     SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(1));
 }
 
+TEST_CASE("S821: Visibility — WPF ValidateVisibility boundary gate (0/1/2 resolve, 3/-1 throw, store unchanged)")
+{
+    UIElement el;
+    const PropertyId id = PropertyId::of("Visibility", "UIElement");
+
+    // Start from a non-default state so every in-domain Set below is a REAL
+    // change (Set to the already-effective default value returns NO_CHANGE, the
+    // no-op optimization — not a boundary signal).
+    SHOULD(ShouldlyString(el.Set(id, Value::Int32(2))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(2));
+
+    // The three in-domain values resolve — Visible(0)/Hidden(1)/Collapsed(2).
+    SHOULD(ShouldlyString(el.Set(id, Value::Int32(0))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(0));
+    SHOULD(ShouldlyString(el.Set(id, Value::Int32(1))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(1));
+    SHOULD(ShouldlyString(el.Set(id, Value::Int32(2))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(2));
+
+    // Out-of-domain values are REJECTED at the boundary (WPF ValidateVisibility,
+    // UIElement.cs:2960): the ValidateFunc is false -> InvalidPropertyValueException
+    // (S810_1 disposition; WPF ArgumentException(InvalidPropertyValue)), and the
+    // store stays UNCHANGED (still Collapsed from the last in-domain Set).
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(id, Value::Int32(3));
+    }));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(id, Value::Int32(-1));
+    }));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(2));
+
+    // The typed accessor path flows through the same gate: an enum value always
+    // maps into 0/1/2, so it keeps resolving; a synthetic out-of-range enum is
+    // impossible, but the generic path above already proves the boundary.
+    SHOULD(ShouldlyString(el.set_visibility(Visibility::Visible)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(0));
+}
+
+TEST_CASE("S821: Visibility — exception names the property + the offending value")
+{
+    UIElement el;
+    const PropertyId id = PropertyId::of("Visibility", "UIElement");
+
+    // The thrown InvalidPropertyValueException names the offending property
+    // (canonical dotted owner.name form) and carries the offending value in its
+    // argument (WPF ArgumentException(InvalidPropertyValue) at DO.cs:653).
+    std::string rendered;
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        try {
+            (void)el.Set(id, Value::Int32(3));
+        } catch (const InvalidPropertyValueException& e) {
+            rendered = e.property_name() + "=" + e.value();
+            throw;
+        }
+    }));
+    SHOULD(ShouldlyString(rendered).ShouldBe("UIElement.Visibility=3"));
+}
+
 TEST_CASE("S120: Visibility — wrong-tag write throws ValueTypeMismatch")
 {
     UIElement el;

@@ -297,6 +297,13 @@ public:
     // Default Visible. Per-element render state (NOT inherited — WPF-faithful).
     // Exposed both via the typed accessors and the standard Set/Get path on
     // PropertyId("Visibility").
+    //
+    // S821 (WPF-fidelity boundary gate): the DP's ValidateFunc mirrors WPF
+    // ValidateVisibility (UIElement.cs:2960) — only Visible(0)/Hidden(1)/
+    // Collapsed(2) resolve. Any other value (e.g. 3 or -1, authored as a raw
+    // Int32 past the enum domain) is REJECTED at the Set boundary (store
+    // unchanged) and THROWS InvalidPropertyValueException (naming the property +
+    // the offending value) per the S810_1 false-ValidateFunc disposition.
     [[nodiscard]] SetResult set_visibility(Visibility v);
     [[nodiscard]] Visibility visibility() const;
 

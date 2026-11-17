@@ -61,9 +61,22 @@ void register_uielement_properties()
 {
     // Visibility: default Visible, NOT inherited (per-element render state).
     // The Value payload rides Int32 (no enum tag in S030).
+    //
+    // S821 (WPF-fidelity boundary gate): mirrors WPF `ValidateVisibility`
+    // (UIElement.cs:2960) — the DP boundary REJECTS any value outside
+    // Visible(0)/Hidden(1)/Collapsed(2). Authoring Visibility="3" or Visibility
+    // ="-1" (a raw Int32 past the enum domain) THROWS InvalidPropertyValueException
+    // at the Set boundary (store unchanged) via the S810_1 false-ValidateFunc
+    // disposition — matching WPF's ArgumentException(InvalidPropertyValue) at
+    // DependencyObject.cs:653. 0/1/2 all resolve. The Int32-rides-enum mapping
+    // (S120/S600/S648) is UNCHANGED — only the WPF validate callback is added.
     (void)DependencyProperty::Register(
         "Visibility", ValueType::Int32, "UIElement",
-        PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
+        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
+            .with_validate([](const Value& v) {
+                const int x = v.get<int>();
+                return x == 0 || x == 1 || x == 2; // Visible/Hidden/Collapsed
+            }));
 
     // Opacity: default 1.0, INHERITED — gates on the SINGLE PropertyFlags::
     // Inherits flag (no second disposition axis; S814 retired InheritOnly).
