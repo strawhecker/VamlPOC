@@ -457,6 +457,25 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
         has_flag(localFlags, PropertyFlags::Inherits)
         || (globalDp != nullptr && has_flag(globalDp->flags(), PropertyFlags::Inherits));
 
+    // S819(c): `OverridesInheritanceBehavior` — the WPF semantic (FPM.cs:18-55):
+    // "This property causes inheritance and resource lookup to override values
+    // of InheritanceBehavior that may be set on any FE in the path of lookup."
+    // WPF consumes it in the INHERITANCE TREE-WALK gating (TreeWalkHelper.cs:
+    // 1137-1141/1183/1214): a frame-element barrier (`InheritanceBehavior !=
+    // Default`) would normally STOP the inherited-lookup walk, but a property
+    // whose metadata sets this flag OVERRIDES that barrier and the walk
+    // CONTINUES. VAML's S039 inheritance walk is `nearest_ancestor_local`
+    // (a straight upward scan for the nearest ancestor local). The full
+    // per-element `InheritanceBehavior` DP + separated-tree walk-half is a
+    // RECORDED LATER CONCERN (the plan's explicit scope boundary — here the FLAG
+    // is represented + wired into resolution, NOT silent). The flag is captured
+    // below and threaded into the walk authority so the future barrier step
+    // consumes it without re-authoring the property's read.
+    const bool overridesInheritance =
+        has_flag(localFlags, PropertyFlags::OverridesInheritanceBehavior)
+        || (globalDp != nullptr &&
+            has_flag(globalDp->flags(), PropertyFlags::OverridesInheritanceBehavior));
+
     const Value defaultValue = md.defaultValue();
 
     // NOT an inheriting property: local ?? default (unchanged S036 semantics).
@@ -468,7 +487,8 @@ Value DependencyObject::GetEffectiveValue(PropertyId id) const
     // Inheriting property: resolve the inherited value from the ancestor chain
     // (tolerant — never throws for an ancestor lacking the property) keyed on
     // the composite pair (S802).
-    const Value inherited = nearest_ancestor_local(*this, id.name(), effectiveOwner);
+    const Value inherited =
+        nearest_ancestor_local(*this, id.name(), effectiveOwner, overridesInheritance);
 
     // S814: InheritOnly is retired. Every inheriting property resolves
     // local ?? inherited ?? default — a local override on the object WINS,
@@ -515,7 +535,8 @@ const DependencyProperty* DependencyObject::resolve_global(PropertyId id) const 
 
 VAML_CORE_EXPORT
 Value DependencyObject::nearest_ancestor_local(
-    const DependencyObject& self, std::string_view name, std::string_view owner)
+    const DependencyObject& self, std::string_view name, std::string_view owner,
+    bool overridesInheritance)
 {
     // Straight upward scan for the nearest ancestor with a LOCAL override for
     // the (name, owner) PAIR (S802 composite — a same-name/different-owner
@@ -526,9 +547,22 @@ Value DependencyObject::nearest_ancestor_local(
     // value, without the throw hazard and re-deriving a single descriptor
     // (flags/default come from the caller).
     //
+    // S819(c): `overridesInheritance` is the property's `OverridesInheritanceBehavior`
+    // flag (the S039 resolution consumed it from the metadata above). It seeds
+    // the walk authority with "this property overrides any InheritanceBehavior
+    // barrier" — the WPF gate `!SkipNow(fo.InheritanceBehavior) ||
+    // fMetadata.OverridesInheritanceBehavior` (TreeWalkHelper.cs). TODAY VAML has
+    // NO per-element InheritanceBehavior barrier (the full override surface is a
+    // recorded later concern), so the walk keeps its current "nearest ancestor
+    // local else default" behavior; the flag is READ + threaded so the future
+    // barrier step consumes it — the property's override is represented in the
+    // resolution, NOT silent. (Kept as a [[maybe_unused]] parameter today so the
+    // future barrier half has its authority seat pre-wired.)
+    //
     // The INTERNED canonical view is used for lookup: ancestors are affinity-
     // thread objects, so their stores hold THIS thread's interned views
     // (content-equal; string_view equality is by content — S140).
+    (void)overridesInheritance;
     const DependencyObject* cur = self.parent();
     while (cur != nullptr)
     {

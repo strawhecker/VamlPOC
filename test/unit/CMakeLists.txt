@@ -60,6 +60,18 @@ add_executable(vaml-core-tests
     # non-value changes) invalidates the visual. Consumed through the S126
     # dirty axis + the S208/S210 render-dirty seam.
     AffectsInvalidation_test.cpp
+    # S819 (dep:S818, Sprint 11aa) — the THREE runtime effects of the
+    # S818-carried framework flags against the REAL binding engine + S039
+    # effective-value resolution: (a) NotDataBindable (0x080) — create() REFUSES
+    # the target -> nullptr + the new Class B NotDataBindableTarget diagnostic arm
+    # (S240_1-BindingEngine refusal; observation-only, NEVER throws under either
+    # policy); (b) BindsTwoWayByDefault (0x100) — a no-Mode= binding to a
+    # flagged target DEFAULTS to TwoWay (the S045 NO-GAP resolved; explicit Mode=
+    # always wins; un-flagged target stays OneWay; programmatic explicit modes
+    # stay verbatim); (c) OverridesInheritanceBehavior (0x040) — carried through
+    # the GLOBAL DP flags+metadata + CONSUMED in the inherited-lookup walk (S039),
+    # wired into resolution not silent.
+    FlagsRuntime_s819_test.cpp
     StackPanel_stretch_test.cpp
     Grid_test.cpp
     GridSpan_test.cpp

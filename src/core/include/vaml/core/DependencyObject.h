@@ -501,8 +501,17 @@ private:
     // throws (an ancestor that does not register the property, or has no local,
     // contributes nothing). A same-class member so it may read the private store
     // of any instance on the parent chain.
+    //
+    // S819(c): `overridesInheritance` is the property's `OverridesInheritanceBehavior`
+    // flag (FPM.cs:18-55), consumed by the S039 resolution above and threaded here
+    // so it seeds the walk authority (the WPF `!SkipNow(fo.InheritanceBehavior) ||
+    // fMetadata.OverridesInheritanceBehavior` gate, TreeWalkHelper.cs). Today VAML
+    // has NO per-element InheritanceBehavior barrier (the full override surface is a
+    // recorded later concern); the flag is READ + threaded so the future barrier
+    // step consumes it — represented in the resolution, not silent.
     static Value nearest_ancestor_local(
-        const DependencyObject& self, std::string_view name, std::string_view owner);
+        const DependencyObject& self, std::string_view name, std::string_view owner,
+        bool overridesInheritance = false);
 
     // S802 resolution helpers. Chosen so a legacy owner-less id (PropertyId::of
     // (name)) still resolves through the GUARDED unique-name store bridge while

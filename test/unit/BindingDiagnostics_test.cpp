@@ -38,8 +38,8 @@ using vaml::binding_diagnostics;
 using vaml::default_binding_diagnostics;
 using vaml::diagnostic_from_path_error;
 using vaml::diagnostic_from_property_read;
+using vaml::diagnostic_from_not_data_bindable;
 using vaml::set_binding_diagnostics;
-
 namespace {
 
 int rc_int(BindingReasonCode c) { return static_cast<int>(c); }
@@ -76,6 +76,11 @@ TEST_CASE("S240_1 tagging: all eight Class B arms map to DefinedRuntimeOutcome")
     SHOULD(ShouldlyIntegral(cls_int(binding_class_of(BindingReasonCode::SetTargetFailed))).ShouldBe(cls_int(BindingClass::DefinedRuntimeOutcome)));
     SHOULD(ShouldlyIntegral(cls_int(binding_class_of(BindingReasonCode::WriteBackRejected))).ShouldBe(cls_int(BindingClass::DefinedRuntimeOutcome)));
     SHOULD(ShouldlyIntegral(cls_int(binding_class_of(BindingReasonCode::Detached))).ShouldBe(cls_int(BindingClass::DefinedRuntimeOutcome)));
+    // S819(a): the NotDataBindable target REFUSAL is Class B (a defined runtime
+    // outcome — the property is authoring-incompatible with binding, but it is a
+    // per-property metadata attribute, not a malformed path). Observation-only,
+    // never a throw under either policy (ADR-016).
+    SHOULD(ShouldlyIntegral(cls_int(binding_class_of(BindingReasonCode::NotDataBindableTarget))).ShouldBe(cls_int(BindingClass::DefinedRuntimeOutcome)));
 }
 
 // ===========================================================================
@@ -166,6 +171,28 @@ TEST_CASE("S240_1 from_path_error: the Empty kind maps to EmptyPath Class A")
                                                      PropertyPathError::Empty, "", "", 0);
     SHOULD(ShouldlyIntegral(rc_int(d.reasonCode)).ShouldBe(rc_int(BindingReasonCode::EmptyPath)));
     SHOULD(ShouldlyIntegral(cls_int(d.bindingClass())).ShouldBe(cls_int(BindingClass::StaticAuthoring)));
+}
+
+// ===========================================================================
+// FACTORY: diagnostic_from_not_data_bindable (S819(a) refusal)
+// ===========================================================================
+
+TEST_CASE("S819(a) from_not_data_bindable: the refusal reason is Class B NotDataBindableTarget")
+{
+    BindingDiagnostic d = diagnostic_from_not_data_bindable(
+        5, "Nope", "S819Text", BindingDirection::OneWay,
+        "ObservableObject", "String", "S819: property is NotDataBindable", "", 0);
+
+    SHOULD(ShouldlyIntegral(d.bindingId).ShouldBe(std::uint64_t{5}));
+    SHOULD(ShouldlyString(d.sourcePath).ShouldBe("Nope"));
+    SHOULD(ShouldlyString(d.targetProp).ShouldBe("S819Text"));
+    SHOULD(ShouldlyIntegral(dir_int(d.direction)).ShouldBe(dir_int(BindingDirection::OneWay)));
+    SHOULD(ShouldlyIntegral(rc_int(d.reasonCode)).ShouldBe(rc_int(BindingReasonCode::NotDataBindableTarget)));
+    SHOULD(ShouldlyIntegral(cls_int(d.bindingClass())).ShouldBe(cls_int(BindingClass::DefinedRuntimeOutcome)));
+    SHOULD(ShouldlyString(d.sourceType).ShouldBe("ObservableObject"));
+    SHOULD(ShouldlyString(d.targetType).ShouldBe("String"));
+    SHOULD(ShouldlyString(d.detail).ShouldBe("S819: property is NotDataBindable"));
+    SHOULD(ShouldlyString(d.converter).ShouldBe("")); // no converter involved in a refusal
 }
 
 // ===========================================================================

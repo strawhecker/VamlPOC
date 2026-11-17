@@ -226,6 +226,17 @@ struct VAML_CORE_EXPORT BindingExpressionSpec
     // TargetRejected defensively).
     std::string targetOwner;
     BindingMode mode = BindingMode::OneTime;
+    // S819(b): true when `mode` was EXPLICITLY authored (a `Mode=` clause in the
+    // markup, or an explicit programmatic constructor). Defaults TRUE so the
+    // existing programmatic construction path (S242-tested) honors its explicit
+    // `spec.mode` verbatim — unchanged behavior. The markup `BindExtensions`
+    // path sets this FALSE when there is no `Mode=` clause; the engine then
+    // resolves the binding's mode from the TARGET DP's metadata: if the target
+    // property sets `PropertyFlags::BindsTwoWayByDefault`, the mode DEFAULTS to
+    // `BindingMode::TwoWay`; otherwise it defaults to `BindingMode::OneWay` (the
+    // WPF `{Binding}` default). An explicit `Mode=` always wins (the roadmap's
+    // "with no `Mode=` override").
+    bool modeExplicit = true;
     BindingPolicy policy = BindingPolicy::Fallback;
     BindingConverter converter;
     std::string converterName;

@@ -83,9 +83,19 @@ enum class BindingReasonCode : std::uint8_t
                                  // fallback value instead of a null (S242).
     SetTargetFailed         = 8, // [fwd] one-way target assignment was rejected (S243).
     WriteBackRejected       = 9, // [fwd] two-way write-back was rejected (S244).
-    Detached                = 10 // [fwd] a two-way binding wrote while detached;
+    Detached                = 10, // [fwd] a two-way binding wrote while detached;
                                  // a SILENCED non-error (S245), reported only so
                                  // a subscribed sink can observe the lifecycle.
+    NotDataBindableTarget   = 11 // S819(a): `BindingExpression::create` REFUSED the
+                                 // target because its metadata sets
+                                 // `PropertyFlags::NotDataBindable` (WPF "this
+                                 // property does not support data binding",
+                                 // FPM.cs:18-55) — return nullptr + emit, the
+                                 // S240_1-BindingEngine refusal path. Class B,
+                                 // ADR-016 observation-only, NEVER throws under
+                                 // either policy (a NotDataBindable property
+                                 // can never bind; there is no fallback — the
+                                 // refusal is the honest disposition).
 };
 
 // The tagging authority: maps a reason code to its class. Single source of
@@ -175,5 +185,15 @@ public:
     BindingDirection direction, std::string sourceType, std::string targetType,
     PropertyPathError error, std::string detail = {},
     std::string sourceFile = {}, std::uint32_t sourceLine = 0);
+
+// S819(a): build the BindingDiagnostic for a `NotDataBindable` target refusal.
+// `BindingExpression::create` emits this (Class B, ADR-016 observation-only —
+// NEVER throws under either policy) and returns nullptr, the S240_1-BindingEngine
+// refusal path. A NotDataBindable property can never bind, so there is no
+// fallback — the refusal is the honest disposition.
+[[nodiscard]] VAML_CORE_EXPORT BindingDiagnostic diagnostic_from_not_data_bindable(
+    std::uint64_t bindingId, std::string sourcePath, std::string targetProp,
+    BindingDirection direction, std::string sourceType, std::string targetType,
+    std::string detail = {}, std::string sourceFile = {}, std::uint32_t sourceLine = 0);
 
 } // namespace vaml

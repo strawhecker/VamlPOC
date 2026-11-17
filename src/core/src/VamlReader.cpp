@@ -3164,7 +3164,14 @@ std::size_t VamlReader::BindExtensions()
             spec.targetOwner = targetDp->owner_type_id();
         }
         spec.policy     = vaml::view_binding_policy_default();   // Fallback (S250_1)
-        // WPF-faithful: {Binding} without Mode= is OneWay; Mode= overrides.
+        // WPF-faithful: {Binding} without Mode= is OneWay (the S819(b) engine
+        // default); Mode= overrides. When there is NO `Mode=` clause we leave
+        // modeExplicit=FALSE so the ENGINE resolves the final mode from the
+        // target DP's metadata — a target whose metadata sets
+        // `PropertyFlags::BindsTwoWayByDefault` DEFAULTS to TwoWay (the S045
+        // "carried-through, no runtime behavior" NO-GAP resolved), everything
+        // else to OneWay. An explicit `Mode=` always wins (modeExplicit=true).
+        spec.modeExplicit = markup.hasMode;
         spec.mode = markup.hasMode
                         ? (markup.mode == "TwoWay"   ? BindingMode::TwoWay
                            : markup.mode == "OneTime" ? BindingMode::OneTime

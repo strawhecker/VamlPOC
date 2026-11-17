@@ -45,6 +45,7 @@ BindingClass binding_class_of(BindingReasonCode code) noexcept
         case BindingReasonCode::SetTargetFailed:
         case BindingReasonCode::WriteBackRejected:
         case BindingReasonCode::Detached:
+        case BindingReasonCode::NotDataBindableTarget:
             return BindingClass::DefinedRuntimeOutcome;
     }
     // Unreachable for any enumerator; keep the compiler's -Wswitch happy without
@@ -142,6 +143,27 @@ BindingDiagnostic diagnostic_from_path_error(
     d.sourceType   = std::move(sourceType);
     d.targetType   = std::move(targetType);
     d.converter    = {}; // a path-error diagnostic has no converter involved
+    d.detail       = std::move(detail);
+    d.timestamp    = std::chrono::system_clock::now();
+    d.sourceFile   = std::move(sourceFile);
+    d.sourceLine   = sourceLine;
+    return d;
+}
+
+BindingDiagnostic diagnostic_from_not_data_bindable(
+    std::uint64_t bindingId, std::string sourcePath, std::string targetProp,
+    BindingDirection direction, std::string sourceType, std::string targetType,
+    std::string detail, std::string sourceFile, std::uint32_t sourceLine)
+{
+    BindingDiagnostic d;
+    d.bindingId    = bindingId;
+    d.sourcePath   = std::move(sourcePath);
+    d.targetProp   = std::move(targetProp);
+    d.direction    = direction;
+    d.reasonCode   = BindingReasonCode::NotDataBindableTarget;
+    d.sourceType   = std::move(sourceType);
+    d.targetType   = std::move(targetType);
+    d.converter    = {}; // a refusal diagnostic has no converter involved
     d.detail       = std::move(detail);
     d.timestamp    = std::chrono::system_clock::now();
     d.sourceFile   = std::move(sourceFile);

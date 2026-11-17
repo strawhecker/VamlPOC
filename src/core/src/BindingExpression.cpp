@@ -307,10 +307,53 @@ std::unique_ptr<BindingExpression> BindingExpression::create(const BindingExpres
         return nullptr;
     }
 
+    // --- S819(a): the NotDataBindable target refusal gate ------------------
+    // S240_1-BindingEngine refusal path: a target whose metadata sets
+    // `PropertyFlags::NotDataBindable` (WPF "This property does not support data
+    // binding", FPM.cs:18-55) can NEVER bind — there is no fallback worth
+    // applying (the property refuses binding outright), so the honest disposition
+    // is `nullptr` + emit, Class B, ADR-016 observation-only, NEVER throwing
+    // under either policy. Resolved here on the COMPOSITE (name, owner) pair
+    // (S803 — WPF has no name-only DP lookup) via the same target-id resolution
+    // the transfer + write-back wire use. A non-NotDataBindable target (or an
+    // unresolvable target — the transfer maps that to TargetRejected
+    // defensively) passes through unchanged.
+    const PropertyId targetId = resolve_target_id(spec.targetProp, spec.targetOwner);
+    const DependencyProperty* const targetDp =
+        DependencyProperty::TryGet(targetId.name(), targetId.owner());
+    if (targetDp != nullptr &&
+        (has_flag(targetDp->flags(), PropertyFlags::NotDataBindable) ||
+         has_flag(targetDp->metadata().flags(), PropertyFlags::NotDataBindable)))
+    {
+        BindingDiagnostic d = diagnostic_from_not_data_bindable(
+            next_binding_id(), spec.sourcePath, spec.targetProp,
+            to_binding_direction(spec.mode), spec.sourceType, spec.targetType,
+            "BindingExpression::create refused the NotDataBindable target", {}, 0);
+        binding_diagnostics().emit(d);
+        return nullptr; // no bind — the property refuses data binding outright
+    }
+
+    // --- S819(b): metadata-aware mode defaulting ---------------------------
+    // When the author did NOT supply an explicit `Mode=` (modeExplicit == false),
+    // resolve the binding's mode from the TARGET DP's metadata: a target that
+    // sets `PropertyFlags::BindsTwoWayByDefault` DEFAULTS to TwoWay (the S045
+    // "carried-through, no runtime behavior" NO-GAP resolved); otherwise it
+    // defaults to OneWay (the WPF `{Binding}` default). An explicit `Mode=`
+    // always wins.
+    BindingMode mode = spec.mode;
+    if (!spec.modeExplicit)
+    {
+        const bool targetBindsTwoWay =
+            (targetDp != nullptr) &&
+            (has_flag(targetDp->flags(), PropertyFlags::BindsTwoWayByDefault) ||
+             has_flag(targetDp->metadata().flags(), PropertyFlags::BindsTwoWayByDefault));
+        mode = targetBindsTwoWay ? BindingMode::TwoWay : BindingMode::OneWay;
+    }
+
     // --- Live expression ---------------------------------------------------
     std::unique_ptr<BindingExpression> e(new BindingExpression());
     e->bindingId_   = next_binding_id();
-    e->mode_        = spec.mode;
+    e->mode_        = mode;
     e->policy_      = spec.policy;
     e->source_      = spec.source;
     e->target_      = spec.target;
