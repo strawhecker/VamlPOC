@@ -129,6 +129,45 @@ TEST_CASE("S039/S801: flags() round-trips multiple surviving flags")
     SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::BindsTwoWayByDefault)).ShouldBe(true));
 }
 
+TEST_CASE("S039/S801: flags() round-trips the S818 framework arms")
+{
+    // S818 (Sprint 11aa): the full WPF FrameworkPropertyMetadataOptions arm set
+    // round-trips through Register -> Get -> flags() (and metadata().flags()),
+    // byte-faithful ordinals (Option B). Asserts by SYMBOL (has_flag), never by
+    // the raw bit number.
+    const std::string name = "ThemeColor_S039_K";
+    const auto broad = PropertyFlags::AffectsMeasure
+                     | PropertyFlags::AffectsArrange
+                     | PropertyFlags::AffectsParentMeasure
+                     | PropertyFlags::AffectsParentArrange
+                     | PropertyFlags::AffectsRender
+                     | PropertyFlags::OverridesInheritanceBehavior
+                     | PropertyFlags::NotDataBindable
+                     | PropertyFlags::Journal
+                     | PropertyFlags::SubPropertiesDoNotAffectRender;
+    (void)DependencyProperty::Register(
+        name, ValueType::Int32, "Owner",
+        PropertyMetadata::WithDefault(Value::Int32(0), broad));
+
+    const DependencyProperty& dp = DependencyProperty::Get(name, "Owner");
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::AffectsMeasure)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::AffectsArrange)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::AffectsParentMeasure)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::AffectsParentArrange)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::AffectsRender)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::OverridesInheritanceBehavior)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::NotDataBindable)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::Journal)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(dp.flags(), PropertyFlags::SubPropertiesDoNotAffectRender)).ShouldBe(true));
+
+    // metadata().flags() carries the SAME arm set (the PropertyMetadata pass-
+    // through — the S039 flags()/metadata() round-trip arms).
+    const auto& mf = dp.metadata().flags();
+    SHOULD(ShouldlyString(has_flag(mf, PropertyFlags::AffectsMeasure)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(mf, PropertyFlags::AffectsRender)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(mf, PropertyFlags::SubPropertiesDoNotAffectRender)).ShouldBe(true));
+}
+
 // ---- S810_2 — REGISTRATION-TIME DEFAULT VALIDATION (the S034/S039 Register
 // ---- gate). WPF `ValidateDefaultValueCommon` (DependencyProperty.cs:376-434)
 // ---- validates the DEFAULT against type AND the `ValidateValueCallback` at

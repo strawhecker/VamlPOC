@@ -333,6 +333,25 @@ public:
     void set_parent(DependencyObject* parent) noexcept;
     [[nodiscard]] DependencyObject* parent() const noexcept;
 
+    // --- S818 OnPropertyChanged virtual (the WPF DO.cs:2039 change call-out) --
+    // A protected virtual, the WPF `DependencyObject.OnPropertyChanged(
+    // DependencyPropertyChangedEventArgs)` analogue (DO.cs:2039 — invoked ON a
+    // real effective-value change, after the change is detected, synchronous,
+    // affinity-thread). The default is a no-op; `UIElement` overrides it to run
+    // the `FrameworkElement.OnPropertyChanged` (FE.cs:2198-2251) Affects*
+    // invalidation (InvalideMeasure/Arrange/Visual + the nearest layout-parent
+    // walk). Called from Set() ONLY when a real change occurred (NO_CHANGE does
+    // not fire it). `flags` is the resolved property's flag set (the carrier of
+    // the Affects* arms); `oldValue`/`newValue` are the effective-value old/new
+    // (mirroring the changed-cb contract).
+protected:
+    virtual void OnPropertyChanged(
+        PropertyId id,
+        const Value& oldValue,
+        const Value& newValue,
+        PropertyFlags flags);
+
+public:
     // --- S245 destruction lifecycle (the "element destroy" notification) ----
     // A real destruction-lifecycle notification. `add_destroyed` registers a
     // handler that fires ONCE in the destructor (copy-before-invoke, BEFORE any

@@ -799,6 +799,102 @@ bool UIElement::is_layout_dirty() const noexcept
     return measure_dirty_ || arrange_dirty_;
 }
 
+// --- S818 render invalidation (InvalidateVisual) ----------------------------
+
+VAML_CORE_EXPORT
+void UIElement::InvalidateVisual()
+{
+    // WPF UIElement.InvalidateVisual: mark THIS element for re-render. It does
+    // NOT walk the ancestor chain — a child's repaint is this element's own
+    // concern; ancestors re-render via their OWN invalidation (the Affects* /
+    // layout-seam). The render-dirty flag is consumed by the S208/S210
+    // render-dirty seam so a repaint of this element is scheduled.
+    render_dirty_ = true;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_render_dirty() const noexcept
+{
+    return render_dirty_;
+}
+
+// --- S818 OnPropertyChanged (the FE.cs:2198-2251 Affects* engine) -----------
+
+VAML_CORE_EXPORT
+void UIElement::OnPropertyChanged(
+    PropertyId /*id*/,
+    const Value& /*oldValue*/,
+    const Value& /*newValue*/,
+    PropertyFlags flags)
+{
+    // Run the WPF `FrameworkElement.OnPropertyChanged` Affects* invalidation
+    // (FE.cs:2198-2251), EXACTLY — in the same order WPF checks the arms.
+
+    // 1) AffectsParentMeasure / AffectsParentArrange: walk to the NEAREST
+    //    UIElement layout parent and invalidate its measure/arrange
+    //    (FE.cs:2219 / 2234). WPF walks the VisualTreeHelper.GetParent chain up
+    //    to the nearest UIElement that is a layout parent and invalidates THAT
+    //    one (and stops — the nearest only).
+    if (has_flag(flags, PropertyFlags::AffectsParentMeasure) ||
+        has_flag(flags, PropertyFlags::AffectsParentArrange))
+    {
+        const bool parentMeasure = has_flag(flags, PropertyFlags::AffectsParentMeasure);
+        const bool parentArrange = has_flag(flags, PropertyFlags::AffectsParentArrange);
+        // FE.cs:2219/2234 — walk the parent chain to the NEAREST UIElement that
+        // is a layout parent and invalidate THAT one, then stop. A non-UIElement
+        // ancestor cannot own a layout pass, so it is SKIPPED (the walk
+        // continues past it) — only the first UIElement ancestor (the nearest
+        // layout parent) is invalidated, and the walk stops there.
+        for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
+        {
+            auto* ue = dynamic_cast<UIElement*>(p);
+            if (ue == nullptr)
+            {
+                // Not a layout participant — keep walking toward the nearest
+                // UIElement ancestor (the nearest layout parent).
+                continue;
+            }
+            if (parentMeasure)
+            {
+                ue->InvalidateMeasure();
+            }
+            if (parentArrange)
+            {
+                ue->InvalidateArrange();
+            }
+            // Nearest layout parent only: we have found and invalidated the
+            // nearest one — do not walk further up.
+            break;
+        }
+    }
+
+    // 2) AffectsMeasure -> invalidate own measure (FE.cs:2241).
+    if (has_flag(flags, PropertyFlags::AffectsMeasure))
+    {
+        InvalidateMeasure();
+    }
+
+    // 3) AffectsArrange -> invalidate own arrange (FE.cs:2243).
+    if (has_flag(flags, PropertyFlags::AffectsArrange))
+    {
+        InvalidateArrange();
+    }
+
+    // 4) AffectsRender -> InvalidateVisual (FE.cs:2251). WPF's exact gate is
+    //    `if (e.IsAValueChange || !SubPropertiesDoNotAffectRender)`. In VAML a
+    //    Set() that reaches OnPropertyChanged is ALWAYS a value change
+    //    (NO_CHANGE does not fire the call-out), so `e.IsAValueChange` is
+    //    always TRUE here and the visual ALWAYS invalidates on an AffectsRender
+    //    property. The `SubPropertiesDoNotAffectRender` arm only suppresses
+    //    NON-value (sub-property) changes — which never arrive through Set()'s
+    //    real-change call-out — so a future sub-property call site would gate on
+    //    it explicitly there. Carried + readable here for the S819 record.
+    if (has_flag(flags, PropertyFlags::AffectsRender))
+    {
+        InvalidateVisual();
+    }
+}
+
 // --- S121 visual children ---------------------------------------------------
 
 // Internal attach: owns `child`, wires the S039/S041 parent link + inheritance-

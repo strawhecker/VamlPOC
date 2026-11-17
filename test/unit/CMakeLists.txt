@@ -52,6 +52,14 @@ add_executable(vaml-core-tests
     MeasureArrangeOverride_test.cpp
     DirtyOnlySubpass_test.cpp
     StackPanel_test.cpp
+    # S818 (dep:S817, Sprint 11aa) — WIRE the Affects* runtime invalidation
+    # exactly as FrameworkElement.OnPropertyChanged (FE.cs:2198-2251): a real
+    # change on an AffectsParentMeasure/Arrange DP invalidates the nearest
+    # layout parent's measure/arrange; AffectsMeasure/Arrange invalidate the
+    # own axis; AffectsRender (gated by SubPropertiesDoNotAffectRender for
+    # non-value changes) invalidates the visual. Consumed through the S126
+    # dirty axis + the S208/S210 render-dirty seam.
+    AffectsInvalidation_test.cpp
     StackPanel_stretch_test.cpp
     Grid_test.cpp
     GridSpan_test.cpp

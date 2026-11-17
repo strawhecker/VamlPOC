@@ -299,4 +299,35 @@ TEST_CASE("S045: all flags honored (consolidated)")
         SHOULD(ShouldlyString(child.Set(id, Value::Int32(9))).ShouldBe(SetResult::APPLIED));
         SHOULD(ShouldlyString(child.Get(id)).ShouldBe(Value::Int32(9)));
     }
+
+    // (c) S818 (Sprint 11aa) framework arms carried through the GLOBAL
+    // DependencyProperty flags() AND metadata().flags() round-trip (the S039
+    // flags()/metadata() round-trip arms on the consolidated surface) —
+    // byte-faithful WPF ordinals, asserted by SYMBOL (has_flag), never by the
+    // raw bit number.
+    {
+        const char* name = "FrameworkArms_S045";
+        const auto broad = PropertyFlags::AffectsMeasure
+                         | PropertyFlags::AffectsArrange
+                         | PropertyFlags::AffectsParentMeasure
+                         | PropertyFlags::AffectsParentArrange
+                         | PropertyFlags::AffectsRender
+                         | PropertyFlags::OverridesInheritanceBehavior
+                         | PropertyFlags::NotDataBindable
+                         | PropertyFlags::Journal
+                         | PropertyFlags::SubPropertiesDoNotAffectRender;
+        const DependencyProperty& g = registerGlobal(name, broad, Value::Int32(0));
+
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::AffectsMeasure)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::AffectsArrange)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::AffectsParentMeasure)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::AffectsParentArrange)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::AffectsRender)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::OverridesInheritanceBehavior)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::NotDataBindable)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::Journal)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.flags(), PropertyFlags::SubPropertiesDoNotAffectRender)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.metadata().flags(), PropertyFlags::AffectsRender)).ShouldBe(true));
+        SHOULD(ShouldlyString(has_flag(g.metadata().flags(), PropertyFlags::AffectsParentMeasure)).ShouldBe(true));
+    }
 }

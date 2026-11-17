@@ -243,6 +243,20 @@ public:
     // arrange-dirty.
     void InvalidateArrange();
 
+    // --- S818 render invalidation (InvalidateVisual) ---------------------
+    // WPF `UIElement.InvalidateVisual()`: marks THIS element as needing its
+    // visual re-rendered. In VAML it sets the render-dirty flag consumed by the
+    // S208/S210 render-dirty seam (a repaint is scheduled). WPF-faithful scoping:
+    // InvalidateVisual marks ONLY THIS element (it does NOT walk to ancestors —
+    // ancestor repaint is the AffectsParent* / AffectsRender-up-chain job). Set
+    // via `AffectsRender` on a real value change (FE.cs:2251), gated by
+    // `SubPropertiesDoNotAffectRender` for non-value changes.
+    void InvalidateVisual();
+
+    // True if this element needs its visual re-rendered (set by InvalidateVisual
+    // or an AffectsRender change; consumed by the render-dirty seam).
+    [[nodiscard]] bool is_render_dirty() const noexcept;
+
     // True if this element needs a Measure pass (never measured, or re-
     // invalidated since the last measure).
     [[nodiscard]] bool is_measure_dirty() const noexcept;
@@ -488,6 +502,21 @@ public:
     [[nodiscard]] const UIElement* HitTestAt(float x, float y) const;
 
 private:
+    // --- S818 OnPropertyChanged override (the FE.cs Affects* engine) -------
+    // Overrides the DO.cs:2039 change call-out to run the WPF
+    // `FrameworkElement.OnPropertyChanged` Affects* invalidation
+    // (FE.cs:2198-2251): AffectsParentMeasure/Arrange -> nearest UIElement
+    // layout parent's InvalidateMeasure/InvalidateArrange (parent-chain walk);
+    // AffectsMeasure -> InvalidateMeasure; AffectsArrange -> InvalidateArrange;
+    // AffectsRender -> InvalidateVisual (gated on
+    // SubPropertiesDoNotAffectRender for non-value changes). Invoked from Set()
+    // on a real change only.
+    void OnPropertyChanged(
+        PropertyId id,
+        const Value& oldValue,
+        const Value& newValue,
+        PropertyFlags flags) override;
+
     void attach_child(std::unique_ptr<UIElement> child);
 
     // Fires `event`'s handlers on ONE element (sets args.source = element),
@@ -516,6 +545,12 @@ private:
     vaml::Rect final_rect_     = {};                        // S122/S124 final rect (Arrange writes)
     bool       measure_dirty_  = true;                      // S126 layout-dirty flag (measure axis)
     bool       arrange_dirty_  = true;                      // S126 layout-dirty flag (arrange axis)
+    // S818: render-dirty flag (InvalidateVisual / AffectsRender). Default
+    // FALSE — a fresh element is not render-dirty until its first
+    // InvalidateVisual or an AffectsRender change (unlike measure/arrange,
+    // which start true because a fresh element is never laid out). Consumed by
+    // the S208/S210 render-dirty seam (a repaint of this element is scheduled).
+    bool       render_dirty_   = false;                     // S818 render-dirty flag (InvalidateVisual)
     // RenderTransform lives in the DP store (the S034/S043 effective-value
     // machinery), NOT as a second inline member — no extra member beyond the
     // S122/S126 state above.

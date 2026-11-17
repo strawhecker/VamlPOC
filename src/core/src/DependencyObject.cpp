@@ -701,10 +701,29 @@ SetResult DependencyObject::Set(PropertyId id, const Value& input)
     // notification.
     md.notifyChanged(currentEffective, coerced);
 
+    // S818: the WPF `DependencyObject.OnPropertyChanged` change call-out
+    // (DO.cs:2039) — fired ONLY on this real change, synchronous, on the
+    // affinity thread, AFTER the changed-cb (matching WPF's PostProcessGetValue
+    // ordering). The default base no-op does nothing; UIElement's override
+    // consumes the Affects* arms (FE.cs:2198-2251). Fires with the flags of
+    // the RESOLVED property (the carrier of the Affects* arms).
+    OnPropertyChanged(id, currentEffective, coerced, md.flags());
+
     // D1 (S810) pipeline step 5: store.
     entry->local = coerced;
 
     return SetResult::APPLIED;
+}
+
+VAML_CORE_EXPORT
+void DependencyObject::OnPropertyChanged(
+    PropertyId /*id*/,
+    const Value& /*oldValue*/,
+    const Value& /*newValue*/,
+    PropertyFlags /*flags*/)
+{
+    // Base no-op (WPF DependencyObject.OnPropertyChanged default). UIElement
+    // overrides this to run the Affects* invalidation (FE.cs:2198-2251).
 }
 
 VAML_CORE_EXPORT

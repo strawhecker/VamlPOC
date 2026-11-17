@@ -52,22 +52,32 @@ std::string PropertyKey::describe() const
 
     os << ", owner '" << ownerTypeId_ << "'";
 
+    // S818: full arm serialization — stable order mirrors the WPF ordinals
+    // (Affects* low bits first), then the inheritance/binding arms, then the
+    // render gate. Asserted-by-symbol in the S041 describe() test; order here
+    // is a stable diagnostic choice (not the raw bit value).
     if (flags_ != PropertyFlags::None)
     {
         os << " [";
         bool first = true;
-        if (has_flag(flags_, PropertyFlags::Inherits))
+        auto append = [&os, &first](const char* arm)
         {
-            os << "Inherits"; first = false;
-        }
-        if (has_flag(flags_, PropertyFlags::ReadOnly))
-        {
-            os << (!first ? "|" : "") << "ReadOnly"; first = false;
-        }
-        if (has_flag(flags_, PropertyFlags::BindsTwoWayByDefault))
-        {
-            os << (!first ? "|" : "") << "BindsTwoWayByDefault";
-        }
+            os << (!first ? "|" : "") << arm;
+            first = false;
+        };
+
+        if (has_flag(flags_, PropertyFlags::AffectsMeasure))            { append("AffectsMeasure"); }
+        if (has_flag(flags_, PropertyFlags::AffectsArrange))            { append("AffectsArrange"); }
+        if (has_flag(flags_, PropertyFlags::AffectsParentMeasure))      { append("AffectsParentMeasure"); }
+        if (has_flag(flags_, PropertyFlags::AffectsParentArrange))      { append("AffectsParentArrange"); }
+        if (has_flag(flags_, PropertyFlags::AffectsRender))             { append("AffectsRender"); }
+        if (has_flag(flags_, PropertyFlags::Inherits))                  { append("Inherits"); }
+        if (has_flag(flags_, PropertyFlags::OverridesInheritanceBehavior)) { append("OverridesInheritanceBehavior"); }
+        if (has_flag(flags_, PropertyFlags::NotDataBindable))           { append("NotDataBindable"); }
+        if (has_flag(flags_, PropertyFlags::BindsTwoWayByDefault))      { append("BindsTwoWayByDefault"); }
+        if (has_flag(flags_, PropertyFlags::ReadOnly))                  { append("ReadOnly"); }
+        if (has_flag(flags_, PropertyFlags::Journal))                   { append("Journal"); }
+        if (has_flag(flags_, PropertyFlags::SubPropertiesDoNotAffectRender)) { append("SubPropertiesDoNotAffectRender"); }
         os << "]";
     }
 
