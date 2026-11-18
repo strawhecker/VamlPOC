@@ -36,6 +36,7 @@
 #include "vaml/core/GridLength.h" // GridLength, RowDefinition, ColumnDefinition (S131)
 #include "vaml/core/TextLayout.h" // S400 — text_layout_plan / default_text_metric (Measure basis)
 #include "vaml/core/UIElement.h"  // StackPanel/Grid's base (S129/S131 re-base — RESOLVED seeds)
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base (Control : FrameworkElement in WPF, so every element class derives it)
 #include "vaml/core/ICommand.h"      // S246 — the ONE command interface (Button : ICommandSource)
 #include "vaml/core/ICommandSource.h"// 11n-2 — the command-invoking touchpoint anchor
 #include "vaml/core/Value.h"         // Value — the command-parameter domain
@@ -103,7 +104,7 @@ class ContentPresenter;
 // classify_merge_element (a Button classifies to MaterialKind::Solid, the
 // default Button material); the live per-state brush re-render is the
 // [s401-live]/S409_1 path — recorded NO-GAP, not silent.
-class VAML_CORE_EXPORT Button final : public UIElement, public ICommandSource
+class VAML_CORE_EXPORT Button final : public FrameworkElement, public ICommandSource
 {
 public:
     Button();
@@ -192,7 +193,7 @@ enum class Orientation : std::uint8_t
     Vertical   = 1, // children stack top-to-bottom (default)
 };
 
-class VAML_CORE_EXPORT StackPanel final : public UIElement
+class VAML_CORE_EXPORT StackPanel final : public FrameworkElement
 {
 public:
     StackPanel();
@@ -230,7 +231,7 @@ protected:
 // NO-GAP hand-off (recorded, not silent): S132 = RowSpan/ColumnSpan + the
 // extended measure/arrange math (cells consumed by spans, two-pass); S133 =
 // exhaustive star-sizing + span test suite.
-class VAML_CORE_EXPORT Grid final : public UIElement
+class VAML_CORE_EXPORT Grid final : public FrameworkElement
 {
 public:
     Grid();
@@ -316,7 +317,7 @@ private:
 // "Orientation", which StackPanel already owns in the global registry (a
 // same-name pair under a different owner would be ambiguous to the S091
 // dotted-key resolution). The flow/wrap/align algorithm lives in Element.cpp.
-class VAML_CORE_EXPORT WrapPanel final : public UIElement
+class VAML_CORE_EXPORT WrapPanel final : public FrameworkElement
 {
 public:
     WrapPanel();
@@ -363,7 +364,7 @@ protected:
 //
 // Dirty-respect (S128): MeasureOverride re-measures ONLY is_measure_dirty()
 // children; ArrangeOverride re-arranges ONLY is_arrange_dirty() children.
-class VAML_CORE_EXPORT Canvas final : public UIElement
+class VAML_CORE_EXPORT Canvas final : public FrameworkElement
 {
 public:
     Canvas();
@@ -422,7 +423,7 @@ protected:
 // classify_element/classify_merge_element -> MaterialKind::Solid (the S207/S212
 // classifier seam — a DockPanel renders as a solid fill at its arranged box,
 // exactly like the other real panels).
-class VAML_CORE_EXPORT DockPanel final : public UIElement
+class VAML_CORE_EXPORT DockPanel final : public FrameworkElement
 {
 public:
     DockPanel();
@@ -495,7 +496,7 @@ enum class Dock : std::uint8_t
 // Control's) is 11k-8's scope — not pre-empted here.
 // [MINIMAL REAL] TextBlock — RESOLVED BY 11k-1 (S087 seed → TextBlock; S400 real
 // content re-based). Do NOT extend silently; do NOT backfill.
-class VAML_CORE_EXPORT TextBlock final : public UIElement
+class VAML_CORE_EXPORT TextBlock final : public FrameworkElement
 {
 public:
     TextBlock();
@@ -598,7 +599,7 @@ enum class IconStretch : std::uint8_t
 //   - The FALLBACK GLYPH + structured diagnostic for a missing/unsupported/
 //     out-of-set asset = the render/classifier step (mirrors binding
 //     diagnostics via the S250_1 channel; NEVER silent, NEVER a crash).
-class VAML_CORE_EXPORT Icon final : public UIElement
+class VAML_CORE_EXPORT Icon final : public FrameworkElement
 {
 public:
     Icon();
@@ -684,7 +685,7 @@ protected:
 // generic renderer); the S402 classifier emits a Solid-fill box for the TextBox
 // field (the rendered edit field outline) with the text content deferred to the
 // S400/S409_1 glyph path — recorded NO-GAP not silent.
-class VAML_CORE_EXPORT TextBox final : public UIElement
+class VAML_CORE_EXPORT TextBox final : public FrameworkElement
 {
 public:
     TextBox();
@@ -781,7 +782,7 @@ private:
 // SCOPE (recorded NOT silent): the rendered check glyph (the Solid box + the
 // check marker) is the vulkan classifier (deferred to S409_1 for the live draw);
 // the IsChecked toggle + two-way binding + tri-state are the S404 real algorithm.
-class VAML_CORE_EXPORT CheckBox final : public UIElement
+class VAML_CORE_EXPORT CheckBox final : public FrameworkElement
 {
 public:
     CheckBox();
@@ -840,7 +841,7 @@ private:
 //     mirroring the S401 Button default template via the S364 visual-state
 //     engine) is the vulkan classifier; the IsChecked + exclusive-group +
 //     checked-changed are the S471 real algorithm (core, headless-tested).
-class VAML_CORE_EXPORT RadioButton final : public UIElement
+class VAML_CORE_EXPORT RadioButton final : public FrameworkElement
 {
 public:
     RadioButton();
@@ -896,7 +897,7 @@ private:
 // through the classifier are the S409_1 viewer growth; the S403 classifier
 // emits a Solid track box. The Value/range/change + two-way binding are the
 // S403 real algorithm (core, headless-tested).
-class VAML_CORE_EXPORT Slider final : public UIElement
+class VAML_CORE_EXPORT Slider final : public FrameworkElement
 {
 public:
     Slider();
@@ -957,7 +958,7 @@ private:
 //     ScrollViewer reports the viewport as its arranged extent and clips the
 //     content; the full arrange-scroll coupling to a child's layout is S409_1
 //     viewer, the S405 core delivers the offset/clip/wheel model).
-class VAML_CORE_EXPORT ScrollViewer final : public UIElement
+class VAML_CORE_EXPORT ScrollViewer final : public FrameworkElement
 {
 public:
     ScrollViewer();
@@ -1028,7 +1029,7 @@ private:
 //     box with a `→` arrow indicator via the S205 Solid path). The editable /
 //     fully-styled chrome is the S649-list continuation, RECORDED NO-GAP (not
 //     fabricated); the ComboBox DP surface + selection + change are REAL.
-class VAML_CORE_EXPORT ComboBox final : public UIElement
+class VAML_CORE_EXPORT ComboBox final : public FrameworkElement
 {
 public:
     ComboBox();
@@ -1087,7 +1088,7 @@ private:
 //     honest headless seam: authored content -> real element children, not raw
 //     text.
 //   - classify_merge_element -> MaterialKind::Solid (list fill).
-class VAML_CORE_EXPORT ListBox : public UIElement
+class VAML_CORE_EXPORT ListBox : public FrameworkElement
 {
 public:
     ListBox();
@@ -1160,7 +1161,7 @@ public:
 //   TreeViewItem — IsExpanded (Bool), IsSelected (Bool), Header (String); the
 //               authored child TreeViewItems + a content header slot; the
 //               routed Expanded/Collapsed/Selected/Unselected identities.
-class VAML_CORE_EXPORT TreeView final : public UIElement
+class VAML_CORE_EXPORT TreeView final : public FrameworkElement
 {
 public:
     TreeView();
@@ -1189,7 +1190,7 @@ private:
     vaml::Signal<void()> onSelectionChanged_;
 };
 
-class VAML_CORE_EXPORT TreeViewItem final : public UIElement
+class VAML_CORE_EXPORT TreeViewItem final : public FrameworkElement
 {
 public:
     TreeViewItem();
@@ -1284,7 +1285,7 @@ private:
 };
 
 // CalendarDayButton — a single day cell (IsToday/IsSelected/IsBlackedOut DPs).
-class VAML_CORE_EXPORT CalendarDayButton final : public UIElement
+class VAML_CORE_EXPORT CalendarDayButton final : public FrameworkElement
 {
 public:
     CalendarDayButton();
@@ -1302,7 +1303,7 @@ protected:
 };
 
 // CalendarButton — a month/year navigation cell (DisplayDate surface).
-class VAML_CORE_EXPORT CalendarButton final : public UIElement
+class VAML_CORE_EXPORT CalendarButton final : public FrameworkElement
 {
 public:
     CalendarButton();
@@ -1317,7 +1318,7 @@ protected:
 
 // CalendarItem — the calendar's month-grid host (display day-mode + the
 // active display date; the day buttons + nav buttons compose it).
-class VAML_CORE_EXPORT CalendarItem final : public UIElement
+class VAML_CORE_EXPORT CalendarItem final : public FrameworkElement
 {
 public:
     CalendarItem();
@@ -1332,7 +1333,7 @@ protected:
 
 // Calendar — the full calendar control (DisplayDate/SelectedDate/
 // FirstDayOfWeek/SelectionMode + the blackout date ranges).
-class VAML_CORE_EXPORT Calendar final : public UIElement
+class VAML_CORE_EXPORT Calendar final : public FrameworkElement
 {
 public:
     Calendar();
@@ -1362,7 +1363,7 @@ private:
 };
 
 // DatePickerTextBox — the editable date-picker text host (Text + SelectedDate).
-class VAML_CORE_EXPORT DatePickerTextBox final : public UIElement
+class VAML_CORE_EXPORT DatePickerTextBox final : public FrameworkElement
 {
 public:
     DatePickerTextBox();
@@ -1377,7 +1378,7 @@ protected:
 
 // DatePicker — the full date-picker control (SelectedDate/DisplayDate/
 // IsDropDownOpen + the routed SelectedDateChanged identity).
-class VAML_CORE_EXPORT DatePicker final : public UIElement
+class VAML_CORE_EXPORT DatePicker final : public FrameworkElement
 {
 public:
     DatePicker();
@@ -1406,7 +1407,7 @@ private:
 // surface, NOT a VAML-owned native type) — reclassified OUT-OF-SCOPE(11m) in the
 // DAG at S559 (recorded NO-GAP not silent).
 // ===========================================================================
-class VAML_CORE_EXPORT InkCanvas final : public UIElement
+class VAML_CORE_EXPORT InkCanvas final : public FrameworkElement
 {
 public:
     InkCanvas();
@@ -1428,7 +1429,7 @@ protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
 };
 
-class VAML_CORE_EXPORT InkPresenter final : public UIElement
+class VAML_CORE_EXPORT InkPresenter final : public FrameworkElement
 {
 public:
     InkPresenter();
@@ -1443,7 +1444,7 @@ protected:
 };
 
 // MediaElement — REAL (S554). Media surface + the Media* routed identities.
-class VAML_CORE_EXPORT MediaElement final : public UIElement
+class VAML_CORE_EXPORT MediaElement final : public FrameworkElement
 {
 public:
     MediaElement();
@@ -1478,7 +1479,7 @@ private:
 // continuation (recorded NO-GAP not silent). StartupUri NAVIGATION (11j-6)
 // resolved here.
 // ===========================================================================
-class VAML_CORE_EXPORT Page final : public UIElement
+class VAML_CORE_EXPORT Page final : public FrameworkElement
 {
 public:
     Page();
@@ -1489,7 +1490,7 @@ protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
 };
 
-class VAML_CORE_EXPORT Frame final : public UIElement
+class VAML_CORE_EXPORT Frame final : public FrameworkElement
 {
 public:
     Frame();
@@ -1510,7 +1511,7 @@ private:
 
 // DocumentViewerBase — the WPF-faithful abstract document-viewer base (kept
 // abstract, unregistered — the 11k-4 precedent).
-class VAML_CORE_EXPORT DocumentViewerBase : public UIElement
+class VAML_CORE_EXPORT DocumentViewerBase : public FrameworkElement
 {
 public:
     DocumentViewerBase();
@@ -1540,7 +1541,7 @@ public:
     FlowDocumentReader();
 };
 
-class VAML_CORE_EXPORT SinglePageViewer final : public UIElement
+class VAML_CORE_EXPORT SinglePageViewer final : public FrameworkElement
 {
 public:
     SinglePageViewer();
@@ -1551,7 +1552,7 @@ protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
 };
 
-class VAML_CORE_EXPORT Window final : public UIElement
+class VAML_CORE_EXPORT Window final : public FrameworkElement
 {
 public:
     Window();
@@ -1614,7 +1615,7 @@ private:
 // FontSize inheritance: the DP is hoisted at 11j-5's shared Control base move;
 // 11j-1 uses the bare `"FontSize"` name contract (resolves against that owner
 // once 11j-5 lands — recorded, not silent).
-class VAML_CORE_EXPORT UserControl final : public UIElement
+class VAML_CORE_EXPORT UserControl final : public FrameworkElement
 {
 public:
     UserControl();
@@ -1738,7 +1739,7 @@ private:
 // (the S400 basis) so the Label sizes to its wrapped text extent. The render
 // material is the CLASSIFIER's (Solid at the vertical slice; the content glyphs
 // defactor to the S400 Text path, recorded NO-GAP not silent).
-class VAML_CORE_EXPORT Label final : public UIElement
+class VAML_CORE_EXPORT Label final : public FrameworkElement
 {
 public:
     Label();
@@ -1787,7 +1788,7 @@ protected:
 // Padding/BorderThickness; ArrangeOverride arranges the child into the inner
 // slot (the base bezel is drawn by the classifier). The classifier emits the
 // Border material (border_rect) at the arranged box — the FIRST live Border.
-class VAML_CORE_EXPORT Border final : public UIElement
+class VAML_CORE_EXPORT Border final : public FrameworkElement
 {
 public:
     Border();
@@ -1837,7 +1838,7 @@ private:
 // outline is the S209/S649 curved-shape continuation, NOT fabricated). Line
 // classifies to Solid/Border (a thin stroke rect along its axis; a zero-length
 // Line is skipped by ui_item_degenerate).
-class VAML_CORE_EXPORT Rectangle final : public UIElement
+class VAML_CORE_EXPORT Rectangle final : public FrameworkElement
 {
 public:
     Rectangle();
@@ -1858,7 +1859,7 @@ protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
 };
 
-class VAML_CORE_EXPORT Ellipse final : public UIElement
+class VAML_CORE_EXPORT Ellipse final : public FrameworkElement
 {
 public:
     Ellipse();
@@ -1874,7 +1875,7 @@ protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
 };
 
-class VAML_CORE_EXPORT Line final : public UIElement
+class VAML_CORE_EXPORT Line final : public FrameworkElement
 {
 public:
     Line();
@@ -1908,7 +1909,7 @@ protected:
 // points/geometry raster token), Rectangle/Ellipse/Line -> the existing S482
 // arms. The curved outline is the S209/S649 curved-shape continuation (recorded
 // NO-GAP not silent).
-class VAML_CORE_EXPORT Shape : public UIElement
+class VAML_CORE_EXPORT Shape : public FrameworkElement
 {
 public:
     Shape() = default;
@@ -2004,7 +2005,7 @@ private:
 // `TickBar` renders the tick marks. Real UIElements classifying Solid (the
 // chrome vertical-slice).
 // ===========================================================================
-class VAML_CORE_EXPORT Track : public UIElement
+class VAML_CORE_EXPORT Track : public FrameworkElement
 {
 public:
     Track();
@@ -2022,7 +2023,7 @@ protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
 };
 
-class VAML_CORE_EXPORT TickBar : public UIElement
+class VAML_CORE_EXPORT TickBar : public FrameworkElement
 {
 public:
     TickBar();
@@ -2057,7 +2058,7 @@ protected:
 // the S400_1 Icon; the headless default emits the fallback glyph via
 // IconGlyphPlan/IconBestFit; the real atlas quad is the S409_1-style render
 // path, recorded NO-GAP not silent).
-class VAML_CORE_EXPORT Image final : public UIElement
+class VAML_CORE_EXPORT Image final : public FrameworkElement
 {
 public:
     Image();
@@ -2090,7 +2091,7 @@ protected:
 // fill fraction computed at the classifier from the range DPs). Indeterminate
 // (0% or undefined) = a track-only box (recorded NO-GAP not silent; segmented/
 //  marquee indeterminate chrome is the S649 continuation).
-class VAML_CORE_EXPORT ProgressBar final : public UIElement
+class VAML_CORE_EXPORT ProgressBar final : public FrameworkElement
 {
 public:
     ProgressBar();
@@ -2123,7 +2124,7 @@ private:
 //   - Editing mirrors the S402 TextBox handle_key model (single-line Enter
 //     accepts; a real change raises TextChanged). Classifier -> Solid (the
 //     edit-field fill).
-class VAML_CORE_EXPORT PasswordBox final : public UIElement
+class VAML_CORE_EXPORT PasswordBox final : public FrameworkElement
 {
 public:
     PasswordBox();
@@ -2152,7 +2153,7 @@ private:
 //     child. Classifier -> Solid + Border.
 //   - Expander: a header + expandable content, with IsExpanded (Int32 bool,
 //     WPF-faithful). Classifier -> Solid (the expand chevron = S649).
-class VAML_CORE_EXPORT GroupBox final : public UIElement
+class VAML_CORE_EXPORT GroupBox final : public FrameworkElement
 {
 public:
     GroupBox();
@@ -2170,7 +2171,7 @@ private:
     UIElement* content_ = nullptr;
 };
 
-class VAML_CORE_EXPORT Expander final : public UIElement
+class VAML_CORE_EXPORT Expander final : public FrameworkElement
 {
 public:
     Expander();
@@ -2191,7 +2192,7 @@ private:
 };
 
 // Separator — REAL control (S485). A thin horizontal/vertical divider.
-class VAML_CORE_EXPORT Separator final : public UIElement
+class VAML_CORE_EXPORT Separator final : public FrameworkElement
 {
 public:
     Separator();
@@ -2206,7 +2207,7 @@ protected:
 // StatusBar — REAL control (S485). A docking item host that lays out its
 // children along an edge (reuses the S470 DockPanel dock pattern; StatusBar
 // items may be docked left/right). Classifier -> Solid.
-class VAML_CORE_EXPORT StatusBar final : public UIElement
+class VAML_CORE_EXPORT StatusBar final : public FrameworkElement
 {
 public:
     StatusBar();
@@ -2247,7 +2248,7 @@ private:
 // thumb-track chrome (the page-up/down repeat regions) is the S649/11k-11
 // continuation (recorded NO-GAP not silent); the Value/range/scroll model is
 // the real 11k-2 surface.
-class VAML_CORE_EXPORT ScrollBar final : public UIElement
+class VAML_CORE_EXPORT ScrollBar final : public FrameworkElement
 {
 public:
     ScrollBar();
@@ -2296,7 +2297,7 @@ private:
 // The auto-repeat TIMER loop (fires Click repeatedly while pressed) is the
 // S649/11k-11 continuation (recorded NO-GAP not silent); the Click raise +
 // Delay/Interval/IsPressed surface is the real 11k-2 core.
-class VAML_CORE_EXPORT RepeatButton final : public UIElement, public ICommandSource
+class VAML_CORE_EXPORT RepeatButton final : public FrameworkElement, public ICommandSource
 {
 public:
     RepeatButton();
@@ -2343,7 +2344,7 @@ protected:
 // framework-element branch IS UIElement) Viewbox : UIElement with a single-
 // content child slot (the Window/Border precedent). classify -> None (the
 // content child renders its own material — "Viewbox -> its content").
-class VAML_CORE_EXPORT Viewbox final : public UIElement
+class VAML_CORE_EXPORT Viewbox final : public FrameworkElement
 {
 public:
     Viewbox();
@@ -2380,7 +2381,7 @@ private:
 // BandIndex/IsOverflowOpen/HasOverflowItems surface). The overflow menu +
 // templated item chrome is the S649/11k-11 continuation (recorded NO-GAP not
 // silent); the strip layout + the ToolBar DPs are the real 11k-2 surface.
-class VAML_CORE_EXPORT ToolBar final : public UIElement
+class VAML_CORE_EXPORT ToolBar final : public FrameworkElement
 {
 public:
     ToolBar();
@@ -2411,7 +2412,7 @@ protected:
 // ToolBarTray — REAL control (11k-2). The ToolBar host: a Panel-faithful
 // container that lays its ToolBar children out along the tray orientation.
 // WPF-faithful branch: ToolBarTray : Panel (own Orientation/IsLocked surface).
-class VAML_CORE_EXPORT ToolBarTray final : public UIElement
+class VAML_CORE_EXPORT ToolBarTray final : public FrameworkElement
 {
 public:
     ToolBarTray();
@@ -2451,7 +2452,7 @@ protected:
 // the selected TabItem's content track; TabItem = header + a single content
 // slot + IsSelected. Selection raises the BUBBLING "SelectionChanged" event
 // (source==the TabControl). classify -> Solid (the tab strip + content chrome).
-class VAML_CORE_EXPORT TabItem final : public UIElement
+class VAML_CORE_EXPORT TabItem final : public FrameworkElement
 {
 public:
     TabItem();
@@ -2480,7 +2481,7 @@ private:
     UIElement* content_ = nullptr;
 };
 
-class VAML_CORE_EXPORT TabControl final : public UIElement
+class VAML_CORE_EXPORT TabControl final : public FrameworkElement
 {
 public:
     TabControl();
@@ -2523,7 +2524,7 @@ private:
 // HeaderedItemsControl (Header + nested items + Click + Checkable) carrying
 // the S464 Command/CommandParameter hand-off; ContextMenu is a popup host
 // (IsOpen + Placement). MenuItem.Click raises the BUBBLING "Click" event.
-class VAML_CORE_EXPORT MenuItem final : public UIElement, public ICommandSource
+class VAML_CORE_EXPORT MenuItem final : public FrameworkElement, public ICommandSource
 {
 public:
     MenuItem();
@@ -2590,7 +2591,7 @@ private:
     void apply_checked(bool newState);
 };
 
-class VAML_CORE_EXPORT Menu final : public UIElement
+class VAML_CORE_EXPORT Menu final : public FrameworkElement
 {
 public:
     Menu();
@@ -2608,7 +2609,7 @@ protected:
     void ArrangeOverride(const vaml::Rect& finalSlot) override;
 };
 
-class VAML_CORE_EXPORT ContextMenu final : public UIElement
+class VAML_CORE_EXPORT ContextMenu final : public FrameworkElement
 {
 public:
     ContextMenu();
@@ -2654,7 +2655,7 @@ private:
 // close is change-driven (a show request does not paint until the change-driven
 // pass); placement resolves to a target rect. Opened/Closed are BUBBLING routed
 // events. classify -> Solid (the tooltip/popup panel).
-class VAML_CORE_EXPORT ToolTip final : public UIElement
+class VAML_CORE_EXPORT ToolTip final : public FrameworkElement
 {
 public:
     ToolTip();
@@ -2692,7 +2693,7 @@ private:
     bool applied_   = false;
 };
 
-class VAML_CORE_EXPORT Popup final : public UIElement
+class VAML_CORE_EXPORT Popup final : public FrameworkElement
 {
 public:
     Popup();
@@ -2734,7 +2735,7 @@ private:
 // S174-composition spirit — a resize is a dest-rect mapping with ZERO object
 // churn), re-measuring the adjacent Grid track via a GridLength delta.
 // classify -> Solid (the splitter bar).
-class VAML_CORE_EXPORT GridSplitter final : public UIElement
+class VAML_CORE_EXPORT GridSplitter final : public FrameworkElement
 {
 public:
     GridSplitter();
@@ -2798,7 +2799,7 @@ private:
     float       width_  = 100.0f;
 };
 
-class VAML_CORE_EXPORT DataGrid final : public UIElement
+class VAML_CORE_EXPORT DataGrid final : public FrameworkElement
 {
 public:
     DataGrid();
@@ -2872,7 +2873,7 @@ private:
 // The rendered edit-field chrome classifies to Solid (the TextBox precedent);
 // the document's text through the SDF glyph path is the S409_1/S400 render lane
 // (recorded NO-GAP not silent).
-class VAML_CORE_EXPORT RichTextBox final : public UIElement
+class VAML_CORE_EXPORT RichTextBox final : public FrameworkElement
 {
 public:
     RichTextBox();

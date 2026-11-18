@@ -22,6 +22,7 @@
 
 #include "vaml/core/Media3D.h"       // Camera3D, Matrix3D, Animatable
 #include "vaml/core/UIElement.h"     // UIElement (the 2D layout host base)
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base
 #include "vaml/core/Visual3D.h"      // Visual3D (children), IVisual3DContainer
 #include "vaml/core/DependencyObject.h" // SetResult
 #include "vaml/core/export.h"
@@ -118,7 +119,7 @@ private:
 // Viewport3D — the isolatable 3D host (FrameworkElement-branch UIElement).
 // Owns an ordered Visual3D child list + a Camera. NOT authorable as a bare
 // visual child; it is the 3D ROOT the reader/sample composes.
-class VAML_CORE_EXPORT Viewport3D : public UIElement,
+class VAML_CORE_EXPORT Viewport3D : public FrameworkElement,
                                     public IVisual3DContainer
 {
 public:

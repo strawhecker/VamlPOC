@@ -1,6 +1,6 @@
-// S222_1 (dep:S222) — the LIVE-RELOAD coordinator headless GOLDEN suite.
+﻿// S222_1 (dep:S222) â€” the LIVE-RELOAD coordinator headless GOLDEN suite.
 //
-// THE ROADMAP'S EXACT PROOF — "edit → reload → same tree" — driven against REAL
+// THE ROADMAP'S EXACT PROOF â€” "edit â†’ reload â†’ same tree" â€” driven against REAL
 // temp files through the ACTUAL seam (vaml_viewer/live_reload.{h,cpp} + the S221
 // vaml::load_file, compiled into vaml-core-tests so the headless suite exercises
 // the exact code both apps run, ADR-021). The LiveReload arms a FileWatcher on a
@@ -9,7 +9,7 @@
 //   (b) REWRITE with NEW golden content  -> Reload, on_reloaded fires with a tree
 //       reflecting the edit (reload picked up the file change);
 //   (c) RE-SAVE the SAME bytes (mtime bump) -> Reload, on_reloaded fires with an
-//       EQUIVALENT tree (the "same tree" stability — asserted structurally);
+//       EQUIVALENT tree (the "same tree" stability â€” asserted structurally);
 //   (d) DELETE the file -> Report, on_file_disappeared fires, NO reload (last-good
 //       kept);
 //   (e) recreate the file -> Reload (Appeared) again.
@@ -38,7 +38,7 @@ namespace {
 const char* kTmpReloadA = "s222_1_reload_a.vaml";
 const char* kTmpReloadC = "s222_1_reload_c.vaml";
 
-// The golden fixtures — plain StackPanel content the S221 reader accepts.
+// The golden fixtures â€” plain StackPanel content the S221 reader accepts.
 // (Margin is a known-good globally-registered DP; see ViewerLoadFile_test.)
 inline const char* kGoldenReloadA = R"(<StackPanel Margin="6,6,6,6"><Button/></StackPanel>)";
 
@@ -48,7 +48,7 @@ inline const char* kGoldenReloadB = R"(<StackPanel Margin="4,4,4,4"><Button/><Bu
 void wait_for_stamp_granularity()
 {
     // >2s to cover the VMware HGFS shared-folder mtime granularity on the VM CI lane
-    // (see FileWatch_test.cpp — the same tolerance governing the real-file watcher).
+    // (see FileWatch_test.cpp â€” the same tolerance governing the real-file watcher).
     std::this_thread::sleep_for(std::chrono::milliseconds(2200));
 }
 
@@ -61,7 +61,7 @@ void write_file(const std::string& path, const std::string& text)
 }
 
 // The structural "same tree" comparator (mirrors the S221 golden assertion shape):
-// proves two Loaded roots are EQUIVALENT by ROOT TYPE + the converted Margin value —
+// proves two Loaded roots are EQUIVALENT by ROOT TYPE + the converted Margin value â€”
 // the stability proof for the re-save-the-same-bytes step. Both quantities are fully
 // deterministic from the bytes. (A production tree-equality is a later step; this
 // structural compare is the honest headless assertion the roadmap names.)
@@ -75,8 +75,8 @@ void require_equivalent_trees(const vaml::LoadResult& a, const vaml::LoadResult&
     CHECK(dynamic_cast<vaml::StackPanel*>(a.root.get()) != nullptr);
     CHECK(dynamic_cast<vaml::StackPanel*>(b.root.get()) != nullptr);
     // The converted Margin value is the same for the SAME bytes.
-    CHECK((a.root->Get(vaml::PropertyId::of("Margin", "UIElement"))
-               == b.root->Get(vaml::PropertyId::of("Margin", "UIElement"))));
+    CHECK((a.root->Get(vaml::PropertyId::of("Margin", "FrameworkElement"))
+               == b.root->Get(vaml::PropertyId::of("Margin", "FrameworkElement"))));
 }
 
 } // namespace
@@ -85,7 +85,7 @@ void require_equivalent_trees(const vaml::LoadResult& a, const vaml::LoadResult&
 // The pure reload_action decision table
 // ---------------------------------------------------------------------------
 
-TEST_CASE("S222_1: reload_action — Changed/Appeared drive Reload; Disappeared Report; Unchanged KeepLast")
+TEST_CASE("S222_1: reload_action â€” Changed/Appeared drive Reload; Disappeared Report; Unchanged KeepLast")
 {
     CHECK(reload_action(FileEvent::Changed)     == ReloadAction::Reload);
     CHECK(reload_action(FileEvent::Appeared)    == ReloadAction::Reload);
@@ -94,10 +94,10 @@ TEST_CASE("S222_1: reload_action — Changed/Appeared drive Reload; Disappeared 
 }
 
 // ---------------------------------------------------------------------------
-// The GOLDEN — edit → reload → same tree (real files + the real seam)
+// The GOLDEN â€” edit â†’ reload â†’ same tree (real files + the real seam)
 // ---------------------------------------------------------------------------
 
-TEST_CASE("S222_1: GOLDEN — edit → reload → same tree (real temp file, real seam)")
+TEST_CASE("S222_1: GOLDEN â€” edit â†’ reload â†’ same tree (real temp file, real seam)")
 {
     write_file(kTmpReloadA, kGoldenReloadA);
     LiveReload reload(kTmpReloadA);
@@ -126,7 +126,7 @@ TEST_CASE("S222_1: GOLDEN — edit → reload → same tree (real temp file, rea
     CHECK(dynamic_cast<vaml::StackPanel*>(lastLoaded.root.get()) != nullptr);
 
     // (c) RE-SAVE the SAME bytes (mtime bump): an independent same-bytes Load is
-    // EQUIVALENT (the stable "same tree" — two Loads of the identical bytes never
+    // EQUIVALENT (the stable "same tree" â€” two Loads of the identical bytes never
     // resolve to divergent trees).
     const vaml::LoadResult l1 = vaml::load_file(kTmpReloadA);
     const vaml::LoadResult l2 = vaml::load_file(kTmpReloadA);
@@ -135,7 +135,7 @@ TEST_CASE("S222_1: GOLDEN — edit → reload → same tree (real temp file, rea
     std::remove(kTmpReloadA);
 }
 
-TEST_CASE("S222_1: GOLDEN — DELETE drives Report (no reload), recreate drives Reload")
+TEST_CASE("S222_1: GOLDEN â€” DELETE drives Report (no reload), recreate drives Reload")
 {
     write_file(kTmpReloadC, kGoldenReloadA);
     LiveReload reload(kTmpReloadC);

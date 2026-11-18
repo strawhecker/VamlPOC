@@ -20,6 +20,7 @@
 // ADR-019). Behavior is unchanged.
 
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"  // S824 — ensure_framework_element_properties_registered (the FE-owner slot DPs)
 
 #include "vaml/core/BehaviorCollection.h"   // S502 — remove_element_behaviors (side-table teardown)
 #include "vaml/core/ResourceDictionary.h" // S360 — the complete Resources slot type (dtor + accessors)
@@ -94,11 +95,15 @@ void register_uielement_properties()
         "Opacity", ValueType::Double, "UIElement",
         PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
 
-    // Margin: default 0 (S122), NOT inherited (each element's margin is its
-    // own outer inset). The payload rides the Thickness value path.
-    (void)DependencyProperty::Register(
-        "Margin", ValueType::Thickness, "UIElement",
-        PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
+    // S824 (dep:S823): the layout-slot DPs (Margin/alignments/Width/Height)
+    // + Tag are NO LONGER registered here — they are re-based onto the REAL
+    // FrameworkElement base and re-keyed under owner "FrameworkElement"
+    // (register_framework_element_properties, FrameworkElement.cpp) per the
+    // WPF ground truth (FE.cs:3466+ owns the layout slot; FE.cs:3218 owns
+    // Tag). The typed accessors remain on UIElement (which runs the
+    // Measure/Arrange pass) but read PropertyId::of(name, "FrameworkElement"),
+    // so the FE-owned DPs are the single source and the observable WPF
+    // contract (layout-slot DP ownership on FrameworkElement) is closed.
 
     // RenderTransform (S823 dep:S822 — the S208 Matrix2D DP migrated onto the
     // WPF-faithful TRANSFORM OBJECT). WPF `RenderTransformProperty` is
@@ -118,47 +123,6 @@ void register_uielement_properties()
     (void)DependencyProperty::Register(
         "RenderTransformOrigin", ValueType::Point, "UIElement",
         PropertyMetadata::WithDefault(Value::Point(vaml::Point{}), PropertyFlags::None));
-
-    // HorizontalAlignment / VerticalAlignment: default Stretch, NOT inherited,
-    // stored via the Int32 value path (enum rides Int32, the same convention as
-    // Visibility in S120).
-    //
-    // S11p (WPF-fidelity re-pointing): the default is now expressed SYMBOLICALLY
-    // (HorizontalAlignment::Stretch / VerticalAlignment::Stretch = 3) instead of
-    // a bare Int32(0). WPF inits these DPs with a named default
-    // (`new FrameworkPropertyMetadata(HorizontalAlignment.Stretch, ...)`,
-    // FrameworkElement.cs:3744) — never a bare 0. vaml's old `Int32(0)` was the
-    // invented coupling that only "meant Stretch" because the enum happened to
-    // have Stretch=0; now that the enums are WPF-true (Stretch=3), a bare 0 would
-    // silently mean Left/Top. Symbolic defaults remove that coupling.
-    (void)DependencyProperty::Register(
-        "HorizontalAlignment", ValueType::Int32, "UIElement",
-        PropertyMetadata::WithDefault(
-            Value::Int32(static_cast<std::int32_t>(HorizontalAlignment::Stretch)),
-            PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "VerticalAlignment", ValueType::Int32, "UIElement",
-        PropertyMetadata::WithDefault(
-            Value::Int32(static_cast<std::int32_t>(VerticalAlignment::Stretch)),
-            PropertyFlags::None));
-
-    // Width / Height (WPF-style layout DPs, added for the .xaml-acceptance /
-    // WPF source import line). WPF-faithful semantics: an EXPLICIT explicit
-    // double (NaN = "auto/unset"), NOT inherited, riding the Double value path.
-    // 0 or NaN mean auto — the element's natural/content size governs the axis,
-    // exactly as VAML's existing panels resolve an unset axis. A positive
-    // explicit value is a HARD constraint the measure pipeline applies
-    // (clamped to the available offer, never producing negative geometry). See
-    // the measure finalizer (reconcile_axis, applied in UIElement::Measure —
-    // genuinely consumed, synthesized in this same translation unit):
-    (void)DependencyProperty::Register(
-        "Width", ValueType::Double, "UIElement",
-        PropertyMetadata::WithDefault(Value::Double(std::numeric_limits<double>::quiet_NaN()),
-                                      PropertyFlags::None));
-    (void)DependencyProperty::Register(
-        "Height", ValueType::Double, "UIElement",
-        PropertyMetadata::WithDefault(Value::Double(std::numeric_limits<double>::quiet_NaN()),
-                                      PropertyFlags::None));
 
     // Focusable (S325): default true, NOT inherited. Declares whether THIS
     // element can take keyboard focus (WPF-faithful: a focusable leaf is true;
@@ -180,29 +144,9 @@ void register_uielement_properties()
         "IsHitTestVisible", ValueType::Bool, "UIElement",
         PropertyMetadata::WithDefault(Value::Bool(true), PropertyFlags::None));
 
-    // Tag (11j-8, GAP CLOSE, dep:S036) — the WPF FrameworkElement.Tag analogue.
-    // An OBJECT-SLOT DP on the element base so `Tag="..."` / `<X.Tag>...`
-    // resolve everywhere S043-attached-style. WPF Tag is `object`.
-    //
-    // VAML's DP registration binds ONE value type for literal conversion (the
-    // S043 attached-aware read path resolves by bare name on any element). The
-    // corpus authors `Tag="..."` as an ATTRIBUTE (literal) — the PRIMARY use —
-    // AND `<X.Tag><SomeObject/></X.Tag>` as a property-element (object). A
-    // single object-typed holder that accepts BOTH:
-    //   * Tag is registered with a STRING bound type (default "" = no tag), so
-    //     a literal attribute `Tag="abc"` converts to Value::String ("abc")
-    //     through the String converter — never UnknownType.
-    //   * The property-element OBJECT branch calls obj->Set(...,
-    //     Value::UntypedPtr(raw)) DIRECTLY (no convertLiteral); DependencyObject:
-    //     :Set does NOT enforce the Value tag against the declared bound type
-    //     (coerce/validate passthrough), so the UntypedPtr object identity IS
-    //     stored on the String-typed DP — the "metadata must not reject a type
-    //     mismatch" contract the plan records.
-    // The typed accessors read the stored `Value` BY TAG (String when a literal
-    // tag, UntypedPtr when an object tag), so a caller distinguishes them.
-    (void)DependencyProperty::Register(
-        "Tag", ValueType::String, "UIElement",
-        PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
+    // Tag (11j-8) has been MOVED to the FrameworkElement base (owner
+    // "FrameworkElement", register_framework_element_properties) per the WPF
+    // ground truth (FE.cs:3218). It is NOT a UIElement-owned DP.
 }
 
 // Runs register_uielement_properties() at most once (first UIElement ctor).
@@ -345,6 +289,11 @@ VAML_CORE_EXPORT
 UIElement::UIElement()
 {
     ensure_uielement_properties_registered();
+    // S824: arm the FrameworkElement-owner slot DPs too, so a UIElement that
+    // reads/writes the slot (the accessors live here) finds the FE-owned DPs
+    // registered. A concrete element (FrameworkElement-derived) arms the same
+    // set via its base — the guard makes the second call a no-op.
+    ensure_framework_element_properties_registered();
 }
 
 VAML_CORE_EXPORT
@@ -598,39 +547,40 @@ const vaml::Rect& UIElement::final_rect() const noexcept
 VAML_CORE_EXPORT
 SetResult UIElement::set_margin(const vaml::Thickness& value)
 {
-    return Set(PropertyId::of("Margin", "UIElement"), Value::Thickness(value));
+    // S824: the slot DP owner is "FrameworkElement" (the WPF-true home).
+    return Set(PropertyId::of("Margin", "FrameworkElement"), Value::Thickness(value));
 }
 
 VAML_CORE_EXPORT
 vaml::Thickness UIElement::margin() const
 {
-    return Get(PropertyId::of("Margin", "UIElement")).get<vaml::Thickness>();
+    return Get(PropertyId::of("Margin", "FrameworkElement")).get<vaml::Thickness>();
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_horizontal_alignment(vaml::HorizontalAlignment value)
 {
-    return Set(PropertyId::of("HorizontalAlignment", "UIElement"), Value::Int32(static_cast<std::int32_t>(value)));
+    return Set(PropertyId::of("HorizontalAlignment", "FrameworkElement"), Value::Int32(static_cast<std::int32_t>(value)));
 }
 
 VAML_CORE_EXPORT
 vaml::HorizontalAlignment UIElement::horizontal_alignment() const
 {
     return static_cast<vaml::HorizontalAlignment>(
-        Get(PropertyId::of("HorizontalAlignment", "UIElement")).get<std::int32_t>());
+        Get(PropertyId::of("HorizontalAlignment", "FrameworkElement")).get<std::int32_t>());
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_vertical_alignment(vaml::VerticalAlignment value)
 {
-    return Set(PropertyId::of("VerticalAlignment", "UIElement"), Value::Int32(static_cast<std::int32_t>(value)));
+    return Set(PropertyId::of("VerticalAlignment", "FrameworkElement"), Value::Int32(static_cast<std::int32_t>(value)));
 }
 
 VAML_CORE_EXPORT
 vaml::VerticalAlignment UIElement::vertical_alignment() const
 {
     return static_cast<vaml::VerticalAlignment>(
-        Get(PropertyId::of("VerticalAlignment", "UIElement")).get<std::int32_t>());
+        Get(PropertyId::of("VerticalAlignment", "FrameworkElement")).get<std::int32_t>());
 }
 
 // --- Width / Height accessors (WPF-style explicit size DPs) -----------------
@@ -638,25 +588,25 @@ vaml::VerticalAlignment UIElement::vertical_alignment() const
 VAML_CORE_EXPORT
 SetResult UIElement::set_width(double value)
 {
-    return Set(PropertyId::of("Width", "UIElement"), Value::Double(value));
+    return Set(PropertyId::of("Width", "FrameworkElement"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double UIElement::width() const
 {
-    return Get(PropertyId::of("Width", "UIElement")).get<double>();
+    return Get(PropertyId::of("Width", "FrameworkElement")).get<double>();
 }
 
 VAML_CORE_EXPORT
 SetResult UIElement::set_height(double value)
 {
-    return Set(PropertyId::of("Height", "UIElement"), Value::Double(value));
+    return Set(PropertyId::of("Height", "FrameworkElement"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double UIElement::height() const
 {
-    return Get(PropertyId::of("Height", "UIElement")).get<double>();
+    return Get(PropertyId::of("Height", "FrameworkElement")).get<double>();
 }
 
 // Applies an EXPLICIT Width/Height to an axis's natural measured extent.

@@ -46,6 +46,7 @@
 // MINIMAL REAL.
 
 #include "vaml/core/UIElement.h"      // UIElement (layer + adorned element)
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base
 #include "vaml/core/Adorner.h"        // Adorner (the hosted adorner type)
 #include "vaml/core/export.h"
 
@@ -57,7 +58,7 @@ namespace vaml {
 
 // The WPF-faithful adorner layer (11n-6). Borrows the adorners attached to the
 // elements it covers, keyed by the ADORNED element, with WPF's z-order model.
-class VAML_CORE_EXPORT AdornerLayer : public UIElement
+class VAML_CORE_EXPORT AdornerLayer : public FrameworkElement
 {
 public:
     AdornerLayer();

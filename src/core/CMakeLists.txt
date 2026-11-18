@@ -24,6 +24,7 @@ vaml_add_library(core
     src/ElementDpFidelity.cpp    # 11k-9 — the DP-FIDELITY CLOSURE (the 11k-8 audit table → code; guarded/idempotent)
     src/ElementResolver.cpp
     src/UIElement.cpp
+    src/FrameworkElement.cpp   # S824 — the REAL FrameworkElement base (layout-slot + FE-surface owner)
     src/VamlReader.cpp
     src/ValueConverter.cpp
     src/EnumDomainRegistry.cpp    # S600 — per-DP enum-domain table (replaces the S440 cross-cut enum_name_to_int32)

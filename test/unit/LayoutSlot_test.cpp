@@ -1,18 +1,18 @@
-// S122 (dep:S121) — LayoutSlot + final rect + DesiredSize + Margin + alignment.
+﻿// S122 (dep:S121) â€” LayoutSlot + final rect + DesiredSize + Margin + alignment.
 //
 // Resolves the S120 layout-slot sentinel (the real layout geometry now lives
 // on UIElement + LayoutSlot.h). Under test:
-//   1. compute_final_rect — the REAL alignment algorithm S124's Arrange will
+//   1. compute_final_rect â€” the REAL alignment algorithm S124's Arrange will
 //      consume: Stretch fills the inset slot; Left/Top pinch to desired;
 //      Center offsets by half; Right/Bottom offset by the full difference;
 //      margin shrinks the available; desired > available clamps; margin > slot
 //      clamps to 0 (never negative); Infinite desired keeps the available
 //      bound.
-//   2. UIElement layout DPs — Margin (default 0, set/get roundtrip),
+//   2. UIElement layout DPs â€” Margin (default 0, set/get roundtrip),
 //      HorizontalAlignment/VerticalAlignment (default Stretch, set/get), all
 //      attached-aware (resolve on a plain DependencyObject), wrong-tag ->
 //      ValueTypeMismatch.
-//   3. Slots — desired_size()/final_rect() default 0.
+//   3. Slots â€” desired_size()/final_rect() default 0.
 //
 // Uses the Shouldly-for-doctest vocabulary (S036_5 standing convention).
 // doctest's main comes from smoke_test.cpp.
@@ -57,7 +57,7 @@ Rect slot_of(float x, float y, float w, float h)
 
 // --- compute_final_rect ------------------------------------------------------
 
-TEST_CASE("S122: alignment — Stretch fills the inset slot (default both axes)")
+TEST_CASE("S122: alignment â€” Stretch fills the inset slot (default both axes)")
 {
     // Slot 100x50 at origin; child Stretch on both axes fills it exactly.
     LayoutSlot slot{ slot_of(10.0f, 20.0f, 100.0f, 50.0f) };
@@ -69,7 +69,7 @@ TEST_CASE("S122: alignment — Stretch fills the inset slot (default both axes)"
     SHOULD(ShouldlyString(r.height).ShouldBe(50.0f));
 }
 
-TEST_CASE("S122: alignment — Left/Top pinch to desired (origin corner)")
+TEST_CASE("S122: alignment â€” Left/Top pinch to desired (origin corner)")
 {
     // Child smaller than slot: Left+Top place it at the slot's top-left, size
     // = desired (100x30), ignoring the extra available space.
@@ -82,7 +82,7 @@ TEST_CASE("S122: alignment — Left/Top pinch to desired (origin corner)")
     SHOULD(ShouldlyString(r.height).ShouldBe(30.0f));
 }
 
-TEST_CASE("S122: alignment — Center offsets by half the leftover on both axes")
+TEST_CASE("S122: alignment â€” Center offsets by half the leftover on both axes")
 {
     // Desired 100x30 in a 400x200 slot, centered: x = (400-100)/2 = 150,
     // y = (200-30)/2 = 85.
@@ -95,7 +95,7 @@ TEST_CASE("S122: alignment — Center offsets by half the leftover on both axes"
     SHOULD(ShouldlyString(r.height).ShouldBe(30.0f));
 }
 
-TEST_CASE("S122: alignment — Right/Bottom offset by the full difference")
+TEST_CASE("S122: alignment â€” Right/Bottom offset by the full difference")
 {
     // Desired 100x30 in a 400x200 slot, right/bottom:
     // x = 400-100 = 300, y = 200-30 = 170.
@@ -135,10 +135,10 @@ TEST_CASE("S122: desired > available clamps the child to the available (non-Stre
     SHOULD(ShouldlyString(r.y).ShouldBe(0.0f));
 }
 
-TEST_CASE("S122: margin larger than the slot clamps to zero — never negative")
+TEST_CASE("S122: margin larger than the slot clamps to zero â€” never negative")
 {
     // Margin 200 on every edge of a 100x50 slot: available clamps to 0, so the
-    // child size is 0 and the origin is the (inset) slot origin — no negative
+    // child size is 0 and the origin is the (inset) slot origin â€” no negative
     // geometry escapes the layout contract (NO-LAZY).
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 100.0f, 50.0f) };
     const Rect r = vaml::compute_final_rect(
@@ -163,7 +163,7 @@ TEST_CASE("S122: Infinite desired keeps the available bound (non-Stretch)")
 
 // --- UIElement layout DPs ----------------------------------------------------
 
-TEST_CASE("S122: Margin — default 0; set/get roundtrip")
+TEST_CASE("S122: Margin â€” default 0; set/get roundtrip")
 {
     UIElement el;
     SHOULD(ShouldlyString(el.margin().left).ShouldBe(0.0f));
@@ -179,11 +179,11 @@ TEST_CASE("S122: Margin — default 0; set/get roundtrip")
     SHOULD(ShouldlyString(m.bottom).ShouldBe(5.0f));
 }
 
-TEST_CASE("S122: HorizontalAlignment/VerticalAlignment — default Stretch; set/get roundtrip")
+TEST_CASE("S122: HorizontalAlignment/VerticalAlignment â€” default Stretch; set/get roundtrip")
 {
     UIElement el;
     // S11p (WPF-fidelity re-pointing): the enums are now WPF-true
-    // (FrameworkElement.cs — HorizontalAlignment { Left=0, Center=1, Right=2,
+    // (FrameworkElement.cs â€” HorizontalAlignment { Left=0, Center=1, Right=2,
     // Stretch=3 }; VerticalAlignment { Top=0, Center=1, Bottom=2, Stretch=3 }),
     // and the DP defaults are SYMBOLIC (Stretch, not a bare 0). Default:
     // horizontal_alignment()==Stretch(3), vertical_alignment()==Stretch(3).
@@ -204,14 +204,14 @@ TEST_CASE("S122: layout DPs resolve on a plain DependencyObject too (S043 attach
     // S043 attached-aware global resolution.
     DependencyObject plain;
 
-    (void)plain.Set(vaml::PropertyId::of("Margin", "UIElement"), Value::Thickness(Thickness{ 1.0f, 1.0f, 1.0f, 1.0f }));
-    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("Margin", "UIElement")).get<Thickness>().left).ShouldBe(1.0f));
+    (void)plain.Set(vaml::PropertyId::of("Margin", "FrameworkElement"), Value::Thickness(Thickness{ 1.0f, 1.0f, 1.0f, 1.0f }));
+    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("Margin", "FrameworkElement")).get<Thickness>().left).ShouldBe(1.0f));
 
-    (void)plain.Set(vaml::PropertyId::of("HorizontalAlignment", "UIElement"), Value::Int32(1));
-    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("HorizontalAlignment", "UIElement")).get<std::int32_t>()).ShouldBe(1));
+    (void)plain.Set(vaml::PropertyId::of("HorizontalAlignment", "FrameworkElement"), Value::Int32(1));
+    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("HorizontalAlignment", "FrameworkElement")).get<std::int32_t>()).ShouldBe(1));
 
-    (void)plain.Set(vaml::PropertyId::of("VerticalAlignment", "UIElement"), Value::Int32(2));
-    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("VerticalAlignment", "UIElement")).get<std::int32_t>()).ShouldBe(2));
+    (void)plain.Set(vaml::PropertyId::of("VerticalAlignment", "FrameworkElement"), Value::Int32(2));
+    SHOULD(ShouldlyString(plain.Get(vaml::PropertyId::of("VerticalAlignment", "FrameworkElement")).get<std::int32_t>()).ShouldBe(2));
 }
 
 TEST_CASE("S122: layout DP wrong-tag write throws ValueTypeMismatch")
@@ -220,13 +220,13 @@ TEST_CASE("S122: layout DP wrong-tag write throws ValueTypeMismatch")
     // Margin is a Thickness; writing an Int32 payload to it is a wrong-tag
     // write -> ValueTypeMismatch, store unchanged (still 0).
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
-        (void)el.Set(vaml::PropertyId::of("Margin", "UIElement"), Value::Int32(7));
+        (void)el.Set(vaml::PropertyId::of("Margin", "FrameworkElement"), Value::Int32(7));
     }));
     SHOULD(ShouldlyString(el.margin().left).ShouldBe(0.0f));
 
     // HorizontalAlignment is an Int32; a Double payload is wrong-tag.
     SHOULD(ShouldThrow<ValueTypeMismatch>([&] {
-        (void)el.Set(vaml::PropertyId::of("HorizontalAlignment", "UIElement"), Value::Double(1.0));
+        (void)el.Set(vaml::PropertyId::of("HorizontalAlignment", "FrameworkElement"), Value::Double(1.0));
     }));
     // Store unchanged = the SYMBOLIC default Stretch=3 (S11p re-pointing).
     SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));

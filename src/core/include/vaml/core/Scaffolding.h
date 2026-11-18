@@ -38,6 +38,7 @@
 // classifier). ADR-018: zero new locks. WPF-name fidelity per the 11k-7 audit.
 
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base (Control : FrameworkElement in WPF)
 #include "vaml/core/DependencyObject.h" // DependencyObject (GridView base)
 #include "vaml/core/FrameworkTemplate.h"// 11n-3 — the shared template base (ItemsPanelTemplate base)
 #include "vaml/core/DataTemplate.h"     // DataTemplate (ItemContainerTemplate base)
@@ -57,7 +58,7 @@ namespace vaml {
 // child to fill. Concrete panels (StackPanel/Grid/Canvas/WrapPanel/DockPanel)
 // override with their real algorithms.
 // ===========================================================================
-class VAML_CORE_EXPORT Panel : public UIElement
+class VAML_CORE_EXPORT Panel : public FrameworkElement
 {
 public:
     Panel();
@@ -75,7 +76,7 @@ protected:
 // fill. Concrete decorators (Border handled at S481; the closed controls'
 // content slots) override the measure/arrange policy.
 // ===========================================================================
-class VAML_CORE_EXPORT Decorator : public UIElement
+class VAML_CORE_EXPORT Decorator : public FrameworkElement
 {
 public:
     Decorator();
@@ -98,7 +99,7 @@ private:
 // ListBoxItem-adjacent item container). Single-content slot (the item's content
 // host) + an IsHighlighted/IsSelected DP set. classify -> Solid.
 // ===========================================================================
-class VAML_CORE_EXPORT ComboBoxItem final : public UIElement
+class VAML_CORE_EXPORT ComboBoxItem final : public FrameworkElement
 {
 public:
     ComboBoxItem();
@@ -125,7 +126,7 @@ private:
 // list-selection visuals are the S473 ListBox chrome; the per-item container
 // is this real unit. classify -> Solid.
 // ===========================================================================
-class VAML_CORE_EXPORT ListBoxItem : public UIElement
+class VAML_CORE_EXPORT ListBoxItem : public FrameworkElement
 {
 public:
     ListBoxItem();
@@ -161,7 +162,7 @@ public:
 // StatusBarItem — the per-item StatusBar container (StatusBarItem.cs).
 // Single-content slot (the bar item's content). classify -> Solid.
 // ===========================================================================
-class VAML_CORE_EXPORT StatusBarItem final : public UIElement
+class VAML_CORE_EXPORT StatusBarItem final : public FrameworkElement
 {
 public:
     StatusBarItem();
@@ -191,7 +192,7 @@ private:
 // used by GroupStyle/CollectionViewSource). Carries the group content +
 // IsExpanded (group header expansion). classify -> Solid.
 // ===========================================================================
-class VAML_CORE_EXPORT GroupItem final : public UIElement
+class VAML_CORE_EXPORT GroupItem final : public FrameworkElement
 {
 public:
     GroupItem();
@@ -215,7 +216,7 @@ private:
 // Carries the row content + its DataGridCellsPresenter role (the cell hosts).
 // classify -> Solid.
 // ===========================================================================
-class VAML_CORE_EXPORT DataGridRow final : public UIElement
+class VAML_CORE_EXPORT DataGridRow final : public FrameworkElement
 {
 public:
     DataGridRow();
@@ -235,7 +236,7 @@ private:
 // DataGridCell — the per-cell container of the S494 DataGrid (DataGridCell.cs).
 // Carries a single cell's content (the column value host). classify -> Solid.
 // ===========================================================================
-class VAML_CORE_EXPORT DataGridCell final : public UIElement
+class VAML_CORE_EXPORT DataGridCell final : public FrameworkElement
 {
 public:
     DataGridCell();
@@ -257,7 +258,7 @@ private:
 // control's template. It carries a single child (the ItemsHost panel) which it
 // measures/arranges to fill. classify -> None (its child renders).
 // ===========================================================================
-class VAML_CORE_EXPORT ItemsPresenter final : public UIElement
+class VAML_CORE_EXPORT ItemsPresenter final : public FrameworkElement
 {
 public:
     ItemsPresenter();
@@ -361,7 +362,7 @@ private:
     std::vector<GridViewColumn> cols_;
 };
 
-class VAML_CORE_EXPORT GridViewRowPresenterBase : public UIElement
+class VAML_CORE_EXPORT GridViewRowPresenterBase : public FrameworkElement
 {
 public:
     GridViewRowPresenterBase();
@@ -396,7 +397,7 @@ protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
 };
 
-class VAML_CORE_EXPORT GridViewColumnHeader final : public UIElement
+class VAML_CORE_EXPORT GridViewColumnHeader final : public FrameworkElement
 {
 public:
     GridViewColumnHeader();

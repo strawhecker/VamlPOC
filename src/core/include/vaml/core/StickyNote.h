@@ -46,6 +46,7 @@
 // ZERO MINIMAL REAL. ZERO invented names. ADR-018: ZERO new locks.
 
 #include "vaml/core/UIElement.h"      // the framework-element branch (StickyNote base)
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base
 #include "vaml/core/Transform.h"      // Matrix2D (PositionTransform + GetDesiredTransform)
 #include "vaml/core/FlowDocument.h"   // the Text content host rides RichTextBox's Document model
 #include "vaml/core/RoutedEvent.h"    // RoutedEventArgs (the note raises a change)
@@ -210,7 +211,7 @@ enum class StickyNoteType : std::uint8_t
 // StickyNoteControl set (conformance-pinned):
 //   IsExpanded (Bool)  Author (read-only String)  PositionTransform (Matrix2D)
 //   StickyNoteType (Int32)  Width/Height (Double, auto/NaN)  ZOrder (Int32)
-class VAML_CORE_EXPORT StickyNote final : public UIElement, public IAttachedAnnotation
+class VAML_CORE_EXPORT StickyNote final : public FrameworkElement, public IAttachedAnnotation
 {
 public:
     StickyNote();

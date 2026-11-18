@@ -43,6 +43,7 @@
 // vulkan classifier). ADR-018: ZERO new locks. ZERO MINIMAL REAL.
 
 #include "vaml/core/UIElement.h"      // UIElement (the VAML visual-node base)
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base
 #include "vaml/core/Transform.h"      // Matrix2D (GetDesiredTransform)
 #include "vaml/core/export.h"
 
@@ -52,7 +53,7 @@ namespace vaml {
 // NON-OWNING `AdornedElement` and is hosted (owned) by an AdornerLayer. It
 // measures to the adorned element's size by default and may override
 // GetDesiredTransform + (via UIElement's protected seam) MeasureOverride.
-class VAML_CORE_EXPORT Adorner : public UIElement
+class VAML_CORE_EXPORT Adorner : public FrameworkElement
 {
 public:
     // Constructs an adorner wired to `adornedElement` (the NON-OWNING

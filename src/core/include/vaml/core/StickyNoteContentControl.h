@@ -29,6 +29,7 @@
 // separate StickyNoteAdorner.h step (recorded NO-GAP, not silent).
 
 #include "vaml/core/UIElement.h"      // the framework-element branch (hosts)
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base
 #include "vaml/core/FlowDocument.h"   // the Text host's Document model
 #include "vaml/core/StickyNote.h"     // StickyNoteType + the CAF value-domain
 #include "vaml/core/export.h"
@@ -40,7 +41,7 @@ namespace vaml {
 // The abstract content-host base (WPF StickyNoteContentControl). A StickyNote
 // hosts ONE of these; Save/Load/Clear/IsEmpty/Type are the WPF-faithful
 // persistence surface over the value-domain body string.
-class VAML_CORE_EXPORT StickyNoteContentControl : public UIElement
+class VAML_CORE_EXPORT StickyNoteContentControl : public FrameworkElement
 {
 public:
     ~StickyNoteContentControl() override;

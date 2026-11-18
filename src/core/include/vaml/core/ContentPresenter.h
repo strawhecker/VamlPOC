@@ -16,6 +16,7 @@
 // (one per item). It owns its applied template content as a child.
 
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base
 #include "vaml/core/export.h"
 
 #include <memory>
@@ -25,7 +26,7 @@ namespace vaml {
 
 class DataTemplate;
 
-class VAML_CORE_EXPORT ContentPresenter : public UIElement
+class VAML_CORE_EXPORT ContentPresenter : public FrameworkElement
 {
 public:
     ContentPresenter();

@@ -19,6 +19,7 @@
 
 #include "vaml/core/ObservableCollection.h" // the observable source (+ INotifyCollectionChanged)
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h" // S824 — the REAL FrameworkElement base
 #include "vaml/core/export.h"
 
 #include <cstddef>
@@ -27,7 +28,7 @@ namespace vaml {
 
 class ContentPresenter;
 
-class VAML_CORE_EXPORT ItemsControl : public UIElement
+class VAML_CORE_EXPORT ItemsControl : public FrameworkElement
 {
 public:
     ItemsControl();

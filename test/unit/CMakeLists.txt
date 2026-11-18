@@ -43,6 +43,7 @@ add_executable(vaml-core-tests
     ElementFactoryRegistry_test.cpp
     ElementResolver_test.cpp
     UIElement_test.cpp
+    FrameworkElement_s824_test.cpp   # S824 — the REAL FrameworkElement base + layout-slot relocation
     VisualTree_test.cpp
     LayoutSlot_test.cpp
     Measure_test.cpp

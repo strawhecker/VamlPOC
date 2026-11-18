@@ -197,7 +197,7 @@ TEST_CASE("11d-DEBUG: Width=\"Auto\" resolves to the auto-size NaN sentinel end-
     if (r.root)
     {
         SHOULD(ShouldlyIntegral(static_cast<int>(
-            std::isnan(r.root->Get(PropertyId::of("Width", "UIElement")).get<double>()))).ShouldBe(1));
+            std::isnan(r.root->Get(PropertyId::of("Width", "FrameworkElement")).get<double>()))).ShouldBe(1));
     }
 }
 

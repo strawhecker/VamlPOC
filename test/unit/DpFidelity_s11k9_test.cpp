@@ -56,7 +56,9 @@ TEST_CASE("11k-9 full closure: the audited base-class surface registers")
     CHECK(dp_exists("OpacityMask", "UIElement"));
     CHECK(dp_exists("RenderTransformOrigin", "UIElement"));
 
-    // FrameworkElement base.
+    // FrameworkElement base (S824: the layout-slot + Tag re-keyed onto their
+    // WPF home, FrameworkElement — the structural-divergence closure; 11k-9
+    // now asserts them under the FE owner, never UIElement).
     CHECK(dp_exists("DataContext", "FrameworkElement"));
     CHECK(dp_exists("Language", "FrameworkElement"));
     CHECK(dp_exists("InputScope", "FrameworkElement"));
@@ -67,6 +69,13 @@ TEST_CASE("11k-9 full closure: the audited base-class surface registers")
     CHECK(dp_exists("ForceCursor", "FrameworkElement"));
     CHECK(dp_exists("ToolTip", "FrameworkElement"));
     CHECK(dp_exists("ContextMenu", "FrameworkElement"));
+    CHECK(dp_exists("Name", "FrameworkElement"));
+    CHECK(dp_exists("Tag", "FrameworkElement"));
+    CHECK(dp_exists("Margin", "FrameworkElement"));
+    CHECK(dp_exists("HorizontalAlignment", "FrameworkElement"));
+    CHECK(dp_exists("VerticalAlignment", "FrameworkElement"));
+    CHECK(dp_exists("Width", "FrameworkElement"));
+    CHECK(dp_exists("Height", "FrameworkElement"));
 
     // Control base (the 11k-8 rows beyond the 11j-5 bundle).
     CHECK(dp_exists("BorderBrush", "Control"));
