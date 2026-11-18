@@ -177,8 +177,10 @@ seed_string_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
 //   * String     -> the property name as text (S620, unchanged);
 //   * Color      -> a deterministic OPAQUE visible color (hue from the name hash);
 //   * BrushId    -> a deterministic NON-ZERO id (never the transparent/black 0);
-//   * Double     -> Opacity -> 1.0 (fully visible); other lengths -> a
-//                   deterministic non-zero value;
+//   * Double     -> Opacity -> 1.0 (fully visible, keyed on the TARGET DP key
+//                   not the binding leaf — S822: Opacity accepts ANY double, so
+//                   a non-1.0 seed would land instead of being [0,1]-rejected);
+//                   other lengths -> a deterministic non-zero value;
 //   * Int32/Int64-> a deterministic non-zero id;
 //   * Thickness  -> a 1px inset;  GridLength -> a 16px pixel track.
 // Bool / UntypedPtr / Matrix2D / Null -> NO seed (a bool at its default is
@@ -240,8 +242,11 @@ seed_string_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
 // DP (the FIRST target that binds the leaf) declares `boundType`. This is what
 // B2 adds over B1's text-only seed. Pure + deterministic.
 [[nodiscard]] inline vaml::Value
-seed_value_for_type(vaml::ValueType boundType, std::string_view leaf) noexcept
+seed_value_for_type(vaml::ValueType boundType, std::string_view leaf, std::string_view targetKey) noexcept
 {
+    const bool opacityTarget =
+        targetKey == "Opacity" ||
+        targetKey.ends_with(".Opacity");
     switch (boundType)
     {
     case vaml::ValueType::String:
@@ -261,10 +266,14 @@ seed_value_for_type(vaml::ValueType boundType, std::string_view leaf) noexcept
 
     case vaml::ValueType::Double:
         {
-            // B2: Opacity -> 1.0 (fully visible); other Double targets -> a
-            // deterministic non-zero positive value (a visible extent).
+            // B2: the fully-visible 1.0 ONLY when the TARGET DP is Opacity
+            // (keyed on the target DP key, NOT the binding leaf — S822: Opacity
+            // accepts ANY double now, so a non-1.0 seed would land on the DP
+            // instead of being [0,1]-rejected, dimming the element).
+            // Other Double targets -> a deterministic non-zero positive value
+            // (a visible extent).
             const std::uint32_t h = seed_name_hash(leaf, 0x03u);
-            if (leaf == "Opacity")
+            if (opacityTarget)
                 return vaml::Value::Double(1.0);   // fully visible
             return vaml::Value::Double(8.0 + static_cast<double>(h % 24u));
         }
@@ -333,7 +342,7 @@ seed_typed_bindings(vaml::VamlReader& reader, vaml::ObservableObject& vm)
         //     Control Background/BorderBrush): register a BrushId via
         //     register_element_brush (fresh-object-per-conversion).
         // The seed color is deterministic + opaque + non-black (seed_visible_color).
-        vaml::Value seed = seed_value_for_type(boundType, m.path);
+        vaml::Value seed = seed_value_for_type(boundType, m.path, ext.key);
         if (boundType == vaml::ValueType::Brush)
         {
             const vaml::Color seedColor =

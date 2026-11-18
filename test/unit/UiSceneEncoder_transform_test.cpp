@@ -80,35 +80,47 @@ void clear_visuals()
 
 } // namespace
 
-TEST_CASE("S208 effective_opacity: the resolved opacity() is the render alpha")
+TEST_CASE("S208 effective_opacity: the compositor subtree model (ancestor-chain PRODUCT)")
 {
     vaml::UIElement root;
     vaml::UIElement* mid = root.create_child<vaml::UIElement>();
     vaml::UIElement* leaf = mid->create_child<vaml::UIElement>();
 
-    // Default: every opacity is 1 -> effective 1.
+    // Default: every opacity is its own 1.0 -> effective 1.
     CHECK(effective_opacity(*leaf) == doctest::Approx(1.0));
     CHECK(effective_opacity(root) == doctest::Approx(1.0));
 
-    // Opacity is INHERITED (PropertyFlags::Inherits, S120): a root set cascades
-    // down the S040/S041 inheritance scope, so a leaf WITHOUT a local override
-    // resolves to the ancestor's 0.5 — the single honest render alpha.
+    // Opacity is NOT inherited (PropertyFlags::None, S822): each opacity() reads
+    // ONLY its own local. The subtREE alpha is the encoder's ancestor-chain
+    // PRODUCT — effective_opacity(e) = Π opacity(x) over the chain incl. e.
+    // A root at 0.5 renders the whole subtree at 0.5 (each descendant's factor
+    // is 1.0, so 0.5 × 1.0 × 1.0 = 0.5), reached by COMPOSITION, not DP
+    // inheritance.
     (void)root.set_opacity(0.5);
-    CHECK(effective_opacity(*leaf) == doctest::Approx(0.5).epsilon(1e-6));
-    CHECK(effective_opacity(*mid) == doctest::Approx(0.5).epsilon(1e-6));
     CHECK(effective_opacity(root) == doctest::Approx(0.5).epsilon(1e-6));
+    CHECK(effective_opacity(*mid) == doctest::Approx(0.5).epsilon(1e-6));
+    CHECK(effective_opacity(*leaf) == doctest::Approx(0.5).epsilon(1e-6));
 
-    // A leaf's OWN local set SHADOWS the inherited value (local-wins — WPF
-    // inheritance), so it renders at 0.8, NOT 0.5*0.8 (no double-count).
+    // A CHILD's own local opacity MULTIPLIES IN under its ancestors (WPF
+    // `base.VisualOpacity` composition): 0.8 under a 0.5 parent -> 0.4. This is
+    // the genuine WPF-observable result, now reached at encode (no double-count,
+    // because no DP inheritance exists to conflate).
     (void)leaf->set_opacity(0.8);
-    CHECK(effective_opacity(*leaf) == doctest::Approx(0.8).epsilon(1e-6));
+    CHECK(effective_opacity(*mid) == doctest::Approx(0.5).epsilon(1e-6));
+    CHECK(effective_opacity(*leaf) == doctest::Approx(0.4).epsilon(1e-6));
 
-    // A zero opacity on `mid` (which has NO local) resolves to 0 (inherited).
-    // `leaf` KEEPS its own 0.8 local (local-wins — an ancestor's 0 does not
-    // override an element's own explicit opacity), the WPF inheritance rule.
+    // A zero opacity ANCESTOR folds the whole chain to 0 (product); `leaf`
+    // (which set NO local — its own opacity is still 1.0) reads 0.5 × 0.0 = 0.
     (void)mid->set_opacity(0.0);
     CHECK(effective_opacity(*mid) == doctest::Approx(0.0).epsilon(1e-6));
-    CHECK(effective_opacity(*leaf) == doctest::Approx(0.8).epsilon(1e-6));
+    CHECK(effective_opacity(*leaf) == doctest::Approx(0.0).epsilon(1e-6));
+
+    // NON-inheritance anti-claim: a DETACHED element (no ancestor) is UNAFFECTED
+    // by a root's 0.5 — its opacity() reads ONLY its own default 1.0, so the
+    // product is 1.0. A parent's Opacity does NOT cascade through the visual
+    // edge.
+    vaml::UIElement detached;
+    CHECK(effective_opacity(detached) == doctest::Approx(1.0));
 }
 
 TEST_CASE("S208 encoder: effective opacity folds into the emitted item alpha")
@@ -124,7 +136,8 @@ TEST_CASE("S208 encoder: effective opacity folds into the emitted item alpha")
     assign_solid(*a, { 1, 0, 0, 1.0f });
     assign_solid(*b, { 0, 1, 0, 1.0f });
 
-    // Root at 0.5 -> inherited into both children -> each emits alpha 0.5.
+    // Root at 0.5 -> the ancestor-chain PRODUCT folds each child to 0.5
+    // (each child's OWN opacity is 1.0; 0.5 × 1.0 = 0.5).
     (void)root.set_opacity(0.5);
 
     std::vector<DrawItem> out;

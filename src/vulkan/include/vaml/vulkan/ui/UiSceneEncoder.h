@@ -129,15 +129,18 @@ struct ElementVisual
 // headless-testable.
 VAML_VULKAN_EXPORT MaterialKind classify_element(const vaml::UIElement& element) noexcept;
 
-// The S208 effective-Opacity seam: the element's RESOLVED opacity() — the
-// render alpha the encoder multiplies into the emitted item. Opacity is
-// registered with PropertyFlags::Inherits (S120), so the S040/S041 inheritance
-// cascade already propagates an ancestor's opacity into a descendant without a
-// local override (a parent at 0.5 fades its whole subtree). Multiplying a chain
-// here would DOUBLE-COUNT the inherited cascade, so effective_opacity delegates
-// to the single honest resolved value. A child's OWN local set shadows the
-// inherited value (local-wins, WPF-faithful). The encoder folds the result into
-// the item alpha. Pure + headless-testable.
+// The S208 effective-Opacity seam: the WPF compositor-subtree model (S822 dep:
+// S821) — the render alpha the encoder multiplies into the emitted item. WPF
+// reaches a subtree's alpha by COMPOSITION (`base.VisualOpacity`,
+// UIElement.cs:2689-2691): a child under an Opacity=0.5 panel renders at
+// 0.5 × its own opacity. Opacity is registered with PropertyFlags::None (NOT
+// inherited — S822), so each opacity() reads ONLY its own local (default 1.0);
+// there is no inheritance cascade to double-count, and the genuine observable
+// result is the render-tree ancestor-chain PRODUCT at encode time:
+//     effective_opacity(e) = Π opacity(x) over the visual-ancestor chain incl. e.
+// A child's OWN local opacity multiplies in under its ancestors (0.8 under a
+// 0.5 parent → 0.4, WPF-observable). The encoder folds the result into the
+// item alpha. Pure + headless-testable.
 VAML_VULKAN_EXPORT double effective_opacity(const vaml::UIElement& element) noexcept;
 
 // Counts the number of CONTIGUOUS same-material runs in a draw list — the

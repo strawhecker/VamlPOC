@@ -78,18 +78,21 @@ void register_uielement_properties()
                 return x == 0 || x == 1 || x == 2; // Visible/Hidden/Collapsed
             }));
 
-    // Opacity: default 1.0, INHERITED — gates on the SINGLE PropertyFlags::
-    // Inherits flag (no second disposition axis; S814 retired InheritOnly).
-    // A parent's value cascades to descendants via the S039 ancestor walk
-    // (read-side pull, S040 local-wins). Bounded [0,1] via validate
-    // (out-of-range Set -> REJECTED, unchanged).
+    // Opacity: default 1.0, NOT inherited, NO [0,1] validation (PropertyFlags::
+    // None). Reads ONLY its OWN local (default 1.0) — a descendant's opacity()
+    // NEVER reads an inherited DP value. WPF-faithful: `EvaluateEffectiveValue`/
+    // `GetValueEntry` (UIElement.cs:2660-2665) has NO Inherits arm for Opacity,
+    // and grep-verified there is NO `OverrideMetadata(..., Inherits)` anywhere,
+    // so Opacity never inherits. There is also NO ValidateFunc for Opacity —
+    // ANY double resolves (`Opacity="1.5"`, `"-2"`, `NaN` all accepted exactly
+    // as WPF; the S810_1 throw-on-invalid does NOT apply — accept is the WPF
+    // contract). The WPF `base.VisualOpacity` SUBTREE result (UIElement.cs:
+    // 2689-2691 — a child under an Opacity=0.5 panel renders at 0.5 × its OWN
+    // opacity) is reached by the S208 encoder's ancestor-chain PRODUCT at
+    // encode time (effective_opacity), NOT by DP inheritance.
     (void)DependencyProperty::Register(
         "Opacity", ValueType::Double, "UIElement",
-        std::move(PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::Inherits))
-            .with_validate([](const Value& v) {
-                const double x = v.get<double>();
-                return x >= 0.0 && x <= 1.0;
-            }));
+        PropertyMetadata::WithDefault(Value::Double(1.0), PropertyFlags::None));
 
     // Margin: default 0 (S122), NOT inherited (each element's margin is its
     // own outer inset). The payload rides the Thickness value path.
@@ -447,12 +450,17 @@ bool UIElement::is_hit_test_visible() const
 VAML_CORE_EXPORT
 SetResult UIElement::set_opacity(double value)
 {
+    // Accepts ANY double (no [0,1] ValidateFunc — WPF contract; 1.5, -2, NaN
+    // all resolve). The S208 encoder folds it into the visual-ancestor product.
     return Set(PropertyId::of("Opacity", "UIElement"), Value::Double(value));
 }
 
 VAML_CORE_EXPORT
 double UIElement::opacity() const
 {
+    // Reads ONLY this element's OWN local Opacity (default 1.0) — Opacity is
+    // NOT inherited. The subtree alpha (a child under an Opacity=0.5 parent) is
+    // the S208 encoder's ancestor-chain PRODUCT, not a DP-inherited read.
     return Get(PropertyId::of("Opacity", "UIElement")).get<double>();
 }
 
@@ -927,11 +935,13 @@ void UIElement::attach_child(std::unique_ptr<UIElement> child)
             "UIElement::add_child: child already has a parent; detach it first (take_child/remove_child)");
     }
     UIElement* raw = child.get();
-    // set_parent(this) installs the parent link so an INHERITS property
-    // (e.g. Opacity — gated on the SINGLE `Inherits` flag, S814) cascades to
-    // the visual child through the S039 ancestor pull walk. Order: install the
-    // parent link BEFORE owning, so the inherited-Opacity read inside any
-    // observer sees a coherent tree.
+    // set_parent(this) installs the parent link so a truly-INHERITED property
+    // (e.g. DataContext) cascades to the visual child through the S039 ancestor
+    // pull walk, BEFORE owning. Order: install the parent link BEFORE owning, so
+    // any ancestor-walking read inside an observer sees a coherent tree. Note
+    // Opacity is NOT one of those: it is PropertyFlags::None (NOT inherited) —
+    // the visual edge merely participates in the S208 encoder's ancestor-chain
+    // opacity PRODUCT; the DP itself never cascades.
     raw->set_parent(this);
     children_.push_back(std::move(child));
 }

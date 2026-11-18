@@ -154,21 +154,29 @@ MaterialKind classify_element(const vaml::UIElement& element) noexcept
 }
 
 // S208 effective opacity — the S208 Opacity seam, honored at the renderer. The
-// element's RESOLVED opacity() IS the on-render alpha: Opacity is registered
-// with PropertyFlags::Inherits (S120), so the S040/S041 inheritance cascade
-// ALREADY propagates an ancestor's opacity into a descendant that does NOT set
-// a local override (a parent at 0.5 fades its whole subtree to 0.5 via the
-// legal `local ?? inherited ?? default` resolution). Multiplying a chain of
-// opacity() values here would DOUBLE-COUNT the inherited cascade (an ancestor's
-// value appears both as its own factor AND as the inherited value inside each
-// descendant's opacity()) — so effective_opacity delegates to the resolved DP
-// value, the single honest number the renderer multiplies into the item alpha.
-// A child's OWN local set shadows the inherited ancestor value (0.8 under a 0.5
-// parent renders at 0.8 — local-wins inheritance semantics, WPF-faithful). Pure
-// + headless-testable; the encoder folds the result into the item alpha.
+// WPF compositor-subtree model (S822 dep:S821): WPF reaches a subtree's alpha by
+// COMPOSITION — `base.VisualOpacity` (UIElement.cs:2689-2691) multiplies down
+// the visual-ancestor chain, so a child under an Opacity=0.5 panel renders at
+// 0.5 × its own opacity. Opacity is registered with PropertyFlags::None (NOT
+// inherited), so each element's opacity() reads ONLY its OWN local (default
+// 1.0); there is therefore no DP-inheritance cascade to double-count, and the
+// genuine WPF-observable subtree result is the render-tree ancestor-chain
+// PRODUCT at encode time: effective_opacity(e) = Π opacity(x) over the visual-
+// ancestor chain INCLUDING e. This is exactly the number the renderer
+// multiplies into the item alpha. Pure + headless-testable.
 double effective_opacity(const vaml::UIElement& element) noexcept
 {
-    return element.opacity();
+    double product = 1.0;
+    for (const vaml::DependencyObject* cur = &element; cur != nullptr; cur = cur->parent())
+    {
+        const auto* ue = dynamic_cast<const vaml::UIElement*>(cur);
+        if (ue == nullptr)
+        {
+            break;  // a non-UIElement ancestor cannot participate in the tree
+        }
+        product *= ue->opacity();
+    }
+    return product;
 }
 
 namespace {

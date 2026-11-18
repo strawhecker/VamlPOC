@@ -12,7 +12,9 @@
 //       service (S250 pattern), Loads text through a RETAINED VamlReader,
 //       set_data_context + BindExtensions (the S252 S2-tag resolution), and the
 //       bound `{Binding Dim}` lands on the target UIElement's Opacity DP (the
-//       S242 first transfer — the visible dim the S208 encoder folds);
+//       S242 first transfer — the visible dim the S208 encoder folds via the
+//       effective_opacity ancestor-product; the parentless root makes the
+//       product its own authored value);
 //   (3) the S243 LIVE WIRE stays armed through the RETAINED reader: a later
 //       `vm->set_Dim(...)` re-pushes the bound Opacity DP (the update-in-window
 //       headline).

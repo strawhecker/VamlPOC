@@ -4,8 +4,11 @@
 //
 // S120 title contract (four concern areas, each treated explicitly):
 //   1. visibility  — a REAL registered dependency property (this step).
-//   2. opacity     — a REAL registered dependency property (this step),
-//      inherited so a parent's opacity cascades to descendants (S040/S041).
+//   2. opacity     — a REAL registered dependency property (this step), NOT
+//      inherited (PropertyFlags::None): reads ONLY its own local (default 1.0);
+//      the WPF `base.VisualOpacity` SUBTREE result is the S208 encoder's
+//      ancestor-chain PRODUCT at encode time (effective_opacity), not DP
+//      inheritance (S822 dep:S821).
 //   3. transform owner — RESOLVED BY S208. The S120 transform-owner SENTINEL
 //      is REMOVED here per its resolution contract: UIElement now owns the REAL
 //      per-element transform member/type — the RenderTransform dependency
@@ -25,10 +28,11 @@
 // per-element render state that a real consumer honors at the renderer
 // (S208 honors Opacity + RenderTransform; Visibility is consumed by layout +
 // hit-testing sprints). They are testable NOW through the S1 dependency-
-// property machinery (local ?? inherited ?? default, validate, coercion,
-// coalescing, descendant push). Opacity's inheritance is REAL behavior we can
-// verify end-to-end via the existing S040/S041 push pipeline — not a blind
-// "WPF does it this way" copy.
+// property machinery (local ?? default, validate, coercion,
+// coalescing). Opacity is NOT inherited and accepts ANY double (WPF has no
+// ValidateFunc and no Inherits arm for Opacity, UIElement.cs:2660-2665); its
+// observable SUBTREE alpha is reached by the S208 encoder's ancestor-chain
+// PRODUCT — not a "WPF does it this way" inheritance copy.
 //
 // SELF-REGISTRATION: UIElement's constructor lazily registers the two REAL DPs
 // (Visibility, Opacity) into the global DependencyProperty table, idempotently
@@ -56,6 +60,9 @@
 // inverse inheritance-scope edge stay coherent (Opacity's cascade flows through
 // the visual child via that link — proven by test). A parent OWNS its children
 // (unique_ptr), resolving the S091/S120-recorded ownership-transfer note.
+// (Note S822: Opacity is NOT one of the Inherits that cascade through the
+// edge — it is PropertyFlags::None; the edge still feeds the S208 encoder's
+// ancestor-chain opacity product.)
 
 #include "vaml/core/DependencyObject.h"
 
@@ -328,11 +335,18 @@ public:
     [[nodiscard]] SetResult set_is_hit_test_visible(bool value);
     [[nodiscard]] bool is_hit_test_visible() const;
 
-    // --- Opacity (REAL DP; inherited, validated [0,1]) ------------------
-    // Default 1.0. Inherited (cascades to descendants) + bounded [0,1]
-    // (out-of-range Set is REJECTED, store unchanged). A parent's opacity
-    // flows to children; a child's own set wins locally. The S208 encoder
-    // honors it via effective_opacity (the ancestor-chain product).
+    // --- Opacity (REAL DP; NOT inherited, NO [0,1] validation) ---------
+    // Default 1.0. NOT inherited (PropertyFlags::None) — opacity() reads ONLY
+    // this element's OWN local, never an inherited DP value (WPF-faithful:
+    // UIElement.cs:2660-2665 has no Inherits/GetValueEntry arm for Opacity, and
+    // no OverrideMetadata(..., Inherits) exists anywhere; see S822 dep:S821).
+    // Accepts ANY double — `Opacity="1.5"`, `"-2"`, `NaN` all resolve exactly
+    // as WPF (there is NO ValidateFunc, so the S810_1 throw-on-invalid does NOT
+    // apply; accept is the WPF contract). The SUBTREE alpha (a child under an
+    // Opacity=0.5 parent renders at 0.5 × its own opacity, the WPF
+    // `base.VisualOpacity` composition, UIElement.cs:2689-2691) is reached by
+    // the S208 encoder's effective_opacity — the visual-ancestor chain PRODUCT —
+    // NOT by DP inheritance.
     [[nodiscard]] SetResult set_opacity(double value);
     [[nodiscard]] double opacity() const;
 
@@ -372,8 +386,9 @@ public:
     // --- Visual children (S121: create/attach/detach + parent traversal) ----
     // A parent OWNS its children (std::unique_ptr). Attaching a child ALSO
     // calls set_parent(this), wiring the S039 parent link + the S041 inverse
-    // inheritance-scope edge (so Inherits like Opacity cascade through the
-    // visual child). The visual children list is DISTINCT from the S041
+    // inheritance-scope edge (so truly-Inherits properties like DataContext
+    // cascade through the visual child). Opacity is NOT one of those (S822 —
+    // PropertyFlags::None); the visual children list is DISTINCT from the S041
     // inheritance-scope: set_parent registers the inheritance edge for ANY
     // DependencyObject; the visual list below is UIElement-only structure.
 

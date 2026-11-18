@@ -5,22 +5,24 @@
 //   1. Visibility — real DP, default Visible, NOT inherited; typed accessors
 //      round-trip all three states; the standard Set/Get(PropertyId) path
 //      works; a wrong-tag write throws ValueTypeMismatch.
-//   2. Opacity — real DP, default 1.0, INHERITED, validated [0,1]: an
-//      out-of-range Set is REJECTED with the store unchanged; a parent's
-//      opacity cascades to a child that reads it (read-side pull, S040); a
-//      child local set WINS and is not clobbered by a later parent change
-//      (S040 local-wins); the parent's synchronous metadata PropChanged fires
-//      on the real change (S811 — WPF PropertyChangedCallback, not a fabricated
-//      descendant-push postbox). Gated on the SINGLE Inherits flag throughout.
+//   2. Opacity — real DP, default 1.0, NOT inherited, accepts ANY double
+//      (no [0,1] ValidateFunc — WPF contract, S822 dep:S821): 1.5 / -2 / NaN
+//      all resolve; the S810_1 throw-on-invalid does NOT apply. opacity()
+//      reads ONLY its own local — it does NOT cascade to a child (no DP
+//      inheritance); the subtREE alpha is the S208 encoder's ancestor-chain
+//      PRODUCT. The parent's synchronous metadata PropChanged fires on the
+//      real change (S811 — WPF PropertyChangedCallback, not a fabricated
+//      descendant-push postbox). NOT gated on any Inherits flag.
 //   3. Transform owner slot — sentinel-only (verified by the searchable
 //      sentinel comment in UIElement.h, resolved by S208); no fabricated
 //      member/type now.
 //   4. Layout slot — sentinel-only (verified by the searchable sentinel
 //      comment in UIElement.h, resolved by S122).
 //
-// Also proves UIElement derives DependencyObject (dynamic_cast) and that the
-// Visibility property is NOT inherited (each element's visibility is its own
-// effective value — the anti-claim to Opacity's inheritance, both under test).
+// Also proves UIElement derives DependencyObject (dynamic_cast) and that BOTH
+// Visibility AND Opacity are NOT inherited (each element's own effective
+// value; Opacity's subtREE alpha is the S208 encoder ancestor product, not a
+// DP cascade).
 //
 // Uses the Shouldly-for-doctest vocabulary (S036_5 standing convention).
 
@@ -35,7 +37,9 @@
 #include "vaml/core/UIElement.h"
 #include "vaml/core/Value.h"
 
+#include <cmath>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -161,7 +165,7 @@ TEST_CASE("S120: Visibility — wrong-tag write throws ValueTypeMismatch")
     SHOULD(ShouldlyString(static_cast<std::int32_t>(el.visibility())).ShouldBe(0));
 }
 
-TEST_CASE("S120: Visibility — NOT inherited (anti-claim to Opacity's inheritance)")
+TEST_CASE("S120: Visibility — NOT inherited (each element's own effective value)")
 {
     UIElement parent;
     UIElement child;
@@ -183,22 +187,23 @@ TEST_CASE("S120: Opacity — default 1.0; set/get round-trip")
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.5));
 }
 
-TEST_CASE("S120: Opacity — out-of-range Set THROWS InvalidPropertyValueException, store unchanged")
+TEST_CASE("S822: Opacity — accepts ANY double (no [0,1] validation, WPF contract)")
 {
     UIElement el;
-    // In-range sets move the value.
-    SHOULD(ShouldlyString(el.set_opacity(0.75)).ShouldBe(SetResult::APPLIED));
-    SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.75));
 
-    // Above 1.0 -> THROWS (S810_1: validate [0,1] refusal, WPF
-    // ArgumentException(InvalidPropertyValue); SetResult::REJECTED retired),
-    // store stays 0.75.
-    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] { (void)el.set_opacity(2.0); }));
-    SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.75));
+    // Above 1.0 -> ACCEPTED (no ValidateFunc; WPF has none — S822 dep:S821.
+    // The S810_1 throw-on-invalid does NOT apply; accept is the WPF contract).
+    SHOULD(ShouldlyString(el.set_opacity(1.5)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.opacity()).ShouldBe(1.5));
 
-    // Below 0.0 -> THROWS, store stays 0.75.
-    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] { (void)el.set_opacity(-0.5); }));
-    SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.75));
+    // Below 0.0 -> ACCEPTED.
+    SHOULD(ShouldlyString(el.set_opacity(-0.5)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.opacity()).ShouldBe(-0.5));
+
+    // NaN -> ACCEPTED (WPF stores it; no throw). Assert via isnan.
+    SHOULD(ShouldlyString(el.set_opacity(std::numeric_limits<double>::quiet_NaN()))
+                .ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(std::isnan(el.opacity())).ShouldBe(true));
 }
 
 TEST_CASE("S120: Opacity — standard Set/Get(PropertyId) path agrees with typed accessor")
@@ -210,14 +215,12 @@ TEST_CASE("S120: Opacity — standard Set/Get(PropertyId) path agrees with typed
     SHOULD(ShouldlyString(el.Get(id).get<double>()).ShouldBe(0.8));
     SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.8));
 
-    // Out-of-range through the generic path also THROWS (S810_1).
-    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
-        (void)el.Set(id, Value::Double(3.0));
-    }));
-    SHOULD(ShouldlyString(el.opacity()).ShouldBe(0.8));
+    // Out-of-range through the generic path is ALSO accepted (no ValidateFunc).
+    SHOULD(ShouldlyString(el.Set(id, Value::Double(3.0))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.opacity()).ShouldBe(3.0));
 }
 
-TEST_CASE("S120: Opacity inheritance — a parent's opacity cascades to a child that reads it")
+TEST_CASE("S822: Opacity — NOT inherited: a child reads its OWN default 1.0, never the parent")
 {
     UIElement parent;
     UIElement child;
@@ -226,58 +229,61 @@ TEST_CASE("S120: Opacity inheritance — a parent's opacity cascades to a child 
     // Default both 1.0.
     SHOULD(ShouldlyString(child.opacity()).ShouldBe(1.0));
 
-    // Parent sets 0.4 AFTER the child attached (dynamic ordering, S040): the
-    // child reads 0.4 via the read-side pull — no child write ever.
+    // Parent sets 0.4 AFTER the child attached: because Opacity is NOT
+    // inherited (PropertyFlags::None), the child's OWN opacity stays its own
+    // default 1.0 — it never reads the parent's DP value (WPF: no Inherits arm
+    // for Opacity). The subtREE alpha is the S208 encoder's ancestor product.
     (void)parent.set_opacity(0.4);
-    SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.4));
+    SHOULD(ShouldlyString(parent.opacity()).ShouldBe(0.4));
+    SHOULD(ShouldlyString(child.opacity()).ShouldBe(1.0));
 
-    // A further parent change recomputes again, still no child write.
+    // A further parent change does NOT touch the child's own value.
     (void)parent.set_opacity(0.2);
-    SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.2));
+    SHOULD(ShouldlyString(child.opacity()).ShouldBe(1.0));
 }
 
-TEST_CASE("S120: Opacity inheritance — child local wins and is not clobbered by a later parent change")
+TEST_CASE("S822: Opacity — a child's own local set is untouched by a parent change (no cascade)")
 {
     UIElement parent;
     UIElement child;
     child.set_parent(&parent);
 
-    // Child declares its OWN local opacity FIRST -> local-wins.
+    // Child declares its OWN local opacity FIRST.
     (void)child.set_opacity(0.9);
     SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.9));
 
-    // Parent changes AFTER: the cascade must RESPECT the child's real local
-    // override (S040 local-wins) — child stays 0.9, never swept.
+    // Parent changes AFTER: no cascade exists for Opacity, so the child's own
+    // value is untouched (no DP inheritance to respect or sweep).
     (void)parent.set_opacity(0.1);
+    SHOULD(ShouldlyString(parent.opacity()).ShouldBe(0.1));
     SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.9));
 }
 
-TEST_CASE("S120(S811): Opacity inherited VALUE propagates to a passive child (pull model — no notification postbox)")
+TEST_CASE("S822(S811): a passive child does NOT follow a parent's Opacity (no inheritance pull)")
 {
-    // S811: the fabricated descendant-push postbox is REMOVED (there is NO
-    // per-object subscriber list in WPF, DO.cs:1704/1732/2039). What survives
-    // is the INHERITED VALUE propagating to a passive child: it has no local
-    // opacity of its own, so after a parent opacity write its effective value
-    // follows the parent (0.6) via the S039 ancestor walk on Get.
+    // S811: there is NO fabricated descendant-push postbox (DO.cs:1704/1732/
+    // 2039). For Opacity there is ALSO no inheritance pull at all: a child with
+    // no local keeps its OWN default 1.0, regardless of the parent's value —
+    // NOT 0.6. (Opacity is PropertyFlags::None; the S208 encoder ancestor
+    // product reaches the subtREE alpha, not the child's DP.)
     UIElement parent;
     UIElement child;
-    child.set_parent(&parent); // child inherits Opacity (global Inherits) but
-                               // has no local store entry of its own (passive)
+    child.set_parent(&parent);
 
-    // The parent's inherited Opacity write changes the parent's local value.
     SHOULD(ShouldlyString(parent.set_opacity(0.6)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(parent.opacity()).ShouldBe(0.6));
 
-    // The passive child's effective opacity follows the parent (pull model).
-    SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.6));
+    // The passive child's OWN opacity does NOT follow (no inheritance).
+    SHOULD(ShouldlyString(child.opacity()).ShouldBe(1.0));
 
-    // A child with its OWN local opacity is NOT clobbered (local-wins).
+    // A child with its OWN local opacity is naturally unaffected too.
     UIElement child2;
     child2.set_parent(&parent);
     (void)child2.set_opacity(0.9);
     SHOULD(ShouldlyString(child2.opacity()).ShouldBe(0.9));
     (void)parent.set_opacity(0.2);
     SHOULD(ShouldlyString(child2.opacity()).ShouldBe(0.9));
-    SHOULD(ShouldlyString(child.opacity()).ShouldBe(0.2)); // passive follows
+    SHOULD(ShouldlyString(child.opacity()).ShouldBe(1.0)); // no follow
 }
 
 TEST_CASE("S120: Visibility + Opacity resolve globally against plain DependencyObjects too (S043)")
@@ -292,10 +298,11 @@ TEST_CASE("S120: Visibility + Opacity resolve globally against plain DependencyO
     (void)plain.Set(PropertyId::of("Visibility", "UIElement"), Value::Int32(1));
     SHOULD(ShouldlyString(plain.Get(PropertyId::of("Visibility", "UIElement")).get<std::int32_t>()).ShouldBe(1));
 
-    // Plain object writes Opacity; validate [0,1] still applies globally.
+    // Plain object writes Opacity; ANY double is ACCEPTED globally (no
+    // ValidateFunc — S822).
     (void)plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(0.3));
     SHOULD(ShouldlyString(plain.Get(PropertyId::of("Opacity", "UIElement")).get<double>()).ShouldBe(0.3));
-    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
-        (void)plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(5.0));
-    }));
+    SHOULD(ShouldlyString(plain.Set(PropertyId::of("Opacity", "UIElement"), Value::Double(5.0)))
+                .ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(plain.Get(PropertyId::of("Opacity", "UIElement")).get<double>()).ShouldBe(5.0));
 }

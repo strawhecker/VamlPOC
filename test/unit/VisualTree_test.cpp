@@ -14,10 +14,11 @@
 //   4. remove_child detaches + destroys; count decremented.
 //   5. parent traversal: child.parent()==parent; depth-first walk visits in
 //      pre-order top-down.
-//   6. Composition distinctness: attaching a visual child wires set_parent, so
-//      an Inherits DP (Opacity) cascades through the visual child (S039/S041
+//   6. Composition distinctness: attaching a visual child wires set_parent (S039
 //      parent-link composition) — the visual list and the inheritance-scope are
-//      DISTINCT but composed, not overlapping.
+//      DISTINCT but composed, not overlapping. (S822 dep:S821: Opacity is NO
+//      longer the demonstration Inherits — it is PropertyFlags::None; the edge
+//      still exists structurally, it simply does not carry Opacity's DP.)
 //   7. Reparent: a child owned by parent A cannot attach to parent B (single-
 //      parent invariant -> std::logic_error); after take_child it CAN (the
 //      detached child is parentless).
@@ -153,28 +154,29 @@ TEST_CASE("S121: take_child detaches by transferring ownership and clearing the 
     SHOULD(ShouldlyString(detached != nullptr).ShouldBe(true));
 }
 
-TEST_CASE("S121(S811): take_child unwinds the parent edge — a detached child no longer inherits the parent's value")
+TEST_CASE("S121(S811): take_child unwinds the parent edge — a detached child reads its OWN opacity")
 {
     // S811: the inheritance-scope edge + descendant-push postbox are REMOVED.
-    // Inheritance is the PULL-model ancestor walk driven by set_parent: an
-    // attached child inherits a parent's Opacity; a DETACHED child has no parent
-    // edge, so it falls back to the Opacity default. This proves the edge
-    // lifecycle via the surviving pull-model value, with no subscriber surface.
+    // Opacity is NOT inherited (S822 — PropertyFlags::None): a child's opacity()
+    // always reads its OWN local (default 1.0), whether attached or detached,
+    // so this proves the edge LIFECYCLE structurally (the child's standalone
+    // value is the same before and after detach). The subtREE alpha is the S208
+    // encoder ancestor product — not a DP inheritance read through this edge.
     UIElement parent;
     UIElement* child = parent.create_child<UIElement>();
 
-    // Attached: the child inherits the parent's Opacity (pull model).
+    // Attached: the child reads its OWN opacity (default 1.0) — the parent's
+    // 0.5 does NOT flow to it (no inheritance).
     (void)parent.set_opacity(0.5);
-    SHOULD(ShouldlyString(child->opacity()).ShouldBe(0.5));
+    SHOULD(ShouldlyString(child->opacity()).ShouldBe(1.0));
 
     // Detach: unwinds the parent edge.
     std::unique_ptr<UIElement> detached = parent.take_child(0);
     SHOULD(ShouldlyString(parent.child_count()).ShouldBe(0u));
     SHOULD(ShouldlyString(detached->parent() == nullptr).ShouldBe(true));
 
-    // After detach, a further parent Opacity change must NOT reach the child —
-    // the detached child has no parent edge, so it resolves to the default 1.0
-    // (S039 ancestor walk over a null parent yields the default).
+    // After detach, the detached child's OWN opacity is still its default 1.0
+    // (unchanged by any parent set — no inheritance either way).
     (void)parent.set_opacity(0.2);
     SHOULD(ShouldlyString(detached->opacity()).ShouldBe(1.0));
     SHOULD(ShouldlyString(parent.opacity()).ShouldBe(0.2));
@@ -264,21 +266,24 @@ TEST_CASE("S121: walk visits every descendant depth-first, all parent-linked")
     SHOULD(ShouldlyString(c->parent() == a).ShouldBe(true));
 }
 
-TEST_CASE("S121: composition — an Inherits DP (Opacity) cascades THROUGH a visual child via set_parent")
+TEST_CASE("S121: composition — the visual edge exists independently of Opacity (NOT inherited, S822)")
 {
-    // The visual children list and the S041 inheritance-scope are DISTINCT, but
-    // attaching a visual child wires set_parent, so a parent's Inherits property
-    // flows to the visual child (S039/S041 parent-link composition). This proves
-    // the two structures compose — recorded, no overlap, no gap.
+    // The visual children list and the S041 inheritance-scope are DISTINCT but
+    // composed via set_parent. S822 (dep:S821): Opacity is PropertyFlags::None,
+    // so it no longer cascades through the visual child — a parent's Opacity
+    // does NOT flow to the child's DP. The edge itself still exists (the child
+    // parent()==parent); it simply does not carry Opacity's DP value. The S208
+    // encoder's ancestor product is the subtREE-alpha mechanism.
     UIElement parent;
     UIElement* child = parent.create_child<UIElement>();
 
-    // Read-side cascade: parent Opacity -> child effective (no child write).
+    // The edge is wired (parent-link composition), but Opacity does NOT cascade:
+    // parent Opacity 0.6 -> child's OWN opacity stays its default 1.0.
     (void)parent.set_opacity(0.6);
-    SHOULD(ShouldlyString(child->opacity()).ShouldBe(0.6));
+    SHOULD(ShouldlyString(parent.opacity()).ShouldBe(0.6));
+    SHOULD(ShouldlyString(child->opacity()).ShouldBe(1.0));
 
-    // Detach cuts the link; the child reverts to its own default (1.0) because
-    // the ancestor chain is gone.
+    // Detach cuts the link; the child still reads its own default 1.0.
     std::unique_ptr<UIElement> detached = parent.take_child(0);
     SHOULD(ShouldlyString(detached->opacity()).ShouldBe(1.0));
 }

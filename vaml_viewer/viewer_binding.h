@@ -8,15 +8,16 @@
 // the window renders.
 //
 // RENDERABLE PROOF WITH TODAY'S RENDERER: the S207/S208 encoder folds a
-// UIElement's `effective_opacity()` (the S120 Opacity DP, inherited) into the
-// emitted item alpha. So a `.vaml` that declares `<StackPanel Opacity="{Binding
-// Dim}"/>` binds the VM's `Dim` (double, [0,1]) and — when the reload binds +
-// renders — the panel visibly dims in the live window (BindExtensions applies
-// the FIRST transfer, the S242 first-push landing the bound Dim onto the target
-// Opacity DP, which the encoder honors). Real control MATERIALS (Text/Button ->
-// S400/S401) do not exist yet; Opacity dimming is the honest visible data-
-// binding demonstration available on TODAY's surface (recorded NO-GAP, not
-// silent).
+// UIElement's `effective_opacity()` (the S208 opacity seam — the visual-
+// ancestor-chain PRODUCT; the bound root StackPanel is parentless, so the
+// product is its own authored Opacity) into the emitted item alpha. So a
+// `.vaml` that declares `<StackPanel Opacity="{Binding Dim}"/>` binds the VM's
+// `Dim` (double) and — when the reload binds + renders — the panel visibly dims
+// in the live window (BindExtensions applies the FIRST transfer, the S242
+// first-push landing the bound Dim onto the target Opacity DP, which the
+// encoder honors). Real control MATERIALS (Text/Button -> S400/S401) do not
+// exist yet; Opacity dimming is the honest visible data-binding demonstration
+// available on TODAY's surface (recorded NO-GAP, not silent).
 //
 // SPLIT (the standing S221/S222_1 precedent):
 //   * PURE DECISION SEAM — `viewer_bind_render_action(loadOk)` — the
