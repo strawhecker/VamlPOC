@@ -1,12 +1,28 @@
 // S208 — Matrix2D out-of-line definitions: rotation, finite-validity,
 // multiply, invert, transform_point. See Transform.h for the affine layout +
 // the single-concrete-type decision + semantics.
+//
+// S823 — the Transform OBJECT hierarchy out-of-line seam (identity singleton).
 
 #include "vaml/core/Transform.h"
 
 #include <cmath>
 
 namespace vaml {
+
+// S823 — the shared identity Transform. Meyers-static (no static-init-order
+// hazard, ADR-018 single-threaded). WPF `Transform.Identity` (UIElement.cs:1335
+// default). A shared MatrixTransform whose matrix() is the identity.
+VAML_CORE_EXPORT
+std::shared_ptr<Transform> Transform::identity()
+{
+    static const std::shared_ptr<Transform> id = [] {
+        auto m = std::make_shared<MatrixTransform>();
+        m->set_matrix(Matrix2D::identity());
+        return m;
+    }();
+    return id;
+}
 
 VAML_CORE_EXPORT
 Matrix2D Matrix2D::rotation(float degrees) noexcept

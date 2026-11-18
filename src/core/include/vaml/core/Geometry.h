@@ -12,6 +12,16 @@
 
 namespace vaml {
 
+// A 2D point in layout space (WPF `Point` analogue — S823 adds the RenderTransform
+// Origin point type). Default (0,0); value equality; pure.
+struct Point
+{
+    float x = 0.0f;
+    float y = 0.0f;
+
+    [[nodiscard]] constexpr bool operator==(const Point&) const noexcept = default;
+};
+
 // A measured extent in logical layout units (floats, top-left origin).
 // `Size::Infinite()` is the WPF-faithful "available is unbounded" sentinel
 // that the S123 Measure contract consumes (a panel offers an unbounded axis;

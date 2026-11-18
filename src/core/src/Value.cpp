@@ -33,6 +33,8 @@ const char* type_name(ValueType t) noexcept
         case ValueType::Matrix2D:   return "Matrix2D";
         case ValueType::GridLength: return "GridLength";
         case ValueType::Brush:      return "Brush";
+        case ValueType::Transform:  return "Transform";
+        case ValueType::Point:      return "Point";
     }
     return "<invalid>";
 }
@@ -59,6 +61,8 @@ void Value::copy_union(Value::Storage& dst, const Value::Storage& src, ValueType
         case ValueType::BrushId:    new (&dst) std::int32_t(src.asInt32); break;
         case ValueType::UntypedPtr: new (&dst) void*(src.asPtr); break;
         case ValueType::Brush:      new (&dst) std::shared_ptr<::vaml::Brush>(src.asBrush); break;
+        case ValueType::Transform:  new (&dst) std::shared_ptr<::vaml::Transform>(src.asTransform); break;
+        case ValueType::Point:      new (&dst) vaml::Point(src.asPoint); break;
         case ValueType::Null:       break; // no union member
     }
 }
@@ -73,6 +77,10 @@ Value::~Value()
     else if (type_ == ValueType::Brush)
     {
         storage_.asBrush.~shared_ptr();
+    }
+    else if (type_ == ValueType::Transform)
+    {
+        storage_.asTransform.~shared_ptr();
     }
 }
 
@@ -91,7 +99,7 @@ Value& Value::operator=(const Value& other)
         return *this;
     }
 
-    // Destroy current string/brush payload, then rebuild from other.
+    // Destroy current string/brush/transform payload, then rebuild from other.
     if (type_ == ValueType::String)
     {
         storage_.asString.~basic_string();
@@ -99,6 +107,10 @@ Value& Value::operator=(const Value& other)
     else if (type_ == ValueType::Brush)
     {
         storage_.asBrush.~shared_ptr();
+    }
+    else if (type_ == ValueType::Transform)
+    {
+        storage_.asTransform.~shared_ptr();
     }
     type_ = other.type_;
     copy_union(storage_, other.storage_, type_);
@@ -116,6 +128,10 @@ Value::Value(Value&& other) noexcept
     else if (type_ == ValueType::Brush)
     {
         new (&storage_) std::shared_ptr<::vaml::Brush>(std::move(other.storage_.asBrush));
+    }
+    else if (type_ == ValueType::Transform)
+    {
+        new (&storage_) std::shared_ptr<::vaml::Transform>(std::move(other.storage_.asTransform));
     }
     else
     {
@@ -140,6 +156,10 @@ Value& Value::operator=(Value&& other) noexcept
     {
         storage_.asBrush.~shared_ptr();
     }
+    else if (type_ == ValueType::Transform)
+    {
+        storage_.asTransform.~shared_ptr();
+    }
 
     type_ = other.type_;
     if (type_ == ValueType::String)
@@ -149,6 +169,10 @@ Value& Value::operator=(Value&& other) noexcept
     else if (type_ == ValueType::Brush)
     {
         storage_.asBrush = std::move(other.storage_.asBrush);
+    }
+    else if (type_ == ValueType::Transform)
+    {
+        storage_.asTransform = std::move(other.storage_.asTransform);
     }
     else
     {
@@ -182,6 +206,8 @@ bool Value::operator==(const Value& other) const noexcept
         case ValueType::BrushId:    return storage_.asInt32 == other.storage_.asInt32;
         case ValueType::UntypedPtr: return storage_.asPtr == other.storage_.asPtr;
         case ValueType::Brush:      return storage_.asBrush == other.storage_.asBrush; // shared ownership: same object
+        case ValueType::Transform:  return storage_.asTransform == other.storage_.asTransform; // shared ownership: same object
+        case ValueType::Point:      return storage_.asPoint == other.storage_.asPoint;
     }
     return false;
 }

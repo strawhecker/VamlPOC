@@ -180,17 +180,63 @@ double effective_opacity(const vaml::UIElement& element) noexcept
 }
 
 namespace {
-// S208: marks an emitted DrawItem with the element's render state — the per-
-// element Model (RenderTransform) + the Clip. The MODEL is always folded in
-// (identity is the no-op fast path, so unchanged batching). The CLIP is marked
-// active ONLY when a non-identity Model could push content outside the slot
-// (a rotated/scaled/translated element overflowing its S124 render slot is
+// S208/S823: marks an emitted DrawItem with the element's render state — the
+// per-element Model (the RESOLVED RenderTransform) + the Clip. S823 migrates
+// the dp onto the WPF-faithful Transform OBJECT: render_transform() returns the
+// Transform*, whose matrix() is the resolved affine. The MODEL is always folded
+// in (identity is the no-op fast path, so unchanged batching). The CLIP is
+// marked active ONLY when a non-identity Model could push content outside the
+// slot (a rotated/scaled/translated element overflowing its S124 render slot is
 // culled by a dynamic scissor to final_rect). An identity-transform element
-// already fits its final_rect exactly, so clipActive stays false — the
-// existing S206/S207 batching is preserved (backward compatible).
+// already fits its final_rect exactly, so clipActive stays false — the existing
+// S206/S207 batching is preserved (backward compatible).
+//
+// S823 — RenderTransformOrigin (Point, default (0,0), NOT inherited): the
+// transform operates about the normalized-fraction center. The WPF ArrangeCore
+// fold (UIElement.cs:1253-1296) is `T(−originPx) · M · T(+originPx)` with
+// `originPx = (fr.width·origin.x, fr.height·origin.y)`, plus two runtime guards:
+// identity transform -> NO fold at all; zero origin -> NO origin terms. This is
+// the ENCODE-boundary finite-validity gate too: a non-finite resolved matrix is
+// folded defensively (is_transform_valid false -> treated as identity so NaN/Inf
+// geometry can never crash the vertex/build path) — the finite-validity gate
+// VAML keeps stays HERE, never at the DP Set (WPF accepts any Transform).
 void apply_element_render_state(const vaml::UIElement& element, DrawItem& item) noexcept
 {
-    item.model = element.render_transform();
+    // Resolve the Transform object's matrix (default identity for null/shared).
+    vaml::Matrix2D model = vaml::Matrix2D::identity();
+    const std::shared_ptr<vaml::Transform> tf = element.render_transform();
+    if (tf)
+    {
+        model = tf->matrix();
+    }
+
+    // S823 ENCODE-BOUNDARY finite-validity gate (RE-SCOPED here, NOT the DP Set):
+    // a non-finite resolved matrix is WPF-legal at Set but must never reach the
+    // rasterizer — fall back to identity (defensive fold, never a crash).
+    if (!is_transform_valid(model))
+    {
+        model = vaml::Matrix2D::identity();
+    }
+
+    // S823 RenderTransformOrigin — WPF ArrangeCore fold (UIElement.cs:1253-1296):
+    // identity -> NO fold; zero origin -> NO origin terms. Otherwise
+    // M' = T(−originPx)·M·T(+originPx), originPx = (fr.width·ox, fr.height·oy).
+    const vaml::Point origin = element.render_transform_origin();
+    if (!is_transform_identity(model))
+    {
+        const vaml::Rect fr = element.final_rect();
+        if (origin.x != 0.0f || origin.y != 0.0f)
+        {
+            const float ox = fr.width * origin.x;
+            const float oy = fr.height * origin.y;
+            // T(−o)·M·T(+o): row-vector/post-multiply — translate to origin, apply
+            // M, translate back (WPF ArrangeCore's exact composition order).
+            model = vaml::multiply(vaml::Matrix2D::translation(-ox, -oy),
+                                   vaml::multiply(model, vaml::Matrix2D::translation(ox, oy)));
+        }
+    }
+
+    item.model = model;
     const bool transformed = !is_transform_identity(item.model);
     if (transformed)
     {

@@ -74,7 +74,7 @@ void tick_to(UIElement* ball, vaml::Storyboard* sb, double elapsed,
 {
     sb->tick(elapsed);
     opacity = ball->opacity();
-    dx = ball->render_transform().dx;
+    dx = ball->render_transform()->matrix().dx;
 }
 
 } // namespace

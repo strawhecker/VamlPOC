@@ -14,6 +14,7 @@
 // tag. Hot-path tag check is inline; the throw path is out-of-line in Value.cpp.
 
 #include "vaml/core/Color.h"
+#include "vaml/core/Geometry.h"   // S823 Point (RenderTransformOrigin payload)
 #include "vaml/core/GridLength.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/Transform.h"
@@ -51,6 +52,11 @@ enum class ValueType : std::uint8_t
                 // WPF-faithful "the paint DP holds the brush object" read, replacing the
                 // scalar BrushId collapse at the public paint surface. APPENDED additive
                 // (enum-stable: existing ordinals unchanged).
+    Transform,  // S823 (dep:S822): a REAL Transform OBJECT payload
+                // (shared_ptr<vaml::Transform>) — the WPF-faithful "the RenderTransform
+                // DP holds the Transform object" read (UIElement.cs:1335-1340, typeof
+                // (Transform), default Transform.Identity). APPENDED additive.
+    Point,      // S823: RenderTransformOrigin (Point, default (0,0), NOT inherited).
 };
 
 // Thrown by Value::get<T>() when T is not a valid payload type for the tag.
@@ -99,6 +105,10 @@ template <> struct ValueTypeOf<vaml::Matrix2D>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Matrix2D; } };
 template <> struct ValueTypeOf<std::shared_ptr<vaml::Brush>>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Brush; } };
+template <> struct ValueTypeOf<std::shared_ptr<vaml::Transform>>
+{ static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Transform; } };
+template <> struct ValueTypeOf<vaml::Point>
+{ static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::Point; } };
 template <> struct ValueTypeOf<void*>
 { static constexpr bool accepts(ValueType t) noexcept { return t == ValueType::UntypedPtr; } };
 
@@ -129,6 +139,12 @@ public:
     // DP layer is generic over object; this is VAML's generic-object payload for
     // the paint DPs. (NOT noexcept: shared_ptr construction can allocate.)
     [[nodiscard]] static Value Brush(std::shared_ptr<::vaml::Brush> v) { return Value(ValueType::Brush, std::move(v)); }
+    // S823 — the REAL Transform OBJECT payload. Holds an owned shared_ptr<Transform> —
+    // the WPF-faithful "the RenderTransform DP holds the Transform object" read
+    // (UIElement.cs:1335-1340). (NOT noexcept: shared_ptr construction can allocate.)
+    [[nodiscard]] static Value Transform(std::shared_ptr<::vaml::Transform> v) { return Value(ValueType::Transform, std::move(v)); }
+    // S823 — RenderTransformOrigin: a Point (default (0,0), NOT inherited).
+    [[nodiscard]] static Value Point(vaml::Point v) noexcept { return Value(ValueType::Point, v); }
 
     // --- Introspection -------------------------------------------------
     [[nodiscard]] ValueType type() const noexcept { return type_; }
@@ -183,6 +199,8 @@ private:
         vaml::Matrix2D  asMatrix2D; // S208 RenderTransform
         void*           asPtr; // UntypedPtr
         std::shared_ptr<::vaml::Brush> asBrush; // S643b-1 Brush object payload
+        std::shared_ptr<::vaml::Transform> asTransform; // S823 Transform object payload
+        vaml::Point     asPoint; // S823 RenderTransformOrigin (Point)
     } storage_;
 
     // Out-of-line throw (defined in Value.cpp).
@@ -255,6 +273,18 @@ template <>
 [[nodiscard]] inline std::shared_ptr<::vaml::Brush> Value::read<std::shared_ptr<::vaml::Brush>>() const
 {
     return storage_.asBrush;
+}
+
+template <>
+[[nodiscard]] inline std::shared_ptr<::vaml::Transform> Value::read<std::shared_ptr<::vaml::Transform>>() const
+{
+    return storage_.asTransform;
+}
+
+template <>
+[[nodiscard]] inline vaml::Point Value::read<vaml::Point>() const
+{
+    return storage_.asPoint;
 }
 
 } // namespace vaml

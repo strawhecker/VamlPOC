@@ -187,6 +187,7 @@ namespace {
         case ValueType::Thickness: return "Thickness";
         case ValueType::Double:    return "Double";   // S440: FontSize / Slider.* / Canvas.* route through the Double converter
         case ValueType::GridLength: return "GridLength"; // S601: Grid track / grid-length DPs ("Auto"/"1*"/"42")
+        case ValueType::Point:      return "Point";      // S823: RenderTransformOrigin ("x,y")
         default:                   return "";
     }
 }
@@ -1225,23 +1226,41 @@ std::unique_ptr<DependencyObject> VamlReader::build(const ParsedElement& element
             if (child.children.size() == 1)
             {
                 // (a) object value: build the child, retain it, set as UntypedPtr.
-                std::unique_ptr<DependencyObject> owned = build(child.children[0], depth + 1);
-                DependencyObject* raw = owned.get();
-                raw->set_parent(obj.get()); // S039 parent-link (the object is reader-retained)
-                retained_.push_back(std::move(owned));
-                // 11j-8 (dep:S036): the object-typed WPF `Tag` is mapped to a
-                // String-typed DP here (option A — the scalar literal path is the
-                // corpus's PRIMARY use, and VAML's typed Value cannot hold an
-                // arbitrary object in a single bound-typed slot). An OBJECT
-                // `<X.Tag><SomeObject/></X.Tag>` is therefore built + RETAINED
-                // (+ parent-linked) so it is represented in the load result, but
-                // NOT set as the scalar DP value (an UntypedPtr would mismatch
-                // the String-typed Tag and throw). WPF-faithful: the object slot
-                // accepts a scalar (string) OR an object; VAML represents the
-                // scalar on the DP and the object as reader-retained state.
-                if (propName != "Tag")
+                //
+                // S823 — RENDERTRANSFORM OBJECT VALUE. When the DP is the
+                // WPF-faithful Transform-typed RenderTransform (owner "UIElement"),
+                // the object child is a TRANSFORM LEAF (<RotateTransform>/
+                // <ScaleTransform>/<TranslateTransform>/<MatrixTransform>), authored
+                // by the reader-local build_transform (NOT the element factory —
+                // the transform types are not factory built-ins). It is set as
+                // Value::Transform(shared_ptr<Transform>) — the object the DP
+                // holds — matching WPF `RenderTransform` (UIElement.cs:1335-1340).
+                if (dp->metadata().boundType() == ValueType::Transform)
                 {
-                    (void)obj->Set(dp->property_id(), Value::UntypedPtr(raw));
+                    std::shared_ptr<vaml::Transform> t =
+                        build_transform(child.children[0]);
+                    (void)obj->Set(dp->property_id(), Value::Transform(std::move(t)));
+                }
+                else
+                {
+                    std::unique_ptr<DependencyObject> owned = build(child.children[0], depth + 1);
+                    DependencyObject* raw = owned.get();
+                    raw->set_parent(obj.get()); // S039 parent-link (the object is reader-retained)
+                    retained_.push_back(std::move(owned));
+                    // 11j-8 (dep:S036): the object-typed WPF `Tag` is mapped to a
+                    // String-typed DP here (option A — the scalar literal path is the
+                    // corpus's PRIMARY use, and VAML's typed Value cannot hold an
+                    // arbitrary object in a single bound-typed slot). An OBJECT
+                    // `<X.Tag><SomeObject/></X.Tag>` is therefore built + RETAINED
+                    // (+ parent-linked) so it is represented in the load result, but
+                    // NOT set as the scalar DP value (an UntypedPtr would mismatch
+                    // the String-typed Tag and throw). WPF-faithful: the object slot
+                    // accepts a scalar (string) OR an object; VAML represents the
+                    // scalar on the DP and the object as reader-retained state.
+                    if (propName != "Tag")
+                    {
+                        (void)obj->Set(dp->property_id(), Value::UntypedPtr(raw));
+                    }
                 }
             }
             else if (!child.content.empty())
@@ -1463,6 +1482,93 @@ std::unique_ptr<ResourceDictionary> VamlReader::build_resource_dictionary(
     built_dicts_.push_back(dict.get());
 
     return dict;
+}
+
+// ---------------------------------------------------------------------------
+// S823 — TRANSFORM AUTHORING (the S643b Brush-object closure mirror). The
+// RenderTransform DP is WPF-faithful OBJECT-typed: it holds a `Transform`
+// (UIElement.cs:1335-1340), and the authored per-element Transform leaves
+// (RotateTransform/ScaleTransform/TranslateTransform/MatrixTransform) compose
+// the resolved Matrix2D the renderer folds. The transform types are NOT
+// FrameworkElement/UIElement (they derive Transform : GeneralTransform :
+// Freezable : DependencyObject), so they are NOT engine built-ins — this
+// reader-local builder authors them inside the RenderTransform property-element
+// value. ADR-018 zero locks.
+// ---------------------------------------------------------------------------
+
+VAML_CORE_EXPORT
+std::shared_ptr<vaml::Transform> VamlReader::build_transform(const ParsedElement& element)
+{
+    const std::string_view el = element.local_name.empty() ? element.tagName
+                                                           : element.local_name;
+
+    // A small per-leaf parser for the authored attribute.
+    auto dbl = [&](const std::string_view key, float dflt) -> float
+    {
+        for (const ParsedAttribute& a : element.attributes)
+        {
+            if (a.directive == XmlDirectiveType::None && a.key == key)
+            {
+                return static_cast<float>(convert_double_literal(a.value).get<double>());
+            }
+        }
+        return dflt;
+    };
+
+    if (el == "TranslateTransform")
+    {
+        auto t = std::make_shared<TranslateTransform>(dbl("X", 0.0f), dbl("Y", 0.0f));
+        return t;
+    }
+    if (el == "ScaleTransform")
+    {
+        auto s = std::make_shared<ScaleTransform>(
+            dbl("ScaleX", 1.0f), dbl("ScaleY", 1.0f),
+            dbl("CenterX", 0.0f), dbl("CenterY", 0.0f));
+        return s;
+    }
+    if (el == "RotateTransform")
+    {
+        auto r = std::make_shared<RotateTransform>();
+        r->set_angle(dbl("Angle", 0.0f));
+        r->set_center(dbl("CenterX", 0.0f), dbl("CenterY", 0.0f));
+        return r;
+    }
+    if (el == "MatrixTransform")
+    {
+        // MatrixTransform holds a raw affine: authored as inline content
+        // "M11,M12,M21,M22,Dx,Dy" (WPF MatrixConverter comma-separated affine).
+        Matrix2D m;
+        std::size_t pos = 0;
+        std::string_view vals6 = element.content; // "M11,M12,M21,M22,Dx,Dy"
+        float out[6] = {};
+        int n = 0;
+        for (; n < 6; ++n)
+        {
+            if (pos >= vals6.size())
+                break;
+            const std::size_t c = vals6.find(',', pos);
+            const std::size_t end = (c == std::string_view::npos) ? vals6.size() : c;
+            if (end == pos)
+                break;
+            out[n] = static_cast<float>(
+                convert_double_literal(vals6.substr(pos, end - pos)).get<double>());
+            pos = end + 1;
+        }
+        if (n == 6)
+        {
+            m.m11 = out[0]; m.m12 = out[1];
+            m.m21 = out[2]; m.m22 = out[3];
+            m.dx  = out[4]; m.dy  = out[5];
+        }
+        // A bare <MatrixTransform/> (no content) stays identity.
+        return std::make_shared<MatrixTransform>(m);
+    }
+
+    throw VamlReaderException(
+        VamlReaderError::UnknownProperty, std::string(el),
+        "not an authorable transform leaf: '" + std::string(el) + "' (expected "
+        "<RotateTransform>/<ScaleTransform>/<TranslateTransform>/<MatrixTransform>)");
 }
 
 VAML_CORE_EXPORT

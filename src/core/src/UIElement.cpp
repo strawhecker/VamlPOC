@@ -100,16 +100,24 @@ void register_uielement_properties()
         "Margin", ValueType::Thickness, "UIElement",
         PropertyMetadata::WithDefault(Value::Thickness(vaml::Thickness{}), PropertyFlags::None));
 
-    // RenderTransform (S208): default identity, NOT inherited, validated finite.
-    // A Matrix2D with any NaN/Inf element is REJECTED at Set (the renderer never
-    // sees non-finite geometry). Set triggers InvalidateArrange (see accessor).
+    // RenderTransform (S823 dep:S822 — the S208 Matrix2D DP migrated onto the
+    // WPF-faithful TRANSFORM OBJECT). WPF `RenderTransformProperty` is
+    // `typeof(Transform)`, default `Transform.Identity`, with NO ValidateValueCallback
+    // (UIElement.cs:1335-1340) — so the DP holds a `Transform` object and
+    // ACCEPTS ANY Transform at Set (even a NaN/Inf matrix — WPF-legal). The
+    // finite-validity gate `is_transform_valid` is RE-SCOPED to the S208 raster/
+    // encode boundary only (never here). NOT inherited (PropertyFlags::None).
+    // Set triggers InvalidateArrange (see accessor).
     (void)DependencyProperty::Register(
-        "RenderTransform", ValueType::Matrix2D, "UIElement",
-        std::move(PropertyMetadata::WithDefault(Value::Matrix2D(vaml::Matrix2D::identity()),
-                                                PropertyFlags::None))
-            .with_validate([](const Value& v) {
-                return is_transform_valid(v.get<vaml::Matrix2D>());
-            }));
+        "RenderTransform", ValueType::Transform, "UIElement",
+        PropertyMetadata::WithDefault(
+            Value::Transform(vaml::Transform::identity()), PropertyFlags::None));
+
+    // RenderTransformOrigin (S823, UIElement.cs:1378): a Point, default (0,0),
+    // NOT inherited. The normalized-fraction center the transform operates about.
+    (void)DependencyProperty::Register(
+        "RenderTransformOrigin", ValueType::Point, "UIElement",
+        PropertyMetadata::WithDefault(Value::Point(vaml::Point{}), PropertyFlags::None));
 
     // HorizontalAlignment / VerticalAlignment: default Stretch, NOT inherited,
     // stored via the Int32 value path (enum rides Int32, the same convention as
@@ -464,16 +472,19 @@ double UIElement::opacity() const
     return Get(PropertyId::of("Opacity", "UIElement")).get<double>();
 }
 
-// --- S208 RenderTransform (the S120 transform-owner resolution) ---------------
+// --- S823 RenderTransform (the S120 transform-owner resolution, Transform-OBJECT) ---
 
 VAML_CORE_EXPORT
-SetResult UIElement::set_render_transform(const vaml::Matrix2D& value)
+SetResult UIElement::set_render_transform(const std::shared_ptr<vaml::Transform>& value)
 {
-    // A non-finite matrix is REJECTED by the DP validate (never stored). Set
-    // triggers InvalidateArrange: a render transform is a visual change the
-    // encoder re-emits, so the arrange-dirty flag (plus its ancestor chain)
-    // marks the element for a fresh encode pass.
-    const SetResult r = Set(PropertyId::of("RenderTransform", "UIElement"), Value::Matrix2D(value));
+    // S823 (dep:S822): accepts ANY Transform (WPF has no ValidateValueCallback —
+    // a non-finite matrix is WPF-legal; the finite-validity gate stays ONLY at
+    // the S208 encode boundary, never the DP Set). Set triggers InvalidateArrange:
+    // a render transform is a visual change the encoder re-emits, so the
+    // arrange-dirty flag (plus its ancestor chain) marks the element for a fresh
+    // encode pass.
+    const SetResult r = Set(PropertyId::of("RenderTransform", "UIElement"),
+                            Value::Transform(value ? value : vaml::Transform::identity()));
     if (r == SetResult::APPLIED)
     {
         InvalidateArrange();
@@ -482,9 +493,34 @@ SetResult UIElement::set_render_transform(const vaml::Matrix2D& value)
 }
 
 VAML_CORE_EXPORT
-vaml::Matrix2D UIElement::render_transform() const
+std::shared_ptr<vaml::Transform> UIElement::render_transform() const
 {
-    return Get(PropertyId::of("RenderTransform", "UIElement")).get<vaml::Matrix2D>();
+    return Get(PropertyId::of("RenderTransform", "UIElement"))
+        .get<std::shared_ptr<vaml::Transform>>();
+}
+
+// --- S823 RenderTransformOrigin (Point, default (0,0), NOT inherited) --------
+
+VAML_CORE_EXPORT
+SetResult UIElement::set_render_transform_origin(vaml::Point value)
+{
+    // A normalized-fraction center (UIElement.cs:1378). Any real point accepted
+    // incl. <0/>1 (only NaN/±Inf rejected by WPF IsRenderTransformOriginValid —
+    // the DP metadata carries no validate per WPF; the encode boundary folds
+    // defensively). NOT inherited (PropertyFlags::None). A visual change → the
+    // encoder re-emits.
+    const SetResult r = Set(PropertyId::of("RenderTransformOrigin", "UIElement"), Value::Point(value));
+    if (r == SetResult::APPLIED)
+    {
+        InvalidateArrange();
+    }
+    return r;
+}
+
+VAML_CORE_EXPORT
+vaml::Point UIElement::render_transform_origin() const
+{
+    return Get(PropertyId::of("RenderTransformOrigin", "UIElement")).get<vaml::Point>();
 }
 
 // --- S500 DataContext (per-element inheritable context, WPF-faithful) --------

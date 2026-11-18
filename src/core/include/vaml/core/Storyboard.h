@@ -109,7 +109,10 @@ private:
         AnimationTimeline* anim    = nullptr; // non-owning (parent owns)
         UIElement*         target  = nullptr; // resolved element (non-owning)
         double             base    = 0.0;     // base Double value (for By/From defaulting)
-        Matrix2D           baseMtx;            // base RenderTransform (for channel compose)
+        // The captured base RESOLVED RenderTransform MATRIX (S823: the DP holds a
+        // Transform OBJECT; the animation engine captures its resolved matrix() and
+        // re-applies via a MatrixTransform wrapper per tick — the S823-kept seam).
+        Matrix2D           baseMtx;           // base RenderTransform matrix (S823)
         double             begin   = 0.0;      // this child's begin offset (negative-offset)
     };
 

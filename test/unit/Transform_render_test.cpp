@@ -1,17 +1,24 @@
-// S208 (dep:S207) — Transform_render_test: headless proof of the Matrix2D
-// affine value type + the UIElement RenderTransform dependent property (the
+// S208 + S823 (dep:S822) — Transform_render_test: headless proof of the
+// Matrix2D affine value type + the WPF-faithful Transform OBJECT hierarchy +
+// the UIElement RenderTransform/RenderTransformOrigin dependent properties (the
 // S120 transform-owner resolution). No Vulkan runtime needed — pure core.
 //
 // Under test:
 //   (1) Matrix2D factories — identity / translation / scaling / rotation.
 //   (2) affine math — multiply (concatenation), try_invert, transform_point.
 //   (3) validity — is_transform_valid (rejects NaN/Inf) + is_transform_identity.
-//   (4) Value tag — the S208 ADDITIVE Matrix2D ValueType round-trips (the
-//       Value_roundtrip_test.cpp additive case covers the full tag matrix; this
-//       case re-proves the factory/equality path on the real type).
-//   (5) RenderTransform DP — default identity; local set; NOT inherited; a
-//       non-finite matrix is REJECTED (store unchanged); S043 attached-aware
-//       global resolution; Set triggers InvalidateArrange.
+//   (4) S823 Transform OBJECT hierarchy — Transform::identity() default; the
+//       concrete leaves (TranslateTransform/RotateTransform/ScaleTransform/
+//       MatrixTransform) resolve their matrix().
+//   (5) Value tags — the ADDITIVE Matrix2D / Transform / Point ValueType
+//       round-trips.
+//   (6) S823 RenderTransform DP — default identity Transform; local set as a
+//       Transform OBJECT; NOT inherited; ACCEPTS ANY Transform incl. a NaN
+//       matrix WITHOUT throwing (the S810_1 removal — WPF has no
+//       ValidateValueCallback for RenderTransform); S043 attached-aware global
+//       resolution; Set triggers InvalidateArrange.
+//   (7) S823 RenderTransformOrigin — default (0,0); round-trip; NOT inherited;
+//       Point value path.
 
 #include "doctest/doctest.h"
 #include "vaml_test_stringmakers.h"       // S036_2 StringMaker + S036_4 operator<<
@@ -136,51 +143,105 @@ TEST_CASE("S208 Value: Matrix2D factory → tag + equality round-trip (additive)
     CHECK(!(v == Value::Thickness(Thickness{1, 2, 3, 4})));
 }
 
-TEST_CASE("S208 UIElement RenderTransform DP: default identity, local set, NOT inherited")
+TEST_CASE("S823 Transform OBJECT hierarchy: identity + TranslateTransform + center folds")
+{
+    // Transform::identity() is the WPF `Transform.Identity` default: identity matrix.
+    auto id = Transform::identity();
+    REQUIRE(id);
+    CHECK(is_transform_identity(id->matrix()));
+
+    // A TranslateTransform resolves its translation.
+    auto t = std::make_shared<TranslateTransform>(3.0f, -5.0f);
+    CHECK(t->matrix() == Matrix2D::translation(3.0f, -5.0f));
+
+    // A ScaleTransform with a Center folds: T(c)·S·T(−c) — scale about the center.
+    auto s = std::make_shared<ScaleTransform>(2.0f, 2.0f, 10.0f, 10.0f);
+    // Check a corner: scale about (10,10) by 2 maps (12,12) -> (14,14).
+    float ox = 0.0f, oy = 0.0f;
+    transform_point(s->matrix(), 12.0f, 12.0f, ox, oy);
+    CHECK(ox == doctest::Approx(14.0f).epsilon(1e-4f));
+    CHECK(oy == doctest::Approx(14.0f).epsilon(1e-4f));
+
+    // A RotateTransform with a Center folds the rotation about the center.
+    auto r = std::make_shared<RotateTransform>();
+    r->set_angle(90.0f);
+    r->set_center(10.0f, 0.0f);
+    // Rotate (10,1) 90° CCW about center (10,0): the offset (0,1) -> (-1,0),
+    // added to the center -> (9, 0).
+    transform_point(r->matrix(), 10.0f, 1.0f, ox, oy);
+    CHECK(ox == doctest::Approx(9.0f).epsilon(1e-4f));
+    CHECK(oy == doctest::Approx(0.0f).epsilon(1e-4f));
+
+    // A MatrixTransform holds the raw affine verbatim.
+    auto m = std::make_shared<MatrixTransform>(Matrix2D::translation(1.0f, 2.0f));
+    CHECK(m->matrix() == Matrix2D::translation(1.0f, 2.0f));
+}
+
+TEST_CASE("S823 Value: Transform + Point factory → tag + round-trip (additive)")
+{
+    auto t = std::make_shared<TranslateTransform>(1.0f, 2.0f);
+    const Value v = Value::Transform(t);
+    CHECK(v.type() == ValueType::Transform);
+    CHECK(v.get<std::shared_ptr<Transform>>() == t); // shared ownership: same object
+
+    const vaml::Point p{ 0.5f, 0.25f };
+    const Value pv = Value::Point(p);
+    CHECK(pv.type() == ValueType::Point);
+    CHECK(pv.get<vaml::Point>() == p);
+}
+
+TEST_CASE("S823 UIElement RenderTransform DP: default identity Transform, local set, NOT inherited")
 {
     UIElement parent;
     UIElement* child = parent.create_child<UIElement>();
 
-    // Default is identity (no transform).
-    CHECK(is_transform_identity(child->render_transform()));
+    // Default is the shared identity Transform (Transform.Identity, UIElement.cs:1335).
+    auto def = child->render_transform();
+    REQUIRE(def);
+    CHECK(is_transform_identity(def->matrix()));
 
-    // Setting a local transform APPLIES and reads back.
-    const Matrix2D t = Matrix2D::translation(5.0f, 6.0f);
+    // Setting a local Transform APPLIES and reads back (shared ownership).
+    auto t = std::make_shared<TranslateTransform>(5.0f, 6.0f);
     CHECK(child->set_render_transform(t) == SetResult::APPLIED);
     CHECK(child->render_transform() == t);
+    CHECK(child->render_transform()->matrix() == Matrix2D::translation(5.0f, 6.0f));
 
     // NOT inherited: a parent's transform does NOT cascade to a child (unlike
     // Opacity — RenderTransform is registered with PropertyFlags::None).
-    const Matrix2D pt = Matrix2D::translation(100.0f, 0.0f);
-    (void)parent.set_render_transform(pt);
+    (void)parent.set_render_transform(std::make_shared<TranslateTransform>(100.0f, 0.0f));
     CHECK(child->render_transform() == t);  // child KEEPS its own local transform
-    CHECK(parent.render_transform() == pt);
 }
 
-TEST_CASE("S208 UIElement RenderTransform DP: a no-local child under a transformed parent stays identity")
+TEST_CASE("S823 UIElement RenderTransform DP: a no-local child under a transformed parent stays identity")
 {
     UIElement parent;
     UIElement* child = parent.create_child<UIElement>();
 
-    // Parent transformed; child has NO local -> still identity (NOT inherited,
-    // the S208 RenderTransform inheritance decision).
-    (void)parent.set_render_transform(Matrix2D::translation(50.0f, 50.0f));
-    CHECK(is_transform_identity(child->render_transform()));
+    // Parent transformed; child has NO local -> still identity (NOT inherited).
+    (void)parent.set_render_transform(std::make_shared<TranslateTransform>(50.0f, 50.0f));
+    CHECK(is_transform_identity(child->render_transform()->matrix()));
 }
 
-TEST_CASE("S208 UIElement RenderTransform DP: non-finite matrix THROWS InvalidPropertyValueException")
+TEST_CASE("S823 UIElement RenderTransform DP: accepts ANY Transform incl. a NaN matrix WITHOUT throwing")
 {
+    // S823 (WPF fidelity — Rule 1/2): RenderTransformProperty is typedef
+    // typeof(Transform) with NO ValidateValueCallback (UIElement.cs:1335-1340),
+    // so a NON-FINITE matrix is WPF-LEGAL and ACCEPTED at Set — the old S810_1
+    // throw is REMOVED. The finite-validity gate VAML needs stays ONLY at the
+    // S208 raster/encode boundary (is_transform_valid re-scoped there), never the
+    // DP Set. This is the inverse of the S208-era CHECK_THROWS_AS test.
     UIElement e;
-    const Matrix2D bad = Matrix2D::translation(std::numeric_limits<float>::quiet_NaN(), 0.0f);
-    // S810_1: a non-finite RenderTransform is a validate refusal -> THROWS
-    // InvalidPropertyValueException (WPF ArgumentException(InvalidPropertyValue);
-    // SetResult::REJECTED retired as the out-of-range disposition).
-    CHECK_THROWS_AS((void)e.set_render_transform(bad), vaml::InvalidPropertyValueException);
-    // Store unchanged (still identity).
-    CHECK(is_transform_identity(e.render_transform()));
+    auto bad = std::make_shared<MatrixTransform>(
+        Matrix2D::translation(std::numeric_limits<float>::quiet_NaN(), 0.0f));
+    // Does NOT throw: the Transform object is ACCEPTED (WPF accepts any Transform).
+    (void)e.set_render_transform(bad);
+    // The NaN matrix is STORED (WPF-legal at the DP); the ENCODE boundary folds it
+    // defensively (is_transform_valid false -> identity), never the DP.
+    CHECK(e.render_transform() == bad);
+    CHECK(!is_transform_valid(bad->matrix()));
 }
 
-TEST_CASE("S208 UIElement RenderTransform DP: Set triggers InvalidateArrange")
+TEST_CASE("S823 UIElement RenderTransform DP: Set triggers InvalidateArrange")
 {
     UIElement e;
     e.Measure(Size{ 10.0f, 10.0f });
@@ -188,23 +249,50 @@ TEST_CASE("S208 UIElement RenderTransform DP: Set triggers InvalidateArrange")
     CHECK(!e.is_arrange_dirty());  // arranged clean
 
     // A render-transform change is a visual change -> arrange-dirty (fresh pass).
-    (void)e.set_render_transform(Matrix2D::translation(1.0f, 1.0f));
+    (void)e.set_render_transform(std::make_shared<TranslateTransform>(1.0f, 1.0f));
     CHECK(e.is_arrange_dirty());
 }
 
-TEST_CASE("S208 UIElement RenderTransform DP: S043 attached-aware global resolution")
+TEST_CASE("S823 UIElement RenderTransform DP: S043 attached-aware global resolution")
 {
     // RenderTransform is globally registered (self-registration), so it resolves
     // on ANY DependencyObject (S043 attached-aware) and via the PropertyId path.
     UIElement e;
-    (void)e.set_render_transform(Matrix2D::translation(3.0f, 4.0f));
+    (void)e.set_render_transform(std::make_shared<TranslateTransform>(3.0f, 4.0f));
 
     // Unregistered default on a fresh object (the global descriptor applies).
     UIElement fresh;
-    CHECK(is_transform_identity(fresh.render_transform()));
+    CHECK(is_transform_identity(fresh.render_transform()->matrix()));
 
-    // PropertyId path reads the effective value back.
+    // PropertyId path reads the effective value back (Transform-typed, additive).
     const Value v = fresh.Get(PropertyId::of("RenderTransform", "UIElement"));
-    CHECK(v.type() == ValueType::Matrix2D);
-    CHECK(v.get<Matrix2D>() == Matrix2D::identity());
+    CHECK(v.type() == ValueType::Transform);
+}
+
+TEST_CASE("S823 UIElement RenderTransformOrigin DP: default (0,0), round-trip, NOT inherited")
+{
+    UIElement parent;
+    UIElement* child = parent.create_child<UIElement>();
+
+    // Default (0,0).
+    CHECK(child->render_transform_origin() == vaml::Point{});
+
+    // Round-trip.
+    const vaml::Point p{ 0.5f, 0.25f };
+    CHECK(child->set_render_transform_origin(p) == SetResult::APPLIED);
+    CHECK(child->render_transform_origin() == p);
+
+    // NOT inherited: a parent's origin does NOT cascade to a child
+    // (PropertyFlags::None).
+    (void)parent.set_render_transform_origin(vaml::Point{ 1.0f, 1.0f });
+    CHECK(child->render_transform_origin() == p);  // child KEEPS its own local origin
+}
+
+TEST_CASE("S823 UIElement RenderTransformOrigin DP: PropertyId path is Point-typed")
+{
+    UIElement e;
+    (void)e.set_render_transform_origin(vaml::Point{ 0.2f, 0.8f });
+    const Value v = e.Get(PropertyId::of("RenderTransformOrigin", "UIElement"));
+    CHECK(v.type() == ValueType::Point);
+    CHECK(v.get<vaml::Point>() == vaml::Point{ 0.2f, 0.8f });
 }

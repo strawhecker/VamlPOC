@@ -90,6 +90,8 @@ inline std::ostream& operator<<(std::ostream& os, ValueType t)
         case ValueType::Matrix2D:  return os << "Matrix2D";
         case ValueType::GridLength:return os << "GridLength";
         case ValueType::Brush:     return os << "Brush";
+        case ValueType::Transform: return os << "Transform";
+        case ValueType::Point:     return os << "Point";
     }
     return os << "Unknown";
 }
@@ -113,6 +115,8 @@ inline std::ostream& operator<<(std::ostream& os, Value const& v)
         case ValueType::Matrix2D:   os << v.get<Matrix2D>();                  break;
         case ValueType::GridLength: os << v.get<GridLength>();                break;
         case ValueType::Brush:      os << (v.get<std::shared_ptr<::vaml::Brush>>() ? "[Brush object]" : "[null-brush]"); break;
+        case ValueType::Transform:  os << (v.get<std::shared_ptr<::vaml::Transform>>() ? "[Transform object]" : "[null-transform]"); break;
+        case ValueType::Point:      os << "(" << v.get<::vaml::Point>().x << "," << v.get<::vaml::Point>().y << ")"; break;
     }
     return os << ">";
 }
@@ -167,6 +171,8 @@ inline const char* vaml_value_type_name(vaml::ValueType t)
         case vaml::ValueType::Matrix2D:  return "Matrix2D";
         case vaml::ValueType::GridLength:return "GridLength";
         case vaml::ValueType::Brush:     return "Brush";
+        case vaml::ValueType::Transform: return "Transform";
+        case vaml::ValueType::Point:     return "Point";
     }
     return "Unknown";
 }
@@ -197,6 +203,8 @@ struct StringMaker<vaml::Value>
             case vaml::ValueType::Matrix2D:   os << v.get<vaml::Matrix2D>();        break;
             case vaml::ValueType::GridLength: os << v.get<vaml::GridLength>();      break;
             case vaml::ValueType::Brush:      os << (v.get<std::shared_ptr<::vaml::Brush>>() ? "[Brush object]" : "[null-brush]"); break;
+            case vaml::ValueType::Transform:  os << (v.get<std::shared_ptr<::vaml::Transform>>() ? "[Transform object]" : "[null-transform]"); break;
+            case vaml::ValueType::Point:      os << "(" << v.get<::vaml::Point>().x << "," << v.get<::vaml::Point>().y << ")"; break;
         }
         os << ">";
         return os.str().c_str(); // doctest::String(const char*)

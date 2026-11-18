@@ -48,6 +48,14 @@ void translate_of(const Matrix2D& m, double& dx, double& dy)
     dy = m.dy;
 }
 
+// S823 — resolves the element's RenderTransform to its affine MATRIX (the DP
+// holds a Transform OBJECT). A null/identity transform -> identity matrix.
+vaml::Matrix2D render_matrix(const vaml::UIElement& e)
+{
+    const std::shared_ptr<vaml::Transform> tf = e.render_transform();
+    return tf ? tf->matrix() : vaml::Matrix2D::identity();
+}
+
 [[nodiscard]] bool feq(double a, double b, double eps = 1e-6)
 {
     return std::fabs(a - b) <= eps;
@@ -281,7 +289,7 @@ TEST_CASE("S510: a REAL Storyboard animates Opacity + RenderTransform via tick")
     CHECK(feq(host.opacity(), 1.0));
     {
         double dx = 0, dy = 0;
-        translate_of(host.render_transform(), dx, dy);
+        translate_of(render_matrix(host), dx, dy);
         CHECK(feq(dx, 0.0));
     }
 
@@ -290,7 +298,7 @@ TEST_CASE("S510: a REAL Storyboard animates Opacity + RenderTransform via tick")
     CHECK(feq(host.opacity(), 0.5));
     {
         double dx = 0, dy = 0;
-        translate_of(host.render_transform(), dx, dy);
+        translate_of(render_matrix(host), dx, dy);
         CHECK(feq(dx, 20.0));
     }
 
@@ -299,7 +307,7 @@ TEST_CASE("S510: a REAL Storyboard animates Opacity + RenderTransform via tick")
     CHECK(feq(host.opacity(), 0.0));
     {
         double dx = 0, dy = 0;
-        translate_of(host.render_transform(), dx, dy);
+        translate_of(render_matrix(host), dx, dy);
         CHECK(feq(dx, 40.0));
     }
 }
@@ -366,8 +374,9 @@ TEST_CASE("S510: transform animation COMPOSES over the captured base transform")
 {
     vaml::register_builtin_elements();
     StackPanel host;
-    // A pre-existing base transform: translate (10, 5).
-    (void)host.set_render_transform(Matrix2D::translation(10.0f, 5.0f));
+    // A pre-existing base transform: translate (10, 5) (S823: a MatrixTransform).
+    (void)host.set_render_transform(std::make_shared<vaml::MatrixTransform>(
+        Matrix2D::translation(10.0f, 5.0f)));
 
     Storyboard sb;
     auto ty = std::make_unique<TransformAnimation>();
@@ -383,7 +392,7 @@ TEST_CASE("S510: transform animation COMPOSES over the captured base transform")
     sb.tick(1.0);
     {
         double dx = 0, dy = 0;
-        translate_of(host.render_transform(), dx, dy);
+        translate_of(render_matrix(host), dx, dy);
         CHECK(feq(dx, 10.0));
         CHECK(feq(dy, 25.0));
     }

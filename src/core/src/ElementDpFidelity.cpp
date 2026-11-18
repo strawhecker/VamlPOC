@@ -117,8 +117,12 @@ void run_dp_fidelity_closure()
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     dp_register_guard("Effect",              ValueType::String, "UIElement",
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
-    dp_register_guard("RenderTransformOrigin", ValueType::String, "UIElement",
-        PropertyMetadata::WithDefault(Value::String(std::string("0.5,0.5")), PropertyFlags::None));
+    // S823 — RenderTransformOrigin is REMOVED from this fidelity table: the real
+    // Point-typed UIElement DP (owner "UIElement", default (0,0), NOT inherited)
+    // is the SINGLE canonical registration, delivered by UIElement.cpp (S823).
+    // The invented String-typed placeholder row (`0.5,0.5`) is deleted; the raw
+    // `"x,y"` attribute now converts via the S823 Point converter onto the real
+    // Point DP, WPF-faithful (UIElement.cs:1378, default (0,0)).
 
     // FrameworkElement (beyond Width/Height/Margin/alignment/Tag already
     // shared) — WPF-faithful base surface.

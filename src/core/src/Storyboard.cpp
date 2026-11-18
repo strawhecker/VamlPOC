@@ -12,6 +12,16 @@
 
 namespace vaml {
 
+namespace {
+// S823 — the animation engine writes the composed RenderTransform as a
+// Transform OBJECT (the DP is WPF-faithful object-typed): wrap the composed
+// Matrix2D in a MatrixTransform. Pure + cheap (a single shared_ptr).
+std::shared_ptr<MatrixTransform> to_transform(const Matrix2D& m)
+{
+    return std::make_shared<MatrixTransform>(m);
+}
+} // namespace
+
 // ---------------------------------------------------------------------------
 // ParallelTimeline
 // ---------------------------------------------------------------------------
@@ -65,7 +75,13 @@ void Storyboard::start(UIElement* root, NameResolver resolve)
         a.anim   = anim;
         a.target = target;
         a.begin  = anim->begin_time(); // negative offset (start-late)
-        a.baseMtx = target->render_transform();
+        // S823: the DP holds a Transform OBJECT; capture its resolved matrix() as
+        // the base for channel-composition (a null/identity transform -> identity).
+        a.baseMtx = Matrix2D::identity();
+        if (const std::shared_ptr<Transform> tf = target->render_transform())
+        {
+            a.baseMtx = tf->matrix();
+        }
         if (anim->target_kind() == AnimationTargetKind::DoubleProperty)
         {
             const PropertyId id = anim->target_property();
@@ -110,7 +126,7 @@ void Storyboard::apply(const Active& a, double elapsed)
             }
             else
             {
-                (void)a.target->set_render_transform(a.baseMtx);
+                (void)a.target->set_render_transform(to_transform(a.baseMtx));
             }
         }
         else
@@ -124,7 +140,7 @@ void Storyboard::apply(const Active& a, double elapsed)
             else
             {
                 const Matrix2D result = multiply(a.baseMtx, channel_matrix(a.anim->transform_channel(), v));
-                (void)a.target->set_render_transform(result);
+                (void)a.target->set_render_transform(to_transform(result));
             }
         }
         return;
@@ -138,7 +154,7 @@ void Storyboard::apply(const Active& a, double elapsed)
     else
     {
         const Matrix2D result = multiply(a.baseMtx, channel_matrix(a.anim->transform_channel(), v));
-        (void)a.target->set_render_transform(result);
+        (void)a.target->set_render_transform(to_transform(result));
     }
 }
 
@@ -188,7 +204,7 @@ void Storyboard::complete(bool holdEnd)
             {
                 const Matrix2D result =
                     multiply(a.baseMtx, channel_matrix(a.anim->transform_channel(), v));
-                (void)a.target->set_render_transform(result);
+                (void)a.target->set_render_transform(to_transform(result));
             }
         }
         else
@@ -200,7 +216,7 @@ void Storyboard::complete(bool holdEnd)
             }
             else
             {
-                (void)a.target->set_render_transform(a.baseMtx);
+                (void)a.target->set_render_transform(to_transform(a.baseMtx));
             }
         }
     }

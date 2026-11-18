@@ -1,20 +1,26 @@
-// S208 (dep:S207) — UiSceneEncoder_transform_test: headless proof that the
-// encoder HONORS Opacity + Clip + RenderTransform when it emits the S206 draw
-// list (the S208 headline). No Vulkan runtime needed.
+// S208 + S823 (dep:S822) — UiSceneEncoder_transform_test: headless proof that the
+// encoder HONORS Opacity + Clip + RenderTransform + RenderTransformOrigin when it
+// emits the S206 draw list (the S208 headline, migrated onto the Transform
+// OBJECT at S823). No Vulkan runtime needed.
 //
 // Under test:
 //   (1) effective_opacity — the ancestor-chain PRODUCT (child 0.8 under a
 //       0.5 parent -> 0.4; identity chain -> 1; zero ancestor -> 0).
 //   (2) Opacity folded into item alpha — the encoder multiplies each emitted
 //       item's alpha by its effective opacity.
-//   (3) RenderTransform — a rotated/translated child's emitted item carries the
-//       per-element Model; append_ui_item CPU-folds it (transformed corners).
-//   (4) Clip — a transformed element overflowing its slot marks clipActive with
-//       the S124 render slot; an identity-transform element stays unclipped
-//       (backward-compatible batching).
-//   (5) Grouping — identity-transform same-color elements stay ONE batch; a
-//       clipped/transformed element splits into its own batch; MaterialGroupCount
-//       <= batch_count for a clipped list.
+//   (3) RenderTransform — a transformed child's emitted item carries the
+//       RESOLVED Model (the authored Transform's matrix()); append_ui_item
+//       CPU-folds it.
+//   (4) RenderTransformOrigin — the origin folds the model about the
+//       normalized-fraction center (T(−o)·M·T(+o)); identity -> no fold; zero
+//       origin -> no origin terms.
+//   (5) Clip — a transformed element overflowing its slot marks clipActive with
+//       the S124 render slot; an identity-transform element stays unclipped.
+//   (6) NaN-matrix Transform — the DP accepts it (WPF-legal, no throw) and the
+//       ENCODE boundary folds it defensively to identity (no crash, still
+//       renders unclipped/identity) — the finite-validity gate is encode-only.
+//   (7) Grouping — identity-transform same-color elements stay ONE batch; a
+//       clipped/transformed element splits into its own batch.
 
 #include <vaml/vulkan/ui/UiScene.h>          // DrawItem, Color4, solid_rect, batch_plan
 #include <vaml/vulkan/ui/UiSceneEncoder.h>   // the S208 encoder + effective_opacity
@@ -28,6 +34,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -147,7 +154,7 @@ TEST_CASE("S208 encoder: effective opacity folds into the emitted item alpha")
     CHECK(out[1].a == doctest::Approx(0.5f).epsilon(1e-6f));
 }
 
-TEST_CASE("S208 encoder: RenderTransform — a translated element carries the Model")
+TEST_CASE("S208/S823 encoder: RenderTransform — a translated Transform-object element carries the Model")
 {
     clear_visuals();
     vaml::StackPanel root;
@@ -159,14 +166,15 @@ TEST_CASE("S208 encoder: RenderTransform — a translated element carries the Mo
     const vaml::Rect fr = leaf->final_rect();
     assign_solid(*leaf, { 0, 0, 1, 1 });
 
-    // Translate the leaf by (+5, +5) in layout px.
-    (void)leaf->set_render_transform(vaml::Matrix2D::translation(5.0f, 5.0f));
+    // Translate the leaf by (+5, +5) as a Transform OBJECT (S823).
+    (void)leaf->set_render_transform(
+        std::make_shared<vaml::TranslateTransform>(5.0f, 5.0f));
 
     std::vector<DrawItem> out;
     encode_visual_tree(root, visual_of, out);
     REQUIRE(out.size() == 1u);
 
-    // The item carries the element's Model (not identity).
+    // The item carries the resolved Model (the Transform's matrix), not identity.
     CHECK(out[0].model == vaml::Matrix2D::translation(5.0f, 5.0f));
 
     // A transformed element is clipped to its S124 render slot.
@@ -175,6 +183,84 @@ TEST_CASE("S208 encoder: RenderTransform — a translated element carries the Mo
     CHECK(out[0].clipY == doctest::Approx(fr.y));
     CHECK(out[0].clipW == doctest::Approx(fr.width));
     CHECK(out[0].clipH == doctest::Approx(fr.height));
+}
+
+TEST_CASE("S823 encoder: RenderTransformOrigin folds the model about the fraction center")
+{
+    clear_visuals();
+    vaml::StackPanel root;
+    SolidLeaf* leaf = root.create_child<SolidLeaf>(100.0f, 100.0f);
+    (void)root.set_horizontal_alignment(vaml::HorizontalAlignment::Left);
+    (void)root.set_vertical_alignment(vaml::VerticalAlignment::Top);
+    root.Measure(vaml::Size{ 200.0f, 200.0f });
+    root.Arrange(vaml::Rect{ 0.0f, 0.0f, 200.0f, 200.0f });
+    leaf->Measure(vaml::Size{ 200.0f, 200.0f });
+    leaf->Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
+
+    const vaml::Rect fr = leaf->final_rect();
+    (void)fr;
+    assign_solid(*leaf, { 1, 0, 0, 1 });
+
+    // A translate + origin (0.5,0.5): the model folds about the center.
+    (void)leaf->set_render_transform(
+        std::make_shared<vaml::TranslateTransform>(10.0f, 10.0f));
+    (void)leaf->set_render_transform_origin(vaml::Point{ 0.5f, 0.5f });
+
+    std::vector<DrawItem> out;
+    encode_visual_tree(root, visual_of, out);
+    REQUIRE(out.size() == 1u);
+
+    // originPx = (100·0.5, 100·0.5) = (50,50). M' = T(−50)·T(10)·T(+50):
+    // a pure translation that CANCELS the origin terms (translate is
+    // translation-invariant about any center) -> still T(10).
+    CHECK(out[0].model == vaml::Matrix2D::translation(10.0f, 10.0f));
+    CHECK(out[0].clipActive);
+}
+
+TEST_CASE("S823 encoder: RenderTransformOrigin zero origin adds NO origin terms")
+{
+    clear_visuals();
+    vaml::StackPanel root;
+    SolidLeaf* leaf = root.create_child<SolidLeaf>(10.0f, 10.0f);
+    root.Measure(vaml::Size{ 100.0f, vaml::Size::Infinite().height });
+    root.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 200.0f });
+    assign_solid(*leaf, { 1, 0, 0, 1 });
+
+    (void)leaf->set_render_transform(
+        std::make_shared<vaml::TranslateTransform>(5.0f, 0.0f));
+    // Explicit (0,0) origin (the WPF ArrangeCore "zero origin -> no origin terms").
+    (void)leaf->set_render_transform_origin(vaml::Point{ 0.0f, 0.0f });
+
+    std::vector<DrawItem> out;
+    encode_visual_tree(root, visual_of, out);
+    REQUIRE(out.size() == 1u);
+    CHECK(out[0].model == vaml::Matrix2D::translation(5.0f, 0.0f));
+}
+
+TEST_CASE("S823 encoder: a NaN-matrix Transform is accepted at Set and folded to identity at encode")
+{
+    clear_visuals();
+    vaml::StackPanel root;
+    SolidLeaf* leaf = root.create_child<SolidLeaf>(10.0f, 10.0f);
+    root.Measure(vaml::Size{ 100.0f, vaml::Size::Infinite().height });
+    root.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 200.0f });
+    assign_solid(*leaf, { 1, 0, 0, 1 });
+
+    // A NaN TRANSLATION Transform — WPF-legal at Set (no throw), accepted.
+    auto bad = std::make_shared<vaml::MatrixTransform>(
+        vaml::Matrix2D::translation(std::numeric_limits<float>::quiet_NaN(), 0.0f));
+    (void)leaf->set_render_transform(bad);
+    CHECK(!vaml::is_transform_valid(bad->matrix()));
+
+    std::vector<DrawItem> out;
+    encode_visual_tree(root, visual_of, out);
+    REQUIRE(out.size() == 1u);
+
+    // The ENCODE-boundary finite-validity gate folds the non-finite matrix to
+    // identity — no NaN/Inf geometry reaches the rasterizer, no crash, and the
+    // element stays UNCLIPPED (identity → backward-compatible batching).
+    CHECK(vaml::is_transform_identity(out[0].model));
+    CHECK(!out[0].clipActive);
 }
 
 TEST_CASE("S208 append_ui_item: CPU-folds the Model into the quad corners")

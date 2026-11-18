@@ -686,6 +686,17 @@ private:
     // brush's ordered stop vector. Never a visual child.
     void build_linear_gradient(LinearGradientBrush& brush, const ParsedElement& element);
 
+    // S823 (dep:S822) — TRANSFORM AUTHORING. Builds one authored TRANSFORM LEAF
+    // element (a `<RotateTransform>`/`<ScaleTransform>`/`<TranslateTransform>`/
+    // `<MatrixTransform>`) from its attributes into a REAL `Transform` OBJECT
+    // (WPF-faithful: the transform types derive `Transform : GeneralTransform :
+    // Freezable : DependencyObject`, NOT FrameworkElement, so they are NOT
+    // built-in element factories — a reader-local authoring path). Returns the
+    // resolved shared Transform (the RenderTransform DP holds it as
+    // Value::Transform). An unrecognized/non-transform leaf fails loud (never
+    // silent). ADR-018 zero locks.
+    std::shared_ptr<vaml::Transform> build_transform(const ParsedElement& element);
+
     // 11k-4 (dep:11k-3/S453/S460) — VECTOR-DRAWING AUTHORING. These consume an
     // authored vector/drawing/brush RESOURCE element into its owned data model
     // (the S460 build_linear_gradient precedent). Each is a RESOURCE (captured

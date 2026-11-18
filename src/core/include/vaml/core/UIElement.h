@@ -72,7 +72,7 @@
 #include "vaml/core/Geometry.h"     // Size, Rect
 #include "vaml/core/LayoutSlot.h"   // HorizontalAlignment, VerticalAlignment
 #include "vaml/core/Thickness.h"    // Thickness (Margin DP)
-#include "vaml/core/Transform.h"    // Matrix2D (RenderTransform DP)
+#include "vaml/core/Transform.h"    // Transform + Matrix2D (S823 RenderTransform OBJECT DP)
 #include "vaml/core/Signal.h"       // Signal<T> (S320 — per-event routed-handler lists)
 #include "vaml/core/RoutedEvent.h"  // RoutedEvent / RoutedEventArgs (S320) — routed-handler surface
 
@@ -350,18 +350,34 @@ public:
     [[nodiscard]] SetResult set_opacity(double value);
     [[nodiscard]] double opacity() const;
 
-    // --- RenderTransform (REAL DP; the S208 Resolution) --------------    // The per-element 2D affine model matrix (default identity), NOT inherited
-    // (each element owns its own, like Margin). WPF-faithful: FrameworkElement
-    // renders at its layout slot (final_rect) and maps its content through this
-    // transform; S208's encoder CPU-folds it into the quad vertex positions
-    // BEFORE the S200 MVP projection (the per-element Model composes into the
-    // MVP) and clips overflow to final_rect via a dynamic scissor. A NON-FINITE
-    // matrix (NaN/Inf, e.g. from a bad rotate/scale) is REJECTED at Set
-    // (is_transform_valid() validate — the renderer never sees NaN/Inf
-    // geometry). Set triggers InvalidateArrange() (a visual change → the
-    // encoder re-emits).
-    [[nodiscard]] SetResult set_render_transform(const vaml::Matrix2D& value);
-    [[nodiscard]] vaml::Matrix2D render_transform() const;
+    // --- RenderTransform (REAL DP; the S823 Transform-object migration) ----    // The per-element 2D affine model transform, WPF-FAITHFUL OBJECT semantics:
+    // the DP holds a `Transform` OBJECT (Value::Transform(shared_ptr<Transform>),
+    // default `Transform::identity()` — the `Transform.Identity` default,
+    // UIElement.cs:1335-1340 is typeof(Transform) with NO ValidateValueCallback).
+    // NOT inherited (PropertyFlags::None, each element owns its own, like Margin).
+    // WPF accepts ANY Transform — there is NO finite-validity rejection at the
+    // DP Set (a NaN/Inf matrix is WPF-legal); the finite-validity gate VAML
+    // needs stays ONLY at the S208 raster/encode boundary (`is_transform_valid`
+    // re-scoped there), NEVER here. FrameworkElement renders at its layout slot
+    // (final_rect) and maps its content through this transform; S208's encoder
+    // resolves the authored Transform's matrix() and CPU-folds it into the quad
+    // vertex positions BEFORE the S200 MVP projection, then honors
+    // RenderTransformOrigin. Set triggers InvalidateArrange() (a visual change →
+    // the encoder re-emits).
+    [[nodiscard]] SetResult set_render_transform(const std::shared_ptr<vaml::Transform>& value);
+    [[nodiscard]] std::shared_ptr<vaml::Transform> render_transform() const;
+
+    // --- RenderTransformOrigin (REAL DP; S823) ----------------------------
+    // WPF-faithful (UIElement.cs:1378): a Point (default (0,0)), NOT inherited
+    // (PropertyFlags::None). The center (as a normalized FRACTION of the layout
+    // slot: origin.x × width, origin.y × height) the RenderTransform scales/
+    // rotates about — the S208 fold `T(−originPx)·M·T(+originPx)`,
+    // `originPx = (fr.width·origin.x, fr.height·origin.y)`, exactly WPF
+    // ArrangeCore (UIElement.cs:1253-1296: identity -> NO fold, zero origin ->
+    // NO origin terms; any real fraction incl. <0/>1 is legal — only NaN/±Inf
+    // is rejected by IsRenderTransformOriginValid, UIElement.cs:1389-1396).
+    [[nodiscard]] SetResult set_render_transform_origin(vaml::Point value);
+    [[nodiscard]] vaml::Point render_transform_origin() const;
 
     // --- Effect (S511 — per-element visual effect) ---------------------
     // WPF-faithful (UIElement.Effect): OPTIONAL visual effect applied when the

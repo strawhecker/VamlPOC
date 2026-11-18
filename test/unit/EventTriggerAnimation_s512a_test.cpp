@@ -112,7 +112,7 @@ TEST_CASE("S512a: a raised Click begins the storyboard, which ticks a target to 
 
     // Before the click nothing animates.
     CHECK(feq(ball->opacity(), 1.0));
-    CHECK(feq(ball->render_transform().dx, 0.0));
+    CHECK(feq(ball->render_transform()->matrix().dx, 0.0));
 
     // A REAL routed raise on the root fires the EventTrigger -> BeginStoryboard
     // begins its Storyboard. We simulate the S510 clock advancing the started
@@ -136,7 +136,7 @@ TEST_CASE("S512a: a raised Click begins the storyboard, which ticks a target to 
     begin->storyboard()->tick(1.0);
 
     CHECK(feq(ball->opacity(), 0.0));                  // faded to 0
-    CHECK(feq(ball->render_transform().dx, 50.0));     // translated +50 X
+    CHECK(feq(ball->render_transform()->matrix().dx, 50.0));     // translated +50 X
 }
 
 TEST_CASE("S512a: a Property/Data trigger is ignored by attach_event_triggers (S363 owns it)")

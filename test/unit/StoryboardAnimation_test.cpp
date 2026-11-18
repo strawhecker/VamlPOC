@@ -38,6 +38,14 @@ namespace {
     return std::fabs(a - b) <= eps;
 }
 
+// S823 - resolves the element RenderTransform to its affine MATRIX (the DP
+// holds a Transform OBJECT). A null/identity transform -> identity matrix.
+vaml::Matrix2D render_matrix(const vaml::UIElement& e)
+{
+    const std::shared_ptr<vaml::Transform> tf = e.render_transform();
+    return tf ? tf->matrix() : vaml::Matrix2D::identity();
+}
+
 } // namespace
 
 TEST_CASE("S510: a Storyboard animates a NAMED child resolved by the resolver")
@@ -98,7 +106,7 @@ TEST_CASE("S510: storyboard tick drives the S208 RenderTransform channel live")
 {
     vaml::register_builtin_elements();
     StackPanel host;
-    (void)host.set_render_transform(vaml::Matrix2D::translation(10.0f, 0.0f));
+    (void)host.set_render_transform(std::make_shared<vaml::MatrixTransform>(vaml::Matrix2D::translation(10.0f, 0.0f)));
 
     Storyboard sb;
     auto move = std::make_unique<TransformAnimation>();
@@ -111,9 +119,9 @@ TEST_CASE("S510: storyboard tick drives the S208 RenderTransform channel live")
     sb.start(&host, nullptr);
 
     sb.tick(0.5);
-    CHECK(feq(host.render_transform().dx, 10.0f + 25.0f));
+    CHECK(feq(render_matrix(host).dx, 10.0f + 25.0f));
     sb.tick(1.0);
-    CHECK(feq(host.render_transform().dx, 10.0f + 50.0f));
+    CHECK(feq(render_matrix(host).dx, 10.0f + 50.0f));
 }
 
 TEST_CASE("S510: RepeatBehavior forever on a transform channel keeps cycling")
@@ -133,16 +141,16 @@ TEST_CASE("S510: RepeatBehavior forever on a transform channel keeps cycling")
     sb.start(&host, nullptr);
 
     sb.tick(0.5);
-    CHECK(feq(host.render_transform().dy, 5.0));
+    CHECK(feq(render_matrix(host).dy, 5.0));
     sb.tick(1.5); // second cycle -> back at midpoint
-    CHECK(feq(host.render_transform().dy, 5.0));
+    CHECK(feq(render_matrix(host).dy, 5.0));
 }
 
 TEST_CASE("S510: stop() restores the captured base transform (FillBehavior Stop)")
 {
     vaml::register_builtin_elements();
     StackPanel host;
-    (void)host.set_render_transform(vaml::Matrix2D::translation(7.0f, 0.0f));
+    (void)host.set_render_transform(std::make_shared<vaml::MatrixTransform>(vaml::Matrix2D::translation(7.0f, 0.0f)));
 
     Storyboard sb;
     auto move = std::make_unique<TransformAnimation>();
@@ -156,7 +164,7 @@ TEST_CASE("S510: stop() restores the captured base transform (FillBehavior Stop)
     sb.start(&host, nullptr);
 
     sb.tick(0.5);
-    CHECK(feq(host.render_transform().dx, 7.0f + 50.0f));
+    CHECK(feq(render_matrix(host).dx, 7.0f + 50.0f));
     sb.stop();
-    CHECK(feq(host.render_transform().dx, 7.0f)); // base restored
+    CHECK(feq(render_matrix(host).dx, 7.0f)); // base restored
 }

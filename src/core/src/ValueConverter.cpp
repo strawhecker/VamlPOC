@@ -341,6 +341,23 @@ void register_builtin_converters()
         return Value::GridLength(vaml::parse_grid_length(s));
     });
 
+    // S823 — the Point converter (RenderTransformOrigin = "x,y", the WPF
+    // PointConverter FromString comma-separated pair). Any real values accepted
+    // incl. negative/>1 (WPF PointConverter only rejects malformed syntax).
+    registry.register_converter("Point", [](std::string_view s) -> Value {
+        const std::size_t comma = s.find(',');
+        if (comma == std::string_view::npos || comma == s.size() - 1)
+        {
+            throw ValueConversionException(
+                ValueConversionError::MalformedValue, std::string(), std::string(s),
+                "a Point requires 'x,y' (MalformedValue)");
+        }
+        const Value x = convert_double(s.substr(0, comma));
+        const Value y = convert_double(s.substr(comma + 1));
+        return Value::Point(vaml::Point{ static_cast<float>(x.get<double>()),
+                                         static_cast<float>(y.get<double>()) });
+    });
+
     registry.register_converter("Color", [](std::string_view s) -> Value {
         return Value::Color(vaml::parse_color(s));
     });
