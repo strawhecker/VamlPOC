@@ -60,16 +60,41 @@ void register_framework_element_properties()
 
     // HorizontalAlignment / VerticalAlignment: default Stretch (WPF FE.cs:3744),
     // NOT inherited, Int32-rides-enum (WPF-true: Stretch=3).
+    //
+    // S824a (WPF-fidelity boundary gate): mirrors WPF FE.cs:3741-3758 — both
+    // DPs carry AffectsArrange (FE.cs:3748) AND a ValidateValueCallback
+    // (ValidateHorizontalAlignmentValue / ValidateVerticalAlignmentValue,
+    // FE.cs:3751/3783) that accepts ONLY the declared enum range
+    // (Left/Top=0..Stretch=3). Authoring an out-of-range value (HorizontalAlignment
+    // ="4" or "=-1", a raw Int32 past the enum domain) THROWS
+    // InvalidPropertyValueException at the Set boundary (store unchanged) via
+    // the S810_1 false-ValidateFunc disposition — matching WPF's
+    // ArgumentException(InvalidPropertyValue) at DependencyObject.cs:653.
+    // 0/1/2/3 all resolve; Stretch=3 is the in-range default. The
+    // Int32-rides-enum mapping (S120/S600/S648) is UNCHANGED — only the WPF
+    // validate callback + AffectsArrange flag are added.
     (void)DependencyProperty::Register(
         "HorizontalAlignment", ValueType::Int32, "FrameworkElement",
-        PropertyMetadata::WithDefault(
-            Value::Int32(static_cast<std::int32_t>(HorizontalAlignment::Stretch)),
-            PropertyFlags::None));
+        std::move(PropertyMetadata::WithDefault(
+                      Value::Int32(static_cast<std::int32_t>(HorizontalAlignment::Stretch)),
+                      PropertyFlags::AffectsArrange))
+            .with_validate([](const Value& v) {
+                const int x = v.get<int>();
+                // WPF ValidateHorizontalAlignmentValue (FE.cs:3751-3757):
+                // Left(0)/Center(1)/Right(2)/Stretch(3).
+                return x == 0 || x == 1 || x == 2 || x == 3;
+            }));
     (void)DependencyProperty::Register(
         "VerticalAlignment", ValueType::Int32, "FrameworkElement",
-        PropertyMetadata::WithDefault(
-            Value::Int32(static_cast<std::int32_t>(VerticalAlignment::Stretch)),
-            PropertyFlags::None));
+        std::move(PropertyMetadata::WithDefault(
+                      Value::Int32(static_cast<std::int32_t>(VerticalAlignment::Stretch)),
+                      PropertyFlags::AffectsArrange))
+            .with_validate([](const Value& v) {
+                const int x = v.get<int>();
+                // WPF ValidateVerticalAlignmentValue (FE.cs:3783-3789):
+                // Top(0)/Center(1)/Bottom(2)/Stretch(3).
+                return x == 0 || x == 1 || x == 2 || x == 3;
+            }));
 
     // Width / Height (WPF FE.cs:3466/3545): default auto/NaN, NOT inherited.
     (void)DependencyProperty::Register(

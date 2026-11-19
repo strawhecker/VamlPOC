@@ -1,4 +1,4 @@
-﻿// S122 (dep:S121) â€” LayoutSlot + final rect + DesiredSize + Margin + alignment.
+// S122 (dep:S121) â€” LayoutSlot + final rect + DesiredSize + Margin + alignment.
 //
 // Resolves the S120 layout-slot sentinel (the real layout geometry now lives
 // on UIElement + LayoutSlot.h). Under test:
@@ -23,8 +23,10 @@
 #include <vaml/assert/Shouldly.h>
 
 #include "vaml/core/DependencyObject.h"
+#include "vaml/core/DependencyProperty.h"
 #include "vaml/core/Geometry.h"
 #include "vaml/core/LayoutSlot.h"
+#include "vaml/core/PropertyFlags.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
 #include "vaml/core/Value.h"
@@ -33,8 +35,11 @@
 #include <limits>
 
 using vaml::DependencyObject;
+using vaml::DependencyProperty;
 using vaml::HorizontalAlignment;
+using vaml::InvalidPropertyValueException;
 using vaml::LayoutSlot;
+using vaml::PropertyFlags;
 using vaml::Rect;
 using vaml::SetResult;
 using vaml::Size;
@@ -43,6 +48,7 @@ using vaml::UIElement;
 using vaml::Value;
 using vaml::ValueTypeMismatch;
 using vaml::VerticalAlignment;
+using vaml::has_flag;
 using vaml::test::ShouldThrow;
 
 namespace {
@@ -230,6 +236,76 @@ TEST_CASE("S122: layout DP wrong-tag write throws ValueTypeMismatch")
     }));
     // Store unchanged = the SYMBOLIC default Stretch=3 (S11p re-pointing).
     SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));
+}
+
+TEST_CASE("S824a: alignment DPs — WPF boundary gate (0/1/2/3 resolve; 4/-1 throw; store unchanged)")
+{
+    UIElement el;
+    const auto hId = vaml::PropertyId::of("HorizontalAlignment", "FrameworkElement");
+    const auto vId = vaml::PropertyId::of("VerticalAlignment", "FrameworkElement");
+
+    // Start from a non-default state so every in-domain Set below is a REAL
+    // change (Set to the already-effective default Stretch=3 returns NO_CHANGE,
+    // the no-op optimization — not a boundary signal).
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(1))).ShouldBe(SetResult::APPLIED)); // Center
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(2))).ShouldBe(SetResult::APPLIED)); // Bottom
+
+    // The four in-domain values resolve — Left/Top(0) Center(1) Right/Bottom(2)
+    // Stretch(3). WPF-true ordinals: HorizontalAlignment
+    // { Left=0, Center=1, Right=2, Stretch=3 } (FE.cs:28), VerticalAlignment
+    // { Top=0, Center=1, Bottom=2, Stretch=3 } (FE.cs:57).
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(0))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(0));
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(2))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(2));
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(3))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(0))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(0));
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(1))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(1));
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(3))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(3));
+
+    // Out-of-domain values are REJECTED at the boundary (WPF
+    // ValidateHorizontalAlignmentValue FE.cs:3751 / ValidateVerticalAlignmentValue
+    // FE.cs:3783): the ValidateFunc is false -> InvalidPropertyValueException
+    // (S810_1 disposition; WPF ArgumentException(InvalidPropertyValue)), and the
+    // store stays UNCHANGED (still Stretch=3 from the last in-domain Set).
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(hId, Value::Int32(4));
+    }));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(hId, Value::Int32(-1));
+    }));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(vId, Value::Int32(4));
+    }));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(vId, Value::Int32(-1));
+    }));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(3));
+
+    // The typed accessor path flows through the same gate: an enum value always
+    // maps into 0/1/2/3, so it keeps resolving; a synthetic out-of-range enum is
+    // impossible, but the generic path above already proves the boundary.
+    SHOULD(ShouldlyString(el.set_horizontal_alignment(HorizontalAlignment::Left)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(0));
+    SHOULD(ShouldlyString(el.set_vertical_alignment(VerticalAlignment::Top)).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(0));
+}
+
+TEST_CASE("S824a: alignment DPs carry AffectsArrange (WPF FE.cs:3748)")
+{
+    // Both alignment DPs are registered by owner "FrameworkElement" WITH
+    // PropertyFlags::AffectsArrange — the WPF FE.cs:3748 flag — so a change
+    // dirties the OWN arrange axis through the S818 Affects* invalidation
+    // engine (no new mechanism, 11aa S818).
+    const DependencyProperty& h = DependencyProperty::Get("HorizontalAlignment", "FrameworkElement");
+    const DependencyProperty& v = DependencyProperty::Get("VerticalAlignment", "FrameworkElement");
+    SHOULD(ShouldlyString(has_flag(h.flags(), PropertyFlags::AffectsArrange)).ShouldBe(true));
+    SHOULD(ShouldlyString(has_flag(v.flags(), PropertyFlags::AffectsArrange)).ShouldBe(true));
 }
 
 // --- Slots -------------------------------------------------------------------

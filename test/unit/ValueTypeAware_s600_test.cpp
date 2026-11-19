@@ -295,6 +295,32 @@ TEST_CASE("S600: DP defaults are symbolic — a default element reads Stretch al
     REQUIRE(orient->memberValues[1] == 1);
 }
 
+TEST_CASE("S824a: alignment enum domains lock the WPF-true ordinal set (Left/Top=0..Stretch=3)")
+{
+    // S824a (WPF-fidelity boundary, dep:S824): the four alignment domains MUST
+    // carry the WPF-true ordinals (FrameworkElement.cs:28/57 + Control.cs ->
+    // HorizontalAlignment/VerticalAlignment), never an invented re-ordering.
+    // Full-set lock: each domain's memberValues run 0,1,2,3 in WPF order, so a
+    // DP-boundary reflect of the domain range == the same values the S824a
+    // ValidateFuncs accept (0/1/2/3). No member may be missing or re-slotted.
+    const struct { const char* name; } domains[] = {
+        { "HorizontalAlignment" },        // Left=0 Center=1 Right=2 Stretch=3
+        { "VerticalAlignment" },          // Top=0 Center=1 Bottom=2 Stretch=3
+        { "HorizontalContentAlignment" }, // Left=0 Center=1 Right=2 Stretch=3
+        { "VerticalContentAlignment" },   // Top=0 Center=1 Bottom=2 Stretch=3
+    };
+    for (const auto& d : domains)
+    {
+        const EnumDomain* dom = EnumDomainRegistry::global().try_find(d.name);
+        REQUIRE(dom != nullptr);
+        REQUIRE(dom->count == 4);
+        REQUIRE(dom->memberValues[0] == 0);
+        REQUIRE(dom->memberValues[1] == 1);
+        REQUIRE(dom->memberValues[2] == 2);
+        REQUIRE(dom->memberValues[3] == 3);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 6. Both readers agree (S2 text + S7 compiled) — S288 parity for enum conversion.
 // ---------------------------------------------------------------------------

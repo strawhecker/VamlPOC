@@ -151,6 +151,64 @@ TEST_CASE("S821: Visibility — exception names the property + the offending val
     SHOULD(ShouldlyString(rendered).ShouldBe("UIElement.Visibility=3"));
 }
 
+TEST_CASE("S824a: alignment DPs — WPF boundary gate (0/1/2/3 resolve; 4/-1 throw; store unchanged)")
+{
+    UIElement el;
+    const PropertyId hId = PropertyId::of("HorizontalAlignment", "FrameworkElement");
+    const PropertyId vId = PropertyId::of("VerticalAlignment", "FrameworkElement");
+
+    // Start from a non-default state so every in-domain Set is a REAL change.
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(1))).ShouldBe(SetResult::APPLIED)); // Center
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(2))).ShouldBe(SetResult::APPLIED)); // Bottom
+
+    // The four in-domain values resolve — WPF-true ordinals (FE.cs:28/57).
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(0))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(2))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.Set(hId, Value::Int32(3))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(0))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(1))).ShouldBe(SetResult::APPLIED));
+    SHOULD(ShouldlyString(el.Set(vId, Value::Int32(3))).ShouldBe(SetResult::APPLIED));
+
+    // Out-of-domain values are REJECTED at the boundary (WPF
+    // ValidateHorizontalAlignmentValue FE.cs:3751 / ValidateVerticalAlignmentValue
+    // FE.cs:3783): ValidateFunc false -> InvalidPropertyValueException (S810_1),
+    // store unchanged (still Stretch=3 from the last in-domain Set).
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(hId, Value::Int32(4));
+    }));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(hId, Value::Int32(-1));
+    }));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(vId, Value::Int32(4));
+    }));
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        (void)el.Set(vId, Value::Int32(-1));
+    }));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.horizontal_alignment())).ShouldBe(3));
+    SHOULD(ShouldlyString(static_cast<std::int32_t>(el.vertical_alignment())).ShouldBe(3));
+}
+
+TEST_CASE("S824a: alignment DP exception names the property + the offending value")
+{
+    UIElement el;
+    const PropertyId hId = PropertyId::of("HorizontalAlignment", "FrameworkElement");
+
+    // Mirrors the S821 Visibility naming contract: the thrown
+    // InvalidPropertyValueException names the canonical dotted owner.name form
+    // (WPF ArgumentException(InvalidPropertyValue) at DO.cs:653).
+    std::string rendered;
+    SHOULD(ShouldThrow<InvalidPropertyValueException>([&] {
+        try {
+            (void)el.Set(hId, Value::Int32(4));
+        } catch (const InvalidPropertyValueException& e) {
+            rendered = e.property_name() + "=" + e.value();
+            throw;
+        }
+    }));
+    SHOULD(ShouldlyString(rendered).ShouldBe("FrameworkElement.HorizontalAlignment=4"));
+}
+
 TEST_CASE("S120: Visibility — wrong-tag write throws ValueTypeMismatch")
 {
     UIElement el;
