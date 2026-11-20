@@ -1377,6 +1377,20 @@ add_executable(vaml-presentation-tests
     # RadioButton check-glyph / ComboBox field / ListBox-ListView fill), + the
     # checked-vs-unchecked RadioButton alpha. Headless.
     ViewerSelectionMaterial_test.cpp
+    # 11ab (dep:S824) — VIEWER-GROWTH(11ab): THE CLOSED SURFACES RENDERED LIVE.
+    # sample.s11ab.vaml authors ALL FOUR S821/S822/S823/S824 closures
+    # (Visibility=Collapsed + a visible sibling; a panel Opacity=0.75 with a
+    # child Opacity=0.8 — the compositor subtree product; RenderTransformOrigin=
+    # 0.5,0.5 + an authored RotateTransform Angle=45; FE-branch alignment/Width/
+    # Height on a FrameworkElement-branch control). Each must RESOLVE + RENDER
+    # via the generic renderer (the S222_1/11k-6 RELOAD re-demonstration — prove
+    # NO regression from the S824 re-base). Compiles the seam
+    # viewer_growth_11ab.h (ADR-021) + links vaml-presentation (which PUBLIC-
+    # links vaml-vulkan, so the S212 encode_visual_slice render-plan + the S207
+    # effective_opacity + UiScene are provable).
+    # [both-apps, not CI]: the LIVE WINDOW display of the closure sample stays
+    # the on-machine local gate (recorded NO-GAP).
+    ViewerGrowth11ab_test.cpp
     # S440 (dep:S408) — the APP-SHELL: the authored MainView.vaml + the REAL
     # Window (re-based onto UIElement) + run_app_shell_plan, which Loads the
     # shell through a RETAINED VamlReader and calls finalize_visual_tree() — the

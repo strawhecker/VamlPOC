@@ -1,0 +1,79 @@
+<!-- vaml_viewer — Sprint 11ab VIEWER-GROWTH sample (dep:S824, Sprint 11ab): the
+     CLOSED SURFACES RENDERED LIVE. The four S821/S822/S823/S824 closures all
+     resolve + render through the generic renderer (the S222_1/11k-6 RELOAD
+     re-demonstrated — proving NO regression from the S824 re-base).
+
+     The sample AUTHORS all four closures in one corpus-shaped doc:
+
+       1. Visibility="Collapsed" (S821 — the WPF ComputeValidateVisibility
+          boundary gate). A Rectangle authored Collapsed must NOT render (the
+          S207 encoder's SkipCollapsed rule), while its visible sibling does —
+          the "closed" closure proves the Collapsed gate lands in the LIVE
+          renderer.
+
+       2. a panel Opacity="0.75" with a child (S822 — the compositor subtree
+          model). The S208 encoder's effective_opacity is the visual-ancestor
+          chain PRODUCT, so the child under the 0.75 panel renders at 0.75 × its
+          own (compositor subtree alpha), and the panel itself renders at 0.75.
+
+       3. RenderTransformOrigin="0.5,0.5" + an authored RotateTransform
+          Angle="45" (S823 — the WPF-faithful Transform-object DP). The S208
+          encoder resolves the authored Transform's matrix() and folds the
+          RenderTransformOrigin about the fraction center (WPF ArrangeCore);
+          the rotated rectangle's emitted item carries a NON-identity Model +
+          a dynamic clip to its render slot.
+
+       4. FE-branch alignment/Width/Height authors on a FrameworkElement-branch
+          control (S824 — the layout-slot re-key). A Rectangle (FrameworkElement-
+          derived) authors Width/Height + Horizontal/VerticalAlignment; these
+          resolve under owner "FrameworkElement" (their WPF home) and constrain
+          its final_rect.
+
+     The LIVE window display is the [both-apps, not CI] on-machine gate; the
+     SEAM (vaml_viewer/viewer_growth_11ab.h + its headless test) is the CI-
+     checkable half of the exact code path. ADR-021 consumer path. NO MINIMAL
+     REAL. ADR-018 ZERO new locks. -->
+
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="Root" Width="640" Height="520" Margin="6"
+            Background="#F0F0F0">
+  <TextBlock Text="11ab — the closed surfaces render live"
+             FontSize="16" Margin="4"/>
+
+  <!-- Closure 1 (S821): Visibility=Collapsed — ColRect must NOT render, while
+       its visible sibling VisRect does (the generic-renderer Collapsed gate). -->
+  <StackPanel Orientation="0" Margin="4">
+    <Rectangle x:Name="ColRect" Width="180" Height="40" Margin="2"
+               Visibility="Collapsed" Fill="#FF0000"/>
+    <Rectangle x:Name="VisRect" Width="180" Height="40" Margin="2"
+               Visibility="Visible" Fill="#00FF00"/>
+  </StackPanel>
+
+  <!-- Closure 2 (S822): a panel Opacity=0.75 with a child Opacity=0.8 — the
+       compositor subtree model. OpPanel renders at 0.75 (its own); OpChild
+       renders at 0.75 × its own 0.8 = 0.6 — effective_opacity is the visual-
+       ancestor chain PRODUCT (the WPF base.VisualOpacity composition). -->
+  <StackPanel x:Name="OpPanel" Opacity="0.75" Orientation="0" Margin="4"
+              Width="320" Height="72" Background="#808080">
+    <Rectangle x:Name="OpChild" Width="200" Height="44" Margin="2"
+               Opacity="0.8" Fill="#0000FF"/>
+  </StackPanel>
+
+  <!-- Closure 3 (S823): RenderTransformOrigin="0.5,0.5" + an authored
+       RotateTransform Angle="45" — the Transform-object DP. RotRect's emitted
+       item carries the folded rotation about its fraction center. -->
+  <Rectangle x:Name="RotRect" Width="120" Height="120" Margin="4"
+             Fill="#FFAA00" RenderTransformOrigin="0.5,0.5">
+    <Rectangle.RenderTransform>
+      <RotateTransform Angle="45"/>
+    </Rectangle.RenderTransform>
+  </Rectangle>
+
+  <!-- Closure 4 (S824): FE-branch alignment/Width/Height on a FrameworkElement-
+       branch control (Rectangle : FrameworkElement). FeRect resolves Width/
+       Height/HAlignment/VAlignment under owner "FrameworkElement" and the
+       authored Width constrains its final_rect. -->
+  <Rectangle x:Name="FeRect" Width="200" Height="50" Margin="4"
+             HorizontalAlignment="Center" VerticalAlignment="Top"
+             Fill="#FF00FF"/>
+</StackPanel>
