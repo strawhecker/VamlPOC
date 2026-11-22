@@ -5771,7 +5771,14 @@ VAML_CORE_EXPORT
 SetResult Expander::set_is_expanded(std::int32_t value)
 {
     const int v = value ? 1 : 0;
-    return Set(PropertyId::of("IsExpanded","Expander"), Value::Int32(v));
+    SetResult result = Set(PropertyId::of("IsExpanded","Expander"), Value::Int32(v));
+    // S829 (WPF AffectsMeasure/Arrange): expanding/collapsing shows or hides the
+    // content child, changing this element's DesiredSize + layout. Invalidate so
+    // the S829 clean-element early-out recomputes rather than returning a stale
+    // cached DesiredSize at an unchanged constraint.
+    InvalidateMeasure();
+    InvalidateArrange();
+    return result;
 }
 
 VAML_CORE_EXPORT

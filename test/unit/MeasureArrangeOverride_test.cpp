@@ -253,16 +253,15 @@ TEST_CASE("S127: Measure invokes MeasureOverride and Arrange invokes ArrangeOver
 
 // --- 5. Measure finalizes first (stretch-vs-wrap intact) ------------------------
 
-TEST_CASE("S127: Measure finalizes first — Stretch finite fills available into desired_size")
+TEST_CASE("S127: Measure finalizes first — empty panel reports {0,0}, NOT the offer (alignment-agnostic)")
 {
-    // An empty panel's MeasureOverride returns natural {0,0}; with default
-    // Stretch + a finite available, Measure STILL finalizes first into
-    // desired_size == available (the S123 stretch-vs-wrap rule is intact after
-    // the rename). This is the same finalizer S127 preserved while renaming the
-    // seam (S123's header contract: Measure calls the content seam, THEN
-    // compute_measured_desired).
+    // An empty panel's MeasureOverride returns natural {0,0}; S827/S828 make
+    // Measure ALIGNMENT-AGNOSTIC, so a default-Stretch empty panel reports
+    // DesiredSize {0,0} (its content extent), NOT the offered bound. Stretch is
+    // an arrange-only fill. This confirms Measure still routes through the
+    // content seam + compute_measured_desired finalizer.
     AutoDrivePanel panel;
     panel.Measure(Size{ 200.0f, 100.0f });
-    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(200.0f));
-    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(0.0f));
+    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(0.0f));
 }

@@ -583,6 +583,20 @@ private:
     vaml::Rect final_rect_     = {};                        // S122/S124 final rect (Arrange writes)
     bool       measure_dirty_  = true;                      // S126 layout-dirty flag (measure axis)
     bool       arrange_dirty_  = true;                      // S126 layout-dirty flag (arrange axis)
+    // --- S829 measure-entry fidelity (WPF UIElement.Measure) -----------------
+    // measure_in_progress_: reentrancy guard (WPF MeasureInProgress /
+    //   Dispatcher.DisableProcessing — "We cannot survive reentrancy"). A
+    //   recursive Measure on this element bails instead of recursing.
+    // never_measured_: WPF NeverMeasured — true until the first real Measure
+    //   completes; blocks the clean early-out so the first pass always runs.
+    //   (Consumed by S835/11ad's arrange `MeasureDirty || NeverMeasured` too.)
+    // previous_available_: WPF _previousAvailableSize (default (0,0), paired
+    //   with never_measured_ exactly like WPF); a clean Measure at a close
+    //   constraint returns the cached DesiredSize without recomputing.
+    // Single-threaded (UI/affinity thread) — ADR-018 ZERO new locks.
+    bool       measure_in_progress_ = false;                // S829 reentrancy guard
+    bool       never_measured_      = true;                 // S829 WPF NeverMeasured
+    vaml::Size previous_available_  = {};                   // S829 WPF _previousAvailableSize
     // S818: render-dirty flag (InvalidateVisual / AffectsRender). Default
     // FALSE — a fresh element is not render-dirty until its first
     // InvalidateVisual or an AffectsRender change (unlike measure/arrange,

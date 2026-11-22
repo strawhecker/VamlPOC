@@ -160,14 +160,14 @@ TEST_CASE("S125: leaf — infinite-available Stretch wraps to content (cannot st
     SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(20.0f));
 }
 
-TEST_CASE("S125: leaf — finite-available Stretch fills the available bound")
+TEST_CASE("S125: leaf — finite-available Stretch reports CONTENT, not the offer (Stretch is arrange-only)")
 {
-    // A Stretch leaf with a finite offered bound fills it (DesiredSize == available), NOT its
-    // smaller content — stretch measures to the slot.
+    // S827/S828: a Stretch leaf no longer fills at Measure time; DesiredSize is
+    // the content extent. It fills the offered slot only at Arrange.
     TextLikeLeaf leaf{ Size{ 100.0f, 30.0f } };
     leaf.Measure(Size{ 400.0f, 200.0f });
-    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(400.0f));
-    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(200.0f));
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(30.0f));
 }
 
 TEST_CASE("S125: leaf — Arrange pins the measured content inside the slot per alignment")
@@ -207,21 +207,24 @@ TEST_CASE("S125: leaf — Margin + alignment interplay (origin advances; content
     SHOULD(ShouldlyString(leaf.final_rect().bottom() <= 100.0f).ShouldBe(true));
 }
 
-TEST_CASE("S125: leaf — content clamped when the offered bound is smaller (never overflows)")
+TEST_CASE("S125: leaf — oversized content is UN-CLAMPED at Measure, bounded only at Arrange")
 {
-    // A non-Stretch leaf whose content (100x50) exceeds a smaller offered bound (60x40):
-    // the desired WRAPS to min(content, available) = 60x40 — content is clamped to the slot,
-    // never overflowing (the S123 non-Stretch finite rule).
+    // S827: a non-Stretch leaf whose content (100x50) exceeds a smaller offered
+    // bound (60x40) still reports its CONTENT {100,50} — DesiredSize may exceed
+    // the offer. The final render slot is bounded by the parent at Arrange.
     TextLikeLeaf leaf{ Size{ 100.0f, 50.0f } };
     (void)leaf.set_horizontal_alignment(HorizontalAlignment::Left);
     (void)leaf.set_vertical_alignment(VerticalAlignment::Top);
     leaf.Measure(Size{ 60.0f, 40.0f });
-    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(60.0f));
-    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(40.0f));
-    // Arrange into a slot exactly that size -> never negative geometry escapes.
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(50.0f));
+    // Arrange into a slot exactly that size -> never negative geometry escapes,
+    // and the render slot stays bounded to the offer.
     leaf.Arrange(rect_of(0.0f, 0.0f, 60.0f, 40.0f));
     SHOULD(ShouldlyString(leaf.final_rect().width >= 0.0f).ShouldBe(true));
     SHOULD(ShouldlyString(leaf.final_rect().height >= 0.0f).ShouldBe(true));
+    SHOULD(ShouldlyString(leaf.final_rect().right() <= 60.0f).ShouldBe(true));
+    SHOULD(ShouldlyString(leaf.final_rect().bottom() <= 40.0f).ShouldBe(true));
 }
 
 // --- ARCHETYPE 2: panels measure children + arrange each into its slot ------------------

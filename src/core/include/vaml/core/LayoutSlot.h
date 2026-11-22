@@ -72,24 +72,24 @@ VAML_CORE_EXPORT Rect compute_final_rect(const LayoutSlot& slot,
                                          VerticalAlignment vAlign);
 
 // Computes a child's MEASURED DesiredSize from its un-finalized content extent
-// (`natural`) against the `available` bounds, honoring the S123 infinity-aware
-// stretch-vs-wrap contract. S123's UIElement::Measure calls this to finalize
-// its DesiredSize; S125/S129/S131 panels reuse it when measuring children.
-// WPF-faithful + infinity-aware (INFINITE available = Size::Infinite(),
-// the "unbounded axis" sentinel S123 consumes):
-//   * Stretch axis + FINITE available   -> DesiredSize = available (fills).
-//   * Stretch axis + INFINITE available -> DesiredSize = natural (cannot
-//     stretch to infinity, so the axis WRAPS to content).
-//   * Non-Stretch axis (Left/Center/Right / Top/Center/Bottom) + FINITE
-//     available -> DesiredSize = min(natural, available) (wrap/clamp).
-//   * Non-Stretch axis + INFINITE available -> DesiredSize = natural
-//     (min(x, infinity) == x).
-// Never negative: the result is clamped >= 0 and `Size::Infinite()` never
-// escapes into a DesiredSize (a measured size is always finite).
-VAML_CORE_EXPORT Size compute_measured_desired(Size natural,
-                                               Size available,
-                                               HorizontalAlignment hAlign,
-                                               VerticalAlignment vAlign);
+// (`natural`). S123's UIElement::Measure calls this to finalize its DesiredSize;
+// S125/S129/S131 panels reuse it when measuring children.
+//
+// S827/S828 (WPF-fidelity drift closure): Measure is ALIGNMENT-AGNOSTIC and
+// does NOT clamp to the offered size. WPF's MeasureCore simply returns
+// `MeasureOverride(content)` (FrameworkElement.cs:~4385) — the Stretch-vs-wrap
+// decision is an ARRANGE concern (ArrangeCore, `FE.cs:4617-4623`), NOT a
+// Measure one. So this finalizer returns the element's un-clamped content
+// extent: `natural` per axis, guarded `>= 0`. DesiredSize may therefore EXCEED
+// `available` (WPF's recorded "soft constraint" / unclippedDesiredSize,
+// UIElement.cs:541-551) — the final render slot is still parent-bounded by
+// compute_final_rect (Arrange) until S832 (11ad) adds the arrange-side clip.
+//
+// There is NO "Stretch + finite -> available (fill)" and NO invented
+// "Stretch + infinite -> wrap" special-case: those were the drift S827/S828
+// removed. A measured size is always finite and never negative (the input
+// `natural` is finite; the result is clamped >= 0).
+VAML_CORE_EXPORT Size compute_measured_desired(Size natural);
 
 // The S124 rectangular CLIP op — "clip bounds honored by render slot".
 // Returns `content ∩ clipBounds` (the clipped content rect), clamped so the

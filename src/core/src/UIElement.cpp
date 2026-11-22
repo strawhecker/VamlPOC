@@ -32,6 +32,7 @@
 #include "vaml/core/Signal.h"        // S320 Signal<T>
 
 #include <algorithm>
+#include <cmath>    // std::fabs / std::isnan (S829 measure guard epsilon compare)
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -638,49 +639,120 @@ Size UIElement::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 
+// --- S829: WPF "close enough" available-size compare ------------------------
+// Mirrors WPF DoubleUtil.AreClose for the measure guard's
+// `isCloseToPreviousMeasure` check (UIElement.cs:648-651). Any NaN (the
+// un-measured `previous_available_` sentinel, or an explicit-size NaN) compares
+// NOT-close, so the first Measure always runs. Single-threaded; no locking
+// (ADR-018).
+namespace {
+bool sizes_close(float a, float b) noexcept
+{
+    if (std::isnan(a) || std::isnan(b))
+    {
+        return false; // NaN never close (previous_available_ starts { NaN, NaN })
+    }
+    if (std::isinf(a) || std::isinf(b))
+    {
+        return a == b; // only inf==inf counts as close
+    }
+    return std::fabs(a - b) <= 1e-4f;
+}
+
+bool sizes_close(const Size& a, const Size& b) noexcept
+{
+    return sizes_close(a.width, b.width) && sizes_close(a.height, b.height);
+}
+
+// RAII reentrancy-flag guard (exception-safe reset of measure_in_progress_).
+struct MeasureReentrancyGuard
+{
+    bool& flag;
+    explicit MeasureReentrancyGuard(bool& f) noexcept : flag(f) { flag = true; }
+    ~MeasureReentrancyGuard() noexcept { flag = false; }
+    MeasureReentrancyGuard(const MeasureReentrancyGuard&) = delete;
+    MeasureReentrancyGuard& operator=(const MeasureReentrancyGuard&) = delete;
+};
+} // namespace
+
 VAML_CORE_EXPORT
 void UIElement::Measure(const Size& available)
 {
-    // The S123 contract: Measure(available) -> DesiredSize, WPF-faithful margin
-    // handling (S130_1 — resolves the S130-recorded fidelity gap; not silent):
-    // the offered `available` is first SHRUNK by this element's Margin (a
-    // margin'd child's content wraps within its INNER constraint, mirroring
-    // WPF FrameworkElement.MeasureCore), MeasureOverride sees that inner size,
-    // the infinity-aware stretch-vs-wrap rule (compute_measured_desired)
-    // finalizes against the inner size, and the margin is then ADDED BACK into
-    // DesiredSize — so a margin'd element reports a LARGER DesiredSize that
-    // legitimately propagates into a parent panel's DesiredSize (WPF StackPanel
-    // DesiredSize includes child margins). The margin-inflated extent is
-    // clamped to the original `available` (never exceeds the offer, never
-    // negative) — the same anti-overflow, anti-negative guarantee S123 upholds.
+    // S827/S828/S829 — the WPF-faithful Measure contract.
+    //
+    // Entry order mirrors UIElement.Measure (UIElement.cs:561-676):
+    //   (a) reentrancy guard  (WPF: using(Dispatcher.DisableProcessing()) +
+    //       MeasureInProgress — "We cannot survive reentrancy in these paths");
+    //   (b) Collapsed skip    (skip measure, KEEP measure_dirty_ set so a reveal
+    //       re-measures — UIElement.cs:661-676);
+    //   (c) clean early-out   (already-measured + unchanged constraint returns
+    //       the cached DesiredSize — UIElement.cs:648-651).
+    //
+    // Body (S827/S828): the offered `available` is shrunk by Margin (content
+    // wraps within its INNER constraint, WPF MeasureCore); MeasureOverride sees
+    // that inner size; the finalizer returns the UN-CLAMPED content extent
+    // (alignment is arrange-only, compute_measured_desired(natural)); the margin
+    // is added back. DesiredSize may therefore EXCEED `available` (WPF
+    // soft-constraint / unclippedDesiredSize) — the render slot stays
+    // parent-bounded by compute_final_rect until S832 (11ad) adds the
+    // arrange-side clip.
+    if (measure_in_progress_)
+    {
+        // Reentrancy: a Measure must not recursively re-enter itself. WPF makes
+        // this impossible via DisableProcessing; single-threaded VAML guards it
+        // with a flag and bails (do NOT recurse, do NOT clear dirty here).
+        return;
+    }
+
+    const bool isCloseToPrevious = sizes_close(available, previous_available_);
+
+    if (visibility() == Visibility::Collapsed)
+    {
+        // WPF: a Collapsed element is not measured; KEEP measure_dirty_ set so
+        // the next revealing Measure runs. Track a changed constraint so a
+        // reveal re-measures at the right size (UIElement.cs:661-676).
+        if (!isCloseToPrevious)
+        {
+            previous_available_ = available;
+        }
+        return;
+    }
+
+    if (!measure_dirty_ && !never_measured_ && isCloseToPrevious)
+    {
+        // Clean + same constraint: keep the cached DesiredSize, don't recompute
+        // (WPF IsMeasureValid && !neverMeasured && isCloseToPreviousMeasure).
+        return;
+    }
+
+    const MeasureReentrancyGuard reentrancy_guard(measure_in_progress_);
+
     const Thickness m = margin();
     const float innerAvailW = std::max(0.0f, available.width - m.left - m.right);
     const float innerAvailH = std::max(0.0f, available.height - m.top - m.bottom);
     const Size inner{ innerAvailW, innerAvailH };
 
     const Size natural0 = MeasureOverride(inner);
-    // WPF-style explicit Width/Height (the .xaml source-import line): an
-    // explicit POSITIVE value becomes the axis's natural extent (a hard
-    // constraint the finalizer then stretches/wraps/clamps WPF-faithfully);
-    // NaN/0 leave the content extent unchanged (auto). Never negative.
+    // WPF-style explicit Width/Height: an explicit POSITIVE value becomes the
+    // axis's natural extent (a hard constraint); NaN/0 leave the content extent
+    // unchanged (auto). Never negative.
     const Size natural = {
         reconcile_axis(width(), natural0.width),
         reconcile_axis(height(), natural0.height),
     };
-    Size d = vaml::compute_measured_desired(
-        natural, inner, horizontal_alignment(), vertical_alignment());
+    Size d = vaml::compute_measured_desired(natural);
 
     d.width += m.left + m.right;
     d.height += m.top + m.bottom;
+    // S827: NOT clamped to the offered size — DesiredSize may exceed it.
     desired_size_ = {
-        std::max(0.0f, std::min(d.width, available.width)),
-        std::max(0.0f, std::min(d.height, available.height)),
+        std::max(0.0f, d.width),
+        std::max(0.0f, d.height),
     };
 
-    // A completed Measure pass clears this element's measure-dirty flag (S126):
-    // it no longer needs measuring. The LayoutManager gates its pass on the
-    // root's bit; panels re-measure only dirty children, each of which clears
-    // its own bit here, so one pass over a dirty subgraph leaves it clean.
+    previous_available_ = available;
+    never_measured_ = false;
+    // A completed Measure pass clears this element's measure-dirty flag (S126).
     measure_dirty_ = false;
 }
 
@@ -930,6 +1002,13 @@ void UIElement::attach_child(std::unique_ptr<UIElement> child)
     // opacity PRODUCT; the DP itself never cascades.
     raw->set_parent(this);
     children_.push_back(std::move(child));
+    // S829 (WPF AffectsMeasure/Arrange): adding a visual child changes this
+    // element's DesiredSize + layout, so invalidate. Required for the S829
+    // clean-element early-out to be correct — without it, a re-measure at an
+    // unchanged constraint would return a STALE cached DesiredSize (WPF's
+    // Panel.Children.Add invalidates measure the same way).
+    InvalidateMeasure();
+    InvalidateArrange();
 }
 
 VAML_CORE_EXPORT
@@ -951,6 +1030,10 @@ std::size_t UIElement::remove_child(std::size_t index)
     // no dangling scope edge survives the removal (NO-LAZY).
     child->set_parent(nullptr);
     children_.erase(it); // destroys the owned child
+    // S829 (WPF AffectsMeasure/Arrange): removing a child changes this element's
+    // DesiredSize + layout — invalidate so the next Measure recomputes.
+    InvalidateMeasure();
+    InvalidateArrange();
     return children_.size();
 }
 
@@ -969,6 +1052,10 @@ std::unique_ptr<UIElement> UIElement::take_child(std::size_t index)
     child->set_parent(nullptr);
     std::unique_ptr<UIElement> detached = std::move(*it);
     children_.erase(it);
+    // S829 (WPF AffectsMeasure/Arrange): a detached child no longer contributes
+    // to this element's DesiredSize — invalidate so the next Measure recomputes.
+    InvalidateMeasure();
+    InvalidateArrange();
     return detached;
 }
 

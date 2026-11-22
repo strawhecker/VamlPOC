@@ -91,19 +91,21 @@ private:
 // Vertical children natural = {maxW=100, Σh=50} (A={100,30}, B={50,20}).
 // ============================================================
 
-TEST_CASE("S130 A1: Stretch/Stretch panel + finite available -> desired fills BOTH axes")
+TEST_CASE("S130 A1: Stretch/Stretch panel + finite available -> desired = panel CONTENT (not the offer)")
 {
     StackPanel panel;
     RecorderLeaf* a = panel.create_child<RecorderLeaf>(Size{ 100.0f, 30.0f });
     RecorderLeaf* b = panel.create_child<RecorderLeaf>(Size{ 50.0f, 20.0f });
     (void)a;
     (void)b;
-    // Panel is default Stretch/Stretch. A finite available -> MeasureOverride
-    // yields the natural {100,50}, then compute_measured_desired (Stretch +
-    // finite) fills BOTH axes to the offered bound.
+    // S827/S828: Measure is alignment-agnostic and does NOT fill the offer. The
+    // panel's MeasureOverride yields its content natural {maxW=100, Σh=50};
+    // DesiredSize is that content, NOT the {300,200} offer (Stretch is
+    // arrange-only). Children are default-Stretch but measure to their content
+    // (not the finite cross offer) after S827/S828.
     panel.Measure(Size{ 300.0f, 200.0f });
-    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(300.0f));
-    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(200.0f));
+    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
 }
 
 TEST_CASE("S130 A2: Stretch/Stretch panel + unbounded available -> desired WRAPS to natural")
@@ -121,17 +123,18 @@ TEST_CASE("S130 A2: Stretch/Stretch panel + unbounded available -> desired WRAPS
     SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
 }
 
-TEST_CASE("S130 A3: Stretch/Stretch panel + mixed axes -> finite width fills, stack axis wraps")
+TEST_CASE("S130 A3: Stretch/Stretch panel + mixed axes -> desired = content on BOTH axes")
 {
     StackPanel panel;
     RecorderLeaf* a = panel.create_child<RecorderLeaf>(Size{ 100.0f, 30.0f });
     RecorderLeaf* b = panel.create_child<RecorderLeaf>(Size{ 50.0f, 20.0f });
     (void)a;
     (void)b;
-    // {300,∞}: the panel fills the finite width 300 (Stretch) but WRAPS its
-    // stack axis (infinity) to Σ child heights = 50.
+    // {300,∞}: S827/S828 mean the finite width is NOT filled at Measure — the
+    // panel reports its content {maxW=100, Σh=50} on both axes (Stretch/arrange
+    // fills the finite width later, not here).
     panel.Measure(Size{ 300.0f, Size::Infinite().height });
-    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(300.0f));
+    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
 }
 
@@ -154,11 +157,13 @@ TEST_CASE("S130 A4: non-Stretch panel + finite available -> desired = min(natura
     SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
 
-    // available smaller than natural -> desired clamps to available, never
-    // negative (children Left wrap to the narrower offer, Σh clamps to 30).
+    // S827: content is UN-CLAMPED to the offer even here. A smaller offer does
+    // not shrink the DesiredSize — children (Left) still report their content,
+    // so panel natural stays {maxW=100, Σh=50}; the render slot is bounded at
+    // Arrange, not Measure.
     panel.Measure(Size{ 40.0f, 30.0f });
-    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(40.0f));
-    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(30.0f));
+    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
 }
 
 TEST_CASE("S130 A4h: horizontal mirror of the non-Stretch desired rule")
@@ -203,11 +208,13 @@ TEST_CASE("S130 B5: vertical stack — a Stretch child stretches cross-axis, wra
     SHOULD(ShouldlyString(a->last_available().width).ShouldBe(300.0f));
     SHOULD(ShouldlyString(a->last_available().height)
                .ShouldBe(std::numeric_limits<float>::infinity()));
-    // Stretch cross-axis -> fills 300; stack-axis ∞ -> wraps to content height.
-    SHOULD(ShouldlyString(a->desired_size().width).ShouldBe(300.0f));
+    // S828: the child now measures to its CONTENT (cross-axis Stretch is an
+    // arrange-time fill; Measure is alignment-agnostic). Stack-axis ∞ wraps to
+    // content height.
+    SHOULD(ShouldlyString(a->desired_size().width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(a->desired_size().height).ShouldBe(30.0f));
-    // b mirrors (content height 20).
-    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(300.0f));
+    // b mirrors its content (width 50, height 20).
+    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(50.0f));
     SHOULD(ShouldlyString(b->desired_size().height).ShouldBe(20.0f));
 }
 
@@ -268,9 +275,10 @@ TEST_CASE("S130 B8: horizontal mirror — cross axis is height")
 
     panel.Measure(Size{ Size::Infinite().width, 500.0f });
 
-    // Stretch child: fills cross height 500, wraps stack width to content 100.
+    // S828: the Stretch child measures to its CONTENT (width 100, height 30); the
+    // finite cross height 500 is filled at ARRANGE, not Measure.
     SHOULD(ShouldlyString(stretch->desired_size().width).ShouldBe(100.0f));
-    SHOULD(ShouldlyString(stretch->desired_size().height).ShouldBe(500.0f));
+    SHOULD(ShouldlyString(stretch->desired_size().height).ShouldBe(30.0f));
     // Top (non-Stretch) child: keeps content height 20 (no blind cross stretch).
     SHOULD(ShouldlyString(top->desired_size().width).ShouldBe(50.0f));
     SHOULD(ShouldlyString(top->desired_size().height).ShouldBe(20.0f));
@@ -559,20 +567,22 @@ TEST_CASE("S130 D18: dirty scoping of stretch — re-measuring a dirty Stretch c
     panel.Arrange(Rect{ 0.0f, 0.0f, 300.0f, 100.0f });
     SHOULD(ShouldlyString(a->measure_count()).ShouldBe(1));
     SHOULD(ShouldlyString(b->measure_count()).ShouldBe(1));
-    SHOULD(ShouldlyString(a->desired_size().width).ShouldBe(300.0f));
-    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(300.0f));
+    // S827/S828: children measure to their CONTENT (100 / 50), not the cross offer.
+    SHOULD(ShouldlyString(a->desired_size().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(50.0f));
 
     // Invalidate ONLY a's measure; re-measure the panel at a WIDER width.
     a->InvalidateMeasure();
     panel.Measure(Size{ 450.0f, Size::Infinite().height });
 
-    // a re-measured (cross-axis stretch recomputed to the new 450 offer).
+    // a re-measured; its DesiredSize is still its content (100) — the offer no
+    // longer sets a Stretch child's measured cross size.
     SHOULD(ShouldlyString(a->measure_count()).ShouldBe(2));
     SHOULD(ShouldlyString(a->last_available().width).ShouldBe(450.0f));
-    SHOULD(ShouldlyString(a->desired_size().width).ShouldBe(450.0f));
-    // b NOT re-measured — its desired_size is reused from the first pass.
+    SHOULD(ShouldlyString(a->desired_size().width).ShouldBe(100.0f));
+    // b NOT re-measured — its desired_size is reused from the first pass (50).
     SHOULD(ShouldlyString(b->measure_count()).ShouldBe(1));
-    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(300.0f));
+    SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(50.0f));
 
     // Arrange axis: invalidate ONLY a's arrange; re-arrange.
     a->InvalidateArrange();

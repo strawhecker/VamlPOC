@@ -74,65 +74,23 @@ Rect compute_final_rect(const LayoutSlot& slot,
 }
 
 VAML_CORE_EXPORT
-Size compute_measured_desired(Size natural,
-                              Size available,
-                              HorizontalAlignment hAlign,
-                              VerticalAlignment vAlign)
+Size compute_measured_desired(Size natural)
 {
-    // The infinity-aware stretch-vs-wrap finalizer S123's Measure consumes.
+    // S827/S828 (WPF-fidelity drift closure): Measure is ALIGNMENT-AGNOSTIC and
+    // does NOT clamp to the offered size. WPF MeasureCore returns
+    // `MeasureOverride(content)` (FrameworkElement.cs:~4385); the Stretch-vs-
+    // wrap fill decision lives in ArrangeCore (`FE.cs:4617-4623`), applied by
+    // compute_final_rect. So this finalizer simply returns the element's
+    // un-clamped content extent: `natural` per axis, guarded `>= 0`. DesiredSize
+    // may EXCEED `available` (WPF's "soft constraint" / unclippedDesiredSize,
+    // UIElement.cs:541-551); the render slot stays parent-bounded by
+    // compute_final_rect until S832 (11ad) adds the arrange-side clip.
     //
-    // Guard the two axes against the unbounded sentinel (Size::Infinite())
-    // BEFORE any math so no axis can report infinity as a DesiredSize, and so
-    // the "wrap-to-content" choices below are taken on the infinite axis.
-    //
-    // Axis resolved from natural/available:
-    //   * Stretch (default) + finite available -> available (fill).
-    //   * Stretch + infinite available         -> natural (WRAP: cannot stretch
-    //     into an unbounded axis).
-    //   * Non-Stretch + finite available       -> min(natural, available)
-    //     (wrap/clamp to the bounded slot).
-    //   * Non-Stretch + infinite available     -> natural (min(x, inf)==x).
-    const bool availWInfinite = std::isinf(available.width);
-    const bool availHInfinite = std::isinf(available.height);
-
-    const bool hStretch = (hAlign == HorizontalAlignment::Stretch);
-    const bool vStretch = (vAlign == VerticalAlignment::Stretch);
-
-    float width = 0.0f;
-    if (hStretch && !availWInfinite)
-    {
-        width = available.width;
-    }
-    else if (hStretch && availWInfinite)
-    {
-        width = natural.width; // no unbounded fill -> wraps to content
-    }
-    else
-    {
-        width = (availWInfinite) ? natural.width
-                                 : std::min(natural.width, available.width);
-    }
-
-    float height = 0.0f;
-    if (vStretch && !availHInfinite)
-    {
-        height = available.height;
-    }
-    else if (vStretch && availHInfinite)
-    {
-        height = natural.height; // no unbounded fill -> wraps to content
-    }
-    else
-    {
-        height = (availHInfinite) ? natural.height
-                                  : std::min(natural.height, available.height);
-    }
-
-    // A measured DesiredSize is always finite + non-negative (NO negative
-    // geometry / NO infinity escapes the measure contract).
-    const float outW = std::max(0.0f, width); // inf already replaced above
-    const float outH = std::max(0.0f, height);
-    return { outW, outH };
+    // There is NO "Stretch + finite -> available (fill)" branch and NO invented
+    // "Stretch + infinite -> wrap" branch (the removed drift). `natural` is
+    // finite (MeasureOverride / explicit Width-Height are finite), so a measured
+    // size is always finite + non-negative.
+    return { std::max(0.0f, natural.width), std::max(0.0f, natural.height) };
 }
 
 VAML_CORE_EXPORT

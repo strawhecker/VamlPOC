@@ -211,12 +211,11 @@ TEST_CASE("S142: UIElement collapsed unit — a panel still lays out (layout dat
     root.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
 
     SHOULD(ShouldlyString(root.child_count()).ShouldBe(1u));
-    // Base UIElement has NO content (MeasureOverride {0,0}), but with a FINITE
-    // available {100,100} and default Stretch alignment, compute_measured_desired
-    // stretches the desired size to FILL the available bounds -> {100,100}
-    // (S123 infinity-aware stretch-vs-wrap; verified by the existing S123/X tests).
-    SHOULD(ShouldlyString(root.desired_size().width).ShouldBe(100.0f));
-    SHOULD(ShouldlyString(root.desired_size().height).ShouldBe(100.0f));
+    // S827/S828: base UIElement has NO content (MeasureOverride {0,0}); Measure is
+    // ALIGNMENT-AGNOSTIC and does NOT fill the offer, so a default-Stretch empty
+    // element reports DesiredSize {0,0} — the content extent, NOT the offer.
+    SHOULD(ShouldlyString(root.desired_size().width).ShouldBe(0.0f));
+    SHOULD(ShouldlyString(root.desired_size().height).ShouldBe(0.0f));
 
     // Invalidate/clear the dirty flags through the inline members.
     root.InvalidateMeasure();
