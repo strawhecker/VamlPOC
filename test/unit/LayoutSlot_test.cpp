@@ -64,9 +64,11 @@ Rect slot_of(float x, float y, float w, float h)
 
 // --- compute_final_rect ------------------------------------------------------
 //
-// S832 (11ad): compute_final_rect now returns arrange_result{rect, needs_clip}.
-// The rect is the (possibly OVERSIZED) child-wins arranged rect (WPF
-// ArrangeCore FE.cs:4597-4624); needs_clip mirrors NeedsClipBounds.
+// S832 (11ad): compute_final_rect now returns arrange_result{rect, needs_clip,
+// clip_rect}. The rect is the (possibly OVERSIZED) child-wins arranged rect (WPF
+// ArrangeCore FE.cs:4597-4624); needs_clip mirrors NeedsClipBounds; S833 adds
+// clip_rect — the WPF GetLayoutClip SLOT-CLIENT window (FE.cs:4916-4929) the
+// renderer scissors to when needs_clip.
 
 TEST_CASE("S122: alignment — Stretch fills the inset slot (default both axes)")
 {
@@ -146,6 +148,13 @@ TEST_CASE("S832: margin strips both the slot and the desired; a squeezed Stretch
     SHOULD(ShouldlyString(r.width).ShouldBe(185.0f));
     SHOULD(ShouldlyString(r.height).ShouldBe(175.0f));
     SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(true));
+    // S833: the clip_rect is the SLOT-CLIENT window (inset 85x25 at slot origin
+    // + margin 10/20), NOT the oversized arranged rect — the value the S208
+    // renderer scissors to when needs_clip.
+    SHOULD(ShouldlyString(ar.clip_rect.x).ShouldBe(10.0f));
+    SHOULD(ShouldlyString(ar.clip_rect.y).ShouldBe(20.0f));
+    SHOULD(ShouldlyString(ar.clip_rect.width).ShouldBe(85.0f));
+    SHOULD(ShouldlyString(ar.clip_rect.height).ShouldBe(25.0f));
 }
 
 TEST_CASE("S832: desired > slot keeps the child at its unclipped desired (child-wins + clip)")
@@ -163,6 +172,13 @@ TEST_CASE("S832: desired > slot keeps the child at its unclipped desired (child-
     SHOULD(ShouldlyString(r.x).ShouldBe(0.0f));
     SHOULD(ShouldlyString(r.y).ShouldBe(0.0f));
     SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(true));
+    // S833: the clip_rect is the 100x50 slot client (the slot bounds, margin 0)
+    // — clipping the 500x300 arranged rect to THIS trims the overflow, whereas
+    // clipping it to its own rect would clip nothing.
+    SHOULD(ShouldlyString(ar.clip_rect.x).ShouldBe(0.0f));
+    SHOULD(ShouldlyString(ar.clip_rect.y).ShouldBe(0.0f));
+    SHOULD(ShouldlyString(ar.clip_rect.width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(ar.clip_rect.height).ShouldBe(50.0f));
 }
 
 TEST_CASE("S122: margin larger than the slot clamps to zero — never negative")

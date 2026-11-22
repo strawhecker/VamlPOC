@@ -549,9 +549,19 @@ VAML_CORE_EXPORT
 bool UIElement::needs_clip() const noexcept
 {
     // S832: the WPF NeedsClipBounds mirror — true iff the last Arrange arranged
-    // this element larger than its slot (child-wins-then-clip). The deferred
-    // S833 scissor consumes this.
+    // this element larger than its slot (child-wins-then-clip). The S833
+    // conditional scissor (S208) consumes this.
     return needs_clip_;
+}
+
+VAML_CORE_EXPORT
+const vaml::Rect& UIElement::clip_rect() const noexcept
+{
+    // S833: the WPF GetLayoutClip rectangular result (the slot-client window).
+    // Written by Arrange from compute_final_rect().clip_rect; meaningful only
+    // when needs_clip() (the S208 renderer scissors to it then). final_rect_ —
+    // NOT this — is the draw box; this is the clip bounds.
+    return clip_rect_;
 }
 
 VAML_CORE_EXPORT
@@ -894,10 +904,13 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
     // S832 (Sprint 11ad): the arranged rect MAY exceed the slot (child-wins);
-    // store the UNCLIPPED final_rect_ + the NeedsClipBounds mirror. The
-    // conditional clip scissor honoring needs_clip() is the deferred S833 step.
+    // store the UNCLIPPED final_rect_ + the NeedsClipBounds mirror. S833 stores
+    // the GetLayoutClip rectangular result (the slot-client clip window) so the
+    // S208 renderer can scissor to it when needs_clip() — conditional, never
+    // unconditional (a fitting element clips nothing).
     final_rect_ = ar.rect;
     needs_clip_ = ar.needs_clip;
+    clip_rect_  = ar.clip_rect;
     // A completed Arrange pass clears this element's arrange-dirty flag (S126),
     // mirroring Measure's clear of the measure bit.
     arrange_dirty_ = false;

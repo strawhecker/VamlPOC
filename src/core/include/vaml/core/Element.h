@@ -982,10 +982,12 @@ public:
     // raises "ScrollChanged" on a real change. Returns the new offset.
     [[nodiscard]] double scroll_by_vertical(double delta);
 
-    // --- Clipping (S124) ----------------------------------------------------
-    // The VISIBLE content rect: clips the child content rect (given its top-left
-    // origin within the viewport) against the arranged viewport, honoring the
-    // current offset. Headless-testable clipping proof.
+    // --- Clipping (S124/S833) -----------------------------------------------
+    // The VISIBLE content rect: intersects the child content rect (given its
+    // top-left origin within the viewport, translated by the current offset)
+    // against the arranged viewport via the PURE value op vaml::clip_to_bounds
+    // (S833 point (2): the trigger is conditional — a viewport that fully shows
+    // its content clips NOTHING). Headless-testable clipping proof.
     [[nodiscard]] vaml::Rect clip_content(const vaml::Rect& content) const;
 
     // --- Value-changed notification ----------------------------------------

@@ -14,13 +14,16 @@
 //   (4) RenderTransformOrigin — the origin folds the model about the
 //       normalized-fraction center (T(−o)·M·T(+o)); identity -> no fold; zero
 //       origin -> no origin terms.
-//   (5) Clip — a transformed element overflowing its slot marks clipActive with
-//       the S124 render slot; an identity-transform element stays unclipped.
+//   (5) Clip (S833 conditional) — the render-slot clip is emitted ONLY when the
+//       element's arrange reported needs_clip (the S832 NeedsClipBounds mirror).
+//       A FITTING element is NOT clipped (clipActive stays false) even if it
+//       carries a RenderTransform; a needs_clip element is scissored to the
+//       slot-client window (clip_rect), NOT final_rect.
 //   (6) NaN-matrix Transform — the DP accepts it (WPF-legal, no throw) and the
 //       ENCODE boundary folds it defensively to identity (no crash, still
 //       renders unclipped/identity) — the finite-validity gate is encode-only.
 //   (7) Grouping — identity-transform same-color elements stay ONE batch; a
-//       clipped/transformed element splits into its own batch.
+//       clipped element splits into its own batch.
 
 #include <vaml/vulkan/ui/UiScene.h>          // DrawItem, Color4, solid_rect, batch_plan
 #include <vaml/vulkan/ui/UiSceneEncoder.h>   // the S208 encoder + effective_opacity
@@ -163,7 +166,6 @@ TEST_CASE("S208/S823 encoder: RenderTransform — a translated Transform-object 
     root.Measure(vaml::Size{ 100.0f, vaml::Size::Infinite().height });
     root.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 200.0f });
 
-    const vaml::Rect fr = leaf->final_rect();
     assign_solid(*leaf, { 0, 0, 1, 1 });
 
     // Translate the leaf by (+5, +5) as a Transform OBJECT (S823).
@@ -177,12 +179,11 @@ TEST_CASE("S208/S823 encoder: RenderTransform — a translated Transform-object 
     // The item carries the resolved Model (the Transform's matrix), not identity.
     CHECK(out[0].model == vaml::Matrix2D::translation(5.0f, 5.0f));
 
-    // A transformed element is clipped to its S124 render slot.
-    CHECK(out[0].clipActive);
-    CHECK(out[0].clipX == doctest::Approx(fr.x));
-    CHECK(out[0].clipY == doctest::Approx(fr.y));
-    CHECK(out[0].clipW == doctest::Approx(fr.width));
-    CHECK(out[0].clipH == doctest::Approx(fr.height));
+    // S833: a RenderTransform is NOT a clip trigger. The leaf FITS its slot
+    // (needs_clip false), so it stays UNCLIPPED even though it is transformed —
+    // WPF GetLayoutClip returns null for a fitting element (UIElement.cs:3322).
+    CHECK(!leaf->needs_clip());
+    CHECK(!out[0].clipActive);
 }
 
 TEST_CASE("S823 encoder: RenderTransformOrigin folds the model about the fraction center")
@@ -214,7 +215,9 @@ TEST_CASE("S823 encoder: RenderTransformOrigin folds the model about the fractio
     // a pure translation that CANCELS the origin terms (translate is
     // translation-invariant about any center) -> still T(10).
     CHECK(out[0].model == vaml::Matrix2D::translation(10.0f, 10.0f));
-    CHECK(out[0].clipActive);
+    // S833: the leaf fits its 100x100 slot (needs_clip false) -> unclipped.
+    CHECK(!leaf->needs_clip());
+    CHECK(!out[0].clipActive);
 }
 
 TEST_CASE("S823 encoder: RenderTransformOrigin zero origin adds NO origin terms")
@@ -235,6 +238,55 @@ TEST_CASE("S823 encoder: RenderTransformOrigin zero origin adds NO origin terms"
     encode_visual_tree(root, visual_of, out);
     REQUIRE(out.size() == 1u);
     CHECK(out[0].model == vaml::Matrix2D::translation(5.0f, 0.0f));
+}
+
+TEST_CASE("S833 encoder: a needs_clip element is scissored to the slot-client window")
+{
+    // A leaf whose unclipped desired (200x50) EXCEEDS its 50x50 slot -> arrange
+    // reports needs_clip (the S832 child-wins-then-clip contract). The encoder
+    // must emit a scissor to the WPF GetLayoutClip SLOT-CLIENT rect (50x50),
+    // NOT to final_rect (200x50 — clipping that to itself would clip nothing).
+    clear_visuals();
+    SolidLeaf leaf(200.0f, 50.0f);
+    leaf.Measure(vaml::Size{ 50.0f, 50.0f });
+    leaf.Arrange(vaml::Rect{ 0.0f, 0.0f, 50.0f, 50.0f });
+
+    CHECK(leaf.needs_clip());
+    // final_rect is the oversized arranged box; clip_rect is the slot client.
+    CHECK(leaf.final_rect().width == doctest::Approx(200.0f));
+    CHECK(leaf.clip_rect().width  == doctest::Approx(50.0f));
+    CHECK(leaf.clip_rect().height == doctest::Approx(50.0f));
+
+    assign_solid(leaf, { 0, 1, 0, 1 });
+
+    std::vector<DrawItem> out;
+    encode_visual_tree(leaf, visual_of, out);
+    REQUIRE(out.size() == 1u);
+    CHECK(out[0].clipActive);
+    // Clipped to the slot-client window, NOT the oversized final_rect.
+    CHECK(out[0].clipX == doctest::Approx(leaf.clip_rect().x));
+    CHECK(out[0].clipY == doctest::Approx(leaf.clip_rect().y));
+    CHECK(out[0].clipW == doctest::Approx(50.0f));
+    CHECK(out[0].clipH == doctest::Approx(50.0f));
+}
+
+TEST_CASE("S833 encoder: a fitting element produces NO clip (clipActive false)")
+{
+    // A leaf that fits its slot (default Stretch fills the 100x100 slot at its
+    // tiny natural size) -> needs_clip false -> NO scissor (unchanged batching).
+    clear_visuals();
+    SolidLeaf leaf(10.0f, 10.0f);
+    leaf.Measure(vaml::Size{ 100.0f, 100.0f });
+    leaf.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
+
+    CHECK(!leaf.needs_clip());
+
+    assign_solid(leaf, { 1, 0, 0, 1 });
+
+    std::vector<DrawItem> out;
+    encode_visual_tree(leaf, visual_of, out);
+    REQUIRE(out.size() == 1u);
+    CHECK(!out[0].clipActive);
 }
 
 TEST_CASE("S823 encoder: a NaN-matrix Transform is accepted at Set and folded to identity at encode")

@@ -180,16 +180,22 @@ double effective_opacity(const vaml::UIElement& element) noexcept
 }
 
 namespace {
-// S208/S823: marks an emitted DrawItem with the element's render state — the
-// per-element Model (the RESOLVED RenderTransform) + the Clip. S823 migrates
-// the dp onto the WPF-faithful Transform OBJECT: render_transform() returns the
-// Transform*, whose matrix() is the resolved affine. The MODEL is always folded
-// in (identity is the no-op fast path, so unchanged batching). The CLIP is
-// marked active ONLY when a non-identity Model could push content outside the
-// slot (a rotated/scaled/translated element overflowing its S124 render slot is
-// culled by a dynamic scissor to final_rect). An identity-transform element
-// already fits its final_rect exactly, so clipActive stays false — the existing
-// S206/S207 batching is preserved (backward compatible).
+// S208/S823/S833: marks an emitted DrawItem with the element's render state —
+// the per-element Model (the RESOLVED RenderTransform) + the Clip.
+//
+// S833 (dep:S832) — CONDITIONAL render-slot clip. The clip is emitted ONLY when
+// the element's arrange reported `needs_clip()` (the S832 NeedsClipBounds
+// mirror). A FITTING element is NOT clipped — `clipActive` stays false, so the
+// existing S206/S207 batching is preserved (unchanged). WPF ground truth: the
+// layout clip is triggered solely by `NeedsClipBounds || ClipToBounds`
+// (FrameworkElement.GetLayoutClip, FE.cs:4862-4872); a RenderTransform is NOT a
+// trigger (it never sets NeedsClipBounds) and GetLayoutClip returns `null` for a
+// fitting element (base UIElement.GetLayoutClip, UIElement.cs:3322-3333). The
+// clip RECT is the WPF GetLayoutClip rectangular result — the SLOT-CLIENT window
+// `{slot.x+ml, slot.y+mt, inset, inset}` (clip_rect()), NOT final_rect() (which
+// may EXCEED the slot; clipping it to itself would be a no-op for the overflow
+// case — exactly the bug S833 closes). S834 will OR a `ClipToBounds` DP into the
+// trigger; the math (which rect) is unchanged.
 //
 // S823 — RenderTransformOrigin (Point, default (0,0), NOT inherited): the
 // transform operates about the normalized-fraction center. The WPF ArrangeCore
@@ -237,19 +243,23 @@ void apply_element_render_state(const vaml::UIElement& element, DrawItem& item) 
     }
 
     item.model = model;
-    const bool transformed = !is_transform_identity(item.model);
-    if (transformed)
+
+    // S833 — the CONDITIONAL render-slot clip. Emit a scissor ONLY when the
+    // arrange reported NeedsClipBounds (S832). A fitting element leaves
+    // clipActive false (WPF GetLayoutClip returns null -> unchanged batching).
+    // The scissor target is the WPF GetLayoutClip rectangular result — the
+    // slot-client window (clip_rect()), NOT final_rect() (final_rect may exceed
+    // the slot, so clipping it to itself would clip nothing).
+    if (element.needs_clip())
     {
-        // Clip the transformed content to the S124 render slot (final_rect):
-        // a rotated/scaled quad that overflows its slot is exactly culled here.
-        const vaml::Rect fr = element.final_rect();
-        if (fr.width > 0.0f && fr.height > 0.0f)
+        const vaml::Rect cr = element.clip_rect();
+        if (cr.width > 0.0f && cr.height > 0.0f)
         {
             item.clipActive = true;
-            item.clipX = fr.x;
-            item.clipY = fr.y;
-            item.clipW = fr.width;
-            item.clipH = fr.height;
+            item.clipX = cr.x;
+            item.clipY = cr.y;
+            item.clipW = cr.width;
+            item.clipH = cr.height;
         }
     }
 }
@@ -373,9 +383,10 @@ void encode_visual_tree(const vaml::UIElement& root,
         {
             // S208 Opacity: fold the element's effective opacity into EVERY glyph
             // (a zero-opacity Text renders nothing). The S208 RenderTransform+Clip
-            // fold applies per glyph too (a transformed Text clips each quad to
-            // the S124 render slot). The S511 drop-shadow is emitted once behind
-            // the glyph block (the block's z-order host).
+            // fold applies per glyph too (a needs_clip Text clips each quad to the
+            // slot-client window — S833; a fitting Text stays unclipped). The
+            // S511 drop-shadow is emitted once behind the glyph block (the
+            // block's z-order host).
             const float op = static_cast<float>(effective_opacity(element));
             append_effect_draws(element.effect(), element, visual, out);
             for (DrawItem& glyph : visual.glyphs)
@@ -400,7 +411,8 @@ void encode_visual_tree(const vaml::UIElement& root,
         visual.item.a *= static_cast<float>(effective_opacity(element));
 
         // S208 RenderTransform + Clip: fold the per-element Model into the item
-        // and (for a transformed element) mark the clip to the S124 render slot.
+        // and (S833) mark the clip to the slot-client window ONLY when the
+        // element reported needs_clip — a fitting element stays unclipped.
         apply_element_render_state(element, visual.item);
 
         // S511 — EFFECT: when the element carries a DropShadowEffect, emit the

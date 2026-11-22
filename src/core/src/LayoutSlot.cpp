@@ -83,12 +83,22 @@ arrange_result compute_final_rect(const LayoutSlot& slot,
     }
 
     // Re-add slot.origin + margin.top/left (FE.cs:4772-4775). The arranged rect
-    // may exceed the slot; the deferred clip (S833) will scissor it.
+    // may exceed the slot; the S833 conditional clip scissors it when needs_clip.
+    // S833 (dep:S832): also return the WPF GetLayoutClip SLOT-CLIENT rect — the
+    // clippingSize window (`slot - Margin`) at the slot origin + margin, in world
+    // coords (FrameworkElement.GetLayoutClip returns `Rect(-offset, clippingSize)`,
+    // FE.cs:4916-4929; the -offset maps world back to `slot.x+ml, slot.y+mt`).
+    // This is the clip BOUNDS the renderer scissors to when needs_clip — NOT the
+    // (possibly oversized) arranged rect (clipping it to itself would be a no-op).
     return { { slot.bounds.x + ml + ox,
                slot.bounds.y + mt + oy,
                sizeW,
                sizeH },
-             needs_clip };
+             needs_clip,
+             { slot.bounds.x + ml,
+               slot.bounds.y + mt,
+               insetW,
+               insetH } };
 }
 
 VAML_CORE_EXPORT

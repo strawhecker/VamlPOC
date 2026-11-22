@@ -56,13 +56,25 @@ struct LayoutSlot
     Rect bounds;
 };
 
-// The outcome of compute_final_rect: the (possibly OVERSIZED) arranged rect plus
-// the WPF NeedsClipBounds mirror. Struct member names follow the WPF source
-// (`Rect`/`NeedsClipBounds`) — no invented public name.
+// The outcome of compute_final_rect: the (possibly OVERSIZED) arranged rect, the
+// WPF NeedsClipBounds mirror, and the WPF GetLayoutClip SLOT-CLIENT rect.
+// Struct member names follow the WPF source (`Rect`/`NeedsClipBounds`) — no
+// invented public name.
 struct arrange_result
 {
     Rect rect;        // the arranged rect in slot/parent space — MAY exceed the slot
     bool needs_clip;  // mirror of WPF FrameworkElement.NeedsClipBounds
+    // S833 (dep:S832): the WPF GetLayoutClip rectangular clip result — the
+    // LAYOUT-SLOT CLIENT window (`layoutSlotSize - Margin`, alignment-offset
+    // compensated, so in world coords it is `{slot.x+ml, slot.y+mt, inset, inset}`),
+    // NOT the (possibly oversized) `rect`. FrameworkElement.GetLayoutClip
+    // (FE.cs:4862-4960) returns `Rect(-offset, clippingSize)` where
+    // `clippingSize = layoutSlotSize - Margin`; WPF has the slot because
+    // `ensureClip(finalRect.Size)` (UIElement.cs:884) hands it the arrange slot.
+    // Meaningful ONLY when `needs_clip` is true (a fitting element clips
+    // nothing); the renderer (S208) emits a scissor to THIS rect when
+    // needs_clip, never to `rect` (which would be a no-op for the overflow case).
+    Rect clip_rect;
 };
 
 // Computes a child's final rect inside `slot` given its DesiredSize, Margin,
@@ -91,6 +103,12 @@ struct arrange_result
 //      ArrangeOverride (ink == arrange size), this equals WPF's post-override
 //      `clientSize < clippedInkSize` (FE.cs:4756-4762) — the arrange-side legs
 //      reduce to `inset < innerDesired`.
+//   6. clip_rect = the slot-client window `{slot.x+ml, slot.y+mt, inset, inset}`
+//      — the WPF GetLayoutClip rectangular result (RESOLVED BY S833; see the
+//      arrange_result field doc). The trigger to APPLY it is needs_clip.
+// S833 RESOLVED the deferred scissor: `arrange_result.clip_rect` is the value
+// the S208 renderer scissors to when `needs_clip`; the render slot `rect` is
+// NEVER clipped to itself (that would be a no-op for an overflowing child).
 // Margins clamp to >= 0 so a margin larger than the slot cannot drive negative
 // geometry (NO negative geometry escapes the layout contract).
 VAML_CORE_EXPORT arrange_result compute_final_rect(const LayoutSlot& slot,
@@ -137,6 +155,13 @@ VAML_CORE_EXPORT Size compute_measured_desired(Size natural);
 // renderer introduces geometry (S208). Recorded NO-GAP, not silent — the
 // rectangular render-slot clip is the S124 scope; arbitrary-geometry clip is
 // S208's. Consumes `Rect` from Geometry.h.
+//
+// S833 (conditional render-slot clip): the TRIGGER to apply this op at the
+// renderer changed, NOT the math. A fitting element produces NO clip (unchanged
+// S206/S207 batching); only a `needs_clip` element (the S832 NeedsClipBounds
+// mirror, whose clip bounds are the SLOT CLIENT from `arrange_result.clip_rect`)
+// or a `ClipToBounds` element (S834) is clipped. This op stays the pure
+// value-domain intersect it always was.
 VAML_CORE_EXPORT Rect clip_to_bounds(const Rect& content, const Rect& clipBounds);
 
 } // namespace vaml

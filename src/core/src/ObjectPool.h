@@ -57,13 +57,22 @@ public:
     // element — so kSlotSize = align_up(1344, 64) = 1344. 1344 % 64 == 0
     // (cache line) and 1344 % 16 == 0 (Linux max_align_t). A slot holds the
     // object AND its inline S142 store with no per-object heap hop.
-    static constexpr std::size_t kSlotSize = 1344;
+    // S833 (dep:S832) GREW it: the conditional render-slot clip stores the
+    // WPF GetLayoutClip rectangular result (`clip_rect_`) as CORE LAYOUT
+    // GEOMETRY on UIElement — a sibling of `final_rect_` (WPF caches its Clip on
+    // the UIElement inline). One `Rect` (16 B) on every UIElement. In the
+    // msvc-debug lane (the worst case) sizeof(Grid) grows 1344 -> 1360, so
+    // kSlotSize = align_up(1360, 64) = 1408. 1408 % 64 == 0 (cache line) and
+    // 1408 % 16 == 0 (Linux max_align_t). A slot holds the object AND its inline
+    // S142 store with no per-object heap hop.
+    static constexpr std::size_t kSlotSize = 1408;
 
     // Guard: the pool doles elements of ANY type that fits; derived element
     // classes larger than this worst case would over-run a slot. The largest
-    // current element is Grid (1344 in the msvc-debug lane, the worst case). If
-    // a future control exceeds this, RAISE it (compile-time constant, cheap).
-    static constexpr std::size_t kLargestElement = 1344;
+    // current element is Grid (1360 in the msvc-debug lane after S833, the worst
+    // case). If a future control exceeds this, RAISE it (compile-time constant,
+    // cheap).
+    static constexpr std::size_t kLargestElement = 1360;
 
     ObjectPool() = default;
     ~ObjectPool();

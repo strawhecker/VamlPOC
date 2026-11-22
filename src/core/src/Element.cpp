@@ -2111,26 +2111,23 @@ double ScrollViewer::scroll_by_vertical(double delta)
 VAML_CORE_EXPORT
 Rect ScrollViewer::clip_content(const Rect& content) const
 {
-    // The S124 clip: the child content rect, translated by the current offset
-    // then clipped against the arranged viewport. Returns the VISIBLE sub-rect
-    // in viewport coordinates (a fully-hidden content -> a zero rect).
-    const vaml::Rect fr = final_rect();
-    const float vx = fr.x;
-    const float vy = fr.y;
-    const float vw = fr.width;
-    const float vh = fr.height;
-    // Content's visible top-left in viewport space (inside the viewport origin).
+    // The S124/S833 clip: the child content rect, translated by the current
+    // vertical offset, intersected with the arranged viewport via the PURE value
+    // op vaml::clip_to_bounds (the same rectangular clip the S208 renderer uses).
+    //
+    // S833 (dep:S832) point (2): the ScrollViewer still clips its viewport, but
+    // the op is the pure value op — the *trigger* is what is conditional. A
+    // viewport that FULLY shows its content clips NOTHING: when the offset
+    // content is a subset of the viewport, clip_to_bounds returns it unchanged
+    // (the fully-visible case degenerates to no clip), and a fully-hidden
+    // content yields an empty zero-rect. The deeper per-content needs_clip re-key
+    // of the ink/conditional model is S1017 (recorded, not pre-empted here).
+    const vaml::Rect viewport = final_rect();
     const Rect moved{ content.x - static_cast<float>(vertical_offset()),
                       content.y,
                       content.width,
                       content.height };
-    const float x0 = std::max(moved.x, vx);
-    const float y0 = std::max(moved.y, vy);
-    const float x1 = std::min(moved.x + moved.width, vx + vw);
-    const float y1 = std::min(moved.y + moved.height, vy + vh);
-    if (x1 <= x0 || y1 <= y0)
-        return Rect{ x0, y0, 0.0f, 0.0f };
-    return Rect{ x0, y0, x1 - x0, y1 - y0 };
+    return vaml::clip_to_bounds(moved, viewport);
 }
 
 VAML_CORE_EXPORT
