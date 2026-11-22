@@ -13,80 +13,82 @@
 namespace vaml {
 
 VAML_CORE_EXPORT
-Rect compute_final_rect(const LayoutSlot& slot,
-                        Size desired,
-                        Thickness margin,
-                        HorizontalAlignment hAlign,
-                        VerticalAlignment vAlign)
+arrange_result compute_final_rect(const LayoutSlot& slot,
+                                  Size desired,
+                                  Thickness margin,
+                                  HorizontalAlignment hAlign,
+                                  VerticalAlignment vAlign)
 {
-    // 1. Inset the slot by margin. Margins clamp to >= 0 (a margin larger than
-    //    the slot cannot drive a negative available / negative child size).
+    // 1. Inset the slot by margin -> the "clientSize" window (FE.cs:4569-4579).
+    //    Margins clamp to >= 0 (a margin larger than the slot cannot drive a
+    //    negative available / negative child size).
     const float ml = std::max(0.0f, margin.left);
     const float mt = std::max(0.0f, margin.top);
     const float mr = std::max(0.0f, margin.right);
     const float mb = std::max(0.0f, margin.bottom);
-    const float availW = std::max(0.0f, slot.bounds.width - ml - mr);
-    const float availH = std::max(0.0f, slot.bounds.height - mt - mb);
+    const float insetW = std::max(0.0f, slot.bounds.width - ml - mr);
+    const float insetH = std::max(0.0f, slot.bounds.height - mt - mb);
 
-    // 2. S130_1 (WPF ArrangeCore-faithful): DesiredSize is now MARGIN-INFLATED
-    //    (Measure adds margin back, so it propagates into a parent panel's
-    //    DesiredSize). Before aligning, strip the margin OUT to recover the
-    //    element's inner desired extent — otherwise the margin would be counted
-    //    TWICE (once in the inflated desired, once in the inset slot). This is
-    //    WPF's `innerDesiredSize = DesiredSize - margin` inside ArrangeCore.
-    const float innerW = std::max(0.0f, desired.width - ml - mr);
-    const float innerH = std::max(0.0f, desired.height - mt - mb);
+    // 2. S130_1 (WPF ArrangeCore-faithful): recover the element's inner desired
+    //    extent by stripping the margin out of the margin-inflated DesiredSize
+    //    (WPF `innerDesiredSize = DesiredSize - margin`). This stored value IS
+    //    WPF's UnclippedDesiredSize (divergence #1 resolved at S832).
+    float innerW = std::max(0.0f, desired.width - ml - mr);
+    float innerH = std::max(0.0f, desired.height - mt - mb);
 
-    // 3. Child size: Stretch fills the available slot; Left/Center/Right and
-    //    Top/Center/Bottom pinch to at most the INNER desired (clamped to
-    //    available).
-    //
-    // [WPF DIVERGENCE] #2/#3 — no NeedsClipBounds + non-Stretch pinned to
-    // `avail`. WPF FrameworkElement.ArrangeCore (FE.cs:4589-4625) does NOT
-    // pinch: it GROWS the arrange size to `unclippedDesiredSize` when the slot
-    // is smaller (`if (arrangeSize.Width < unclippedDesiredSize.Width) {
-    // NeedsClipBounds = true; arrangeSize.Width = unclippedDesiredSize.Width; }`)
-    // and arranges a non-Stretch child at `unclippedDesiredSize` VERBATIM
-    // (`if (HorizontalAlignment != Stretch) arrangeSize.Width =
-    // unclippedDesiredSize.Width;`), i.e. a Left-aligned oversize child
-    // OVERFLOWS its slot unclipped (GetLayoutClip returns null when
-    // ClipToBounds is false, UIElement.cs:3322-3333). VAML instead clamps to
-    // `avail` (std::min above), so an oversize non-Stretch child is PINNED
-    // rather than overflowing, and a slot smaller than the unclipped desired is
-    // never marked NeedsClipBounds. RESOLVED BY S832 (Sprint 11ad — the S124
-    // arrange-contract + clip drift closure). Do NOT paper over here; do NOT
-    // assert oversized-overflow as WPF-true until S832 lands.
+    // S123 invariant: Size::Infinite() (the unbounded-measure sentinel) never
+    // escapes into geometry — guard a non-finite inner desired to the window.
+    if (!std::isfinite(innerW)) innerW = insetW;
+    if (!std::isfinite(innerH)) innerH = insetH;
+
+    // 3. Arrange size per axis (S832 / FE.cs:4597-4624). A non-Stretch child is
+    //    arranged at its UNCLIPPED desired size VERBATIM (it may OVERFLOW the
+    //    slot). A Stretch child fills the slot, but if the slot is SMALLER than
+    //    the unclipped desired it keeps the desired size (child-wins) rather
+    //    than shrinking below what its MeasureOverride accepted.
     const bool hStretch = (hAlign == HorizontalAlignment::Stretch);
     const bool vStretch = (vAlign == VerticalAlignment::Stretch);
-    const float childW = hStretch ? availW : std::min(innerW, availW);
-    const float childH = vStretch ? availH : std::min(innerH, availH);
+    const float sizeW = hStretch ? std::max(insetW, innerW) : innerW;
+    const float sizeH = vStretch ? std::max(insetH, innerH) : innerH;
 
-    // 4. Offset by alignment: Center=(available - child)/2 (floor toward 0 via
-    //    max(0,...) for the integer-division-free positive case); Right/Bottom
-    //    = available - child (>= 0 because child <= available).
+    // 5. NeedsClipBounds (FE.cs:4596/4603/4756-4762). For VAML's void
+    //    ArrangeOverride (ink == arrange size) the post-override legs reduce to
+    //    "the clientSize window is smaller than the unclipped desired on an
+    //    axis" — i.e. the arranged child exceeds its slot.
+    const bool needs_clip = (insetW < innerW) || (insetH < innerH);
+
+    // 4. ComputeAlignmentOffset(clientSize, arrangeSize) (FE.cs:4805-4849).
+    //    Center/Stretch take half the leftover; Right/Bottom the full leftover.
+    //    When the child OVERFLOWS (size > inset) these offsets go NEGATIVE,
+    //    centering/right-placing the oversized child — WPF-faithful. Stretch
+    //    degenerates to Left/Top (offset 0) once it overflows
+    //    (FE.cs:4811-4827).
     float ox = 0.0f;
     if (hAlign == HorizontalAlignment::Center)
     {
-        ox = (availW - childW) * 0.5f;
+        ox = (insetW - sizeW) * 0.5f;
     }
     else if (hAlign == HorizontalAlignment::Right)
     {
-        ox = availW - childW;
+        ox = insetW - sizeW;
     }
     float oy = 0.0f;
     if (vAlign == VerticalAlignment::Center)
     {
-        oy = (availH - childH) * 0.5f;
+        oy = (insetH - sizeH) * 0.5f;
     }
     else if (vAlign == VerticalAlignment::Bottom)
     {
-        oy = availH - childH;
+        oy = insetH - sizeH;
     }
 
-    return { slot.bounds.x + ml + ox,
-             slot.bounds.y + mt + oy,
-             childW,
-             childH };
+    // Re-add slot.origin + margin.top/left (FE.cs:4772-4775). The arranged rect
+    // may exceed the slot; the deferred clip (S833) will scissor it.
+    return { { slot.bounds.x + ml + ox,
+               slot.bounds.y + mt + oy,
+               sizeW,
+               sizeH },
+             needs_clip };
 }
 
 VAML_CORE_EXPORT
@@ -99,8 +101,9 @@ Size compute_measured_desired(Size natural)
     // compute_final_rect. So this finalizer simply returns the element's
     // un-clamped content extent: `natural` per axis, guarded `>= 0`. DesiredSize
     // may EXCEED `available` (WPF's "soft constraint" / unclippedDesiredSize,
-    // UIElement.cs:541-551); the render slot stays parent-bounded by
-    // compute_final_rect until S832 (11ad) adds the arrange-side clip.
+    // UIElement.cs:541-551); the render slot now follows the S832 (11ad)
+    // child-wins-then-clip contract in compute_final_rect (the child may exceed
+    // its slot and reports needs_clip; the clip scissor is the deferred S833).
     //
     // There is NO "Stretch + finite -> available (fill)" branch and NO invented
     // "Stretch + infinite -> wrap" branch (the removed drift). `natural` is
@@ -118,9 +121,10 @@ Size compute_measured_desired(Size natural)
     // the clamped pair + the `clipped` flag feeding NeedsClipBounds are absent.
     // Consequence: no parent can observe an over-constrained child as clamped,
     // and `DesiredSize`-driven parents (Stack.cs:566-600 maxes the CLAMPED
-    // child size) see the larger figure. RESOLVED BY S832 (Sprint 11ad). Do NOT
-    // backfill a clamp here — the store, the flag and the arrange-side clip land
-    // together or not at all.
+    // child size) see the larger figure. RESOLVED BY S832 (Sprint 11ad — the
+    // arrange-side child-wins-then-clip landed; compute_final_rect now arranges
+    // the child at this unclipped size and reports needs_clip; the deferred S833
+    // scissor honors it). Do NOT backfill a measure-side clamp here.
     return { std::max(0.0f, natural.width), std::max(0.0f, natural.height) };
 }
 

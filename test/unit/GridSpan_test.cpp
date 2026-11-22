@@ -261,8 +261,12 @@ TEST_CASE("S132: a spanning child whose content exceeds the star's proportional 
     g.Arrange(Rect{ 0.0f, 0.0f, 120.0f, 100.0f });
 
     // star proportional = 120-50 = 70, but content-min 80 -> star grows to 80.
-    // S merged = 50 + 80 = 130.
-    SHOULD(ShouldlyString(s->final_rect().width).ShouldBe(130.0f));
+    // S832 (11ad): the spanning child S has content 160 > the 130 merged cell
+    // {50 + 80}, so it CHILD-WINS at its full unclipped 160 (needs_clip) rather
+    // than being clamped to the 130 cell. The re-awarded star (80) is still
+    // proven by R's slot width below (80, not the 70 proportional).
+    SHOULD(ShouldlyString(s->final_rect().width).ShouldBe(160.0f));
+    SHOULD(ShouldlyString(s->needs_clip()).ShouldBe(true));
     // R (in star col, Left) still anchors at x = 50 (pixel width).
     SHOULD(ShouldlyString(r->final_rect().x).ShouldBe(50.0f));
     // The re-awarded star track (80) is observable as R's slot width.

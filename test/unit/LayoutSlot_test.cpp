@@ -3,11 +3,12 @@
 // Resolves the S120 layout-slot sentinel (the real layout geometry now lives
 // on UIElement + LayoutSlot.h). Under test:
 //   1. compute_final_rect â€” the REAL alignment algorithm S124's Arrange will
-//      consume: Stretch fills the inset slot; Left/Top pinch to desired;
-//      Center offsets by half; Right/Bottom offset by the full difference;
-//      margin shrinks the available; desired > available clamps; margin > slot
-//      clamps to 0 (never negative); Infinite desired keeps the available
-//      bound.
+//      consume: Stretch fills the inset slot when the child fits; Left/Top
+//      arrange at desired; Center offsets by half; Right/Bottom offset by the
+//      full difference; margin shrinks the available; S832 (11ad) child-wins:
+//      desired > available keeps the FULL unclipped desired + needs_clip; margin
+//      > slot clamps to 0 (never negative); Infinite desired keeps the available
+//      bound (finite guard).
 //   2. UIElement layout DPs â€” Margin (default 0, set/get roundtrip),
 //      HorizontalAlignment/VerticalAlignment (default Stretch, set/get), all
 //      attached-aware (resolve on a plain DependencyObject), wrong-tag ->
@@ -62,109 +63,138 @@ Rect slot_of(float x, float y, float w, float h)
 } // namespace
 
 // --- compute_final_rect ------------------------------------------------------
+//
+// S832 (11ad): compute_final_rect now returns arrange_result{rect, needs_clip}.
+// The rect is the (possibly OVERSIZED) child-wins arranged rect (WPF
+// ArrangeCore FE.cs:4597-4624); needs_clip mirrors NeedsClipBounds.
 
-TEST_CASE("S122: alignment â€” Stretch fills the inset slot (default both axes)")
+TEST_CASE("S122: alignment — Stretch fills the inset slot (default both axes)")
 {
-    // Slot 100x50 at origin; child Stretch on both axes fills it exactly.
+    // Slot 100x50 at origin; child Stretch on both axes fills it exactly. The
+    // desired (5x5) is smaller than the slot, so there is no overflow.
     LayoutSlot slot{ slot_of(10.0f, 20.0f, 100.0f, 50.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size{ 5.0f, 5.0f }, Thickness{}, HorizontalAlignment::Stretch, VerticalAlignment::Stretch);
+    const Rect& r = ar.rect;
     SHOULD(ShouldlyString(r.x).ShouldBe(10.0f));
     SHOULD(ShouldlyString(r.y).ShouldBe(20.0f));
     SHOULD(ShouldlyString(r.width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(r.height).ShouldBe(50.0f));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(false));
 }
 
-TEST_CASE("S122: alignment â€” Left/Top pinch to desired (origin corner)")
+TEST_CASE("S122: alignment — Left/Top pinch to desired (origin corner)")
 {
     // Child smaller than slot: Left+Top place it at the slot's top-left, size
     // = desired (100x30), ignoring the extra available space.
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 400.0f, 200.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size{ 100.0f, 30.0f }, Thickness{}, HorizontalAlignment::Left, VerticalAlignment::Top);
+    const Rect& r = ar.rect;
     SHOULD(ShouldlyString(r.x).ShouldBe(0.0f));
     SHOULD(ShouldlyString(r.y).ShouldBe(0.0f));
     SHOULD(ShouldlyString(r.width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(r.height).ShouldBe(30.0f));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(false));
 }
 
-TEST_CASE("S122: alignment â€” Center offsets by half the leftover on both axes")
+TEST_CASE("S122: alignment — Center offsets by half the leftover on both axes")
 {
     // Desired 100x30 in a 400x200 slot, centered: x = (400-100)/2 = 150,
     // y = (200-30)/2 = 85.
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 400.0f, 200.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size{ 100.0f, 30.0f }, Thickness{}, HorizontalAlignment::Center, VerticalAlignment::Center);
+    const Rect& r = ar.rect;
     SHOULD(ShouldlyString(r.x).ShouldBe(150.0f));
     SHOULD(ShouldlyString(r.y).ShouldBe(85.0f));
     SHOULD(ShouldlyString(r.width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(r.height).ShouldBe(30.0f));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(false));
 }
 
-TEST_CASE("S122: alignment â€” Right/Bottom offset by the full difference")
+TEST_CASE("S122: alignment — Right/Bottom offset by the full difference")
 {
     // Desired 100x30 in a 400x200 slot, right/bottom:
     // x = 400-100 = 300, y = 200-30 = 170.
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 400.0f, 200.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size{ 100.0f, 30.0f }, Thickness{}, HorizontalAlignment::Right, VerticalAlignment::Bottom);
+    const Rect& r = ar.rect;
     SHOULD(ShouldlyString(r.x).ShouldBe(300.0f));
     SHOULD(ShouldlyString(r.y).ShouldBe(170.0f));
     SHOULD(ShouldlyString(r.width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(r.height).ShouldBe(30.0f));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(false));
 }
 
-TEST_CASE("S122: margin shrinks the available slot; origin advances by left/top")
+TEST_CASE("S832: margin strips both the slot and the desired; a squeezed Stretch child keeps its desired")
 {
     // Margins 10 left, 20 top, 5 right, 5 bottom on a 100x50 slot:
-    // available = (100-10-5, 50-20-5) = 85x25; origin advances to (10,20).
-    // Stretch fills the remaining.
+    //   inset window = (100-10-5, 50-20-5) = 85x25; origin advances to (10,20).
+    //   inner desired = (200-15, 200-25) = 185x175 (margin stripped).
+    // S832 (11ad, FE.cs:4597-4624): the inner desired EXCEEDS the window, so a
+    // Stretch child keeps its full unclipped desired (185x175) — the child wins
+    // and needs_clip is true; the deferred S833 scissor trims it to 85x25.
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 100.0f, 50.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size{ 200.0f, 200.0f }, Thickness{ 10.0f, 20.0f, 5.0f, 5.0f },
         HorizontalAlignment::Stretch, VerticalAlignment::Stretch);
+    const Rect& r = ar.rect;
     SHOULD(ShouldlyString(r.x).ShouldBe(10.0f));
     SHOULD(ShouldlyString(r.y).ShouldBe(20.0f));
-    SHOULD(ShouldlyString(r.width).ShouldBe(85.0f));
-    SHOULD(ShouldlyString(r.height).ShouldBe(25.0f));
+    SHOULD(ShouldlyString(r.width).ShouldBe(185.0f));
+    SHOULD(ShouldlyString(r.height).ShouldBe(175.0f));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(true));
 }
 
-TEST_CASE("S122: desired > available clamps the child to the available (non-Stretch)")
+TEST_CASE("S832: desired > slot keeps the child at its unclipped desired (child-wins + clip)")
 {
-    // Desired 500x300 but slot is only 100x50; Left+Top clamps to the slot.
+    // Desired 500x300, slot only 100x50; Left+Top arranges at the FULL unclipped
+    // desired extent (500x300) — the child OVERFLOWS its slot (WPF
+    // ArrangeCore FE.cs:4617-4623 non-Stretch arm) and needs_clip is true.
+    // (Pre-S832 this clamped to the slot; the clamp was the drift.)
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 100.0f, 50.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size{ 500.0f, 300.0f }, Thickness{}, HorizontalAlignment::Left, VerticalAlignment::Top);
-    SHOULD(ShouldlyString(r.width).ShouldBe(100.0f));
-    SHOULD(ShouldlyString(r.height).ShouldBe(50.0f));
+    const Rect& r = ar.rect;
+    SHOULD(ShouldlyString(r.width).ShouldBe(500.0f));
+    SHOULD(ShouldlyString(r.height).ShouldBe(300.0f));
     SHOULD(ShouldlyString(r.x).ShouldBe(0.0f));
     SHOULD(ShouldlyString(r.y).ShouldBe(0.0f));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(true));
 }
 
-TEST_CASE("S122: margin larger than the slot clamps to zero â€” never negative")
+TEST_CASE("S122: margin larger than the slot clamps to zero — never negative")
 {
-    // Margin 200 on every edge of a 100x50 slot: available clamps to 0, so the
-    // child size is 0 and the origin is the (inset) slot origin â€” no negative
-    // geometry escapes the layout contract (NO-LAZY).
+    // Margin 200 on every edge of a 100x50 slot: inset clamps to 0 and the inner
+    // desired also clamps to 0 (50-400 < 0), so size is 0 — no negative geometry
+    // escapes the layout contract (NO-LAZY). No overflow => no clip.
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 100.0f, 50.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size{ 50.0f, 50.0f }, Thickness{ 200.0f, 200.0f, 200.0f, 200.0f },
         HorizontalAlignment::Stretch, VerticalAlignment::Stretch);
+    const Rect& r = ar.rect;
     SHOULD(ShouldlyString(r.width).ShouldBe(0.0f));
     SHOULD(ShouldlyString(r.height).ShouldBe(0.0f));
     SHOULD(ShouldlyString(r.x >= 0.0f).ShouldBe(true));
     SHOULD(ShouldlyString(r.y >= 0.0f).ShouldBe(true));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(false));
 }
 
 TEST_CASE("S122: Infinite desired keeps the available bound (non-Stretch)")
 {
-    // Infinite is the S123 Measure "unbounded available" sentinel; a non-
-    // Stretch alignment must still clamp to the slot's finite available.
+    // Infinite is the S123 Measure "unbounded available" sentinel. S832's finite
+    // guard folds a non-finite inner desired to the inset window, so the child
+    // keeps the finite slot (90x40) — infinity never escapes into geometry and
+    // there is no overflow.
     LayoutSlot slot{ slot_of(0.0f, 0.0f, 90.0f, 40.0f) };
-    const Rect r = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, Size::Infinite(), Thickness{}, HorizontalAlignment::Left, VerticalAlignment::Top);
+    const Rect& r = ar.rect;
     SHOULD(ShouldlyString(r.width).ShouldBe(90.0f));
     SHOULD(ShouldlyString(r.height).ShouldBe(40.0f));
+    SHOULD(ShouldlyString(ar.needs_clip).ShouldBe(false));
 }
 
 // --- UIElement layout DPs ----------------------------------------------------

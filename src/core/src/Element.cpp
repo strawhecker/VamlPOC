@@ -2610,8 +2610,12 @@ Size StackPanel::MeasureOverride(const Size& available) const
 // this loop instead passes the panel's own cross extent and pads the last
 // child to the leftover track. The same invented pattern is duplicated in
 // ToolBar::ArrangeOverride and ToolBarTray::ArrangeOverride (both below).
-// RESOLVED BY S832 (Sprint 11ad - the S124 arrange-contract + clip drift
-// closure). Do NOT extend; do NOT backfill silently.
+// RESOLVED BY S832 (Sprint 11ad): the CROSS-AXIS squeeze is closed on the CHILD
+// side (compute_final_rect child-wins: a child whose unclipped desired exceeds
+// the handed cross extent keeps its desired + reports needs_clip instead of
+// being shrunk); the stacking-axis `isLast ? remaining : desired` fill is a
+// retained, benign last-child-stretch behaviour. Do NOT extend; do NOT backfill
+// silently.
 VAML_CORE_EXPORT
 void StackPanel::ArrangeOverride(const Rect& finalSlot)
 {
@@ -6628,7 +6632,9 @@ Size ToolBar::MeasureOverride(const Size& available) const
 // `isLast ? remaining : desired` filler and the panel-owned cross extent are
 // not WPF's; WPF uses Stack.cs-identical strip math. ToolBar hosting in WPF is
 // ToolBarOverflowPanel/ToolBarPanel, not Stack, so this whole arrangement is
-// provisional. RESOLVED BY S832 (Sprint 11ad). Do NOT backfill silently.
+// provisional. RESOLVED BY S832 (Sprint 11ad): the CROSS-AXIS squeeze is closed
+// on the child side (compute_final_rect child-wins); the stacking-axis
+// last-child fill is a retained, benign behaviour. Do NOT backfill silently.
 VAML_CORE_EXPORT
 void ToolBar::ArrangeOverride(const vaml::Rect& finalSlot)
 {
@@ -6767,7 +6773,9 @@ Size ToolBarTray::MeasureOverride(const Size& available) const
 // `isLast ? remaining : desired` filler and the panel-owned cross extent are
 // not WPF's. ToolBarTray in WPF lays out trays with its own band logic
 // (ToolBarTray.OnRender/ArrangeTrays), not Stack math, so this is provisional.
-// RESOLVED BY S832 (Sprint 11ad). Do NOT backfill silently.
+// RESOLVED BY S832 (Sprint 11ad): the CROSS-AXIS squeeze is closed on the child
+// side (compute_final_rect child-wins); the stacking-axis last-child fill is a
+// retained, benign behaviour. Do NOT backfill silently.
 VAML_CORE_EXPORT
 void ToolBarTray::ArrangeOverride(const vaml::Rect& finalSlot)
 {

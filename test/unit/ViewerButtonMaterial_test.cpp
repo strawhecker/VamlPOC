@@ -28,11 +28,14 @@ TEST_CASE("S401: classify_merge_element -> Solid material for a Button at its ar
     // A Button is a real control that renders its default fill (Solid).
     SHOULD(ShouldlyIntegral(ev.kind == vaml::vulkan::ui::MaterialKind::Solid).ShouldBe(true));
     SHOULD(ShouldlyIntegral(ev.item.kind == vaml::vulkan::ui::DrawItemKind::SolidRect).ShouldBe(true));
-    // At the arranged origin + extent.
+    // At the arranged origin + extent. S832 (11ad): the Button measured 100x40 but
+    // was offered a smaller 60x24 arrange slot, so it CHILD-WINS at its full
+    // measured 100x40 (the rect the encoder draws); the deferred S833 scissor
+    // trims it to the slot.
     SHOULD(ShouldlyString(ev.item.x).ShouldBe(5.0f));
     SHOULD(ShouldlyString(ev.item.y).ShouldBe(7.0f));
-    SHOULD(ShouldlyString(ev.item.w).ShouldBe(60.0f));
-    SHOULD(ShouldlyString(ev.item.h).ShouldBe(24.0f));
+    SHOULD(ShouldlyString(ev.item.w).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(ev.item.h).ShouldBe(40.0f));
 }
 
 TEST_CASE("S401: a disabled Button renders a faded fill (IsEnabled honored)")

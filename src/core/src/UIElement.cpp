@@ -546,6 +546,15 @@ const vaml::Rect& UIElement::final_rect() const noexcept
 }
 
 VAML_CORE_EXPORT
+bool UIElement::needs_clip() const noexcept
+{
+    // S832: the WPF NeedsClipBounds mirror — true iff the last Arrange arranged
+    // this element larger than its slot (child-wins-then-clip). The deferred
+    // S833 scissor consumes this.
+    return needs_clip_;
+}
+
+VAML_CORE_EXPORT
 SetResult UIElement::set_margin(const vaml::Thickness& value)
 {
     // S824: the slot DP owner is "FrameworkElement" (the WPF-true home).
@@ -693,9 +702,10 @@ void UIElement::Measure(const Size& available)
     // that inner size; the finalizer returns the UN-CLAMPED content extent
     // (alignment is arrange-only, compute_measured_desired(natural)); the margin
     // is added back. DesiredSize may therefore EXCEED `available` (WPF
-    // soft-constraint / unclippedDesiredSize) — the render slot stays
-    // parent-bounded by compute_final_rect until S832 (11ad) adds the
-    // arrange-side clip.
+    // soft-constraint / unclippedDesiredSize) — the render slot follows the S832
+    // (11ad) child-wins-then-clip contract in compute_final_rect (the child may
+    // exceed its slot and reports needs_clip; the clip scissor is the deferred
+    // S833).
     if (measure_in_progress_)
     {
         // Reentrancy: a Measure must not recursively re-enter itself. WPF makes
@@ -881,13 +891,19 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     // ArrangeOverride -> children arranged). This removes the S125/S126 manual
     // arrange-call pattern; the arrange-subgraph auto-drive completes here.
     const LayoutSlot slot{ arrangeSlot };
-    final_rect_ = vaml::compute_final_rect(
+    const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
+    // S832 (Sprint 11ad): the arranged rect MAY exceed the slot (child-wins);
+    // store the UNCLIPPED final_rect_ + the NeedsClipBounds mirror. The
+    // conditional clip scissor honoring needs_clip() is the deferred S833 step.
+    final_rect_ = ar.rect;
+    needs_clip_ = ar.needs_clip;
     // A completed Arrange pass clears this element's arrange-dirty flag (S126),
     // mirroring Measure's clear of the measure bit.
     arrange_dirty_ = false;
-    // S127: hand the element its final render slot so a panel arranges its
-    // children into it (the arrange-subgraph auto-drive).
+    // S127/S832: hand the element its UNCLIPPED final render slot so a panel
+    // arranges its children into it (the child receives the size it measured
+    // for — FrameworkElement.cs:4651/4697).
     ArrangeOverride(final_rect_);
 }
 

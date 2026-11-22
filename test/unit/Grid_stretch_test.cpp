@@ -155,7 +155,10 @@ TEST_CASE("S133 A4: star clamps when absolute+auto exceed available (no negative
                                ColumnDefinition{ GridLength::Star(1.0f) } });
     RecordLeaf* autoLeaf = g.create_child<RecordLeaf>(Size{ 100.0f, 10.0f });
     (void)Grid::set_column(*autoLeaf, 1);
-    RecordLeaf* star = g.create_child<RecordLeaf>(Size{ 10.0f, 10.0f });
+    // S832 (11ad): a zero-content probe keeps its final rect == the resolved star
+    // TRACK extent (a child with content larger than a 0-wide track would now
+    // child-wins/overflow, obscuring the track). The track here is 0.
+    RecordLeaf* star = g.create_child<RecordLeaf>(Size{ 0.0f, 0.0f });
     (void)Grid::set_column(*star, 2);
 
     g.Measure(Size::Infinite());
@@ -171,8 +174,9 @@ TEST_CASE("S133 A5: totalStar==0 leaves all star tracks at zero")
     Grid g;
     g.set_column_definitions({ ColumnDefinition{ GridLength::Star(0.0f) },
                                ColumnDefinition{ GridLength::Star(0.0f) } });
-    RecordLeaf* a = g.create_child<RecordLeaf>(Size{ 10.0f, 10.0f });
-    RecordLeaf* b = g.create_child<RecordLeaf>(Size{ 10.0f, 10.0f });
+    // S832 (11ad): zero-content probes — their final rect == the (0-wide) track.
+    RecordLeaf* a = g.create_child<RecordLeaf>(Size{ 0.0f, 0.0f });
+    RecordLeaf* b = g.create_child<RecordLeaf>(Size{ 0.0f, 0.0f });
     (void)Grid::set_column(*b, 1);
 
     g.Measure(Size::Infinite());
@@ -189,7 +193,9 @@ TEST_CASE("S133 A6: a zero-weight star beside a positive sibling — zero gets 0
     Grid g;
     g.set_column_definitions({ ColumnDefinition{ GridLength::Star(0.0f) },
                                ColumnDefinition{ GridLength::Star(2.0f) } });
-    RecordLeaf* a = g.create_child<RecordLeaf>(Size{ 10.0f, 10.0f });
+    // S832 (11ad): `a` is a zero-content probe in the 0-wide track (final rect ==
+    // the track); `b` has content smaller than its 400-wide track so it fills it.
+    RecordLeaf* a = g.create_child<RecordLeaf>(Size{ 0.0f, 0.0f });
     RecordLeaf* b = g.create_child<RecordLeaf>(Size{ 10.0f, 10.0f });
     (void)Grid::set_column(*b, 1);
 
@@ -254,8 +260,13 @@ TEST_CASE("S133 B8: a spanning child re-awards the spanned star track (D1 with s
     g.Measure(Size::Infinite());
     g.Arrange(Rect{ 0.0f, 0.0f, 120.0f, 100.0f });
 
-    // S merged = 50 + 80 = 130; star track (R's slot) = 80.
-    SHOULD(ShouldlyString(s->last_slot().width).ShouldBe(130.0f));
+    // S832 (11ad): the star track is re-awarded to its content-min 80 (proven by
+    // R's slot width: 80, not the 70 proportional). The spanning child S has
+    // content 160 > the 130 merged cell {50 + 80}, so it now CHILD-WINS — arranged
+    // at its full unclipped 160 and clipped later (needs_clip), rather than being
+    // clamped to the 130 cell (the pre-S832 drift).
+    SHOULD(ShouldlyString(s->last_slot().width).ShouldBe(160.0f));
+    SHOULD(ShouldlyString(s->needs_clip()).ShouldBe(true));
     SHOULD(ShouldlyString(r->last_slot().width).ShouldBe(80.0f));
 }
 

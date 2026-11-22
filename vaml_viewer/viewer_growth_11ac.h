@@ -23,17 +23,16 @@
 // Headless Rail 1 (the [both-apps, not CI] window display stays the on-machine
 // local gate — this is the CI-checkable half of the exact code path).
 //
-// [WPF DIVERGENCE] (recorded, NOT asserted as WPF-true — RESOLVED BY S832):
-// our single `desired_size_` store is WPF's `UnclippedDesiredSize`
-// (FrameworkElement.cs:4394/4473-4491); the clamped parent-facing DesiredSize,
-// `NeedsClipBounds`, `GetLayoutClip` (FrameworkElement.cs:4579-4599/4874,
-// UIElement.cs:3322-3333), the non-Stretch grow-to-unclipped-desired-size arm
-// (FrameworkElement.cs:4617-4623) and the `effectiveMaxWidth` arrange cap
-// (FrameworkElement.cs:4636-4655) are the S832 (Sprint 11ad) payload. The
-// closures below assert the MEASURE half that IS WPF-true today, at the LIVE
-// element layer; closure A additionally records that the arranged slot stays
-// parent-bounded (today's truth, WPF's post-S832 truth differs only in the
-// clip/grow arms).
+// [WPF DIVERGENCE] (RESOLVED BY S832/11ad — the arrange side): VAML's single
+// `desired_size_` store is WPF's `UnclippedDesiredSize` (FrameworkElement.cs:
+// 4394/4473-4491); S832 landed the arrange-side child-wins-then-clip leg
+// (compute_final_rect arranges the child at its full unclipped desired +
+// reports needs_clip — FrameworkElement.cs:4597-4624). The deferred S833 step
+// owns the conditional clip scissor (GetLayoutClip, FrameworkElement.cs:
+// 4865-4960); the `effectiveMaxWidth` arrange cap (FrameworkElement.cs:
+// 4636-4655) remains a separate recorded Min/Max forward step. The closures
+// below assert the MEASURE half + the S832 arrange child-wins at the LIVE
+// element layer.
 //
 // ADR-021 consumer path (the S503/S512/S11q/S11s/11ab precedent). NO MINIMAL
 // REAL. ADR-018: ZERO new locks (single-threaded on the viewer's UI thread).
@@ -86,9 +85,11 @@ struct ViewerGrowth11acPlanResult
     // wider CONTENT width — DesiredSize may exceed the offer.
     float wideTextDesiredWidth = 0.0f;   // ≈ 288.0 (40 × 0.6 × 12)
     bool  desiredExceedsOffer  = false;  // > 120.0
-    // The arranged slot stays parent-bounded (today's truth; the clip/grow arms
-    // are the [WPF DIVERGENCE] above, RESOLVED BY S832).
-    float wideTextSlotWidth    = 0.0f;   // == 120.0
+    // S832 (11ad) child-wins-then-clip: the WIDE child is arranged at its FULL
+    // unclipped desired (288) inside the 120-wide slot, reporting needs_clip
+    // (the deferred S833 scissor trims it). squeezePanelWidth stays 120 (the
+    // panel honours its authored Width).
+    float wideTextSlotWidth    = 0.0f;   // == 288.0 (child-wins; needs_clip true)
     float squeezePanelWidth    = 0.0f;   // == 120.0 (HAlign=Left honours Width)
 
     // --- Closure B (S828): Stretch fills at ARRANGE, measure is CONTENT -----
@@ -174,7 +175,8 @@ run_viewer_growth_11ac_plan(const std::string& text)
         rootUi->Measure(viewport);
         rootUi->Arrange(vaml::Rect{ 0.0f, 0.0f, viewport.width, viewport.height });
 
-        // Closure A: the arranged slot stays parent-bounded (today's truth).
+        // Closure A: the WIDE child is arranged at its FULL unclipped desired
+        // (288) inside the 120-wide slot — child-wins-then-clip (S832/11ad).
         r.wideTextSlotWidth = r.wideText->final_rect().width;
         r.squeezePanelWidth = r.squeezePanel->final_rect().width;
 

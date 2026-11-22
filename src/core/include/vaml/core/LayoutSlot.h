@@ -30,10 +30,10 @@ namespace vaml {
 // SYMBOLICALLY (HorizontalAlignment::Stretch), never as a bare 0.
 enum class HorizontalAlignment : std::uint8_t
 {
-    Left    = 0, // child sits at the left; width = desired (clamped)
-    Center  = 1, // child centered; width = desired (clamped)
-    Right   = 2, // child sits at the right; width = desired (clamped)
-    Stretch = 3, // child fills the available slot (default)
+    Left    = 0, // child sits at the left; width = desired (may overflow + clip)
+    Center  = 1, // child centered; width = desired (may overflow + clip)
+    Right   = 2, // child sits at the right; width = desired (may overflow + clip)
+    Stretch = 3, // child fills the slot, but keeps desired (clips) if larger
 };
 
 // WPF-faithful vertical alignment (same Int32-value-path convention).
@@ -42,10 +42,10 @@ enum class HorizontalAlignment : std::uint8_t
 // (VerticalAlignment::Stretch), never a bare 0.
 enum class VerticalAlignment : std::uint8_t
 {
-    Top     = 0, // child sits at the top; height = desired (clamped)
-    Center  = 1, // child centered; height = desired (clamped)
-    Bottom  = 2, // child sits at the bottom; height = desired (clamped)
-    Stretch = 3, // child fills the available slot (default)
+    Top     = 0, // child sits at the top; height = desired (may overflow + clip)
+    Center  = 1, // child centered; height = desired (may overflow + clip)
+    Bottom  = 2, // child sits at the bottom; height = desired (may overflow + clip)
+    Stretch = 3, // child fills the slot, but keeps desired (clips) if larger
 };
 
 // The arrange slot a parent allocates to a child, AFTER margins (WPF-faithful:
@@ -56,20 +56,48 @@ struct LayoutSlot
     Rect bounds;
 };
 
+// The outcome of compute_final_rect: the (possibly OVERSIZED) arranged rect plus
+// the WPF NeedsClipBounds mirror. Struct member names follow the WPF source
+// (`Rect`/`NeedsClipBounds`) — no invented public name.
+struct arrange_result
+{
+    Rect rect;        // the arranged rect in slot/parent space — MAY exceed the slot
+    bool needs_clip;  // mirror of WPF FrameworkElement.NeedsClipBounds
+};
+
 // Computes a child's final rect inside `slot` given its DesiredSize, Margin,
-// and alignments. The REAL algorithm S124's Arrange will call (kept + extended
-// into Arrange; MINIMAL-REAL-kept semantics, not a stub):
-//   1. inset the slot by margin (left/top add; right/bottom subtract);
-//   2. child size = available (Stretch) or min(desired, available);
-//   3. x/y offset by alignment: Center=(available - child)/2, Right/Bottom =
-//      available - child; Stretch already fills.
-// Margins are clamped to >= 0 so a margin larger than the slot cannot drive a
-// negative child size (NO negative geometry from the layout contract).
-VAML_CORE_EXPORT Rect compute_final_rect(const LayoutSlot& slot,
-                                         Size desired,
-                                         Thickness margin,
-                                         HorizontalAlignment hAlign,
-                                         VerticalAlignment vAlign);
+// and alignments — the WPF-faithful `FrameworkElement.ArrangeCore` geometry
+// (FE.cs:4546-4775, `ComputeAlignmentOffset` FE.cs:4805-4849). The REAL
+// keep+extend algorithm S124's Arrange calls (not a stub).
+//
+// S832 (Sprint 11ad — ARRANGE-SQUEEZE FIDELITY): the child is NEVER arranged
+// smaller than what its own MeasureOverride accepted. A child whose content
+// exceeds its slot keeps its UNCLIPPED desired size and is clipped LATER
+// (`NeedsClipBounds`, consumed by the deferred S833 clip) — matching WPF
+// ArrangeCore (FE.cs:4597-4606: `if (arrangeSize.Width < unclippedDesiredSize.Width)
+// { NeedsClipBounds = true; arrangeSize.Width = unclippedDesiredSize.Width; }`).
+//   1. inset the slot by margin -> the "clientSize" window (clamped >= 0);
+//   2. innerDesired = max(0, desired - margin) — the S130_1 margin strip; the
+//      stored DesiredSize IS WPF's UnclippedDesiredSize (divergence #1);
+//   3. arrange size per axis: non-Stretch => innerDesired VERBATIM (may overflow,
+//      FE.cs:4617-4623); Stretch => max(inset, innerDesired) — fills the slot,
+//      but keeps innerDesired (and clips) when the slot is smaller
+//      (FE.cs:4597-4624);
+//   4. offset = ComputeAlignmentOffset(clientSize, arrangeSize) (Center/Stretch
+//      half the leftover; Right/Bottom the full leftover; Stretch degenerates to
+//      Left/Top once the child overflows — FE.cs:4811-4827), then re-add
+//      `slot.origin + margin.top/left` (FE.cs:4772-4775);
+//   5. needs_clip = (inset < innerDesired) on either axis. For VAML's `void`
+//      ArrangeOverride (ink == arrange size), this equals WPF's post-override
+//      `clientSize < clippedInkSize` (FE.cs:4756-4762) — the arrange-side legs
+//      reduce to `inset < innerDesired`.
+// Margins clamp to >= 0 so a margin larger than the slot cannot drive negative
+// geometry (NO negative geometry escapes the layout contract).
+VAML_CORE_EXPORT arrange_result compute_final_rect(const LayoutSlot& slot,
+                                                   Size desired,
+                                                   Thickness margin,
+                                                   HorizontalAlignment hAlign,
+                                                   VerticalAlignment vAlign);
 
 // Computes a child's MEASURED DesiredSize from its un-finalized content extent
 // (`natural`). S123's UIElement::Measure calls this to finalize its DesiredSize;
@@ -82,8 +110,9 @@ VAML_CORE_EXPORT Rect compute_final_rect(const LayoutSlot& slot,
 // Measure one. So this finalizer returns the element's un-clamped content
 // extent: `natural` per axis, guarded `>= 0`. DesiredSize may therefore EXCEED
 // `available` (WPF's recorded "soft constraint" / unclippedDesiredSize,
-// UIElement.cs:541-551) — the final render slot is still parent-bounded by
-// compute_final_rect (Arrange) until S832 (11ad) adds the arrange-side clip.
+// UIElement.cs:541-551) — the final render slot then follows the S832 (11ad)
+// child-wins-then-clip contract in compute_final_rect (the child may exceed its
+// slot and report needs_clip; the clip itself is the deferred S833 scissor).
 //
 // There is NO "Stretch + finite -> available (fill)" and NO invented
 // "Stretch + infinite -> wrap" special-case: those were the drift S827/S828

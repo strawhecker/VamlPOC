@@ -32,9 +32,10 @@
 //
 // NO-GAP (recorded, not silent): the LIVE WINDOW display of the closure sample
 // (the [both-apps] proof) stays the on-machine local gate; this headless seam is
-// the exact code path's CI-checkable half. The clamp/clip half of the WPF
-// DesiredSize pair is a recorded [WPF DIVERGENCE] RESOLVED BY S832 — asserted
-// nowhere as already-true. ADR-018 zero locks.
+// the exact code path's CI-checkable half. S832 (11ad) landed the arrange-side
+// child-wins-then-clip leg (compute_final_rect keeps the child at its unclipped
+// desired + reports needs_clip — FrameworkElement.cs:4597-4624); the conditional
+// clip scissor is the deferred S833. ADR-018 zero locks.
 
 #include "doctest/doctest.h"
 
@@ -163,12 +164,15 @@ TEST_CASE("11ac: the three closures resolve at the LIVE element layer")
     // (WPF UIElement.cs:541-551 "soft constraint" / unclippedDesiredSize).
     SHOULD(ShouldlyIntegral(r.desiredExceedsOffer ? 1 : 0).ShouldBe(1));
     SHOULD(ShouldlyIntegral(near(r.wideTextDesiredWidth, 288.0f) ? 1 : 0).ShouldBe(1));
-    // The arranged slot stays parent-bounded — HAlign=Left honours the authored
-    // Width and the child is pinned into the 120-wide slot. This is TODAY'S
-    // truth; the WPF grow-to-unclipped + clip arms are the recorded
-    // [WPF DIVERGENCE] RESOLVED BY S832 (never asserted as already-true).
+    // S832 (11ad) child-wins-then-clip: the WIDE child is arranged at its FULL
+    // unclipped desired (288) inside the 120-wide slot — the panel honours its
+    // authored Width (squeezePanelWidth 120), while the child keeps the size it
+    // measured for (WPF ArrangeCore FE.cs:4597-4623) and reports needs_clip so
+    // the deferred S833 scissor trims it to 120. (Pre-S832 the slot clamped the
+    // child to 120 — the drift the 11ad arrange leg closed.)
     SHOULD(ShouldlyIntegral(near(r.squeezePanelWidth, 120.0f) ? 1 : 0).ShouldBe(1));
-    SHOULD(ShouldlyIntegral(near(r.wideTextSlotWidth, 120.0f) ? 1 : 0).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(near(r.wideTextSlotWidth, 288.0f) ? 1 : 0).ShouldBe(1));
+    SHOULD(ShouldlyIntegral(r.wideText->needs_clip() ? 1 : 0).ShouldBe(1));
 
     // --- Closure B (S828): measure = CONTENT, arrange = FILL ---------------
     // Both probes are authored IDENTICALLY (Height=40, no Width) — the SAME

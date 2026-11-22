@@ -30,6 +30,10 @@ TEST_CASE("S402: classify_merge_element -> Solid material for a TextBox at its a
     SHOULD(ShouldlyIntegral(ev.item.kind == vaml::vulkan::ui::DrawItemKind::SolidRect).ShouldBe(true));
     SHOULD(ShouldlyString(ev.item.x).ShouldBe(2.0f));
     SHOULD(ShouldlyString(ev.item.y).ShouldBe(4.0f));
-    SHOULD(ShouldlyString(ev.item.w).ShouldBe(80.0f));
+    // S832 (11ad): the TextBox measured 120 wide but was offered an 80-wide
+    // arrange slot, so it CHILD-WINS at its full measured 120 (the rect the
+    // encoder draws); the deferred S833 scissor trims it to the slot. Height
+    // (22 slot) still fits the content so it is unchanged.
+    SHOULD(ShouldlyString(ev.item.w).ShouldBe(120.0f));
     SHOULD(ShouldlyString(ev.item.h).ShouldBe(22.0f));
 }

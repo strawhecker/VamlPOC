@@ -207,24 +207,26 @@ TEST_CASE("S125: leaf — Margin + alignment interplay (origin advances; content
     SHOULD(ShouldlyString(leaf.final_rect().bottom() <= 100.0f).ShouldBe(true));
 }
 
-TEST_CASE("S125: leaf — oversized content is UN-CLAMPED at Measure, bounded only at Arrange")
+TEST_CASE("S832: leaf — oversized content is UN-CLAMPED at Measure AND child-wins at Arrange")
 {
-    // S827: a non-Stretch leaf whose content (100x50) exceeds a smaller offered
-    // bound (60x40) still reports its CONTENT {100,50} — DesiredSize may exceed
-    // the offer. The final render slot is bounded by the parent at Arrange.
+    // S827/S832: a non-Stretch leaf whose content (100x50) exceeds a smaller
+    // offered bound (60x40) reports its CONTENT {100,50} at Measure (DesiredSize
+    // may exceed the offer) AND is arranged at that FULL unclipped size at
+    // Arrange — the child is never shrunk below what it measured for
+    // (WPF ArrangeCore FE.cs:4617-4623), reporting needs_clip so the deferred
+    // S833 scissor trims the overflow against the 60x40 slot.
     TextLikeLeaf leaf{ Size{ 100.0f, 50.0f } };
     (void)leaf.set_horizontal_alignment(HorizontalAlignment::Left);
     (void)leaf.set_vertical_alignment(VerticalAlignment::Top);
     leaf.Measure(Size{ 60.0f, 40.0f });
     SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(50.0f));
-    // Arrange into a slot exactly that size -> never negative geometry escapes,
-    // and the render slot stays bounded to the offer.
+    // Arrange into a slot smaller than the content -> child-wins: final rect is
+    // the full 100x50 content (may exceed the 60x40 slot), needs_clip is true.
     leaf.Arrange(rect_of(0.0f, 0.0f, 60.0f, 40.0f));
-    SHOULD(ShouldlyString(leaf.final_rect().width >= 0.0f).ShouldBe(true));
-    SHOULD(ShouldlyString(leaf.final_rect().height >= 0.0f).ShouldBe(true));
-    SHOULD(ShouldlyString(leaf.final_rect().right() <= 60.0f).ShouldBe(true));
-    SHOULD(ShouldlyString(leaf.final_rect().bottom() <= 40.0f).ShouldBe(true));
+    SHOULD(ShouldlyString(leaf.final_rect().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.final_rect().height).ShouldBe(50.0f));
+    SHOULD(ShouldlyString(leaf.needs_clip()).ShouldBe(true));
 }
 
 // --- ARCHETYPE 2: panels measure children + arrange each into its slot ------------------

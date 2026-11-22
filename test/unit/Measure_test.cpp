@@ -157,17 +157,20 @@ TEST_CASE("S827: content leaf DesiredSize MAY EXCEED the offer (un-clamped conte
     SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(300.0f));
 }
 
-TEST_CASE("S827: the arrange-side render slot is STILL parent-bounded (final rect clipped to slot)")
+TEST_CASE("S832: the arrange-side render slot is child-wins — the child keeps its unclipped size + needs_clip")
 {
     ContentLeaf leaf{ Size{ 500.0f, 300.0f } };
     (void)leaf.set_horizontal_alignment(HorizontalAlignment::Left);
     (void)leaf.set_vertical_alignment(VerticalAlignment::Top);
     leaf.Measure(Size{ 100.0f, 50.0f });
     leaf.Arrange(Rect{ 0.0f, 0.0f, 100.0f, 50.0f });
-    // DesiredSize exceeds the offer, but the FINAL render slot stays bounded by
-    // the parent's slot until S832 (11ad) adds the arrange-side clip.
-    SHOULD(ShouldlyString(leaf.final_rect().width <= 100.0f).ShouldBe(true));
-    SHOULD(ShouldlyString(leaf.final_rect().height <= 50.0f).ShouldBe(true));
+    // S832 (11ad): DesiredSize exceeds the offer AND the arranged final rect now
+    // keeps the FULL unclipped size (500x300) rather than being clamped to the
+    // parent's 100x50 slot (WPF ArrangeCore FE.cs:4617-4623 non-Stretch arm),
+    // reporting needs_clip so the deferred S833 scissor trims it.
+    SHOULD(ShouldlyString(leaf.final_rect().width).ShouldBe(500.0f));
+    SHOULD(ShouldlyString(leaf.final_rect().height).ShouldBe(300.0f));
+    SHOULD(ShouldlyString(leaf.needs_clip()).ShouldBe(true));
 }
 
 TEST_CASE("S827/S828: alignment does NOT change a measured DesiredSize (alignment-agnostic)")

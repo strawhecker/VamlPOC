@@ -154,6 +154,16 @@ public:
     // until the first Arrange pass.
     [[nodiscard]] const vaml::Rect& final_rect() const noexcept;
 
+    // --- needs_clip() — WPF NeedsClipBounds mirror (S832) ------------------
+    // True iff the last Arrange arranged this element LARGER than its slot on
+    // an axis (the child-wins-then-clip contract of FrameworkElement.ArrangeCore
+    // FE.cs:4597-4606). final_rect() may then EXCEED the arrange slot; the
+    // conditional clip scissor that honors this flag is the deferred S833 step
+    // (GetLayoutClip, FE.cs:4865-4960: a local `Rect(-offset, clientSize)`).
+    // Re-computed on every Arrange (WPF resets NeedsClipBounds false each
+    // ArrangeCore, FE.cs:4546). Default false until the first Arrange pass.
+    [[nodiscard]] bool needs_clip() const noexcept;
+
     // --- Measure contract (S123) -------------------------------------------
     // Measure(available) -> DesiredSize, infinity-aware stretch-vs-wrap.
     // The S122-desired_size field is the WRITE target; the computed DesiredSize
@@ -208,16 +218,17 @@ public:
     // (recompute, never cumulate — same discipline as Measure/S123).
     //
     // RENDER SLOT == CLIP BOUNDS: final_rect() IS the render slot where the
-    // renderer (S208) draws the element, AND the extent that clip honors —
-    // content overflowing final_rect() is not rendered. The rectangular clip
-    // op the renderer + ScrollViewer (S405) consume is vaml::clip_to_bounds
-    // (LayoutSlot.h); the base content (empty) fits any slot, so a base
-    // UIElement needs no override clip (see the Arrange test for the slot
-    // equality). S127 (RESOLVED) added the ArrangeOverride virtual here, so
-    // Arrange now auto-invokes a panel's ArrangeOverride; the arrange-subgraph
-    // auto-drive (LayoutManager -> root Arrange -> panel ArrangeOverride ->
-    // children arranged) completes on this seam. Do NOT extend this seam
-    // silently.
+    // renderer (S208) draws the element. S832 (Sprint 11ad — child-wins-then-
+    // clip): a child whose unclipped desired exceeds its slot is arranged at its
+    // FULL desired size — final_rect() may EXCEED the slot — and needs_clip()
+    // reports the overflow (WPF NeedsClipBounds, FE.cs:4597-4606). The
+    // conditional clip (a local `Rect(-offset, clientSize)`, WPF GetLayoutClip
+    // FE.cs:4865-4960) is the DEFERRED S833 scissor; the base clip op the
+    // renderer + ScrollViewer (S405) already consume is vaml::clip_to_bounds
+    // (LayoutSlot.h). S127 (RESOLVED) added the ArrangeOverride virtual here, so
+    // Arrange now auto-invokes a panel's ArrangeOverride and hands it the
+    // UNCLIPPED final_rect() (the child receives the size it measured for,
+    // FE.cs:4651/4697). Do NOT extend this seam silently.
     //
     // RESOLUTION SCRIPT (recorded, NO-GAP — not silent):
     //   - S125 called Arrange on children after measuring them (panels arrange
@@ -612,6 +623,12 @@ private:
     vaml::Rect final_rect_     = {};                        // S122/S124 final rect (Arrange writes)
     bool       measure_dirty_  = true;                      // S126 layout-dirty flag (measure axis)
     bool       arrange_dirty_  = true;                      // S126 layout-dirty flag (arrange axis)
+    // --- S832 NeedsClipBounds mirror -------------------------------------
+    // True iff the last Arrange arranged this element LARGER than its slot on
+    // an axis (the WPF FrameworkElement.NeedsClipBounds, FE.cs:4546/4596/4603).
+    // Re-computed on every Arrange; consumed by the deferred S833 clip scissor.
+    // Default false until the first Arrange pass.
+    bool       needs_clip_     = false;                     // S832 NeedsClipBounds mirror
     // --- S829 measure-entry fidelity (WPF UIElement.Measure) -----------------
     // measure_in_progress_: reentrancy guard (WPF MeasureInProgress /
     //   Dispatcher.DisableProcessing — "We cannot survive reentrancy"). A

@@ -121,11 +121,15 @@ TEST_CASE("S470: dock order placement — Left/Top + last-child Fill")
     SHOULD(ShouldlyString(leftSlot.height).ShouldBe(100.0f));
 
     // The Top child is placed after the Left track (x=30, since Left consumed
-    // 30 width), at the top edge, spanning the remaining width.
+    // 30 width), at the top edge. S832 (11ad): its authored content is 100 wide
+    // but the remaining slot is only 70 (100 - 30), so it CHILD-WINS — arranged
+    // at its full 100 and clipped later (needs_clip = true) rather than clamped
+    // to 70 (the pre-S832 drift). Its x/y/height are unchanged.
     SHOULD(ShouldlyString(topSlot.x).ShouldBe(30.0f));      // after the Left track
     SHOULD(ShouldlyString(topSlot.y).ShouldBe(0.0f));
-    SHOULD(ShouldlyString(topSlot.width).ShouldBe(70.0f)); // 100 - 30
+    SHOULD(ShouldlyString(topSlot.width).ShouldBe(100.0f)); // content-wins (slot 70)
     SHOULD(ShouldlyString(topSlot.height).ShouldBe(20.0f));
+    SHOULD(ShouldlyString(top->needs_clip()).ShouldBe(true));
 
     // The Fill child takes the remaining interior: right of Left, below Top.
     // Left consumed 30 width, Top consumed 20 height -> Fill = {30, 20, 70, 80}.
