@@ -40,6 +40,22 @@ Rect compute_final_rect(const LayoutSlot& slot,
     // 3. Child size: Stretch fills the available slot; Left/Center/Right and
     //    Top/Center/Bottom pinch to at most the INNER desired (clamped to
     //    available).
+    //
+    // [WPF DIVERGENCE] #2/#3 — no NeedsClipBounds + non-Stretch pinned to
+    // `avail`. WPF FrameworkElement.ArrangeCore (FE.cs:4589-4625) does NOT
+    // pinch: it GROWS the arrange size to `unclippedDesiredSize` when the slot
+    // is smaller (`if (arrangeSize.Width < unclippedDesiredSize.Width) {
+    // NeedsClipBounds = true; arrangeSize.Width = unclippedDesiredSize.Width; }`)
+    // and arranges a non-Stretch child at `unclippedDesiredSize` VERBATIM
+    // (`if (HorizontalAlignment != Stretch) arrangeSize.Width =
+    // unclippedDesiredSize.Width;`), i.e. a Left-aligned oversize child
+    // OVERFLOWS its slot unclipped (GetLayoutClip returns null when
+    // ClipToBounds is false, UIElement.cs:3322-3333). VAML instead clamps to
+    // `avail` (std::min above), so an oversize non-Stretch child is PINNED
+    // rather than overflowing, and a slot smaller than the unclipped desired is
+    // never marked NeedsClipBounds. RESOLVED BY S832 (Sprint 11ad — the S124
+    // arrange-contract + clip drift closure). Do NOT paper over here; do NOT
+    // assert oversized-overflow as WPF-true until S832 lands.
     const bool hStretch = (hAlign == HorizontalAlignment::Stretch);
     const bool vStretch = (vAlign == VerticalAlignment::Stretch);
     const float childW = hStretch ? availW : std::min(innerW, availW);
@@ -90,6 +106,21 @@ Size compute_measured_desired(Size natural)
     // "Stretch + infinite -> wrap" branch (the removed drift). `natural` is
     // finite (MeasureOverride / explicit Width-Height are finite), so a measured
     // size is always finite + non-negative.
+    //
+    // [WPF DIVERGENCE] #1 — the single un-clipped store. WPF keeps TWO values:
+    // the parent-facing, CLAMPED `_desiredSize` (FrameworkElement.MeasureCore
+    // FE.cs:4435-4500: `clippedDesiredWidth = desiredSize.Width + margin; if
+    // (clippedDesiredWidth > availableSize.Width) { clippedDesiredWidth =
+    // availableSize.Width; clipped = true; } ... return new
+    // Size(Math.Max(0, clippedDesiredWidth), ...)`) plus the separate
+    // `UnclippedDesiredSize` (FE.cs:4473-4491) that ArrangeCore consumes. What
+    // VAML stores in `UIElement::desired_size_` IS WPF's UnclippedDesiredSize;
+    // the clamped pair + the `clipped` flag feeding NeedsClipBounds are absent.
+    // Consequence: no parent can observe an over-constrained child as clamped,
+    // and `DesiredSize`-driven parents (Stack.cs:566-600 maxes the CLAMPED
+    // child size) see the larger figure. RESOLVED BY S832 (Sprint 11ad). Do NOT
+    // backfill a clamp here — the store, the flag and the arrange-side clip land
+    // together or not at all.
     return { std::max(0.0f, natural.width), std::max(0.0f, natural.height) };
 }
 

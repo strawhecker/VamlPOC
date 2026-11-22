@@ -713,6 +713,14 @@ void UIElement::Measure(const Size& available)
         // reveal re-measures at the right size (UIElement.cs:661-676).
         if (!isCloseToPrevious)
         {
+            // S830 (WPF `InvalidateMeasureInternal()` at UIElement.cs:601-611,
+            // "this will ensure that element will be actually re-measured at
+            // the new available size later when it becomes visible"): re-arm
+            // THIS element's measure-dirty flag locally. WPF's
+            // InvalidateMeasureInternal sets the local dirty bit + drops the
+            // pending request WITHOUT propagating to ancestors — so this is a
+            // direct flag write, not InvalidateMeasure() (which would walk up).
+            measure_dirty_ = true;
             previous_available_ = available;
         }
         return;
@@ -744,6 +752,10 @@ void UIElement::Measure(const Size& available)
 
     d.width += m.left + m.right;
     d.height += m.top + m.bottom;
+    // S830: the DesiredSize BEFORE this pass — the WPF `Size prevSize =
+    // _desiredSize;` capture (UIElement.cs:620) that feeds the measure-side
+    // waterfall below.
+    const Size prevSize = desired_size_;
     // S827: NOT clamped to the offered size — DesiredSize may exceed it.
     desired_size_ = {
         std::max(0.0f, d.width),
@@ -754,6 +766,86 @@ void UIElement::Measure(const Size& available)
     never_measured_ = false;
     // A completed Measure pass clears this element's measure-dirty flag (S126).
     measure_dirty_ = false;
+
+    // S830 (WPF UIElement.cs:687-700 — "notify parent if our desired size
+    // changed (waterfall effect)"): a Measure that CHANGED the DesiredSize must
+    // dirty the parent, because the parent's own DesiredSize derives from it.
+    //   * `!MeasureDuringArrange` — VAML's Arrange never re-enters Measure (the
+    //     S127 ArrangeOverride drives children by Arrange only), so that guard
+    //     has no analogue here; recorded, not silently dropped.
+    //   * `!p.MeasureInProgress` — the load-bearing guard: during the parent's
+    //     OWN MeasureOverride the parent is already in progress and therefore
+    //     already recomputing, so signalling it would be redundant (and, on the
+    //     FIRST pass, would wrongly leave the whole chain dirty).
+    // The comparison is WPF's `!DoubleUtil.AreClose(prevSize, desiredSize)`.
+    if (!sizes_close(prevSize, desired_size_))
+    {
+        // S830 — the ARRANGE request that a changed DesiredSize implies.
+        // [WPF DIVERGENCE] WPF issues `InvalidateArrange()` on EVERY real
+        // Measure pass ("we always want to be arranged, ensure arrange
+        // request", UIElement.cs:626); VAML issues it only when the DesiredSize
+        // actually CHANGED, because the S128/S129/S135/S137 dirty-respect
+        // contract pins an arrange-skip for an unchanged re-measured child
+        // (WPF's panels arrange unconditionally — Stack.cs:757 — so WPF has no
+        // such skip). Without this call a revealed Collapsed child would
+        // measure to 40 and keep a STALE zero-height final_rect (never
+        // re-arranged, never drawn); with it the reveal renders. The
+        // unconditional form ("Measure re-arms arrange", UIElement.cs:629-631)
+        // belongs to the invalidation-fidelity closure —
+        // RESOLVED BY S839 (Sprint 11ae, D2). Do NOT backfill silently.
+        InvalidateArrange();
+
+        for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
+        {
+            auto* ue = dynamic_cast<UIElement*>(p);
+            if (ue == nullptr)
+            {
+                continue; // not a layout participant — keep walking up
+            }
+            if (!ue->measure_in_progress_)
+            {
+                ue->OnChildDesiredSizeChanged(this);
+            }
+            break; // nearest UIElement ancestor only (WPF GetUIParentOrICH)
+        }
+    }
+}
+
+// --- S830: OnChildDesiredSizeChanged / signalDesiredSizeChange --------------
+
+VAML_CORE_EXPORT
+void UIElement::OnChildDesiredSizeChanged(UIElement* child)
+{
+    // WPF UIElement.cs:323-330 — the default body verbatim:
+    //     if (IsMeasureValid) { InvalidateMeasure(); }
+    // `IsMeasureValid` == !MeasureDirty, so this re-dirties an ancestor that is
+    // currently clean (an already-dirty ancestor needs no re-walk — the chain
+    // above it is dirty from when it was first dirtied).
+    (void)child;
+    if (!measure_dirty_)
+    {
+        InvalidateMeasure();
+    }
+}
+
+VAML_CORE_EXPORT
+void UIElement::signal_desired_size_change()
+{
+    // WPF UIElement.cs:3043-3056 — `GetUIParentOrICH` then
+    // `p.OnChildDesiredSizeChanged(this)`. Unlike the measure-side waterfall
+    // there is NO `MeasureInProgress` guard here (WPF says so explicitly in the
+    // UIElement.cs:687-700 comment: "this is what differs this code from
+    // signalDesiredSizeChange()"), so the call is unconditional.
+    for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
+    {
+        auto* ue = dynamic_cast<UIElement*>(p);
+        if (ue == nullptr)
+        {
+            continue; // not a layout participant — keep walking up
+        }
+        ue->OnChildDesiredSizeChanged(this);
+        break; // nearest UIElement ancestor only
+    }
 }
 
 // --- S124 Arrange contract --------------------------------------------------
@@ -901,13 +993,46 @@ bool UIElement::is_render_dirty() const noexcept
 
 VAML_CORE_EXPORT
 void UIElement::OnPropertyChanged(
-    PropertyId /*id*/,
-    const Value& /*oldValue*/,
-    const Value& /*newValue*/,
+    PropertyId id,
+    const Value& oldValue,
+    const Value& newValue,
     PropertyFlags flags)
 {
     // Run the WPF `FrameworkElement.OnPropertyChanged` Affects* invalidation
     // (FE.cs:2198-2251), EXACTLY — in the same order WPF checks the arms.
+
+    // 0) S830 (WPF OnVisibilityChanged → switchVisibilityIfNeeded,
+    //    UIElement.cs:2938-2954 / 2976-2994 / 2984-3034): a
+    //    Collapsed <-> non-Collapsed transition signals a DESIRED-SIZE change to
+    //    the parent, which is what makes a reveal re-measure the ancestor chain.
+    //      * Visible→Collapsed : ensureInvisible(true) — sets IsCollapsed, then
+    //        signalDesiredSizeChange().
+    //      * Collapsed→Visible : ensureVisible() — clears IsCollapsed, then
+    //        signalDesiredSizeChange().
+    //      * Hidden↔Visible and Collapsed↔Hidden do NOT flip IsCollapsed, so
+    //        they signal nothing (WPF guards BOTH edges on the flag, not on the
+    //        enum value).
+    //    Visibility carries NO AffectsMeasure in WPF (the DP is a plain
+    //    PropertyMetadata + ValidateValueCallback) and none here, so this change
+    //    callback is the ONLY measure signal a Visibility write produces. It
+    //    runs for the Collapsed SKIP path in Measure (which keeps the dirty bit
+    //    but produces no DesiredSize change) — hence a separate call site from
+    //    the measure-side waterfall.
+    if (id == PropertyId::of("Visibility", "UIElement"))
+    {
+        const bool was_collapsed =
+            oldValue.get<std::int32_t>() == static_cast<std::int32_t>(Visibility::Collapsed);
+        const bool now_collapsed =
+            newValue.get<std::int32_t>() == static_cast<std::int32_t>(Visibility::Collapsed);
+        if (was_collapsed != now_collapsed)
+        {
+            // S830: the WPF-side render invalidation in ensureVisible
+            // (`InvalidateVisual()` — re-render properties that changed while
+            // Collapsed) has no VAML analogue: this engine has no opacity
+            // suppression / IsRenderable gate. Recorded, not silently dropped.
+            signal_desired_size_change();
+        }
+    }
 
     // 1) AffectsParentMeasure / AffectsParentArrange: walk to the NEAREST
     //    UIElement layout parent and invalidate its measure/arrange

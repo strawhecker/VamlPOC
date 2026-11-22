@@ -1391,6 +1391,25 @@ add_executable(vaml-presentation-tests
     # [both-apps, not CI]: the LIVE WINDOW display of the closure sample stays
     # the on-machine local gate (recorded NO-GAP).
     ViewerGrowth11ab_test.cpp
+    # 11ac (dep:S829) — VIEWER-GROWTH(11ac): THE CORRECTED MEASURE SEMANTICS
+    # RENDERED LIVE. sample.s11ac.vaml authors the THREE S827/S828/S829 closures
+    # (a 40-glyph unbreakable token whose CONTENT exceeds its 120-DIP offer — the
+    # S827 DesiredSize-bounds; a default-Stretch Rectangle that measures 0 wide
+    # yet fills the panel's bounded 300-wide cross-axis at ARRANGE while a
+    # Left-aligned sibling keeps its 80-wide desired extent — the S828
+    # stretch-pass; a Collapsed sibling SKIPPED with its dirty bit kept and
+    # re-measured on reveal through WPF's own Visibility-transition →
+    # OnChildDesiredSizeChanged signal path — the S829 measure-entry). Each must
+    # RESOLVE + RENDER via the generic renderer (the S222_1/11k-6 RELOAD
+    # re-demonstration — prove NO regression from the S827/S828/S829 math
+    # changes). Compiles the seam viewer_growth_11ac.h (ADR-021) + links
+    # vaml-presentation (which PUBLIC-links vaml-vulkan, so the S212
+    # encode_visual_slice render-plan + UiScene are provable).
+    # [both-apps, not CI]: the LIVE WINDOW display of the closure sample stays
+    # the on-machine local gate (recorded NO-GAP). The clamp/clip half of the WPF
+    # DesiredSize pair is a recorded [WPF DIVERGENCE] RESOLVED BY S832 — asserted
+    # nowhere as already-true.
+    ViewerGrowth11ac_test.cpp
     # S440 (dep:S408) — the APP-SHELL: the authored MainView.vaml + the REAL
     # Window (re-based onto UIElement) + run_app_shell_plan, which Loads the
     # shell through a RETAINED VamlReader and calls finalize_visual_tree() — the

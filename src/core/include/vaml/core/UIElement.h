@@ -178,6 +178,27 @@ public:
     // machinery invokes it; Measure() is the public entry that calls it.
     [[nodiscard]] virtual vaml::Size MeasureOverride(const vaml::Size& available) const;
 
+    // --- S830: OnChildDesiredSizeChanged (WPF UIElement.cs:323-330) ---------
+    // WPF `protected virtual void OnChildDesiredSizeChanged(UIElement child)`
+    // with the default body `if (IsMeasureValid) InvalidateMeasure();` — "the
+    // default implementation simply calls InvalidateMeasure(), assuming that
+    // layout of a parent should be updated after child changed its size".
+    // Declared public here to mirror this class's existing convention for the
+    // layout virtals (MeasureOverride/ArrangeOverride are likewise declared in
+    // the public block with their WPF `protected` visibility recorded).
+    //
+    // Fired by TWO WPF-real call sites, both mirrored in Measure():
+    //   1. the measure-side waterfall (UIElement.cs:687-700) — a completed
+    //      Measure whose DesiredSize CHANGED signals its parent, unless the
+    //      parent is itself inside a Measure pass (`!p.MeasureInProgress`);
+    //   2. the Visibility transition (UIElement.cs:2984-3034) —
+    //      `ensureVisible`/`ensureInvisible` call `signalDesiredSizeChange()`
+    //      on the Collapsed<->non-Collapsed edges, which routes here.
+    // It is the ONLY measure signal a Visibility change produces: Visibility
+    // carries NO AffectsMeasure in WPF (plain PropertyMetadata +
+    // ValidateValueCallback, UIElement.cs:2938-2954) and none here either.
+    virtual void OnChildDesiredSizeChanged(UIElement* child);
+
     // --- Arrange contract (S124) -------------------------------------------
     // Arrange(arrangeSlot) -> final_rect(). The write-side pair to Measure:
     // consumes the S122 compute_final_rect(slot, desired, margin, hAlign,
@@ -556,6 +577,14 @@ private:
         PropertyFlags flags) override;
 
     void attach_child(std::unique_ptr<UIElement> child);
+
+    // --- S830: signalDesiredSizeChange (WPF UIElement.cs:3043-3056) ---------
+    // `GetUIParentOrICH` → `p.OnChildDesiredSizeChanged(this)`. VAML has no
+    // IContentHost branch (FrameworkContentElement hosts are not a measure
+    // participant in this engine — recorded, not silent); the walk therefore
+    // stops at the NEAREST UIElement ancestor, skipping non-layout ancestors.
+    // Private in WPF and private here.
+    void signal_desired_size_change();
 
     // Fires `event`'s handlers on ONE element (sets args.source = element),
     // in registration order. A handler may set handled=true (checked by the

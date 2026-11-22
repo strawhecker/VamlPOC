@@ -1,0 +1,142 @@
+<!-- vaml_viewer — Sprint 11ac VIEWER-GROWTH sample (dep:S829, Sprint 11ac): THE
+     CORRECTED MEASURE SEMANTICS RENDERED LIVE. The three S827/S828/S829
+     closures all resolve + render through the generic renderer (the S222_1 /
+     11k-6 RELOAD re-demonstrated — proving NO regression from the S827/S828/
+     S829 measure-math changes).
+
+     Ground truth (E:\GitRepos\wpf, read directly — quoted, not assumed):
+
+       * FrameworkElement.cs:4284-4500 MeasureCore — `Size unclippedDesiredSize
+         = desiredSize;` (4394) is the content extent; the over-constrained arm
+         clamps it to `availableSize` ("In overconstrained scenario, parent wins
+         and measured size of the child … can not be larger then available
+         size. We will clip the guy later.", 4435-4450) and returns the CLAMPED
+         pair as `DesiredSize` while keeping `UnclippedDesiredSizeField`
+         (4473-4491). See the [WPF DIVERGENCE] note below: VAML's
+         `desired_size()` is WPF's UnclippedDesiredSize, not its DesiredSize.
+
+       * FrameworkElement.cs:4507-4690 ArrangeCore — `arrangeSize` starts from
+         the slot, GROWS to `unclippedDesiredSize` and sets `NeedsClipBounds`
+         when the slot is smaller (4579-4599); `Alignment != Stretch` arranges
+         at the unclippedDesiredSize (4617-4623); `effectiveMaxWidth =
+         Math.Max(unclippedDesiredSize.Width, mm.maxWidth)` caps a Stretch
+         ("Clipping by Max is needed to limit stretch here", 4636-4655).
+
+       * Stack.cs:738-757 StackArrangeHelper — NO last-child branch: every child
+         gets `rcChild.Width = child.DesiredSize.Width` (stacking axis) and
+         `Math.Max(arrangeSize.Axis, child.DesiredSize.Axis)` (cross axis). The
+         Stretch FILL is the CHILD's ArrangeCore, not the panel's.
+
+       * UIElement.cs:561-700 Measure — reentrancy guard, `Visibility.Collapsed`
+         skip (601-611, keeps the dirty bit + re-arms `_previousAvailableSize`),
+         clean early-out (648-651), `InvalidateArrange()` on every real pass
+         (626, "we always want to be arranged, ensure arrange request"), and the
+         DesiredSize-changed waterfall to the parent (687-700).
+
+       * UIElement.cs:2938-2954 / 2976-3034 — Visibility is a plain
+         `PropertyMetadata` (NOT AffectsMeasure) whose change callback runs
+         `switchVisibilityIfNeeded` → `ensureVisible`/`ensureInvisible` →
+         `signalDesiredSizeChange()` on both Collapsed edges;
+         UIElement.cs:323-330 `OnChildDesiredSizeChanged` defaults to
+         `if (IsMeasureValid) InvalidateMeasure();`.
+
+     The LIVE window display is the [both-apps, not CI] on-machine gate; the
+     SEAM (vaml_viewer/viewer_growth_11ac.h + its headless test) is the
+     CI-checkable half of the exact code path. ADR-021 consumer path.
+     NO MINIMAL REAL. ADR-018 ZERO new locks.
+-->
+
+<!-- ===========================================================================
+     [WPF DIVERGENCE] REGISTER (the NO-GAP sibling of the MINIMAL REAL marker: a
+     known, scheduled, SEARCHABLE difference from the WPF source — recorded here
+     so it can never be silently backfilled or mistaken for WPF-true)
+
+       [WPF DIVERGENCE] #1 the single DesiredSize store — desired_size() IS
+       WPF's `UnclippedDesiredSize` (FrameworkElement.cs:4394, 4473-4491); WPF
+       keeps a CLAMPED parent-facing DesiredSize beside it
+       (FrameworkElement.cs:4435-4450) — RESOLVED BY S832 (Sprint 11ad).
+       Do NOT paper over; do NOT assert as WPF-true.
+
+       [WPF DIVERGENCE] #2 no `NeedsClipBounds` / `GetLayoutClip` — WPF marks a
+       squeezed element and clips it against the smaller slot
+       (FrameworkElement.cs:4579-4599, 4874; UIElement.cs:3322-3333) —
+       RESOLVED BY S833 (Sprint 11ad). Do NOT paper over; do NOT assert as
+       WPF-true.
+
+       [WPF DIVERGENCE] #3 `compute_final_rect` pins a non-Stretch child to
+       min(inner, avail) instead of arranging it at its unclipped desired size,
+       and there is no `effectiveMaxWidth/Height` arrange cap
+       (FrameworkElement.cs:4617-4623, 4636-4655) — RESOLVED BY S832 (Sprint
+       11ad). Do NOT paper over; do NOT assert as WPF-true.
+
+       [WPF DIVERGENCE] #4 `StackPanel::ArrangeOverride` gives the LAST child a
+       leftover track (`isLast ? remaining : desired`, Element.cpp:2613-2640)
+       and offers the panel's own width as the cross-axis slot; WPF's
+       `StackArrangeHelper` has NO last-child branch and uses
+       `Math.Max(arrangeSize.Axis, child.DesiredSize.Axis)` (Stack.cs:738-757) —
+       RESOLVED BY S1239 (Sprint 11ca, D1). Do NOT paper over; do NOT assert as
+       WPF-true.
+     =========================================================================== -->
+
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="Root" Width="640" Height="520" Margin="6"
+            Background="#F0F0F0">
+  <TextBlock Text="11ac — the corrected measure semantics render live"
+             FontSize="16" Margin="4"/>
+
+  <!-- Closure A (S827 — DesiredSize-bounds): a child whose CONTENT exceeds its
+       offered slot must still report its wider content. WideText is a single
+       40-character unbreakable token: default_text_metric advance is 0.6 ×
+       FontSize = 7.2 DIPs, so the line measures 40 × 7.2 = 288 DIPs wide — one
+       line, no mid-word break (TextLayout.cpp:296-310, "a word LONGER than the
+       full avail still gets its own line (overflows rather than wraps
+       mid-word)"). The panel offers it a 120-wide slot (SqueezePanel's Width),
+       so DesiredSize (288) EXCEEDS the offer — WPF's "soft constraint"
+       (UIElement.cs:541-551).
+
+       The MEASURE half asserted here IS WPF-true: MeasureOverride's output is
+       content + margin, never clamped to `available`. The ARRANGE half is
+       divergence #1/#3 in the register at the foot of this header (S832). -->
+  <StackPanel x:Name="SqueezePanel" Width="120" HorizontalAlignment="Left"
+              Margin="4" Background="#E0E0E0">
+    <TextBlock x:Name="WideText" FontSize="12"
+               Text="WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"/>
+  </StackPanel>
+
+  <!-- Closure B (S828 — the Stretch/Fill pass): alignment is an ARRANGE-only
+       concern. Both probes are authored IDENTICALLY (Height=40, no Width, Fill
+       only), so they present the SAME measure input; the ONLY difference is
+       HorizontalAlignment. StretchChild (default Stretch) is arranged at the
+       panel's whole 300-wide cross-axis (its own ArrangeCore Stretch arm,
+       FrameworkElement.cs:4597-4620, "Alignment==Stretch --> arrange at the
+       slot size minus margins"), while LeftChild is arranged at its
+       unclippedDesiredSize (FrameworkElement.cs:4617-4623) — the measure pass
+       never saw the alignment at all.
+       Two children, so the non-last slot is exercised and the cross-axis result
+       cannot come from a last-child filler (WPF Stack.cs:738-757 has no such
+       branch at all).
+       The UNBOUNDED axis is the panel's stacking axis: the vertical StackPanel
+       offers `Size::Infinite().height` (S129), so a Stretch child is measured
+       at content height — never "wrapped" into the infinite offer (the removed
+       invented "Stretch + infinite → wrap" branch). -->
+  <StackPanel x:Name="StretchPanel" Width="300" HorizontalAlignment="Left"
+              Margin="4" Background="#E8E8E8">
+    <Rectangle x:Name="StretchChild" Height="40" Fill="#0000FF"/>
+    <Rectangle x:Name="LeftChild" Height="40"
+               HorizontalAlignment="Left" Fill="#00FFFF"/>
+  </StackPanel>
+
+  <!-- Closure C (S829 — measure-entry): a Collapsed sibling is SKIPPED by
+       Measure (its dirty bit is kept and its constraint re-armed,
+       UIElement.cs:601-611) so it contributes 0 to the panel, and the reveal
+       re-measures it through WPF's own signal path — the Visibility transition
+       (enabled → ensureVisible → signalDesiredSizeChange,
+       UIElement.cs:2984-3010/3043-3056) → OnChildDesiredSizeChanged → parent
+       InvalidateMeasure (UIElement.cs:323-330). NO harness-side invalidate is
+       used to demonstrate it: assert_desired_size propagation IS the closure. -->
+  <StackPanel x:Name="TogglePanel" Background="#D0D0D0">
+    <Rectangle x:Name="CollapsedSibling" Height="40" Fill="#FF0000"
+               Visibility="Collapsed"/>
+    <Rectangle x:Name="VisibleSibling" Height="40" Fill="#00FF00"/>
+  </StackPanel>
+</StackPanel>

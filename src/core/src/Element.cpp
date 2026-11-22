@@ -2601,6 +2601,17 @@ Size StackPanel::MeasureOverride(const Size& available) const
 // child takes the leftover track while a non-Stretch last child is pinned
 // within it (never over-fills). Dirty-respect (S128): re-arrange ONLY
 // is_arrange_dirty() children; clean children keep their final_rect untouched.
+//
+// [WPF DIVERGENCE] #4 - the `isLast ? remaining : desired` filler is NOT in
+// WPF: Stack.cs:738-757 (StackArrangeHelper) hands EVERY child
+// `rcChild.Axis = child.DesiredSize.Axis` and lets CHILD ArrangeCore stretch
+// (FrameworkElement.cs:4597-4620), with the cross-axis slot grown to
+// `Math.Max(arrangeSize.Axis, child.DesiredSize.Axis)` (Stack.cs:747-757);
+// this loop instead passes the panel's own cross extent and pads the last
+// child to the leftover track. The same invented pattern is duplicated in
+// ToolBar::ArrangeOverride and ToolBarTray::ArrangeOverride (both below).
+// RESOLVED BY S832 (Sprint 11ad - the S124 arrange-contract + clip drift
+// closure). Do NOT extend; do NOT backfill silently.
 VAML_CORE_EXPORT
 void StackPanel::ArrangeOverride(const Rect& finalSlot)
 {
@@ -6613,6 +6624,11 @@ Size ToolBar::MeasureOverride(const Size& available) const
     return Size{ std::max(0.0f, width), std::max(0.0f, height) };
 }
 
+// [WPF DIVERGENCE] #4 (duplicate of StackPanel::ArrangeOverride, q.v.) - the
+// `isLast ? remaining : desired` filler and the panel-owned cross extent are
+// not WPF's; WPF uses Stack.cs-identical strip math. ToolBar hosting in WPF is
+// ToolBarOverflowPanel/ToolBarPanel, not Stack, so this whole arrangement is
+// provisional. RESOLVED BY S832 (Sprint 11ad). Do NOT backfill silently.
 VAML_CORE_EXPORT
 void ToolBar::ArrangeOverride(const vaml::Rect& finalSlot)
 {
@@ -6747,6 +6763,11 @@ Size ToolBarTray::MeasureOverride(const Size& available) const
     return Size{ std::max(0.0f, width), std::max(0.0f, height) };
 }
 
+// [WPF DIVERGENCE] #4 (duplicate of StackPanel::ArrangeOverride, q.v.) - the
+// `isLast ? remaining : desired` filler and the panel-owned cross extent are
+// not WPF's. ToolBarTray in WPF lays out trays with its own band logic
+// (ToolBarTray.OnRender/ArrangeTrays), not Stack math, so this is provisional.
+// RESOLVED BY S832 (Sprint 11ad). Do NOT backfill silently.
 VAML_CORE_EXPORT
 void ToolBarTray::ArrangeOverride(const vaml::Rect& finalSlot)
 {
