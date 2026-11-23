@@ -3,7 +3,7 @@
 // S127 upgrades the S123 measure seam (measure_natural_size -> MeasureOverride,
 // a NAMED upgrade resolved at its own step, not silent churn) and adds the
 // arrange-side virtual (ArrangeOverride) that completes the arrange-subgraph
-// AUTO-DRIVE: LayoutManager -> root Arrange -> panel ArrangeOverride ->
+// AUTO-DRIVE: UpdateLayout() -> root Arrange -> panel ArrangeOverride ->
 // children arranged. Arrange() now computes final_rect() (the S124 contract,
 // unchanged) and then invokes ArrangeOverride(final_rect()) so a panel lays
 // out its children into its OWN render slot automatically — no manual
@@ -15,7 +15,7 @@
 //      base ArrangeOverride is a no-op (arranging a base element does NOT
 //      auto-arrange its children).
 //   2. HEADLINE — arrange auto-drive: a panel overriding MeasureOverride +
-//      ArrangeOverride, with children, lm.UpdateLayout() ALONE (no manual
+//      ArrangeOverride, with children, UpdateLayout() ALONE (no manual
 //      arrange call) produces children arranged into the panel's render slot
 //      with correct stacked final_rects.
 //   3. ArrangeOverride receives the panel's final_rect (after margin/alignment):
@@ -32,7 +32,6 @@
 #include <vaml/assert/Shouldly.h>
 
 #include "vaml/core/Geometry.h"
-#include "vaml/core/LayoutManager.h"
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
@@ -163,7 +162,7 @@ TEST_CASE("S127: base MeasureOverride returns {0,0} and base ArrangeOverride is 
 TEST_CASE("S127: arrange auto-drive — UpdateLayout alone stacks children into the panel's render slot")
 {
     // A panel overriding MeasureOverride + ArrangeOverride, with children: the
-    // LayoutManager's UpdateLayout() ALONE (no manual arrange call) measures
+    // public UIElement::UpdateLayout() ALONE (no manual arrange call) measures
     // + arranges the root, which auto-invokes ArrangeOverride -> children are
     // arranged into the panel's render slot with correct stacked final_rects.
     AutoDrivePanel rootPanel;
@@ -176,8 +175,7 @@ TEST_CASE("S127: arrange auto-drive — UpdateLayout alone stacks children into 
     (void)rootPanel.set_horizontal_alignment(HorizontalAlignment::Left);
     (void)rootPanel.set_vertical_alignment(VerticalAlignment::Top);
 
-    vaml::LayoutManager lm(&rootPanel);
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
 
     // Panel measured: width = max(100,50) = 100, height = 30 + 20 = 50.
     SHOULD(ShouldlyString(rootPanel.desired_size().width).ShouldBe(100.0f));

@@ -22,6 +22,7 @@
 #include "vaml/core/UIElement.h"
 #include "vaml/core/FrameworkElement.h"  // S824 — ensure_framework_element_properties_registered (the FE-owner slot DPs)
 #include "vaml/core/LayoutContext.h"      // S839 — the per-thread layout need-queue
+#include "vaml/core/LayoutManager.h"      // S843 — the INTERNAL ContextLayoutManager analogue backing UpdateLayout()
 
 #include "vaml/core/BehaviorCollection.h"   // S502 — remove_element_behaviors (side-table teardown)
 #include "vaml/core/ResourceDictionary.h" // S360 — the complete Resources slot type (dtor + accessors)
@@ -1829,6 +1830,54 @@ const UIElement* UIElement::HitTestAt(float x, float y) const
     // No child was hit + this element is hit-test-visible -> this element is the
     // hit (it contains the point and is hit-testable).
     return this;
+}
+
+// --- S843 UpdateLayout — the PUBLIC driver entry (UIElement.cs:1630-1633) ----
+// Resolve the TOPMOST UIElement root of the tree this element belongs to (the
+// parent-chain walk skips non-UIElement ancestors, mirroring LayoutContext's
+// ui_parent). LayoutContext::update_layout filters queued work to `in_subtree`,
+// so driving from the topmost root reaches every queued dirty element in the
+// tree the public call is scoped to.
+static UIElement* topmost_ui_root(UIElement* e) noexcept
+{
+    UIElement* root = e;
+    for (DependencyObject* p = e != nullptr ? e->parent() : nullptr; p != nullptr;
+         p = p->parent())
+    {
+        if (auto* ue = dynamic_cast<UIElement*>(p))
+        {
+            root = ue;
+        }
+    }
+    return root;
+}
+
+void UIElement::UpdateLayout()
+{
+    // No-arg: measure the topmost root at an UNBOUNDED offer + arrange it into
+    // its own measured DesiredSize at origin 0 (the parentless-root rule). The
+    // internal driver is move-only RAII over a non-owning root; it is a true
+    // no-op when the tree is clean. Synchronous single-thread (S843 scope).
+    UIElement* root = topmost_ui_root(this);
+    if (root == nullptr)
+    {
+        return;
+    }
+    vaml::detail::LayoutManager driver(root);
+    driver.UpdateLayout();
+}
+
+void UIElement::UpdateLayout(const vaml::Size& availableSize, const vaml::Rect& rootSlot)
+{
+    // HOST-frame drive: measure the topmost root at `availableSize`, arrange it
+    // into `rootSlot` (the HwndSource host role). Synchronous, no-op-when-clean.
+    UIElement* root = topmost_ui_root(this);
+    if (root == nullptr)
+    {
+        return;
+    }
+    vaml::detail::LayoutManager driver(root);
+    driver.UpdateLayout(availableSize, rootSlot);
 }
 
 } // namespace vaml

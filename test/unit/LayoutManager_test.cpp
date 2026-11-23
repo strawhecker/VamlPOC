@@ -1,31 +1,30 @@
-// S126 (dep:S125) — InvalidateMeasure/InvalidateArrange; LayoutManager drives
-// measure+arrange over the dirty subgraph.
+// S126 (dep:S125) — InvalidateMeasure/InvalidateArrange; the layout driver runs
+// measure+arrange over the dirty subgraph. PORTED TO THE PUBLIC SURFACE BY S843
+// (dep:S842c): the driver is reached ONLY through the public
+// `UIElement::UpdateLayout()` entry (WPF UIElement.cs:1630-1633); the internal
+// `vaml::detail::LayoutManager` (WPF's internal ContextLayoutManager analogue,
+// LayoutManager.cs:14) is no longer named by tests.
 //
 // SCOPE / ARCHITECTURE — the S126 layout driver + dirty-flag contract, proven
 // on the CURRENT S123/S124/S125 seam:
 //   * UIElement carries TWO dirty bits (measureDirty, arrangeDirty), initally
 //     TRUE (a fresh element is never laid out). InvalidateMeasure /
 //     InvalidateArrange SET the local flag (short-circuit when already set, so
-//     a redundant invalidation does NOT re-walk) and PROPAGATE it up the parent
-//     chain to the root (a parent's DesiredSize derives from its children).
-//   * vaml::LayoutManager is the NON-OWNING driver: UpdateLayout() runs a
-//     Measure pass iff the root is measure-dirty, an Arrange pass iff the root
-//     is arrange-dirty, so a clean UpdateLayout() is a TRUE NO-OP. The measure-
-//     subgraph is driven through the virtual MeasureOverride() seam (S127,
-//     upgraded from S123's measure_natural_size): a panel re-measures ONLY
-//     dirty children, reading clean children's stored desired_size(). The root
-//     is arranged into its own measured DesiredSize at origin 0 (a top-level
-//     element has no external slot; a real window viewport arrives at the
-//     window sprints, recorded NO-GAP).
-//   * S127 (RESOLVED) upgraded the seam to MeasureOverride/ArrangeOverride; the
-//     arrange-subgraph auto-driving is completed THERE (the S123/S124 seam
-//     deliberately had NO virtual Arrange — recorded at S124, not silent). S126
-//     PROVES the dirty-respect mechanism on BOTH axes so S127 plugs it in via
-//     ArrangeOverride: the dirty-aware panel re-arranges only dirty children,
-//     leaving clean children's final_rect untouched.
+//     a redundant invalidation does NOT re-walk) and enqueue it in the
+//     per-thread LayoutContext (S839 — no ancestor walk; ancestors dirty lazily
+//     via the measure waterfall).
+//   * `UIElement::UpdateLayout()` is the PUBLIC driver: runs a Measure pass iff
+//     the tree is measure-dirty, an Arrange pass iff it is arrange-dirty, so a
+//     clean UpdateLayout() is a TRUE NO-OP. The measure subgraph is driven
+//     through the virtual MeasureOverride() seam (S127): a panel re-measures ONLY
+//     dirty children, reading clean children's stored desired_size(). The no-arg
+//     UpdateLayout() arranges the top-level root into its own measured DesiredSize
+//     at origin 0 (a top-level element has no external slot).
+//   * S127 (RESOLVED) upgraded the seam to MeasureOverride/ArrangeOverride; S126
+//     PROVES the dirty-respect mechanism on BOTH axes.
 //
 // Test-local subclasses (zero product symbols, mirrors the S125 archetype
-// pattern). Each lies on the REAL UIElement + LayoutManager product surface.
+// pattern). Each lies on the REAL UIElement + UpdateLayout() product surface.
 
 #include "doctest/doctest.h"
 
@@ -33,7 +32,6 @@
 #include <vaml/assert/Shouldly.h>
 
 #include "vaml/core/Geometry.h"
-#include "vaml/core/LayoutManager.h"
 #include "vaml/core/UIElement.h"
 #include "vaml/core/FrameworkElement.h"
 
@@ -86,10 +84,6 @@ public:
     // Re-arranges ONLY dirty children into their column slot, advancing y by
     // each child's desired height. A clean child is left UNTOUCHED (its
     // final_rect from its prior arrange stays), proving arrange dirty-respect.
-    // This is the S125-pattern arrange the manager's top-level arrange pass
-    // delegates to (kept here as the S126 dirty-respect proof; S127's
-    // ArrangeOverride auto-drive is proven in MeasureArrangeOverride_test.cpp,
-    // and S129 integrates dirty-respect into the real arrange override).
     void arrange_dirty(const Rect& arrangeSlot)
     {
         float y = arrangeSlot.y;
@@ -137,17 +131,14 @@ private:
 
 TEST_CASE("S126: fresh root is dirty; first UpdateLayout measures+arranges and cleans both axes")
 {
-    // A single-node tree (the root IS the whole tree): the manager's measure +
+    // A single-node tree (the root IS the whole tree): the driver's measure +
     // arrange passes fully drive it. A fresh element is dirty on BOTH axes.
     CountingLeaf root{ Size{ 80.0f, 20.0f } };
     SHOULD(ShouldlyString(root.is_measure_dirty()).ShouldBe(true));
     SHOULD(ShouldlyString(root.is_arrange_dirty()).ShouldBe(true));
     SHOULD(ShouldlyString(root.is_layout_dirty()).ShouldBe(true));
 
-    vaml::LayoutManager lm(&root);
-    SHOULD(ShouldlyString(lm.root() == &root).ShouldBe(true));
-
-    lm.UpdateLayout();
+    root.UpdateLayout();
 
     // Measured: the leaf wraps to its content under infinite available (S123).
     SHOULD(ShouldlyString(root.desired_size().width).ShouldBe(80.0f));
@@ -166,15 +157,14 @@ TEST_CASE("S126: fresh root is dirty; first UpdateLayout measures+arranges and c
 TEST_CASE("S126: a clean UpdateLayout is a true no-op (leaf is not re-measured)")
 {
     CountingLeaf root{ Size{ 60.0f, 10.0f } };
-    vaml::LayoutManager lm(&root);
 
-    lm.UpdateLayout();
+    root.UpdateLayout();
     const int measuredOnce = root.measureCount();
     SHOULD(ShouldlyString(measuredOnce).ShouldBe(1));
 
     // Root is now clean; a second UpdateLayout is gated off the root's measure-
     // dirty bit (already cleared) -> the leaf is NOT re-measured.
-    lm.UpdateLayout();
+    root.UpdateLayout();
     SHOULD(ShouldlyString(root.measureCount()).ShouldBe(measuredOnce));
     SHOULD(ShouldlyString(root.measureCount()).ShouldBe(1));
 }
@@ -190,8 +180,7 @@ TEST_CASE("S126: leaf InvalidateMeasure propagates up to the root; a sibling bra
     DirtyAwarePanel* subP = rootPanel.create_child<DirtyAwarePanel>();
     CountingLeaf* deepB = subP->create_child<CountingLeaf>(Size{ 40.0f, 8.0f });
 
-    vaml::LayoutManager lm(&rootPanel);
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
     rootPanel.arrange_dirty(rect_of(0.0f, 0.0f, 500.0f, 400.0f));
     // Full clean: every node on both axes is clean.
     SHOULD(ShouldlyString(rootPanel.is_measure_dirty()).ShouldBe(false));
@@ -223,8 +212,7 @@ TEST_CASE("S126: coalescing — two leaf invalidations before one UpdateLayout c
     CountingLeaf* a = rootPanel.create_child<CountingLeaf>(Size{ 50.0f, 10.0f });
     CountingLeaf* b = rootPanel.create_child<CountingLeaf>(Size{ 40.0f, 8.0f });
 
-    vaml::LayoutManager lm(&rootPanel);
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
     rootPanel.arrange_dirty(rect_of(0.0f, 0.0f, 500.0f, 400.0f));
 
     // Baseline after the clean pass.
@@ -235,7 +223,7 @@ TEST_CASE("S126: coalescing — two leaf invalidations before one UpdateLayout c
     // Two separate invalidations on different leaves, THEN one UpdateLayout.
     a->InvalidateMeasure();
     b->InvalidateMeasure();
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
 
     // S839: both dirty leaves are re-measured once each. The panel itself is NOT
     // re-measured — neither leaf's DesiredSize changed, so no waterfall dirties
@@ -252,8 +240,7 @@ TEST_CASE("S126: invalidating an already-dirty element does not re-walk / change
     DirtyAwarePanel rootPanel;
     CountingLeaf* leaf = rootPanel.create_child<CountingLeaf>(Size{ 30.0f, 6.0f });
 
-    vaml::LayoutManager lm(&rootPanel);
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
     rootPanel.arrange_dirty(rect_of(0.0f, 0.0f, 300.0f, 300.0f));
 
     // Invalidate the leaf, then invalidate it AGAIN (already measure-dirty ->
@@ -267,7 +254,7 @@ TEST_CASE("S126: invalidating an already-dirty element does not re-walk / change
 
     // One UpdateLayout still fully cleans the accumulated invalidation.
     const int panelBaseline = rootPanel.measureCount();
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
     SHOULD(ShouldlyString(leaf->is_measure_dirty()).ShouldBe(false));
     SHOULD(ShouldlyString(rootPanel.is_measure_dirty()).ShouldBe(false));
     // S839: the leaf re-measures (unchanged DesiredSize) -> no waterfall -> the
@@ -283,19 +270,17 @@ TEST_CASE("S126: panel re-measures only the dirty child (a clean leaf is not re-
     CountingLeaf* a = rootPanel.create_child<CountingLeaf>(Size{ 50.0f, 10.0f });
     CountingLeaf* b = rootPanel.create_child<CountingLeaf>(Size{ 40.0f, 8.0f });
 
-    vaml::LayoutManager lm(&rootPanel);
-    lm.UpdateLayout(); // both A and B were dirty -> re-measured once each
+    rootPanel.UpdateLayout(); // both A and B were dirty -> re-measured once each
 
     const int aAfterFirst = a->measureCount();
     const int bAfterFirst = b->measureCount();
     SHOULD(ShouldlyString(aAfterFirst).ShouldBe(1));
     SHOULD(ShouldlyString(bAfterFirst).ShouldBe(1));
 
-    // Invalidate MEASURE on A ONLY. The panel propagates measure-dirty up to
-    // the root; B stays measure-clean.
+    // Invalidate MEASURE on A ONLY. A becomes measure-dirty; B stays clean.
     a->InvalidateMeasure();
 
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
     // A (dirty) is re-measured; B (clean) reuses its stored desired_size and is
     // NOT re-measured.
     SHOULD(ShouldlyString(a->measureCount()).ShouldBe(aAfterFirst + 1));
@@ -308,8 +293,7 @@ TEST_CASE("S126: panel re-arranges only the dirty child (a clean leaf's final_re
     CountingLeaf* a = rootPanel.create_child<CountingLeaf>(Size{ 50.0f, 10.0f });
     CountingLeaf* b = rootPanel.create_child<CountingLeaf>(Size{ 40.0f, 8.0f });
 
-    vaml::LayoutManager lm(&rootPanel);
-    lm.UpdateLayout();
+    rootPanel.UpdateLayout();
 
     // First arrange pass: both A and B are arrange-dirty -> both arranged.
     const Rect slot1 = rect_of(0.0f, 0.0f, 500.0f, 400.0f);
@@ -343,8 +327,7 @@ TEST_CASE("S126: panel re-arranges only the dirty child (a clean leaf's final_re
 TEST_CASE("S126: measure and arrange invalidation are independent axes")
 {
     CountingLeaf root{ Size{ 60.0f, 10.0f } };
-    vaml::LayoutManager lm(&root);
-    lm.UpdateLayout();
+    root.UpdateLayout();
     SHOULD(ShouldlyString(root.is_measure_dirty()).ShouldBe(false));
     SHOULD(ShouldlyString(root.is_arrange_dirty()).ShouldBe(false));
 
@@ -355,7 +338,7 @@ TEST_CASE("S126: measure and arrange invalidation are independent axes")
     SHOULD(ShouldlyString(root.is_layout_dirty()).ShouldBe(true));
 
     // Clean it again, then arrange-only invalidation on a fresh element.
-    lm.UpdateLayout();
+    root.UpdateLayout();
     SHOULD(ShouldlyString(root.is_measure_dirty()).ShouldBe(false));
     SHOULD(ShouldlyString(root.is_arrange_dirty()).ShouldBe(false));
 

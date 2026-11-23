@@ -341,6 +341,32 @@ public:
     // branches). S842b relocated the seam. Do NOT extend silently.
     virtual bool get_layout_clip(const vaml::Size& layoutSlotSize, vaml::Rect& clipRect);
 
+    // --- UpdateLayout — the PUBLIC layout-driver entry (S843, dep:S842c) ------
+    // WPF `UIElement.UpdateLayout()` (UIElement.cs:1630-1633):
+    //     public void UpdateLayout() { ContextLayoutManager.From(Dispatcher)
+    //                                   .UpdateLayout(); }
+    // It is the ONLY public way to force pending layout to resolve. The driver
+    // it delegates to — WPF's `internal sealed class ContextLayoutManager`
+    // (LayoutManager.cs:14) — is INTERNAL; in VAML that is vaml::detail::
+    // LayoutManager, wrapped here.
+    //
+    // Faithful observable sentinel: this drives the tree THIS element belongs to
+    // (resolved to its topmost root), SYNCHRONOUSLY on the calling thread, and is
+    // a TRUE NO-OP when the tree is clean (no re-measure, no re-arrange). WPF's
+    // ASYNC scheduling + per-Dispatcher pump ownership is OUT OF SCOPE here
+    // (recorded → 11z S540-S546) — this is the synchronous single-thread model,
+    // not re-litigated.
+    //
+    // The no-arg form measures the topmost root at an UNBOUNDED offer and
+    // arranges it into its own measured DesiredSize at origin 0 (a top-level
+    // element has no external slot — WPF getProperArrangeRect parentless rule).
+    // The 2-arg form is the HOST-frame drive (the HwndSource "arrange the root at
+    // the client rect" role) used by the retained-render consumers
+    // (VamlRenderer / RenderTarget): measure the root at `availableSize`, arrange
+    // it into `rootSlot`. Both are synchronous and no-op-when-clean.
+    void UpdateLayout();
+    void UpdateLayout(const vaml::Size& availableSize, const vaml::Rect& rootSlot);
+
     // --- Layout invalidation (S839 — WPF-faithful, supersedes the S126 walk) --
     // WPF-faithful dirty flags: each element knows whether it needs a Measure
     // pass (measureDirty) and/or an Arrange pass (arrangeDirty). A fresh element

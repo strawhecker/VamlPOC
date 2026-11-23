@@ -21,6 +21,7 @@
 #include "vaml/core/LayoutContext.h" // S839 — the per-thread layout need-queue
 
 namespace vaml {
+namespace detail {
 
 VAML_CORE_EXPORT
 LayoutManager::LayoutManager()
@@ -77,4 +78,25 @@ void LayoutManager::UpdateLayout()
         /*root_slot_from_desired=*/true);
 }
 
+VAML_CORE_EXPORT
+void LayoutManager::UpdateLayout(const Size& rootConstraint, const Rect& rootSlot)
+{
+    UIElement* root = root_;
+    if (root == nullptr)
+    {
+        return; // no tree bound -> nothing to drive
+    }
+
+    // S843: the HOST-frame drive — the presentation layer is the "host" that
+    // hands its top-level root an explicit frame (measure at `rootConstraint`,
+    // arrange into `rootSlot`), exactly as WPF's HwndSource measures/arranges the
+    // root visual at the client rect before the ContextLayoutManager drains. The
+    // LayoutContext still drains the queue topmost-first, so this is a no-op when
+    // the tree is clean and reaches a leaf-only dirty subgraph the root's clean
+    // early-out would otherwise starve.
+    vaml::detail::LayoutContext::current().update_layout(
+        root, rootConstraint, rootSlot, /*root_slot_from_desired=*/false);
+}
+
+} // namespace detail
 } // namespace vaml

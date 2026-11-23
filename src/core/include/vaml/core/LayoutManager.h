@@ -1,27 +1,35 @@
 #pragma once
-// VAML LayoutManager — the non-owning driver that runs the measure + arrange
-// passes over an element tree's dirty subgraph. S126 (dep:S125).
+// VAML LayoutManager — the INTERNAL, non-owning driver that runs the measure +
+// arrange passes over an element tree's dirty subgraph. S126 (dep:S125);
+// INTERNALIZED by S843 (dep:S842c).
 //
-// WPF-faithful model: layout is driven by a manager that asks the ROOT of a
-// tree to Measure then Arrange, each pass gated on the root's S126 dirty bit.
-// The manager is NON-OWNING — the root's tree owns its nodes (S121); the
-// manager holds a pointer and never creates/frees nodes.
+// WPF-faithful model (S843): this is the INTERNAL `ContextLayoutManager`
+// analogue — WPF declares `internal sealed class ContextLayoutManager`
+// (LayoutManager.cs:14); it is NOT part of the framework's public surface. The
+// PUBLIC entry is `UIElement::UpdateLayout()` (UIElement.cs:1630-1633), which
+// this header's driver backs. It therefore lives in `vaml::detail` (the same
+// INTERNAL namespace as the sibling `vaml::detail::LayoutContext`, its
+// real queue-draining engine) — NOT in the public `vaml` namespace. Do NOT use
+// it from application/presentation code; call `UIElement::UpdateLayout()`.
 //
-// Dirty-subgraph realization: InvalidateMeasure/InvalidateArrange (S126) mark
-// the target + its ancestor chain dirty; a panel's measure/arrange re-runs only
-// its DIRTY children (the real StackPanel/Grid adopt this at S129/S131); the
-// manager drives the top-level passes and then clears every flag so ONE
-// UpdateLayout leaves a fully clean tree — a subsequent clean UpdateLayout() is
-// a true no-op (no re-measure, no re-arrange).
+// Driver shape: NON-OWNING — the root's tree owns its nodes (S121); the driver
+// holds a pointer and never creates/frees nodes. Move-only RAII (a driver has
+// nothing meaningful to copy).
 //
-// Top-level slot: the root is arranged into its own MEASURED DesiredSize at
-// origin 0 — a top-level element has no external slot. A real window viewport
-// (the top-level arrange slot) arrives at the window sprints, recorded NO-GAP,
-// not silent.
+// S839 engine: the real dirtiness bookkeeping + queue drain lives in
+// `vaml::detail::LayoutContext`. This driver is the thin per-tree front the
+// public UpdateLayout() constructs over the resolved tree root.
+//
+// Top-level slot: the no-arg drive measures the root at an UNBOUNDED offer and
+// arranges it into its own MEASURED DesiredSize at origin 0 — a top-level
+// element has no external slot (WPF getProperArrangeRect's parentless-root rule).
+// The HOST-frame overload drives the root into an explicit frame instead (the
+// HwndSource "measure/arrange the root at the client rect" host role).
 
 #include "vaml/core/UIElement.h"
 
 namespace vaml {
+namespace detail {
 
 class VAML_CORE_EXPORT LayoutManager
 {
@@ -49,17 +57,25 @@ public:
     // The currently bound root (may be null). Non-owning.
     [[nodiscard]] UIElement* root() const noexcept;
 
-    // The layout driver. Runs a MEASURE pass then an ARRANGE pass over the
-    // bound root, each gated on the root's S126 dirty bit:
-    //   * if the root is measure-dirty  -> root->Measure(Size::Infinite());
-    //   * if the root is arrange-dirty  -> root->Arrange(its measured DesiredSize
-    //                                     at origin 0).
-    // After the passes, EVERY flag in the tree is cleared (a panel clears its
-    // dirty children during the passes; the manager clears the root — and any
-    // flag a panel left — so the tree is wholly clean). A clean root (no dirty
-    // bit on either axis) makes UpdateLayout a true no-op: no re-measure, no
-    // re-arrange, nothing re-runs. With no bound root, this is a no-op.
+    // The layout driver (the top-level "measure to content" variant). Runs a
+    // MEASURE pass then an ARRANGE pass over the bound root, each gated on the
+    // root's dirtiness (via the LayoutContext queue):
+    //   * if the root/tree is measure-dirty -> the dirty subgraph is measured,
+    //     the root at Size::Infinite() (a top-level element has no external
+    //     slot);
+    //   * if the root/tree is arrange-dirty -> it is arranged, the root into its
+    //     own measured DesiredSize at origin 0 (WPF getProperArrangeRect's
+    //     parentless-root rule).
+    // A clean tree makes this a true no-op: no re-measure, no re-arrange.
+    // With no bound root, this is a no-op.
     void UpdateLayout();
+
+    // The HOST-frame drive (S843). Same synchronous, no-op-when-clean engine, but
+    // the root is measured against `rootConstraint` and arranged into `rootSlot`
+    // instead of "measure to content". This is the HwndSource host role — the
+    // presentation layer (VamlRenderer / RenderTarget) drives its top-level root
+    // into the frame at this size. No-op when clean.
+    void UpdateLayout(const Size& rootConstraint, const Rect& rootSlot);
 
 private:
     // S146: pimpl collapsed — the non-owning root pointer is now a plain
@@ -68,4 +84,5 @@ private:
     UIElement* root_ = nullptr;
 };
 
+} // namespace detail
 } // namespace vaml

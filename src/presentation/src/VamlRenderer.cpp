@@ -14,7 +14,9 @@
 #include <vaml/presentation/VamlRenderer.h>
 
 #include <vaml/core/Element.h>              // Text (the S400 real control)
-#include <vaml/core/LayoutContext.h>        // S839 — the faithful layout drain
+// S843: drive layout through the PUBLIC UIElement::UpdateLayout() entry
+// (UIElement.cs:1630-1633) — the internal LayoutManager/LayoutContext driver is
+// no longer reached directly from presentation code.
 #include <vaml/core/TextLayout.h>           // text_layout_plan / resolve_foreground_color
 #include <vaml/presentation/dpi.h>          // S213: dpi_render_plan (physical/logical)
 #include <vaml/vulkan/CommandBuffer.h>      // describe_command_buffer_begin, build_render_pass_begin
@@ -1058,16 +1060,15 @@ std::uint64_t VamlRenderer::invalidate()
         return 0;  // nothing to publish yet
 
     // Measure/Arrange the attached core tree at the frame size (the S123/S124
-    // final_rects the encoder reads). S839: drive through the faithful layout
-    // context — measure the topmost dirty element at its PreviousConstraint then
-    // arrange the topmost dirty element. The root is measured against an
-    // unbounded offer and arranged into the full frame slot. A leaf-only
-    // invalidation is reached through the queue (the root's clean early-out no
-    // longer starves it), and a DesiredSize change waterfalls to the ancestors.
-    vaml::detail::LayoutContext::current().update_layout(
-        root_, vaml::Size{ frameW_, vaml::Size::Infinite().height },
-        vaml::Rect{ 0.0f, 0.0f, frameW_, frameH_ },
-        /*root_slot_from_desired=*/false);
+    // final_rects the encoder reads). S843: drive through the PUBLIC
+    // UIElement::UpdateLayout() entry (the HOST-frame form) — measure the topmost
+    // root at an unbounded height and arrange it into the full frame slot. The
+    // internal driver still drains topmost-first (a leaf-only invalidation is
+    // reached through the queue; the root's clean early-out no longer starves it)
+    // and a DesiredSize change waterfalls to the ancestors. No-op when clean.
+    root_->UpdateLayout(
+        vaml::Size{ frameW_, vaml::Size::Infinite().height },
+        vaml::Rect{ 0.0f, 0.0f, frameW_, frameH_ });
 
     // CPU-encode the arranged tree into the S206 draw list (the S207 encoder via
     // the host's visualOf seam).

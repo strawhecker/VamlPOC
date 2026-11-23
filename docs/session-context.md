@@ -1,61 +1,63 @@
-# session-context.md — Sprint S811 (D2/D3 corrective: wrong-thread THROWS + remove fabricated S041 pipeline)
+# session-context.md — Sprint S843 (D6: LayoutManager internal + UIElement::UpdateLayout() public entry)
 
-last_command: implementit (S811)
-plan_digest: S811 — drop the wrong-thread value queue + SetResult::QUEUED; non-affine
-            Set/Get THROWS (WPF VerifyAccess); remove the fabricated S041 change-
-            notification surface (add_property_changed registry, ProcessNotificationQueue,
-            descendant-push postbox, ChangeQueue/ChangeProcessor/ChangeRecorder);
-            DP notification = synchronous PropertyMetadata with_changed/notifyChanged;
-            BindingExpression target write-back re-pointed onto the WPF-faithful
-            Expression-as-value seam (DO.cs:705-708 / BindingExpressionBase.cs:397-414).
-            Both CI lanes green.
+last_command: implementit (S843)
+plan_digest: S843 (dep:S842c) — vaml::LayoutManager becomes an INTERNAL implementation
+            detail (WPF internal sealed class ContextLayoutManager, LayoutManager.cs:14);
+            the PUBLIC surface is UIElement::UpdateLayout() (UIElement.cs:1630-1633) →
+            internal per-tree driver, synchronous single-thread, no-op-when-clean (the
+            faithful observable; WPF async scheduling + per-Dispatcher pump ownership stay
+            11z S540-S546, recorded, not re-litigated). Move-only RAII internal. Port the
+            S126 LayoutManager_test to UpdateLayout(); re-point the S212/S222/S11r
+            retained-render consumers to the public call. Both CI lanes green.
 files_touched:
   SRC:
-  - src/core/include/vaml/core/DependencyObject.h      (removed SetResult::QUEUED,
-    add_property_changed/remove_property_changed/Process pending* queue methods,
-    descendant-push members; added DependencyPropertyExpression seam +
-    current_expression/set_current_expression; docs corrected to the throw contract)
-  - src/core/src/DependencyObject.cpp                  (non-affine Set/Get THROWS; removed
-    the S037 queue path, ProcessPendingChanges/pending_change_count, subscriber fire/
-    descendant-push; Set explores the current expression for write-back before storing)
-  - src/core/include/vaml/core/DependencyPropertyExpression.h  (NEW — WPF Expression-as-value)
-  - src/core/src/DependencyPropertyExpression.cpp              (NEW — symbol home)
-  - src/core/include/vaml/core/BindingExpression.h       (implements DependencyPropertyExpression;
-    removed targetToken_/add_property_changed write-back; transfer_write_back(value))
-  - src/core/src/BindingExpression.cpp                   (write-back = Expression.SetValue
-    interception; forward transfer temporarily detaches+restores the expression)
-  - src/core/CMakeLists.txt                              (removed Change*.cpp; added
-    DependencyPropertyExpression.cpp)
-  DELETED (fabricated S041/Change* surface):
-  - src/core/include/vaml/core/ChangeQueue.h, ChangeProcessor.h, ChangeRecorder.h
-  - src/core/src/ChangeQueue.cpp, ChangeProcessor.cpp, ChangeRecorder.cpp
-  TEST:
-  - deleted test/unit/ChangeQueue_test.cpp, ChangeRecorder_test.cpp,
-    ChangeNotificationPipeline_test.cpp, Coalescing_test.cpp
-  - test/unit/DependencyObject_marshalling_test.cpp      (QUEUED -> throw asserts)
-  - test/unit/DependencyCallbacks_test.cpp, AttachedProperty_test.cpp,
-    ReadOnlyAndValidation_test.cpp                        (wrong-thread -> WrongThreadException)
-  - test/unit/S802_composite_store_test.cpp              (subscriber -> per-pair with_changed)
-  - test/unit/AttachedInheritanceNotification_test.cpp   (descendant-push -> origin metadata cb)
-  - test/unit/UIElement_test.cpp, VisualTree_test.cpp     (push -> pull-model inherited VALUE)
-  - test/unit/MutexRelocation_rekey_test.cpp             (ChangeQueue Part A removed; Part B kept)
-  - test/unit/vaml_test_stringmakers.h                   (removed QUEUED arms)
-  - test/unit/CMakeLists.txt
-  - build/verify_s811.cmd                                (NEW — S811 verify gate)
+  - src/core/include/vaml/core/LayoutManager.h   (namespace vaml → vaml::detail [INTERNAL];
+    class is now the ContextLayoutManager analogue; added HOST-frame overload
+    void UpdateLayout(const Size& rootConstraint, const Rect& rootSlot); header narrative
+    rewritten to the internal/public split)
+  - src/core/src/LayoutManager.cpp               (namespace vaml → vaml::detail; added the
+    frame-overload definition delegating to LayoutContext::update_layout(..., false))
+  - src/core/include/vaml/core/UIElement.h        (NEW public + host-frame overloads:
+    void UpdateLayout(); void UpdateLayout(const vaml::Size&, const vaml::Rect&); doc)
+  - src/core/src/UIElement.cpp                    (included LayoutManager.h; NEW static
+    topmost_ui_root() + UIElement::UpdateLayout() x2 — resolve topmost root, construct
+    vaml::detail::LayoutManager over it, drive; no-op-when-clean)
+  - src/presentation/src/VamlRenderer.cpp         (S843: dropped LayoutContext.h include;
+    update_layout(...) call → root_->UpdateLayout(available, slot))
+  - src/presentation/src/RenderTarget.cpp         (S843: dropped LayoutContext.h include;
+    update_layout(...) call → root_->UpdateLayout(available, slot))
+  TEST (ported off vaml::LayoutManager onto the public entry):
+  - test/unit/LayoutManager_test.cpp              (S126 — root.UpdateLayout() x2 forms;
+    dropped LayoutManager.h include; narrative → UpdateLayout())
+  - test/unit/MeasureArrangeOverride_test.cpp      (S127 — rootPanel.UpdateLayout(); include dropped)
+  - test/unit/DirtyOnlySubpass_test.cpp            (S128 — t.root.UpdateLayout(); include dropped)
+  GATE:
+  - build/verify_s843.cmd                          (NEW — grep-audit A–G + both CI lanes)
+  DOC:
+  - docs/roadmap.md                                (S843 → [DONE — both CI lanes green] + close-out)
+  - docs/session-context.md                        (this file)
 build_status:
-  S811 GREEN — BOTH CI lanes:
-    windows-msvc : msvc-debug build warning-as-error clean + ctest 4/4 passed
-                   (core 1296, tools 151, vulkan, presentation 269).
-    ubuntu-clang : clang-debug on the Linux VM (cf/debug) configure + build + ctest all pass.
-next_step: None for S811 — the corrective is complete and two-lane green. Optional:
-           record the S811 resolution (Change* deletion + Expression seam) in the roadmap/progress
-           NO-GAP notes; the WPF source lines held for the record are DO.cs:161/412/705-708/1704/
-           1732/2037/2039 + BindingExpressionBase.cs:397-414.
+  S843 GREEN — BOTH CI lanes (from first principles):
+    windows-msvc : msvc-debug configure clean + build warning-as-error clean + ctest green.
+    ubuntu-clang : clang-debug on the Linux VM (/mnt/hgfs/VamlPOC) configure + build + ctest
+                   all pass (UBUNTU-GREEN).
+  grep-audit (verify_s843.cmd): A/B/B2 public entry present; C/C2 driver in vaml::detail;
+  D no vaml::LayoutManager in tests; E no presentation LayoutContext::update_layout;
+  F/F2 consumers on root_->UpdateLayout(; G S126 test ported. ALL PASS.
+next_step: S844 (REFACTOR GATE 11ae + SURVIVOR + VIEWER-GROWTH) — full build + ctest both
+           lanes from first principles + grep-audit (the public UpdateLayout() is the layout
+           entry; no is_measure_dirty() panel gates; FE seam; no invented surface) + the
+           S222_1 RELOAD viewer-growth live demonstration (all via UpdateLayout(), S843).
 notes:
-  - WPF-grounded (audited from the real D:\GitRepos\wpf source): a non-affine access throws
-    (VerifyAccess); there is NO per-object multi-subscriber list; the two-way write-back is
-    Expression-as-value SetValue interception, NOT a metadata/changed or subscriber callback.
-  - SetResult::QUEUED (the S037 appended tail) is removed backward-compatibly; APPLIED/REJECTED/
-    NO_CHANGE keep their values.
-  - thread_affinity_id / is_affine_to_current_thread RETAINED ("the thread that owns the pump").
-  - CollectionView keeps its OWN fill->drain deque + swap mutex (does not consume ChangeQueue — verified).
+  - WPF-grounded (audited from the real E:\GitRepos\wpf source): UIElement.cs:1630-1633
+    `public void UpdateLayout() { ContextLayoutManager.From(Dispatcher).UpdateLayout(); }`
+    delegates to `internal sealed class ContextLayoutManager` (LayoutManager.cs:14) — the
+    driver is INTERNAL, the public entry is UpdateLayout(). VAML mirrors this exactly:
+    vaml::detail::LayoutManager (internal) behind UIElement::UpdateLayout() (public).
+  - Layout semantics are BYTE-IDENTICAL: both consumers call the same queue-driven
+    LayoutContext::update_layout(...) they did before — now behind the public entry — so
+    the S126/S127/S128 suites and the S212/S222/S11r retained-render paths are unchanged
+    observably.
+  - `detail` namespace = the repo's INTERNAL marker (same as detail::LayoutContext); the
+    header path is unchanged (vaml/core/LayoutManager.h), matching LayoutContext.h.
+  - NO MINIMAL REAL introduced/resolved; ZERO new locks (ADR-018).

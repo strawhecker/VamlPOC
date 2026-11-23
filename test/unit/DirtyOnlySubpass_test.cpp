@@ -4,9 +4,10 @@
 // SCOPE / ARCHITECTURE — the FORMAL dirty-only-subpass gate over the S126/S127
 // layout driver + dirty-flag contract, proven on a MULTI-LEVEL tree. S126
 // delivered the two dirty bits (measureDirty/arrangeDirty) + InvalidateMeasure/
-// InvalidateArrange (propagate up the parent chain, short-circuit) +
-// LayoutManager::UpdateLayout (measure pass iff root measure-dirty, arrange
-// pass iff root arrange-dirty). S127 delivered the MeasureOverride/ArrangeOverride
+// InvalidateArrange (local bit + enqueue, short-circuit) +
+// The layout driver's UpdateLayout (measure pass iff root measure-dirty, arrange
+// pass iff root arrange-dirty; reached via the public UIElement::UpdateLayout()
+// since S843). S127 delivered the MeasureOverride/ArrangeOverride
 // virtual pair, completing the arrange-subgraph AUTO-DRIVE. S128 certifies the
 // headline: changing a CHILD confines re-measure/re-arrange to that child's
 // SUBTREE-INFLUENCE (the leaf + its ancestor chain), leaving friend subtrees
@@ -26,7 +27,9 @@
 // adopt this exact dirty-respect in their real algorithms — the explicit
 // resolution points. No MINIMAL REAL introduced or resolved. Test-local
 // subclasses only (zero product symbols, mirrors the S125 archetype pattern);
-// each lies on the REAL UIElement + LayoutManager product surface.
+// each lies on the REAL UIElement + UIElement::UpdateLayout() product surface
+// (S843: the driver is the INTERNAL detail::LayoutManager; tests drive it via the
+// public UpdateLayout() entry).
 
 #include "doctest/doctest.h"
 
@@ -34,7 +37,6 @@
 #include <vaml/assert/Shouldly.h>
 
 #include "vaml/core/Geometry.h"
-#include "vaml/core/LayoutManager.h"
 #include "vaml/core/UIElement.h"
 #include "vaml/core/FrameworkElement.h"
 
@@ -191,8 +193,7 @@ struct DeepTree
 TEST_CASE("S128: invalidating leaf A re-measures only A + its ancestors; a clean sibling and friend branch stay untouched")
 {
     TwoBranchTree t;
-    vaml::LayoutManager lm(&t.root);
-    lm.UpdateLayout(); // full clean pass on both axes
+    t.root.UpdateLayout(); // full clean pass on both axes
 
     const int rootBase = t.root.measureCount();
     const int p1Base = t.p1->measureCount();
@@ -203,7 +204,7 @@ TEST_CASE("S128: invalidating leaf A re-measures only A + its ancestors; a clean
     const int dBase = t.d->measureCount();
 
     t.a->InvalidateMeasure(); // S839: LOCAL — only A is dirtied/enqueued (no ancestor walk)
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     // S839 waterfall: A re-measures but its FIXED content keeps DesiredSize
     // UNCHANGED, so NO OnChildDesiredSizeChanged fires — P1, R (and every other
@@ -229,8 +230,7 @@ TEST_CASE("S128: invalidating leaf A re-measures only A + its ancestors; a clean
 TEST_CASE("S128: invalidating C under P2 re-measures only the P2 branch; the P1 branch stays untouched")
 {
     TwoBranchTree t;
-    vaml::LayoutManager lm(&t.root);
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     const int p1Base = t.p1->measureCount();
     const int aBase = t.a->measureCount();
@@ -240,7 +240,7 @@ TEST_CASE("S128: invalidating C under P2 re-measures only the P2 branch; the P1 
     const int dBase = t.d->measureCount();
 
     t.c->InvalidateMeasure(); // only C (under P2) — S839 local, no ancestor walk
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     SHOULD(ShouldlyString(t.c->measureCount()).ShouldBe(cBase + 1));
     // S839: C's unchanged DesiredSize -> P2 stays clean (NOT re-measured).
@@ -257,8 +257,7 @@ TEST_CASE("S128: invalidating C under P2 re-measures only the P2 branch; the P1 
 TEST_CASE("S128: invalidating A AND B coalesces to ONE subpass over their subtree")
 {
     TwoBranchTree t;
-    vaml::LayoutManager lm(&t.root);
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     const int rootBase = t.root.measureCount();
     const int p1Base = t.p1->measureCount();
@@ -269,7 +268,7 @@ TEST_CASE("S128: invalidating A AND B coalesces to ONE subpass over their subtre
 
     t.a->InvalidateMeasure();
     t.b->InvalidateMeasure();
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     // S839: both dirty leaves re-measure once each; their FIXED content keeps
     // DesiredSize unchanged -> NO waterfall -> P1 and R stay CLEAN (not re-measured).
@@ -287,8 +286,7 @@ TEST_CASE("S128: invalidating A AND B coalesces to ONE subpass over their subtre
 TEST_CASE("S128: arrange invalidation on A re-arranges only A + its ancestors; B's final_rect is untouched")
 {
     TwoBranchTree t;
-    vaml::LayoutManager lm(&t.root);
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     // First arrange pass stacked all four leaves: within P1 the child ORDER is
     // [B, A] (B is created first, index 0), so B sits at y=0 and A below it at
@@ -303,7 +301,7 @@ TEST_CASE("S128: arrange invalidation on A re-arranges only A + its ancestors; B
     const int measureA = t.a->measureCount();
 
     t.a->InvalidateArrange(); // ARRANGE axis only (A, P1, R go arrange-dirty)
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     // A is re-arranged (+1); the arrange subpass does NOT touch its ancestors'
     // measures (measure axis frozen by an arrange-only invalidation).
@@ -324,11 +322,10 @@ TEST_CASE("S128: arrange invalidation on A re-arranges only A + its ancestors; B
 TEST_CASE("S128: a deep 4-level tree is left fully clean on both axes after one confined subpass")
 {
     DeepTree t;
-    vaml::LayoutManager lm(&t.root);
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     t.x->InvalidateMeasure(); // deepest leaf only
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     // Measure axis clean everywhere.
     SHOULD(ShouldlyString(t.root.is_measure_dirty()).ShouldBe(false));
@@ -349,12 +346,11 @@ TEST_CASE("S128: a deep 4-level tree is left fully clean on both axes after one 
 TEST_CASE("S128: after a confined subpass, a clean UpdateLayout re-measures/re-arranges nothing")
 {
     TwoBranchTree t;
-    vaml::LayoutManager lm(&t.root);
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     // One confined subpass.
     t.a->InvalidateMeasure();
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     const int rootMeasure = t.root.measureCount();
     const int p1Measure = t.p1->measureCount();
@@ -364,7 +360,7 @@ TEST_CASE("S128: after a confined subpass, a clean UpdateLayout re-measures/re-a
 
     // The tree is clean; a second UpdateLayout is a TRUE no-op (both root bits
     // cleared) — the subpass is strictly dirty-driven.
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
     SHOULD(ShouldlyString(t.root.measureCount()).ShouldBe(rootMeasure));
     SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Measure));
     SHOULD(ShouldlyString(t.a->measureCount()).ShouldBe(aMeasure));
@@ -377,8 +373,7 @@ TEST_CASE("S128: after a confined subpass, a clean UpdateLayout re-measures/re-a
 TEST_CASE("S839: a child whose DesiredSize CHANGES dirties its ancestors through the measure waterfall")
 {
     TwoBranchTree t;
-    vaml::LayoutManager lm(&t.root);
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     const int p1Base = t.p1->measureCount();
     const int rootBase = t.root.measureCount();
@@ -392,7 +387,7 @@ TEST_CASE("S839: a child whose DesiredSize CHANGES dirties its ancestors through
     // sibling B (same subtree) and the whole P2 branch stay CLEAN.
     t.a->set_content(Size{ 60.0f, 40.0f });
     t.a->InvalidateMeasure();
-    lm.UpdateLayout();
+    t.root.UpdateLayout();
 
     SHOULD(ShouldlyString(t.a->measureCount()).ShouldBe(aBase + 1));       // changed leaf re-measured
     SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Base + 1));     // waterfall dirties P1
