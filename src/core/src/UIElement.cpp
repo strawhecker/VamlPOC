@@ -32,8 +32,9 @@
 #include "vaml/core/Signal.h"        // S320 Signal<T>
 
 #include <algorithm>
-#include <cmath>    // std::fabs / std::isnan (S829 measure guard epsilon compare)
+#include <cmath>    // std::fabs / std::isnan / std::isinf (S829 measure guard + S835 arrange guard)
 #include <stdexcept>
+#include <string>   // std::to_string (S835 Arrange non-finite diagnostic)
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -602,6 +603,16 @@ const vaml::Rect& UIElement::clip_rect() const noexcept
 }
 
 VAML_CORE_EXPORT
+const vaml::Rect& UIElement::arrange_slot() const noexcept
+{
+    // S835: the WPF `_finalRect` mirror — the arrange slot the parent last
+    // handed this element. Written on EVERY Arrange including the Collapsed
+    // early-return (where final_rect_ is deliberately NOT recomputed and
+    // arrange_dirty_ stays set). Read-side only (incremental-arrange cache).
+    return arrange_slot_;
+}
+
+VAML_CORE_EXPORT
 SetResult UIElement::set_margin(const vaml::Thickness& value)
 {
     // S824: the slot DP owner is "FrameworkElement" (the WPF-true home).
@@ -923,38 +934,102 @@ void UIElement::ArrangeOverride(const Rect& finalSlot)
 VAML_CORE_EXPORT
 void UIElement::Arrange(const Rect& arrangeSlot)
 {
-    // The S124 contract: Arrange(arrangeSlot) -> final_rect(). This is the
-    // write-side pair to Measure: consume the S122 alignment algorithm
-    // (compute_final_rect) with the element's own measured DesiredSize +
-    // Margin + alignments, and write the S122 final_rect() read target.
+    // S835 (dep:S834) — the WPF Arrange guard spectrum (UIElement.cs:786-906),
+    // mirroring the S829 measure-entry sibling (11ac):
+    //   (a) Inf/NaN slot     -> throw std::invalid_argument (WPF
+    //       InvalidOperationException; S810_1 diagnostic form).
+    //   (b) Visibility::Collapsed -> store the slot (_finalRect), KEEP dirty,
+    //       return WITHOUT arranging (re-arranged on reveal).
+    //   (c) MeasureDirty || NeverMeasured -> backfill Measure first (833-862).
+    //   (d) end-of-arrange ensureClip — refresh the render-slot clip per the
+    //       S833/S834 gate (ensureClip analogue).
     //
-    // final_rect() is BOTH the render slot (where S208 draws the element) AND
-    // the clip bounds (content overflowing it is not rendered). A base
-    // UIElement has no content, so its final_rect == clip bounds trivially.
-    //
-    // S127 auto-drive: after computing final_rect(), Arrange invokes
-    // ArrangeOverride(final_rect()) so a panel places its children into its
-    // OWN render slot automatically (LayoutManager -> root Arrange -> panel
-    // ArrangeOverride -> children arranged). This removes the S125/S126 manual
-    // arrange-call pattern; the arrange-subgraph auto-drive completes here.
+    // The S124 contract is the body BELOW the guards: Arrange(arrangeSlot) ->
+    // final_rect(). final_rect() is BOTH the render slot (where S208 draws)
+    // and the basis for clip bounds. S127 auto-drive: after computing
+    // final_rect(), Arrange invokes ArrangeOverride(final_rect()) so a panel
+    // places its children into its OWN render slot (LayoutManager -> root
+    // Arrange -> panel ArrangeOverride -> children arranged).
+
+    // (a) Guard: a layout slot must be finite. WPF rejects +Infinity and NaN on
+    //     Width/Height only (UIElement.cs:798-809 — IsPositiveInfinity/IsNaN);
+    //     it does NOT test -Infinity — faithfully mirrored (a -Inf extent
+    //     degenerates to a 0-size slot client in compute_final_rect because the
+    //     inset clamps >= 0, so no -Inf escapes the extent). Named property +
+    //     offending value per the S810_1 disposition.
+    if (std::isnan(arrangeSlot.width) || (std::isinf(arrangeSlot.width) && arrangeSlot.width > 0.0f) ||
+        std::isnan(arrangeSlot.height) || (std::isinf(arrangeSlot.height) && arrangeSlot.height > 0.0f))
+    {
+        throw std::invalid_argument(
+            "UIElement::Arrange: arrangeSlot has a non-finite extent (width=" +
+            std::to_string(arrangeSlot.width) + ", height=" +
+            std::to_string(arrangeSlot.height) +
+            "); a layout slot must be a finite Rect "
+            "(WPF UIElement.Arrange InvalidOperationException)");
+    }
+
+    // (b) Collapsed: store the slot, KEEP the dirty bit, commit NO layout
+    //     (UIElement.cs:811-828). No ArrangeOverride, no final_rect_ /
+    //     needs_clip_ / clip_rect_ change — the element is re-measured /
+    //     re-arranged on reveal. WPF: `_finalRect = finalRect; return;`.
+    if (visibility() == Visibility::Collapsed)
+    {
+        arrange_slot_ = arrangeSlot;
+        return;
+    }
+
+    // (c) Backfill Measure when measure-dirty or never measured
+    //     (UIElement.cs:833-862). NeverMeasured -> Measure(the slot size, the
+    //     WPF "set size" arrange-only path); otherwise -> Measure(the cached
+    //     PreviousConstraint). This mirrors WPF's ArrangeCore prerequisite so a
+    //     never-measured element arranged directly still gets a real DesiredSize.
+    if (measure_dirty_ || never_measured_)
+    {
+        if (never_measured_)
+        {
+            Measure(Size{ arrangeSlot.width, arrangeSlot.height });
+        }
+        else
+        {
+            Measure(previous_available_);
+        }
+    }
+
+    // (d-pre) ArrangeCore analogue: consume the (now fresh) desired_size_ +
+    //         margin + alignments; child-wins-then-clip (S832).
     const LayoutSlot slot{ arrangeSlot };
     const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
-    // S832 (Sprint 11ad): the arranged rect MAY exceed the slot (child-wins);
-    // store the UNCLIPPED final_rect_ + the NeedsClipBounds mirror. S833 stores
-    // the GetLayoutClip rectangular result (the slot-client clip window) so the
-    // S208 renderer can scissor to it when needs_clip() — conditional, never
-    // unconditional (a fitting element clips nothing).
+    // S832: the arranged rect MAY exceed the slot (child-wins); store the
+    // UNCLIPPED final_rect_ + the NeedsClipBounds mirror.
     final_rect_ = ar.rect;
     needs_clip_ = ar.needs_clip;
-    clip_rect_  = ar.clip_rect;
-    // A completed Arrange pass clears this element's arrange-dirty flag (S126),
-    // mirroring Measure's clear of the measure bit.
-    arrange_dirty_ = false;
+
     // S127/S832: hand the element its UNCLIPPED final render slot so a panel
     // arranges its children into it (the child receives the size it measured
-    // for — FrameworkElement.cs:4651/4697).
+    // for — FrameworkElement.cs:4651/4697). WPF order: ArrangeCore THEN
+    // ensureClip.
     ArrangeOverride(final_rect_);
+
+    // (d) ensureClip (WPF UIElement.cs:884 -> 3056): refresh the render-slot
+    //     clip from the slot-client window. Applied by the S208 renderer only
+    //     when `needs_clip() || clip_to_bounds()` (S833/S834 gate).
+    ensure_clip(ar.clip_rect);
+
+    // WPF tail: `_finalRect = finalRect; ArrangeDirty = false;`.
+    arrange_slot_ = arrangeSlot;
+    arrange_dirty_ = false;
+}
+
+VAML_CORE_EXPORT
+void UIElement::ensure_clip(const vaml::Rect& clipRect)
+{
+    // The WPF ensureClip(finalRect.Size) analogue (UIElement.cs:884 -> 3056,
+    // GetLayoutClip FE.cs:4862-4960): the slot-client clip window computed by
+    // compute_final_rect. Refreshed on EVERY arrange so a prior slot's clip
+    // never lingers; the S208 renderer scissors to it ONLY when
+    // needs_clip() || clip_to_bounds() (S833/S834).
+    clip_rect_ = clipRect;
 }
 
 // --- S126 layout invalidation ------------------------------------------------

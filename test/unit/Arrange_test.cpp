@@ -28,6 +28,9 @@
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
 
+#include <limits>     // S835 — std::numeric_limits (Inf/NaN slot literals)
+#include <stdexcept>  // S835 — std::invalid_argument (the arrange-entry guard)
+
 using vaml::HorizontalAlignment;
 using vaml::LayoutSlot;
 using vaml::Rect;
@@ -62,6 +65,21 @@ protected:
 
 private:
     Size natural_;
+};
+
+// S835 — a leaf whose natural extent == the offered size, so the CONSTRAINT the
+// Measure backfill used (the slot size vs the previous constraint) is
+// observable in the resulting desired_size()/final_rect().
+class AvailLeaf : public UIElement
+{
+public:
+    AvailLeaf() = default;
+
+protected:
+    Size MeasureOverride(const Size& available) const override
+    {
+        return available;
+    }
 };
 
 } // namespace
@@ -259,4 +277,110 @@ TEST_CASE("S124: clip_to_bounds — result never escapes the clip, never negativ
     SHOULD(ShouldlyString(r.height).ShouldBe(30.0f));
     SHOULD(ShouldlyString(r.right() <= clip.right()).ShouldBe(true));
     SHOULD(ShouldlyString(r.bottom() <= clip.bottom()).ShouldBe(true));
+}
+
+// --- S835 (dep:S834): ARRANGE-ENTRY FIDELITY — the WPF Arrange guard spectrum --
+
+TEST_CASE("S835: Arrange throws std::invalid_argument on a non-finite (Inf/NaN) slot")
+{
+    UIElement el;
+    const float inf = std::numeric_limits<float>::infinity();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+
+    // +Infinity and NaN on either extent are rejected (WPF InvalidOperationException).
+    CHECK_THROWS_AS(el.Arrange(rect_of(0.0f, 0.0f, inf, 50.0f)), std::invalid_argument);
+    CHECK_THROWS_AS(el.Arrange(rect_of(0.0f, 0.0f, 50.0f, inf)), std::invalid_argument);
+    CHECK_THROWS_AS(el.Arrange(rect_of(0.0f, 0.0f, nan, 50.0f)), std::invalid_argument);
+    CHECK_THROWS_AS(el.Arrange(rect_of(0.0f, 0.0f, 50.0f, nan)), std::invalid_argument);
+
+    // The guard runs BEFORE any layout write: final_rect_ stays at its default.
+    SHOULD(ShouldlyString(el.final_rect().width).ShouldBe(0.0f));
+    SHOULD(ShouldlyString(el.final_rect().height).ShouldBe(0.0f));
+
+    // WPF does NOT test -Infinity (UIElement.cs:798-809 — IsPositiveInfinity);
+    // faithfully ACCEPTED. A -Inf extent degenerates to a 0-size slot client in
+    // compute_final_rect (the inset clamps >= 0) — no -Inf escapes the extent.
+    CHECK_NOTHROW(el.Arrange(rect_of(0.0f, 0.0f, -inf, 50.0f)));
+}
+
+TEST_CASE("S835: a Collapsed arrange stores the slot but keeps final_rect + arrange-dirty")
+{
+    ContentLeaf leaf{ Size{ 40.0f, 30.0f } };
+    (void)leaf.set_visibility(vaml::Visibility::Collapsed);
+    // Fresh element -> arrange-dirty.
+    SHOULD(ShouldlyString(leaf.is_arrange_dirty()).ShouldBe(true));
+
+    leaf.Arrange(rect_of(10.0f, 20.0f, 100.0f, 80.0f));
+    // Collapsed arrange stores the slot, does NOT recompute final_rect_, does
+    // NOT clear the arrange bit (UIElement.cs:811-828).
+    SHOULD(ShouldlyString(leaf.is_arrange_dirty()).ShouldBe(true));
+    SHOULD(ShouldlyString(leaf.final_rect().width).ShouldBe(0.0f));
+    SHOULD(ShouldlyString(leaf.final_rect().height).ShouldBe(0.0f));
+    // ... but the requested slot was remembered (the WPF _finalRect mirror).
+    SHOULD(ShouldlyString(leaf.arrange_slot().x).ShouldBe(10.0f));
+    SHOULD(ShouldlyString(leaf.arrange_slot().y).ShouldBe(20.0f));
+    SHOULD(ShouldlyString(leaf.arrange_slot().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.arrange_slot().height).ShouldBe(80.0f));
+
+    // Reveal -> a real arrange recomputes final_rect_ (default Stretch fills).
+    (void)leaf.set_visibility(vaml::Visibility::Visible);
+    leaf.Arrange(rect_of(10.0f, 20.0f, 100.0f, 80.0f));
+    SHOULD(ShouldlyString(leaf.is_arrange_dirty()).ShouldBe(false));
+    SHOULD(ShouldlyString(leaf.final_rect().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.final_rect().height).ShouldBe(80.0f));
+}
+
+TEST_CASE("S835: a never-measured Arrange backfills Measure at the slot size")
+{
+    AvailLeaf leaf; // natural == offered, so the backfill constraint is observable
+    (void)leaf.set_horizontal_alignment(HorizontalAlignment::Left);
+    (void)leaf.set_vertical_alignment(VerticalAlignment::Top);
+    // Never measured: desired 0, measure-dirty.
+    SHOULD(ShouldlyString(leaf.is_measure_dirty()).ShouldBe(true));
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(0.0f));
+
+    // Arrange with NO prior Measure -> backfill Measure(the slot size) -> the
+    // desired becomes the slot (WPF _previousAvailableSize = the slot size).
+    leaf.Arrange(rect_of(0.0f, 0.0f, 200.0f, 100.0f));
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(200.0f));
+    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.is_measure_dirty()).ShouldBe(false));
+    // Non-Stretch: arranged at the measured desired.
+    SHOULD(ShouldlyString(leaf.final_rect().width).ShouldBe(200.0f));
+    SHOULD(ShouldlyString(leaf.final_rect().height).ShouldBe(100.0f));
+}
+
+TEST_CASE("S835: a measure-dirty (previously measured) Arrange re-measures at the previous constraint")
+{
+    AvailLeaf leaf;
+    (void)leaf.set_horizontal_alignment(HorizontalAlignment::Left);
+    (void)leaf.set_vertical_alignment(VerticalAlignment::Top);
+    leaf.Measure(Size{ 500.0f, 400.0f }); // previous constraint 500x400 -> desired 500x400
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(500.0f));
+
+    leaf.InvalidateMeasure(); // dirty the measure axis
+    SHOULD(ShouldlyString(leaf.is_measure_dirty()).ShouldBe(true));
+
+    // Arrange at a SMALLER slot: backfill Measure(the PREVIOUS constraint
+    // 500x400), NOT the slot (200x100) -> desired stays 500x400, which OVERFLOWS.
+    leaf.Arrange(rect_of(0.0f, 0.0f, 200.0f, 100.0f));
+    SHOULD(ShouldlyString(leaf.is_measure_dirty()).ShouldBe(false));
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(500.0f)); // previous constraint, not slot
+    SHOULD(ShouldlyString(leaf.final_rect().width).ShouldBe(500.0f));   // arranged at the backfilled desired
+    SHOULD(ShouldlyString(leaf.needs_clip()).ShouldBe(true));           // 200-slot < 500 content
+}
+
+TEST_CASE("S835: end-of-arrange clip refresh is observable — clip_rect tracks the current slot")
+{
+    ContentLeaf leaf{ Size{ 300.0f, 100.0f } }; // overflows a 100-wide slot
+    leaf.Measure(Size{ 300.0f, 100.0f });
+    leaf.Arrange(rect_of(0.0f, 0.0f, 100.0f, 100.0f)); // slot 100 wide, content 300 -> overflow
+    SHOULD(ShouldlyString(leaf.needs_clip()).ShouldBe(true));
+    // Slot-client clip window == the 100-wide slot.
+    SHOULD(ShouldlyString(leaf.clip_rect().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.clip_rect().height).ShouldBe(100.0f));
+
+    // Re-arrange into a WIDER slot: ensureClip REFRESHES the clip_rect (not stale).
+    leaf.Arrange(rect_of(0.0f, 0.0f, 250.0f, 100.0f));
+    SHOULD(ShouldlyString(leaf.clip_rect().width).ShouldBe(250.0f));
 }

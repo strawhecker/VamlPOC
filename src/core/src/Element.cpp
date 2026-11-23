@@ -705,8 +705,8 @@ Size Button::MeasureOverride(const Size& available) const
     // VisualState/Background for the rendered fill; the default quad is emitted
     // by the vulkan classifier (MaterialKind::Solid). A bounded offer governs
     // the box via the S123 stretch-vs-wrap rule (the base Measure finalizer).
-    const float w = (available.width > 0.0f ? available.width : 20.0f);
-    const float h = (available.height > 0.0f ? available.height : 16.0f);
+    const float w = (std::isfinite(available.width) && available.width > 0.0f ? available.width : 20.0f);
+    const float h = (std::isfinite(available.height) && available.height > 0.0f ? available.height : 16.0f);
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -1513,8 +1513,8 @@ Size Icon::MeasureOverride(const Size& available) const
     // resolved at RENDER by the cached provider + best-fit (S213_1) and the
     // final arranger clamps the box (the render never overflows the measured
     // slot the class-of-fits governs).
-    const float w = static_cast<float>(width() > 0.0 ? width() : (available.width > 0.0f ? available.width : 16.0f));
-    const float h = static_cast<float>(height() > 0.0 ? height() : (available.height > 0.0f ? available.height : 16.0f));
+    const float w = static_cast<float>(width() > 0.0 ? width() : (std::isfinite(available.width) && available.width > 0.0f ? available.width : 16.0f));
+    const float h = static_cast<float>(height() > 0.0 ? height() : (std::isfinite(available.height) && available.height > 0.0f ? available.height : 16.0f));
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -1782,7 +1782,7 @@ Size TextBox::MeasureOverride(const Size& available) const
         text(), fs, available.width,
         [fs](std::uint32_t cp) { return default_text_metric(cp, fs); });
     const float h = plan.measuredHeight > 0.0f ? plan.measuredHeight : lineH;
-    const float w = available.width > 0.0f ? available.width : (plan.measuredWidth > 0.0f ? plan.measuredWidth : 100.0f);
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : (plan.measuredWidth > 0.0f ? plan.measuredWidth : 100.0f);
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -1927,8 +1927,8 @@ Size Slider::MeasureOverride(const Size& available) const
     // The S403 real Slider algorithm: the default track box at the arranged
     // extent; the S123 finalizer applies the stretch-vs-wrap. The rendered
     // track + thumb is the vulkan classifier (deferred to S409_1).
-    const float w = available.width > 0.0f ? available.width : 100.0f;
-    const float h = available.height > 0.0f ? available.height : 8.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 8.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -2035,8 +2035,8 @@ std::int32_t CheckBox::toggle()
 VAML_CORE_EXPORT
 Size CheckBox::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 14.0f;
-    const float h = available.height > 0.0f ? available.height : 14.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 14.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 14.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -2139,8 +2139,8 @@ Size ScrollViewer::MeasureOverride(const Size& available) const
     // The S405 real ScrollViewer algorithm: the viewport is the arranged box
     // (the scrollable content beyond it is the S409_1 viewer draw). A
     // ScrollViewer measures to the viewport offer (or a bounded default).
-    const float w = available.width > 0.0f ? available.width : 200.0f;
-    const float h = available.height > 0.0f ? available.height : 120.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 200.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 120.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -3034,8 +3034,8 @@ bool RadioButton::is_checked() const
 VAML_CORE_EXPORT
 Size RadioButton::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 16.0f;
-    const float h = available.height > 0.0f ? available.height : 16.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 16.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 16.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -3185,8 +3185,8 @@ bool ComboBox::select_item(const std::string& display)
 VAML_CORE_EXPORT
 Size ComboBox::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 120.0f;
-    const float h = available.height > 0.0f ? available.height : 22.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 22.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -3405,8 +3405,8 @@ std::size_t ListBox::render_items()
 VAML_CORE_EXPORT
 Size ListBox::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 120.0f;
-    const float h = available.height > 0.0f ? available.height : 80.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 80.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -3893,7 +3893,7 @@ std::int64_t DatePickerTextBox::selected_date() const { return Get(PropertyId::o
 VAML_CORE_EXPORT
 Size DatePickerTextBox::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 120.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 24.0f) : 24.0f;
     return Size{ w, h };
 }
@@ -3919,7 +3919,7 @@ bool DatePicker::is_drop_down_open() const { return Get(PropertyId::of("IsDropDo
 VAML_CORE_EXPORT
 Size DatePicker::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 140.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 140.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 28.0f) : 28.0f;
     return Size{ w, h };
 }
@@ -4016,8 +4016,8 @@ std::shared_ptr<Brush> InkCanvas::background() const
 VAML_CORE_EXPORT
 Size InkCanvas::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 120.0f;
-    const float h = available.height > 0.0f ? available.height : 80.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 80.0f;
     return Size{ w, h };
 }
 
@@ -4030,8 +4030,8 @@ std::string InkPresenter::strokes() const { return Get(PropertyId::of("Strokes",
 VAML_CORE_EXPORT
 Size InkPresenter::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 120.0f;
-    const float h = available.height > 0.0f ? available.height : 80.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 80.0f;
     return Size{ w, h };
 }
 
@@ -4052,7 +4052,7 @@ bool MediaElement::muted() const { return Get(PropertyId::of("Muted","MediaEleme
 VAML_CORE_EXPORT
 Size MediaElement::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 320.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 320.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 180.0f) : 180.0f;
     return Size{ w, h };
 }
@@ -4126,8 +4126,8 @@ std::string Page::content() const { return Get(PropertyId::of("Content","Page"))
 VAML_CORE_EXPORT
 Size Page::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 240.0f;
-    const float h = available.height > 0.0f ? available.height : 180.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 240.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 180.0f;
     return Size{ w, h };
 }
 
@@ -4144,8 +4144,8 @@ std::string Frame::navigate_uri() const { return Get(PropertyId::of("NavigateUri
 VAML_CORE_EXPORT
 Size Frame::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 300.0f;
-    const float h = available.height > 0.0f ? available.height : 200.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 300.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 200.0f;
     return Size{ w, h };
 }
 
@@ -4160,8 +4160,8 @@ std::string DocumentViewerBase::document() const { return Get(PropertyId::of("Do
 VAML_CORE_EXPORT
 Size DocumentViewerBase::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 260.0f;
-    const float h = available.height > 0.0f ? available.height : 220.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 260.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 220.0f;
     return Size{ w, h };
 }
 
@@ -4181,8 +4181,8 @@ std::string SinglePageViewer::document() const { return Get(PropertyId::of("Docu
 VAML_CORE_EXPORT
 Size SinglePageViewer::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 260.0f;
-    const float h = available.height > 0.0f ? available.height : 220.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 260.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 220.0f;
     return Size{ w, h };
 }
 
@@ -4466,8 +4466,8 @@ Size Border::MeasureOverride(const Size& available) const
     const vaml::Thickness pd = padding();
     const float insetW = bt.left + bt.right + pd.left + pd.right;
     const float insetH = bt.top + bt.bottom + pd.top + pd.bottom;
-    Size inner{ available.width > 0.0f ? std::max(0.0f, available.width - insetW) : 0.0f,
-                available.height > 0.0f ? std::max(0.0f, available.height - insetH) : 0.0f };
+    Size inner{ std::isfinite(available.width) && available.width > 0.0f ? std::max(0.0f, available.width - insetW) : 0.0f,
+                std::isfinite(available.height) && available.height > 0.0f ? std::max(0.0f, available.height - insetH) : 0.0f };
     if (content_)
         content_->Measure(inner);
     const float cw = content_ ? content_->desired_size().width : 0.0f;
@@ -4755,7 +4755,7 @@ Size Line::MeasureOverride(const Size& available) const
     // the offered width with the stroke-thickness cross extent (a zero-length
     // Line -> degenerate, skipped by the classifier). The base S123 reconciler
     // applies the WPF-style Width/Height + stretch-vs-wrap.
-    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
     const float h = static_cast<float>(stroke_thickness() > 0.0 ? stroke_thickness() : 1.0);
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
@@ -4975,8 +4975,8 @@ double Shape::stroke_thickness() const
 VAML_CORE_EXPORT
 Size Shape::MeasureShape(const Size& available) const
 {
-    const float w = available.width > 0.0f ? std::min(available.width, available.width) : 0.0f;
-    const float h = available.height > 0.0f ? std::min(available.height, available.height) : 0.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? std::min(available.width, available.width) : 0.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? std::min(available.height, available.height) : 0.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -5180,8 +5180,8 @@ double Track::value() const
 VAML_CORE_EXPORT
 Size Track::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 100.0f;
-    const float h = available.height > 0.0f ? available.height : 6.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 6.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -5234,8 +5234,8 @@ bool TickBar::is_direction_reversed() const
 VAML_CORE_EXPORT
 Size TickBar::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 100.0f;
-    const float h = available.height > 0.0f ? available.height : 4.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 4.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -5358,9 +5358,9 @@ Size Image::MeasureOverride(const Size& available) const
     // real asset's natural extent is resolved at RENDER by the cached provider
     // + best-fit (S213_1), recorded NO-GAP not silent).
     const float w = width() > 0.0 ? static_cast<float>(width())
-                                  : (available.width > 0.0f ? available.width : 16.0f);
+                                  : (std::isfinite(available.width) && available.width > 0.0f ? available.width : 16.0f);
     const float h = height() > 0.0 ? static_cast<float>(height())
-                                   : (available.height > 0.0f ? available.height : 16.0f);
+                                   : (std::isfinite(available.height) && available.height > 0.0f ? available.height : 16.0f);
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -5465,8 +5465,8 @@ Size ProgressBar::MeasureOverride(const Size& available) const
     // The S484 real ProgressBar algorithm: a bounded horizontal track box (the
     // S123 finalizer applies the stretch-vs-wrap). The determinate fill is the
     // classifier (Solid) at the arranged rect.
-    const float w = available.width > 0.0f ? available.width : 120.0f;
-    const float h = available.height > 0.0f ? available.height : 12.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 12.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -5624,8 +5624,8 @@ Size PasswordBox::MeasureOverride(const Size& available) const
     // default; the S123 finalizer applies the stretch-vs-wrap). The masked
     // bullets render via the S400 Text path at the classifier (the edit-field
     // fill box is Solid — mirroring TextBox).
-    const float w = available.width > 0.0f ? available.width : 120.0f;
-    const float h = available.height > 0.0f ? available.height : 20.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 20.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -5707,8 +5707,8 @@ Size GroupBox::MeasureOverride(const Size& available) const
     // The S485 real GroupBox: the content child + a header band. Measure the
     // content within the offered box (minus a nominal header band) and report
     // content + header extent.
-    vaml::Size inner{ available.width > 0.0f ? available.width : 0.0f,
-                      available.height > 0.0f ? std::max(0.0f, available.height - 18.0f) : 0.0f };
+    vaml::Size inner{ std::isfinite(available.width) && available.width > 0.0f ? available.width : 0.0f,
+                      std::isfinite(available.height) && available.height > 0.0f ? std::max(0.0f, available.height - 18.0f) : 0.0f };
     if (content_)
         content_->Measure(inner);
     const float cw = content_ ? content_->desired_size().width : 0.0f;
@@ -5835,7 +5835,7 @@ Size Expander::MeasureOverride(const Size& available) const
     const float innerH = is_expanded() && available.height > 0.0f
                              ? std::max(0.0f, available.height - 24.0f)
                              : 0.0f;
-    vaml::Size inner{ available.width > 0.0f ? available.width : 0.0f, innerH };
+    vaml::Size inner{ std::isfinite(available.width) && available.width > 0.0f ? available.width : 0.0f, innerH };
     if (content_ && is_expanded())
         content_->Measure(inner);
     const float cw = content_ && is_expanded() ? content_->desired_size().width : 0.0f;
@@ -5900,7 +5900,7 @@ Size Separator::MeasureOverride(const Size& available) const
 {
     // The S485 real Separator: a thin rule — default full width × the thickness
     // (1px). The classifier draws the thin line (Solid).
-    const float w = available.width > 0.0f ? available.width : 100.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
     const float h = static_cast<float>(thickness() > 0.0 ? thickness() : 1.0);
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
@@ -6168,12 +6168,12 @@ Size ScrollBar::MeasureOverride(const Size& available) const
     // The S123 finalizer applies the stretch-vs-wrap.
     if (orientation() == Orientation::Horizontal)
     {
-        const float w = available.width > 0.0f ? available.width : 100.0f;
-        const float h = available.height > 0.0f ? available.height : 14.0f;
+        const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
+        const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 14.0f;
         return Size{ std::max(0.0f, w), std::max(0.0f, h) };
     }
-    const float w = available.width > 0.0f ? available.width : 14.0f;
-    const float h = available.height > 0.0f ? available.height : 100.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 14.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 100.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -6345,8 +6345,8 @@ Size RepeatButton::MeasureOverride(const Size& available) const
 {
     // 11k-2 real RepeatButton algorithm: a bounded default button box (its
     // nominal slot); the S123 finalizer applies the stretch-vs-wrap.
-    const float w = (available.width > 0.0f ? available.width : 20.0f);
-    const float h = (available.height > 0.0f ? available.height : 16.0f);
+    const float w = (std::isfinite(available.width) && available.width > 0.0f ? available.width : 20.0f);
+    const float h = (std::isfinite(available.height) && available.height > 0.0f ? available.height : 16.0f);
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -7341,8 +7341,8 @@ bool MenuItem::raise_click()
 VAML_CORE_EXPORT
 Size MenuItem::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 100.0f;
-    const float h = available.height > 0.0f ? available.height : 22.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 22.0f;
     // Sub-menu children stack vertically below.
     if (child_count() > 0)
     {
@@ -7599,7 +7599,7 @@ Size ContextMenu::MeasureOverride(const Size& available) const
         {
             UIElement* c = child_at(i);
             if (c->is_measure_dirty())
-                c->Measure(Size{ available.width > 0.0f ? available.width : 120.0f, 22.0f });
+                c->Measure(Size{ std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f, 22.0f });
             ch += c->desired_size().height;
             w = std::max(w, c->desired_size().width);
         }
@@ -8067,8 +8067,8 @@ vaml::GridLength GridSplitter::drag_resize_track(vaml::GridLength current, doubl
 VAML_CORE_EXPORT
 Size GridSplitter::MeasureOverride(const Size& available) const
 {
-    const float w = available.width > 0.0f ? available.width : 6.0f;
-    const float h = available.height > 0.0f ? available.height : 6.0f;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 6.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 6.0f;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -8321,8 +8321,8 @@ Size DataGrid::MeasureOverride(const Size& available) const
     // The list/grid fill measures to ~22px/row + a 24px header band.
     const float headerH = headers_visibility() != 0 ? 24.0f : 0.0f;
     const float bodyH = static_cast<float>(itemList.size()) * 22.0f;
-    const float w = available.width > 0.0f ? available.width : static_cast<float>(ncols) * 100.0f;
-    const float h = available.height > 0.0f ? available.height : headerH + bodyH;
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : static_cast<float>(ncols) * 100.0f;
+    const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : headerH + bodyH;
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };
 }
 
@@ -8512,7 +8512,7 @@ Size RichTextBox::MeasureOverride(const Size& available) const
     {
         contentH = lineH;
     }
-    const float w = available.width > 0.0f ? available.width
+    const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width
                                            : (text().empty() ? 200.0f : 200.0f);
     const float h = std::max(contentH, lineH);
     return Size{ std::max(0.0f, w), std::max(0.0f, h) };

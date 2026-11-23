@@ -175,6 +175,18 @@ public:
     // pure value-domain result here.
     [[nodiscard]] const vaml::Rect& clip_rect() const noexcept;
 
+    // --- arrange_slot() — the WPF _finalRect mirror (S835) -----------------
+    // The arrange slot the parent last handed THIS element (WPF UIElement
+    // `_finalRect`). Set by Arrange on EVERY call — including the Collapsed
+    // early-return (UIElement.cs:811-828 "remember ... in case later this
+    // element is called to arrange incrementally it has up-to-date information
+    // stored in _finalRect"), where final_rect_ (the arranged RenderSize-
+    // analogue) is DELIBERATELY NOT recomputed and arrange_dirty_ stays set.
+    // Read-side only (the incremental-arrange cache); distinct from
+    // final_rect() (the arranged/rendered rect, which may differ from the slot
+    // after margin/alignment).
+    [[nodiscard]] const vaml::Rect& arrange_slot() const noexcept;
+
     // --- Measure contract (S123) -------------------------------------------
     // Measure(available) -> DesiredSize, infinity-aware stretch-vs-wrap.
     // The S122-desired_size field is the WRITE target; the computed DesiredSize
@@ -617,6 +629,15 @@ private:
 
     void attach_child(std::unique_ptr<UIElement> child);
 
+    // --- S835: ensureClip (WPF UIElement.ensureClip analogue) --------------
+    // Called at the END of Arrange (after ArrangeOverride, WPF UIElement.cs:884
+    // ensureClip(finalRect.Size)) to REFRESH the render-slot clip window from
+    // the current arrange. The rect is `compute_final_rect().clip_rect` (the
+    // WPF GetLayoutClip slot-client result); the S208 renderer applies it only
+    // when `needs_clip() || clip_to_bounds()` (the S833/S834 gate). Stored on
+    // every arrange so a prior slot's clip never lingers.
+    void ensure_clip(const vaml::Rect& clipRect);
+
     // --- S830: signalDesiredSizeChange (WPF UIElement.cs:3043-3056) ---------
     // `GetUIParentOrICH` → `p.OnChildDesiredSizeChanged(this)`. VAML has no
     // IContentHost branch (FrameworkContentElement hosts are not a measure
@@ -657,6 +678,12 @@ private:
     // ensureClip; this is the faithful inline store). Not a side-table: it is
     // not optional feature data — it is the element's arrange result.
     vaml::Rect clip_rect_      = {};
+    // --- S835 WPF _finalRect mirror (the requested arrange slot cache) ----
+    // The arrange slot the parent last handed this element (WPF `_finalRect`).
+    // Written by Arrange on BOTH the normal path and the Collapsed early-return
+    // (where final_rect_ is NOT recomputed). Sibling of clip_rect_/final_rect_;
+    // core arrangeResult state, not optional feature data (not a side-table).
+    vaml::Rect arrange_slot_   = {};
     bool       measure_dirty_  = true;                      // S126 layout-dirty flag (measure axis)
     bool       arrange_dirty_  = true;                      // S126 layout-dirty flag (arrange axis)
     // --- S832 NeedsClipBounds mirror -------------------------------------

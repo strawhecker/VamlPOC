@@ -17,6 +17,7 @@
 #include "vaml/core/TextLayout.h" // S400 — the wrap measure basis (the host sizes to content)
 
 #include <algorithm>
+#include <cmath>      // std::isfinite — a finite offer fills, an infinite (unbounded) offer falls back
 #include <utility>
 
 namespace vaml {
@@ -113,7 +114,7 @@ vaml::Size StickyNoteRichTextBox::MeasureOverride(const vaml::Size& available) c
     if (!text_.empty())
     {
         // A simple line-count estimate from the wrapped body.
-        float w = available.width > 0.0f ? available.width : 200.0f;
+        float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 200.0f;
         std::size_t lines = 1 + std::count(text_.begin(), text_.end(), '\n');
         // A rough chars-per-line from the measure width.
         if (w > 0.0f)
@@ -122,7 +123,7 @@ vaml::Size StickyNoteRichTextBox::MeasureOverride(const vaml::Size& available) c
         }
         contentH = static_cast<float>(lines) * lineH;
     }
-    float w = available.width > 0.0f ? available.width : 200.0f;
+    float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 200.0f;
     return vaml::Size{std::max(0.0f, w), std::max(0.0f, contentH)};
 }
 
@@ -200,8 +201,8 @@ bool StickyNoteInkCanvas::Load(const std::string& body)
 vaml::Size StickyNoteInkCanvas::MeasureOverride(const vaml::Size& available) const
 {
     // The S554 InkCanvas basis: a fixed note-body box (the ink surface).
-    float w = available.width > 0.0f ? available.width : 200.0f;
-    float h = available.height > 0.0f ? available.height : 160.0f;
+    float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 200.0f;
+    float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 160.0f;
     return vaml::Size{std::max(0.0f, w), std::max(0.0f, h)};
 }
 
