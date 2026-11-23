@@ -46,8 +46,11 @@ vaml::Size AdornerDecorator::MeasureOverride(const vaml::Size& available) const
 }
 
 VAML_CORE_EXPORT
-void AdornerDecorator::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size AdornerDecorator::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: reconstruct the world slot from the anchor (layout_offset) + the
+    // arrange Size (== final_rect() by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // Arrange the content child to fill the decorator's box (the S550 policy),
     // THEN update the owned layer over the content's arranged box (the WPF
     // "layer sits above the content" contract — the layer re-syncs its
@@ -55,6 +58,7 @@ void AdornerDecorator::ArrangeOverride(const vaml::Rect& finalSlot)
     if (content())
         content()->Arrange(finalSlot);
     (void)layer_->Update(); // the synced count is informational here
+    return finalSize;       // ink == slot
 }
 
 } // namespace vaml

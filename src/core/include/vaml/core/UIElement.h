@@ -151,8 +151,33 @@ public:
     [[nodiscard]] const vaml::Size& desired_size() const noexcept;
 
     // The child's arranged final rect (written by Arrange at S124). Default 0
-    // until the first Arrange pass.
+    // until the first Arrange pass. S841: this is the ARRANGE SLOT (the
+    // anchor+arrangeSize box the parent handed + the alignment-arranged size) —
+    // the box used to position the element. The DRAWABLE (ink) box is
+    // ink_rect() (= {layout_offset, render_size}); they coincide by default
+    // (base ArrangeOverride returns the passed size ⇒ ink == slot).
     [[nodiscard]] const vaml::Rect& final_rect() const noexcept;
+
+    // --- S841 RenderSize (INK) + layout offset (ANCHOR) + ink_rect -------------
+    // The WPF slot/ink/anchor triad, made explicit (FrameworkElement.cs:4720-
+    // 4721 RenderSize<-ArrangeOverride return; :4788 SetLayoutOffset; FE.cs:
+    // 5111-5113 ArrangeOverride base returns the passed size).
+    //   render_size()   = the INK = the value ArrangeOverride returned
+    //                     (WPF RenderSize). Default == final_rect().size because
+    //                     the base ArrangeOverride returns the passed size.
+    //   layout_offset() = the ANCHOR (WPF layout offset = ar.rect origin),
+    //                     tracked DISTINCT from the ink (SetLayoutOffset
+    //                     analogue, :4788) — the render is placed by this
+    //                     offset, never folded into render_size().
+    //   ink_rect()      = {layout_offset, render_size} = the DRAWABLE box the
+    //                     S208 encoder draws the content at, clips the ink against
+    //                     (UIElement.cs:3326 / FE GetLayoutClip), and reads for
+    //                     hit-testing (UIElement.cpp hit box). Backward-compatible
+    //                     safety net: ink_rect() == final_rect() for every
+    //                     existing element (ink == slot).
+    [[nodiscard]] const vaml::Size& render_size() const noexcept;
+    [[nodiscard]] vaml::Point layout_offset() const noexcept;
+    [[nodiscard]] vaml::Rect ink_rect() const noexcept;
 
     // --- needs_clip() — WPF NeedsClipBounds mirror (S832) ------------------
     // True iff the last Arrange arranged this element LARGER than its slot on
@@ -280,7 +305,13 @@ public:
     // final_rect(). This is the seam that completes the arrange-subgraph
     // auto-drive (LayoutManager -> root Arrange -> panel ArrangeOverride ->
     // children arranged).
-    virtual void ArrangeOverride(const vaml::Rect& finalSlot);
+    // S841: RESEATED to `Size ArrangeOverride(Size)` (WPF FrameworkElement.cs:
+    // 5111-5113). Receives the ARRANGE SIZE (the arrange slot's size); returns
+    // the INK (RenderSize) — by DEFAULT the passed size (ink == slot, the
+    // backward-compatible safety net that keeps this a controlled refactor).
+    // A panel that draws/tests differently from its slot returns a differing
+    // ink; its world slot is recovered from layout_offset() + this size.
+    virtual vaml::Size ArrangeOverride(vaml::Size finalSize);
 
     // --- Layout invalidation (S839 — WPF-faithful, supersedes the S126 walk) --
     // WPF-faithful dirty flags: each element knows whether it needs a Measure
@@ -706,7 +737,14 @@ private:
     // ------------------------------------------------------------------
     std::vector<std::unique_ptr<UIElement>> children_;      // S121 owned, ordered visual children
     vaml::Size desired_size_   = {};                        // S122/S123 DesiredSize (Measure writes)
-    vaml::Rect final_rect_     = {};                        // S122/S124 final rect (Arrange writes)
+    vaml::Rect final_rect_     = {};                        // S122/S124 final rect (Arrange writes; = the ARRANGE SLOT)
+    // --- S841 ink (RenderSize) + anchor (layout offset) ------------------
+    // Siblings of final_rect_/clip_rect_; core arrange-result state (not a
+    // side-table — not optional feature data). render_size_ = ArrangeOverride's
+    // return (WPF RenderSize); layout_offset_ = the arrange-rect origin (WPF
+    // SetLayoutOffset analogue). Default ink == slot ⇒ ink_rect() == final_rect_.
+    vaml::Size render_size_    = {};                        // S841 ink (WPF RenderSize)
+    vaml::Point layout_offset_ = {};                        // S841 anchor (WPF layout offset)
     // --- S833 GetLayoutClip rectangular result ---------------------------
     // The SLOT-CLIENT clip window computed by Arrange (compute_final_rect's
     // clip_rect). Core layout geometry (sibling of final_rect_), set on EVERY

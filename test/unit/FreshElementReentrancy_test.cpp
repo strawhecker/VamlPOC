@@ -49,10 +49,11 @@ protected:
         (void)available;
         return natural_;
     }
-    void ArrangeOverride(const Rect& finalSlot) override
+    Size ArrangeOverride(Size finalSize) override
     {
         ++arrange_calls;
-        (void)finalSlot;
+        (void)finalSize;
+        return finalSize;
     }
 
 private:
@@ -89,11 +90,12 @@ protected:
         (void)available;
         return Size{ 5.0f, 5.0f };
     }
-    void ArrangeOverride(const Rect& finalSlot) override
+    Size ArrangeOverride(Size finalSize) override
     {
         ++arrange_calls;
-        (void)finalSlot;
+        (void)finalSize;
         InvalidateArrange();
+        return finalSize;
     }
 };
 

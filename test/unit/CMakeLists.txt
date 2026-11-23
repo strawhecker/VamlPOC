@@ -50,6 +50,7 @@ add_executable(vaml-core-tests
     FreshElementReentrancy_test.cpp   # S840 - fresh-element / reentrancy / constraint-cache (D7+D1)
     Arrange_test.cpp
     ArrangeClip_test.cpp   # S834 (dep:S833) — the ClipToBounds DP + forced-mode slot clip
+    RenderSizeInk_s841_test.cpp   # S841 (dep:S840) — the slot/ink/anchor triad (render_size/ink_rect) fidelity
     LeafPanelArchetype_test.cpp
     LayoutManager_test.cpp
     MeasureArrangeOverride_test.cpp

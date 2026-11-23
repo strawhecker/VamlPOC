@@ -67,7 +67,7 @@ protected:
     // policy) AND update the owned layer OVER the content's arranged box (the
     // layer re-syncs its adorners to the content's final rect) — the WPF
     // "layer sits above the content" contract.
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     std::unique_ptr<AdornerLayer> layer_; // the OWNED overlay surface

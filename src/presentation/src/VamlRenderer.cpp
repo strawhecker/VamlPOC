@@ -103,7 +103,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     // text glyph material + the resolved foreground end-to-end (headlessly).
     if (auto* text = dynamic_cast<const vaml::TextBlock*>(&element))
     {
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const float fs = static_cast<float>(text->font_size());
         // The wrapped layout at the Text's available width (the box the control
         // measured) — the same wrap rule the Measure used.
@@ -145,7 +145,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         // The visual-state Background color: the Button's default template
         // drives the "Background" Color DP (Value::Color) via the S364 state
         // engine. A Button with no template applied falls back to a neutral
@@ -179,7 +179,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.92f, 0.93f, 0.95f, 1.0f });
         return v;
@@ -193,7 +193,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.55f, 0.58f, 0.62f, 1.0f });
         return v;
@@ -209,7 +209,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const bool on = cb->checked() != 0;
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{
@@ -228,7 +228,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.05f, 0.05f, 0.05f, 0.0f });
         return v;
@@ -246,7 +246,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.30f, 0.34f, 0.40f, 1.0f });
         return v;
@@ -255,7 +255,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const bool on = rb->is_checked();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{
@@ -269,7 +269,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         // The EditField-style fill box; the `→` arrow indicator is drawn by the
         // S205 Solid path (a small right-edge darker bar as the dropdown hint).
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
@@ -282,7 +282,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.86f, 0.88f, 0.92f, 1.0f });
         return v;
@@ -302,7 +302,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Monochrome;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         // The S400_1 fallback glyph: a recognizable filled square (the "broken
         // icon" marker) at the arranged box. The Monochrome tint color is the
         // resolved foreground (WPF-faithful brush read; unresolved -> the
@@ -323,7 +323,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     //    This closes the dormant BorderRect seam at its own step (NO-GAP).
     if (auto* border = dynamic_cast<const vaml::Border*>(&element))
     {
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const vaml::Color bc = border->border_brush()->color();
         const vaml::Thickness bt = border->border_thickness();
         const vaml::Thickness rc = border->corner_radius();
@@ -353,7 +353,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Monochrome;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.80f, 0.80f, 0.80f, 0.55f });
         (void)image; // the DP-driven real quad + the S213_1 best-fit are the live/S409_1 path
@@ -374,7 +374,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         (void)label->foreground()->color();  // resolved for the glyph/content (S400 path)
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -389,7 +389,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const vaml::Color fc = rect->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -404,7 +404,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const vaml::Color fc = el->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -419,7 +419,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const vaml::Color sc = ln->stroke()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -440,7 +440,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const vaml::Color fc = path->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -455,7 +455,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const vaml::Color fc = polygon->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -470,7 +470,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const vaml::Color fc = pline->fill()->color();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -489,7 +489,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.35f, 0.35f, 0.38f, 1.0f });
@@ -500,7 +500,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const int ticks = (tb->maximum() > tb->minimum() && tb->frequency() > 0.0)
                               ? static_cast<int>((tb->maximum() - tb->minimum()) / tb->frequency())
                               : 0;
@@ -520,7 +520,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.88f, 0.90f, 0.94f, 1.0f });
@@ -531,7 +531,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const bool sel = tvi->is_selected();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -555,7 +555,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.82f, 0.85f, 0.90f, 1.0f });
@@ -570,7 +570,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.92f, 0.92f, 0.95f, 1.0f });
@@ -581,7 +581,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.90f, 0.90f, 0.93f, 1.0f });
@@ -592,7 +592,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Monochrome;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.10f, 0.10f, 0.10f, 1.0f });
@@ -613,7 +613,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
             vaml::vulkan::ui::Color4{ 0.90f, 0.91f, 0.93f, 1.0f });
@@ -627,7 +627,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     //    (recorded NO-GAP not silent; segmented/marquee chrome = S649).
     if (auto* pb = dynamic_cast<const vaml::ProgressBar*>(&element))
     {
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const double lo = std::min(pb->minimum(), pb->maximum());
         const double hi = std::max(pb->minimum(), pb->maximum());
         const double span = hi - lo;
@@ -660,7 +660,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.92f, 0.93f, 0.95f, 1.0f });
         return v;
@@ -673,7 +673,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.88f, 0.90f, 0.93f, 1.0f });
         (void)gb;
@@ -686,7 +686,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.72f, 0.75f, 0.80f, 1.0f });
         (void)ex;
@@ -698,7 +698,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.45f, 0.45f, 0.48f, 1.0f });
         (void)sep;
@@ -710,7 +710,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.62f, 0.66f, 0.72f, 1.0f });
         (void)sb;
@@ -737,7 +737,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.82f, 0.84f, 0.88f, 1.0f });
         return v;
@@ -748,7 +748,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.55f, 0.58f, 0.62f, 1.0f });
         (void)sbar;
@@ -759,7 +759,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.74f, 0.77f, 0.82f, 1.0f });
         return v;
@@ -769,7 +769,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.68f, 0.71f, 0.76f, 1.0f });
         return v;
@@ -793,7 +793,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.85f, 0.87f, 0.91f, 1.0f });
         return v;
@@ -802,7 +802,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         // A selected tab renders a more-prominent header fill.
         const bool sel = tab->is_selected();
         v.item = vaml::vulkan::ui::solid_rect(
@@ -815,7 +815,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.55f, 0.58f, 0.64f, 1.0f });
         return v;
@@ -824,7 +824,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const bool chk = mi->is_checked();
         v.item = vaml::vulkan::ui::solid_rect(
             r.x, r.y, r.width, r.height,
@@ -836,7 +836,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         // A popup menu panel is drawn only when open; when closed it emits a
         // degenerate (skipped) rect at zero area.
         const bool open = cm->is_open();
@@ -850,7 +850,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const bool vis = tip->visible();
         const float w = vis ? r.width : 0.0f;
         const float h = vis ? r.height : 0.0f;
@@ -862,7 +862,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         const bool vis = pop->visible();
         const float w = vis ? r.width : 0.0f;
         const float h = vis ? r.height : 0.0f;
@@ -874,7 +874,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         v.item = vaml::vulkan::ui::solid_rect(r.x, r.y, r.width, r.height,
                                               vaml::vulkan::ui::Color4{ 0.40f, 0.42f, 0.46f, 1.0f });
         (void)gs;
@@ -884,7 +884,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     {
         vaml::vulkan::ui::ElementVisual v;
         v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-        const vaml::Rect r = element.final_rect();
+        const vaml::Rect r = element.ink_rect();
         // The list/grid fill: the header band tinted differently from the rows.
         // The single-item contract emits the whole grid box (the real header +
         // per-row cells are the S649 continuation; the fill fraction carries the
@@ -919,7 +919,7 @@ classify_merge_element(const vaml::UIElement& element) noexcept
     // Default Opacity=1 + no Background -> alpha 1 identical to today (no regression).
     vaml::vulkan::ui::ElementVisual v;
     v.kind = vaml::vulkan::ui::MaterialKind::Solid;
-    const vaml::Rect r = element.final_rect();
+    const vaml::Rect r = element.ink_rect();
     vaml::Color bg{ 191, 204, 229, 255 };  // the neutral 0.75/0.80/0.90 fill, alpha 1.0
     const vaml::Value bv = element.Get(vaml::PropertyId::of("Background", "Control"));
     if (bv.type() == vaml::ValueType::Brush || bv.type() == vaml::ValueType::BrushId)

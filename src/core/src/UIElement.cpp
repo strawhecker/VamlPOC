@@ -589,6 +589,36 @@ const vaml::Rect& UIElement::final_rect() const noexcept
     return final_rect_;
 }
 
+// --- S841 ink (RenderSize) + anchor (layout offset) accessors ---------------
+
+VAML_CORE_EXPORT
+const vaml::Size& UIElement::render_size() const noexcept
+{
+    // The INK — ArrangeOverride's returned size (WPF RenderSize). Set by Arrange
+    // from the override's return value; default == final_rect().size because the
+    // base ArrangeOverride returns the passed size.
+    return render_size_;
+}
+
+VAML_CORE_EXPORT
+vaml::Point UIElement::layout_offset() const noexcept
+{
+    // The ANCHOR — the arrange-rect origin (WPF layout offset, SetLayoutOffset
+    // analogue FE.cs:4788). Tracked DISTINCT from the ink: the render is placed
+    // at this offset, never folded into render_size().
+    return layout_offset_;
+}
+
+VAML_CORE_EXPORT
+vaml::Rect UIElement::ink_rect() const noexcept
+{
+    // The DRAWABLE box = the ink placed at the anchor (WPF RenderSize at the
+    // layout offset). The S208 encoder draws the content here; clip + hit-test
+    // read it. == final_rect() by default (ink == slot).
+    return vaml::Rect{ layout_offset_.x, layout_offset_.y,
+                       render_size_.width, render_size_.height };
+}
+
 VAML_CORE_EXPORT
 bool UIElement::needs_clip() const noexcept
 {
@@ -933,16 +963,14 @@ void UIElement::signal_desired_size_change()
 // --- S124 Arrange contract --------------------------------------------------
 
 VAML_CORE_EXPORT
-void UIElement::ArrangeOverride(const Rect& finalSlot)
+Size UIElement::ArrangeOverride(Size finalSize)
 {
-    // The S127 arrange-side virtual. Receives the element's FULL final render
-    // slot (final_rect()). Base UIElement has no children, so a leaf has
-    // nothing to place — default no-op. Panels (S129/S131) override this to
-    // lay out their children into their own render slot, completing the
-    // arrange-subgraph auto-drive (LayoutManager -> root Arrange -> panel
-    // ArrangeOverride -> children arranged). `finalSlot` is unused by the
-    // base, so silence the unused-parameter diagnostic.
-    (void)finalSlot;
+    // S841 (WPF FrameworkElement.cs:5111-5113): the base ArrangeOverride RETURNS
+    // the passed size — the ink (RenderSize) equals the arrange slot by default,
+    // so a line-for-line element renders identically (the backward-compatible
+    // safety net). A panel overrides this to lay out children AND may return a
+    // differing ink; its world slot is recovered from layout_offset() + finalSize.
+    return finalSize;
 }
 
 VAML_CORE_EXPORT
@@ -1020,15 +1048,26 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     const vaml::arrange_result ar = vaml::compute_final_rect(
         slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
     // S832: the arranged rect MAY exceed the slot (child-wins); store the
-    // UNCLIPPED final_rect_ + the NeedsClipBounds mirror.
+    // UNCLIPPED final_rect_ (= the ARRANGE SLOT) + the NeedsClipBounds mirror.
     final_rect_ = ar.rect;
+    // S841: the ANCHOR (layout offset) = the arrange-rect origin, tracked
+    // distinct from the ink (SetLayoutOffset analogue, FE.cs:4788).
+    layout_offset_ = vaml::Point{ ar.rect.x, ar.rect.y };
     needs_clip_ = ar.needs_clip;
 
-    // S127/S832: hand the element its UNCLIPPED final render slot so a panel
-    // arranges its children into it (the child receives the size it measured
-    // for — FrameworkElement.cs:4651/4697). WPF order: ArrangeCore THEN
-    // ensureClip.
-    ArrangeOverride(final_rect_);
+    // S841/S127/S832: hand the element its ARRANGE SIZE (the slot's size) so a
+    // panel arranges its children into it, and store the INK it returns (WPF
+    // FrameworkElement.cs:4697/4720-4721 `RenderSize = ArrangeOverride(...)`).
+    // Base returns the passed size ⇒ ink == slot (existing elements identical).
+    const vaml::Size ink = ArrangeOverride(vaml::Size{ ar.rect.width, ar.rect.height });
+    render_size_ = ink;
+    // S841: re-base the NeedsClipBounds ink leg onto the INK (WPF
+    // `clientSize < clippedInkSize`, FE.cs:4776-4785). Reduces to ar.needs_clip
+    // when ink == arrange (the default), so a fitting element on a matching ink
+    // produces no clip.
+    needs_clip_ = ar.needs_clip
+               || (ar.clip_rect.width  < ink.width)
+               || (ar.clip_rect.height < ink.height);
 
     // (d) ensureClip (WPF UIElement.cs:884 -> 3056): refresh the render-slot
     //     clip from the slot-client window. Applied by the S208 renderer only
@@ -1595,9 +1634,11 @@ const UIElement* UIElement::HitTestAt(float x, float y) const
     {
         return nullptr;
     }
-    // The point must lie within THIS element's final_rect (the clip bounds;
-    // content overflowing final_rect is clipped and not hit-testable).
-    if (!contains_point(final_rect_, x, y))
+    // S841: the point must lie within THIS element's INK box (the drawable
+    // render box = RenderSize at the layout offset; UIElement.cpp hit box /
+    // UIElement.cs:1049 reads the ink). == final_rect() by default. Content
+    // overflowing the ink is clipped and not hit-testable.
+    if (!contains_point(ink_rect(), x, y))
     {
         return nullptr;
     }

@@ -93,14 +93,17 @@ Size ContentPresenter::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void ContentPresenter::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size ContentPresenter::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: reconstruct the world slot from the anchor + the arrange Size.
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // Arrange the applied template content to FILL the presenter's box (the
     // per-item content fills its container).
     if (child_count() > 0)
     {
         child_at(0)->Arrange(finalSlot);
     }
+    return finalSize; // ink == slot
 }
 
 } // namespace vaml

@@ -234,7 +234,9 @@ void apply_element_render_state(const vaml::UIElement& element, DrawItem& item) 
     const vaml::Point origin = element.render_transform_origin();
     if (!is_transform_identity(model))
     {
-        const vaml::Rect fr = element.final_rect();
+        // S841: the fold origin is a fraction of the INK (WPF RenderSize), not
+        // the arrange slot — equivalently identical while ink == slot.
+        const vaml::Size fr = element.render_size();
         if (origin.x != 0.0f || origin.y != 0.0f)
         {
             const float ox = fr.width * origin.x;
@@ -297,7 +299,8 @@ void append_effect_draws(const vaml::Effect* effect,
     if (ds == nullptr || visual.kind == MaterialKind::None)
         return;
 
-    const vaml::Rect r = element.final_rect();
+    // S841: the drop-shadow box is the element's INK (drawable) box.
+    const vaml::Rect r = element.ink_rect();
     if (r.width <= 0.0f || r.height <= 0.0f)
         return;
 

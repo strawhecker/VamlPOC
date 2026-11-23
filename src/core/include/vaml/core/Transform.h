@@ -35,11 +35,16 @@
 // i.e. ox = m11*x + m12*y + dx ; oy = m21*x + m22*y + dy.
 // Translation (dx, dy) is in LAYOUT PIXELS (the element's logical space).
 //
-// Semantics (S208 decision): the element renders at its layout final_rect
-// (S122/S124 render slot); RenderTransform maps its content within/beyond that
-// slot; the clip (scissor = final_rect) culls any overflow. This follows VAML's
-// established "final_rect IS clip bounds" (S124); v1 clips always (the S124
-// contract; WPF ClipToBounds-vs-clip-always nuance noted, not adopted in v1).
+// Semantics (S208, REPURPOSED by S841): the element now renders at its INK box
+// (render_size() placed at layout_offset() — the `ink_rect()`, WPF FrameworkElement
+// RenderSize at the layout offset; FrameworkElement.cs:4697/4720-4721/4787-4793).
+// RenderTransform maps its content within/beyond that ink; the clip (scissor = the
+// element's slot-client clip_rect) culls overflow. This corrects the earlier
+// "final_rect IS the render slot / is the clip bounds" premise: final_rect() is the
+// arrange SLOT (unchanged arrange math), render_size() is the INK, and the clip is
+// the FrameworkElement slot-client window whose TRIGGER consumes the ink
+// (needs_clip, FE.cs:4874/4917-4923). Default ink == slot, so the observable draw
+// is unchanged.
 
 #include "vaml/core/export.h"
 

@@ -56,14 +56,16 @@ Size Panel::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Panel::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Panel::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // The base panel: arrange each child to FILL the panel's box.
     const std::size_t n = child_count();
     for (std::size_t i = 0; i < n; ++i)
     {
         child_at(i)->Arrange(finalSlot);
     }
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -110,12 +112,14 @@ Size Decorator::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Decorator::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Decorator::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_)
     {
         content_->Arrange(finalSlot);
     }
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -183,9 +187,11 @@ Size ComboBoxItem::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void ComboBoxItem::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size ComboBoxItem::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_) content_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -253,9 +259,11 @@ Size ListBoxItem::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void ListBoxItem::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size ListBoxItem::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_) content_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -293,9 +301,11 @@ Size StatusBarItem::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void StatusBarItem::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size StatusBarItem::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_) content_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -350,9 +360,11 @@ Size GroupItem::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void GroupItem::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size GroupItem::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_) content_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -384,9 +396,11 @@ Size DataGridRow::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void DataGridRow::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size DataGridRow::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_) content_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 VAML_CORE_EXPORT
@@ -415,9 +429,11 @@ Size DataGridCell::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void DataGridCell::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size DataGridCell::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_) content_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -449,9 +465,11 @@ Size ItemsPresenter::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void ItemsPresenter::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size ItemsPresenter::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (host_) host_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 // ---------------------------------------------------------------------------
@@ -591,9 +609,11 @@ Size GridViewColumnHeader::MeasureOverride(const Size& available) const
     return Size{ 0.0f, 0.0f };
 }
 VAML_CORE_EXPORT
-void GridViewColumnHeader::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size GridViewColumnHeader::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_) content_->Arrange(finalSlot);
+    return finalSize; // ink == slot
 }
 
 namespace {
@@ -680,8 +700,9 @@ Size VirtualizingStackPanel::MeasureOverride(const Size& available) const
     return Size{ maxW, maxH };
 }
 VAML_CORE_EXPORT
-void VirtualizingStackPanel::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size VirtualizingStackPanel::ArrangeOverride(vaml::Size finalSize)
 {
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     float y = finalSlot.y;
     const std::size_t n = child_count();
     for (std::size_t i = 0; i < n; ++i)
@@ -691,6 +712,7 @@ void VirtualizingStackPanel::ArrangeOverride(const vaml::Rect& finalSlot)
         c->Arrange(Rect{ finalSlot.x, y, finalSlot.width, h });
         y += h;
     }
+    return finalSize; // ink == slot
 }
 
 namespace {

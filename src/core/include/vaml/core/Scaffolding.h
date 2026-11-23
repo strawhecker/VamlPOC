@@ -66,7 +66,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 // ===========================================================================
@@ -88,7 +88,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -114,7 +114,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -141,7 +141,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -172,7 +172,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -205,7 +205,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -226,7 +226,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -246,7 +246,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -269,7 +269,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* host_ = nullptr;
@@ -412,7 +412,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -461,7 +461,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 class VAML_CORE_EXPORT SelectiveScrollingGrid : public VirtualizingPanel

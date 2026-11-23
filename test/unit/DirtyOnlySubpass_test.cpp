@@ -75,10 +75,12 @@ protected:
         return content_;
     }
 
-    void ArrangeOverride(const Rect& finalSlot) override
+    Size ArrangeOverride(Size finalSize) override
     {
+        const Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
         ++arrangeCount_;
         lastArrange_ = finalSlot;
+        return finalSize;
     }
 
 private:
@@ -120,8 +122,9 @@ protected:
         return { width, height };
     }
 
-    void ArrangeOverride(const Rect& finalSlot) override
+    Size ArrangeOverride(Size finalSize) override
     {
+        const Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
         ++arrangeCount_;
         float y = finalSlot.y;
         for (std::size_t i = 0; i < child_count(); ++i)
@@ -133,6 +136,7 @@ protected:
             }
             y += child->desired_size().height;
         }
+        return finalSize;
     }
 
 private:

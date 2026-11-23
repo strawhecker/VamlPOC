@@ -256,11 +256,11 @@ vaml::Size Viewport3D::MeasureOverride(const vaml::Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Viewport3D::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Viewport3D::ArrangeOverride(vaml::Size finalSize)
 {
     // Fills its final rect — nothing to arrange (the 3D content is rendered
-    // by the rasterizer, not laid out as 2D children).
-    (void)finalSlot;
+    // by the rasterizer, not laid out as 2D children). Ink == slot.
+    return finalSize;
 }
 
 } // namespace vaml

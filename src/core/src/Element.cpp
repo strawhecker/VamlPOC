@@ -963,8 +963,12 @@ Size WrapPanel::MeasureOverride(const Size& available) const
 // Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children; clean
 // children keep their final_rect untouched.
 VAML_CORE_EXPORT
-void WrapPanel::ArrangeOverride(const Rect& finalSlot)
+vaml::Size WrapPanel::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is unchanged) and return
+    // the ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (wrap_direction() == Orientation::Horizontal)
     {
         float rowY = finalSlot.y;
@@ -990,7 +994,7 @@ void WrapPanel::ArrangeOverride(const Rect& finalSlot)
             }
             cursor += childW;
         }
-        return;
+        return finalSize;
     }
 
     // Vertical (columns top-to-bottom, laid left-to-right).
@@ -1016,6 +1020,7 @@ void WrapPanel::ArrangeOverride(const Rect& finalSlot)
         }
         cursor += childH;
     }
+    return finalSize;
 }
 
 // --- S136 Canvas: attached Left/Top + real absolute-position panel ----------
@@ -1098,8 +1103,11 @@ Size Canvas::MeasureOverride(const Size& available) const
 // positions are absolute. Dirty-respect (S128): re-arrange ONLY
 // is_arrange_dirty() children; clean children keep their final_rect untouched.
 VAML_CORE_EXPORT
-void Canvas::ArrangeOverride(const Rect& finalSlot)
+vaml::Size Canvas::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange slot from the anchor + the ink (unchanged
+    // placement math); return the ink (== slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* child = child_at(i);
@@ -1118,6 +1126,7 @@ void Canvas::ArrangeOverride(const Rect& finalSlot)
             child->desired_size().height,
         });
     }
+    return finalSize;
 }
 
 // --- S400 Text control: REAL DPs + the real MeasureOverride ------------------
@@ -2093,7 +2102,7 @@ VAML_CORE_EXPORT
 double ScrollViewer::content_height() const { return contentH_; }
 
 VAML_CORE_EXPORT
-double ScrollViewer::viewport_height() const { return std::max(0.0, static_cast<double>(final_rect().height)); }
+double ScrollViewer::viewport_height() const { return std::max(0.0, static_cast<double>(ink_rect().height)); }
 
 VAML_CORE_EXPORT
 double ScrollViewer::scrollable_height() const { return std::max(0.0, contentH_ - viewport_height()); }
@@ -2122,7 +2131,7 @@ Rect ScrollViewer::clip_content(const Rect& content) const
     // (the fully-visible case degenerates to no clip), and a fully-hidden
     // content yields an empty zero-rect. The deeper per-content needs_clip re-key
     // of the ink/conditional model is S1017 (recorded, not pre-empted here).
-    const vaml::Rect viewport = final_rect();
+    const vaml::Rect viewport = ink_rect(); // S841: the viewport is the element's INK box
     const Rect moved{ content.x - static_cast<float>(vertical_offset()),
                       content.y,
                       content.width,
@@ -2262,8 +2271,11 @@ Size Window::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Window::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Window::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange slot from the anchor + the ink; return the
+    // ink (== slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // The S440 real Window algorithm: arrange the single content child to FILL
     // the Window's final rect (implicit single-child layout). The base clip
     // (LayoutSlot clip_to_bounds) clips content to the window box.
@@ -2271,6 +2283,7 @@ void Window::ArrangeOverride(const vaml::Rect& finalSlot)
     {
         content_->Arrange(finalSlot);
     }
+    return finalSize;
 }
 
 VAML_CORE_EXPORT
@@ -2398,12 +2411,16 @@ Size UserControl::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void UserControl::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size UserControl::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange slot from the anchor + the ink; return the
+    // ink (== slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (content_)
     {
         content_->Arrange(finalSlot);
     }
+    return finalSize;
 }
 
 // --- 11j-6 Application (REAL document-root element; GAP CLOSE) --------------
@@ -2614,8 +2631,12 @@ Size StackPanel::MeasureOverride(const Size& available) const
 // retained, benign last-child-stretch behaviour. Do NOT extend; do NOT backfill
 // silently.
 VAML_CORE_EXPORT
-void StackPanel::ArrangeOverride(const Rect& finalSlot)
+vaml::Size StackPanel::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (orientation() == Orientation::Horizontal)
     {
         float x = finalSlot.x;
@@ -2631,7 +2652,7 @@ void StackPanel::ArrangeOverride(const Rect& finalSlot)
             }
             x += (isLast ? remaining : child->desired_size().width);
         }
-        return;
+        return finalSize;
     }
 
     // Vertical (default).
@@ -2648,6 +2669,7 @@ void StackPanel::ArrangeOverride(const Rect& finalSlot)
         }
         y += (isLast ? remaining : child->desired_size().height);
     }
+    return finalSize;
 }
 
 // --- S131/S132 Grid: row/col resolution + span-aware measure/arrange ---------
@@ -2765,8 +2787,12 @@ Size Grid::MeasureOverride(const Size& available) const
 // Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children; clean
 // children keep their final_rect untouched.
 VAML_CORE_EXPORT
-void Grid::ArrangeOverride(const Rect& finalSlot)
+vaml::Size Grid::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     const std::size_t nRows = rows_.size();
     const std::size_t nCols = cols_.size();
 
@@ -2811,6 +2837,7 @@ void Grid::ArrangeOverride(const Rect& finalSlot)
             c->Arrange(cell);
         }
     }
+    return finalSize;
 }
 
 // --- S470 DockPanel: attached Dock DP + real dock-stacking panel -----------
@@ -2895,8 +2922,12 @@ Size DockPanel::MeasureOverride(const Size& available) const
 // compute_final_rect). The LAST child (Fill) takes the REMAINING interior rect.
 // Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children.
 VAML_CORE_EXPORT
-void DockPanel::ArrangeOverride(const Rect& finalSlot)
+vaml::Size DockPanel::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     float left = finalSlot.x;
     float top  = finalSlot.y;
     float right  = finalSlot.right();
@@ -2963,6 +2994,7 @@ void DockPanel::ArrangeOverride(const Rect& finalSlot)
             break;
         }
     }
+    return finalSize;
 }
 
 // --- S471 RadioButton: IsChecked + exclusive group + Checked/Unchecked ------
@@ -4476,13 +4508,17 @@ Size Border::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Border::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Border::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // Arrange the single content child into the INNER slot (behind the border +
     // padding). The border bezel itself is drawn by the classifier (S481 —
     // MaterialKind::Border at the arranged box).
     if (!content_)
-        return;
+        return finalSize;
     const vaml::Thickness bt = border_thickness();
     const vaml::Thickness pd = padding();
     const float ox = bt.left + pd.left;
@@ -4490,6 +4526,7 @@ void Border::ArrangeOverride(const vaml::Rect& finalSlot)
     const float ow = std::max(0.0f, finalSlot.width - (bt.left + bt.right + pd.left + pd.right));
     const float oh = std::max(0.0f, finalSlot.height - (bt.top + bt.bottom + pd.top + pd.bottom));
     content_->Arrange(vaml::Rect{ finalSlot.x + ox, finalSlot.y + oy, ow, oh });
+    return finalSize;
 }
 
 // --- S482 Rectangle/Ellipse/Line shape DPs + measure ------------------------
@@ -5717,15 +5754,20 @@ Size GroupBox::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void GroupBox::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size GroupBox::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (!content_)
-        return;
+        return finalSize;
     // The content child sits below the 18px header band; the classifier draws
     // the bordered group box (Solid + Border) at the arranged rect.
     const float headerH = 18.0f;
     const float ch = std::max(0.0f, finalSlot.height - headerH);
     content_->Arrange(vaml::Rect{ finalSlot.x, finalSlot.y + headerH, finalSlot.width, ch });
+    return finalSize;
 }
 
 // Expander (header + IsExpanded + expandable content). The expand chevron is
@@ -5845,13 +5887,18 @@ Size Expander::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Expander::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Expander::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (!content_ || !is_expanded())
-        return; // collapsed: the content is hidden (the classifier draws only the header)
+        return finalSize; // collapsed: the content is hidden (the classifier draws only the header)
     const float headerH = 24.0f;
     const float ch = std::max(0.0f, finalSlot.height - headerH);
     content_->Arrange(vaml::Rect{ finalSlot.x, finalSlot.y + headerH, finalSlot.width, ch });
+    return finalSize;
 }
 
 // --- S485 Separator: a thin divider ----------------------------------------
@@ -5972,8 +6019,12 @@ Size StatusBar::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void StatusBar::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size StatusBar::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // Place Left-docked items from the left edge; Right-docked items from the
     // right edge. Each child fills the bar's height (the cross extent).
     float cursorL = finalSlot.x;
@@ -5997,6 +6048,7 @@ void StatusBar::ArrangeOverride(const vaml::Rect& finalSlot)
             child->Arrange(vaml::Rect{ cursorR, finalSlot.y, cw, finalSlot.height });
         }
     }
+    return finalSize;
 }
 
 // ---------------------------------------------------------------------------
@@ -6463,8 +6515,12 @@ Size Viewbox::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Viewbox::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Viewbox::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // Arrange the single content child to FILL the viewbox's final rect (the
     // Decorator scale-contain: the content child fills the box, scaled by the
     // S123 stretch policy). The base clip clips the child to the box.
@@ -6472,6 +6528,7 @@ void Viewbox::ArrangeOverride(const vaml::Rect& finalSlot)
     {
         content_->Arrange(finalSlot);
     }
+    return finalSize;
 }
 
 // --- ToolBar: orientation strip + Band/BandIndex/overflow DPs --------------
@@ -6633,8 +6690,12 @@ Size ToolBar::MeasureOverride(const Size& available) const
 // on the child side (compute_final_rect child-wins); the stacking-axis
 // last-child fill is a retained, benign behaviour. Do NOT backfill silently.
 VAML_CORE_EXPORT
-void ToolBar::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size ToolBar::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // The strip arrangement: children stack along the flow axis; each fills the
     // cross extent. Dirty-respect (S128).
     if (orientation() == Orientation::Horizontal)
@@ -6650,7 +6711,7 @@ void ToolBar::ArrangeOverride(const vaml::Rect& finalSlot)
                 child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
             x += (isLast ? remaining : child->desired_size().width);
         }
-        return;
+        return finalSize;
     }
     float y = finalSlot.y;
     for (std::size_t i = 0; i < child_count(); ++i)
@@ -6663,6 +6724,7 @@ void ToolBar::ArrangeOverride(const vaml::Rect& finalSlot)
             child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
         y += (isLast ? remaining : child->desired_size().height);
     }
+    return finalSize;
 }
 
 // --- ToolBarTray: ToolBar host along the tray orientation ------------------
@@ -6774,8 +6836,12 @@ Size ToolBarTray::MeasureOverride(const Size& available) const
 // side (compute_final_rect child-wins); the stacking-axis last-child fill is a
 // retained, benign behaviour. Do NOT backfill silently.
 VAML_CORE_EXPORT
-void ToolBarTray::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size ToolBarTray::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (orientation() == Orientation::Horizontal)
     {
         float x = finalSlot.x;
@@ -6789,7 +6855,7 @@ void ToolBarTray::ArrangeOverride(const vaml::Rect& finalSlot)
                 child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
             x += (isLast ? remaining : child->desired_size().width);
         }
-        return;
+        return finalSize;
     }
     float y = finalSlot.y;
     for (std::size_t i = 0; i < child_count(); ++i)
@@ -6802,6 +6868,7 @@ void ToolBarTray::ArrangeOverride(const vaml::Rect& finalSlot)
             child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
         y += (isLast ? remaining : child->desired_size().height);
     }
+    return finalSize;
 }
 
 // ---------------------------------------------------------------------------
@@ -6925,13 +6992,18 @@ Size TabItem::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void TabItem::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size TabItem::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     if (!content_)
-        return;
+        return finalSize;
     const float headerH = 20.0f;
     const float ch = std::max(0.0f, finalSlot.height - headerH);
     content_->Arrange(Rect{ finalSlot.x, finalSlot.y + headerH, finalSlot.width, ch });
+    return finalSize;
 }
 
 // --- S490 TabControl: owned TabItems + selection ---------------------------
@@ -7087,8 +7159,12 @@ Size TabControl::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void TabControl::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size TabControl::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     // The tab strip sits at the top; the selected TabItem's content fills the
     // rest. Each TabItem is arranged into the full box; the strip band + the
     // content swap is the classifier/live draw (the strip is the S490 tab-belt).
@@ -7106,6 +7182,7 @@ void TabControl::ArrangeOverride(const vaml::Rect& finalSlot)
                              std::max(0.0f, finalSlot.height - stripH) });
     }
     (void)sel;
+    return finalSize;
 }
 
 // --- S491 MenuItem: Header + Command/CommandParameter + Checkable + Click --
@@ -7432,8 +7509,12 @@ Size Menu::MeasureOverride(const Size& available) const
 }
 
 VAML_CORE_EXPORT
-void Menu::ArrangeOverride(const vaml::Rect& finalSlot)
+vaml::Size Menu::ArrangeOverride(vaml::Size finalSize)
 {
+    // S841: recover the world arrange SLOT from the anchor + the passed ink size
+    // (identical to final_rect(); the placement body is UNCHANGED) and return the
+    // ink (== the passed size — ink == slot by default).
+    const vaml::Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
     float x = finalSlot.x;
     for (std::size_t i = 0; i < child_count(); ++i)
     {
@@ -7442,6 +7523,7 @@ void Menu::ArrangeOverride(const vaml::Rect& finalSlot)
             c->Arrange(Rect{ x, finalSlot.y, c->desired_size().width, finalSlot.height });
         x += c->desired_size().width;
     }
+    return finalSize;
 }
 
 // --- S491 ContextMenu: popup host + open/close + placement ------------------

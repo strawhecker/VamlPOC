@@ -86,10 +86,12 @@ protected:
         return content_;
     }
 
-    void ArrangeOverride(const Rect& finalSlot) override
+    Size ArrangeOverride(Size finalSize) override
     {
+        const Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
         lastSlotA = finalSlot;
         ++arrangeCalls;
+        return finalSize;
     }
 
 private:

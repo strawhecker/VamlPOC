@@ -112,8 +112,9 @@ protected:
     // the panel's OWN final render slot (full row width, child-desired height),
     // advancing y by each child's desired height. Invoked automatically by
     // Arrange(final_rect()) — no manual arrange call.
-    void ArrangeOverride(const Rect& finalSlot) override
+    Size ArrangeOverride(Size finalSize) override
     {
+        const Rect finalSlot{ layout_offset().x, layout_offset().y, finalSize.width, finalSize.height };
         ++arrangeCount_;
         float y = finalSlot.y;
         for (std::size_t i = 0; i < child_count(); ++i)
@@ -122,6 +123,7 @@ protected:
             child->Arrange(rect_of(finalSlot.x, y, finalSlot.width, child->desired_size().height));
             y += child->desired_size().height;
         }
+        return finalSize;
     }
 
 private:

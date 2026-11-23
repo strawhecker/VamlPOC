@@ -211,7 +211,7 @@ protected:
     // ArrangeOverride stacks children and gives the LAST child the remaining
     // track (last-child-stretch), re-arranging ONLY dirty children (S128).
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 // Grid — REAL panel control (S131). RESOLVES the S087 MINIMAL REAL seed at its
@@ -286,7 +286,7 @@ protected:
     // each cell child at its cell origin + size, re-arranging ONLY dirty
     // children (S128). Basic no-span scope: spans are S132's named step.
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     // S146 (refactor gate): the pimpl is COLLAPSED — the owned row/column
@@ -335,7 +335,7 @@ protected:
     // each child's own alignment within the row extent. Dirty-respect (S128):
     // re-measure/re-arrange ONLY dirty children.
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 // Canvas — REAL panel control (S136). Positions each child at an EXPLICIT
@@ -391,7 +391,7 @@ protected:
     // child's own alignment + margin (compute_final_rect, S124/S130_1),
     // re-arranging ONLY dirty children (S128).
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 // DockPanel — REAL panel control (S470, Sprint 11c). The ONLY missing layout
@@ -442,7 +442,7 @@ protected:
     // (Fill) child takes the remaining slot. ArrangeOverride places children
     // at cumulative dock origins. Dirty-respect (S128).
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 // The Dock edge enum (S470). Carried as Int32 via the DockPanel.Dock DP path.
@@ -1584,7 +1584,7 @@ protected:
     // single-child layout). The base clip (LayoutSlot clip_to_bounds) clips
     // content to the window box.
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     // NON-OWNING observer pointer to the single content child (owned by the
@@ -1636,7 +1636,7 @@ protected:
     // arranges the content child to FILL its final rect (implicit single-child
     // layout — a UserControl root RENDERS its content).
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -1818,7 +1818,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -2167,7 +2167,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -2187,7 +2187,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -2222,7 +2222,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     // StatusBar uses the generic children() list (a bar hosts many items).
@@ -2371,7 +2371,7 @@ protected:
     // the S123 finalizer + the stretch policy (the content child fills the
     // viewbox box via the decorator layout).
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -2408,7 +2408,7 @@ protected:
     // strip). The S123 finalizer applies the stretch-vs-wrap. The overflow
     // chrome is the S649 continuation.
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 // ToolBarTray — REAL control (11k-2). The ToolBar host: a Panel-faithful
@@ -2432,7 +2432,7 @@ protected:
     // tray orientation (a StackPanel-style host). The S123 finalizer applies
     // the stretch-vs-wrap.
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 // ---------------------------------------------------------------------------
@@ -2477,7 +2477,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     UIElement* content_ = nullptr;
@@ -2514,7 +2514,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     vaml::Signal<void()> onSelectionChanged_;
@@ -2608,7 +2608,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 class VAML_CORE_EXPORT ContextMenu final : public FrameworkElement

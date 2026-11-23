@@ -47,7 +47,7 @@ public:
 
 protected:
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
 } // namespace vaml

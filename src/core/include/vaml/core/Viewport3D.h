@@ -147,7 +147,7 @@ public:
     // Measure/Arrange: the 3D host fills its final render rect (the isolatable
     // FrameworkElement contract). DesiredSize = the available bound.
     [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
-    void ArrangeOverride(const vaml::Rect& finalSlot) override;
+    vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
     std::vector<std::shared_ptr<Visual3D>> children3d_;

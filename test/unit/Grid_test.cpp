@@ -67,10 +67,11 @@ protected:
         return content_;
     }
 
-    void ArrangeOverride(const Rect& finalSlot) override
+    Size ArrangeOverride(Size finalSize) override
     {
-        (void)finalSlot;
+        (void)finalSize;
         ++arrangeCalls;
+        return finalSize;
     }
 
 private:
