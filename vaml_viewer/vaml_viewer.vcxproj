@@ -129,6 +129,7 @@
     <ClInclude Include="viewer_growth_s595a.h" /> <!-- S595a: the IsHitTestVisible overlay/click-pass-through viewer-growth seam -->
     <ClInclude Include="viewer_growth_11ab.h" /> <!-- 11ab: the CLOSED-SURFACES-RENDER-LIVE viewer-growth seam (S821 Visibility + S822 compositor Opacity + S823 RenderTransform/Origin + S824 FE layout slot) -->
     <ClInclude Include="viewer_growth_11ac.h" /> <!-- 11ac: the CORRECTED-MEASURE-SEMANTICS viewer-growth seam (S827 DesiredSize-bounds + S828 stretch-pass + S829 measure-entry) -->
+    <ClInclude Include="viewer_growth_11ad.h" /> <!-- 11ad: the ARRANGE-SQUEEZE + CLIPTOBOUNDS + ARRANGE-GUARD viewer-growth seam (S832 child-wins + S833/S834 clip + S835 arrange guards) -->
   </ItemGroup>
   <ItemGroup>
     <None Include="sample.corpus.xaml" />   <!-- 11k-6: the corpus-shaped VIEWER-GROWTH sample (TextBlock + 11k-2 controls + vector + EventTrigger) -->
@@ -136,6 +137,7 @@
     <None Include="sample.s595a.xaml" /> <!-- S595a: the ScreenCaptureOverlay-shaped IsHitTestVisible overlay sample -->
     <None Include="sample.s11ab.vaml" /> <!-- 11ab: the closed-surfaces-render-live VIEWER-GROWTH sample (Visibility/Opacity/RenderTransform+Origin/FE-layout-slot closures) -->
     <None Include="sample.s11ac.vaml" /> <!-- 11ac: the corrected-measure-semantics VIEWER-GROWTH sample (DesiredSize-bounds/stretch-pass/measure-entry closures) -->
+    <None Include="sample.s11ad.vaml" /> <!-- 11ad: the arrange-squeeze + ClipToBounds + arrange-guard VIEWER-GROWTH sample (child-wins/clip/guard closures) -->
   </ItemGroup>
   <ItemGroup>
     <!--

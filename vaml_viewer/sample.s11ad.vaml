@@ -1,0 +1,112 @@
+<!-- vaml_viewer — Sprint 11ad VIEWER-GROWTH sample (dep:S835, Sprint 11ad):
+     THE ARRANGE-SQUEEZE + CLIPTOBOUNDS + ARRANGE-GUARD CLOSURES RENDER LIVE.
+     The three S832/S833/S834/S835 closures all resolve + render through the
+     generic renderer (the S222_1 / 11k-6 RELOAD re-demonstrated — proving NO
+     regression from the 11ad arrange/clip/guard changes).
+
+     Ground truth (E:\GitRepos\wpf, read directly — quoted, not assumed):
+
+       * FrameworkElement.cs:4597-4606 ArrangeCore — `if (arrangeSize.Width <
+         unclippedDesiredSize.Width) { NeedsClipBounds = true; arrangeSize.Width
+         = unclippedDesiredSize.Width; }` — a child whose content exceeds its
+         slot keeps its UNCLIPPED desired size and reports NeedsClipBounds; it is
+         clipped LATER (GetLayoutClip, FE.cs:4862-4960), NEVER shrunk below its
+         desired ink. (VAML compute_final_rect, S832.)
+
+       * FrameworkElement.cs:4865/4874 GetLayoutClip — the layout clip triggers
+         on `NeedsClipBounds || ClipToBounds`; a FITTING element with
+         ClipToBounds=false returns null (no clip). A ClipToBounds=true element
+         is clipped to its slot-client window even when the content fits
+         (the forced-mode case). (VAML clip_rect + S833/S834 gate.)
+
+       * UIElement.cs:786-906 Arrange — throws InvalidOperationException on an
+         Inf/NaN slot (798-809), short-circuits Visibility.Collapsed (records
+         _finalRect, returns WITHOUT arranging, 811-828), backfills Measure when
+         MeasureDirty || NeverMeasured (833-862), and calls ensureClip at the end
+         (884). (VAML UIElement::Arrange, S835.)
+
+     The LIVE window display is the [both-apps, not CI] on-machine gate; the
+     SEAM (vaml_viewer/viewer_growth_11ad.h + its headless test) is the
+     CI-checkable half of the exact code path. ADR-021 consumer path.
+     NO MINIMAL REAL. ADR-018 ZERO new locks.
+-->
+
+<!-- ===========================================================================
+     [WPF DIVERGENCE] REGISTER (the NO-GAP sibling of the MINIMAL REAL marker: a
+     known, scheduled, SEARCHABLE difference from the WPF source — recorded here
+     so it can never be silently backfilled or mistaken for WPF-true)
+
+       [WPF DIVERGENCE] #1 the single DesiredSize store — desired_size() IS
+       WPF's `UnclippedDesiredSize` (FrameworkElement.cs:4394, 4473-4491) —
+       RESOLVED BY S832 (Sprint 11ad). Do NOT paper over.
+
+       [WPF DIVERGENCE] #2 no `NeedsClipBounds` / `GetLayoutClip` — WPF marks a
+       squeezed element and clips it against the smaller slot
+       (FrameworkElement.cs:4579-4599, 4874) — RESOLVED BY S833 (Sprint 11ad).
+       Do NOT paper over.
+
+       [WPF DIVERGENCE] #3 `compute_final_rect` pins a non-Stretch child to
+       min(inner, avail) instead of arranging it at its unclipped desired size —
+       RESOLVED BY S832 (Sprint 11ad). Do NOT paper over.
+
+       [WPF DIVERGENCE] #4 `StackPanel::ArrangeOverride` gives the LAST child a
+       leftover track and offers the panel's own width as the cross-axis slot;
+       WPF's `StackArrangeHelper` has NO last-child branch (Stack.cs:738-757) —
+       RESOLVED BY S832 (Sprint 11ad) on the CROSS-AXIS squeeze (child-wins); the
+       stacking-axis last-child fill is a retained, benign behaviour. Do NOT
+       paper over.
+     =========================================================================== -->
+
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="Root" Width="640" Height="520" Margin="6"
+            Background="#F0F0F0">
+  <TextBlock Text="11ad — arrange-squeeze + ClipToBounds + arrange guards render live"
+             FontSize="16" Margin="4"/>
+
+  <!-- Closure A (S832 — arrange child-wins-then-clip): SqueezeBox has an
+       explicit Width=200 inside a 120-wide panel. It measures to 200 (the
+       explicit Width is a hard constraint), the panel offers a 120-wide arrange
+       slot, and compute_final_rect arranges it at its FULL unclipped 200
+       (child-wins) reporting needs_clip — it is NOT shrunk below its desired ink
+       (FrameworkElement.cs:4597-4606). The S833 scissor trims it to the 120 slot
+       client (clip_rect) at render. SqueezePanel honours its authored 120. -->
+  <StackPanel x:Name="SqueezePanel" Width="120" HorizontalAlignment="Left"
+              Margin="4" Background="#E0E0E0">
+    <Rectangle x:Name="SqueezeBox" Width="200" Height="40" Fill="#FF0000"/>
+  </StackPanel>
+
+  <!-- Closure B (S833/S834 — conditional vs forced clip): ClipBox FITS its slot
+       (Width=100 inside a 400-wide panel, HAlign=Left) so needs_clip is FALSE,
+       yet ClipToBounds="True" FORCES the slot-client clip (FE.cs:4874) —
+       clipActive true. NoClipBox is authored identically with
+       ClipToBounds="False" so a FITTING element stays UNCLIPPED (clipActive
+       false — no unconditional clip). The ONLY difference is the ClipToBounds
+       DP, so the emitted clipActive flag is ClipToBounds-caused. -->
+  <StackPanel x:Name="ClipHostPanel" Width="400" HorizontalAlignment="Left"
+              Margin="4" Background="#E8E8E8">
+    <Rectangle x:Name="ClipBox" Width="100" Height="60" HorizontalAlignment="Left"
+               ClipToBounds="True" Fill="#0000FF"/>
+    <Rectangle x:Name="NoClipBox" Width="100" Height="60" HorizontalAlignment="Left"
+               ClipToBounds="False" Fill="#00FFFF"/>
+  </StackPanel>
+
+  <!-- Closure C (S835 — Collapsed arrange skip): a Collapsed sibling is SKIPPED
+       by Arrange (it stores its slot as the _finalRect mirror + keeps
+       arrange_dirty_, committing NO layout — UIElement.cs:811-828) so it draws
+       nothing; its Visible partner still arranges + draws. -->
+  <StackPanel x:Name="TogglePanel" Background="#D0D0D0">
+    <Rectangle x:Name="CollapsedSibling" Height="40" Fill="#FF00FF"
+               Visibility="Collapsed"/>
+    <Rectangle x:Name="VisibleSibling" Height="40" Fill="#00FF00"/>
+  </StackPanel>
+
+  <!-- Closure C (S835 — Inf/NaN arrange rejection): NonFiniteProbe is a normal
+       element; the seam drives NonFiniteProbe->Arrange({NaN,...,+Inf,...}) and
+       asserts it THROWS std::invalid_argument (the WPF InvalidOperationException
+       on a non-finite layout slot, UIElement.cs:798-809). -Inf is faithfully
+       ACCEPTED (WPF only rejects +Inf/NaN). -->
+  <StackPanel x:Name="ProbeHost" Width="120" HorizontalAlignment="Left"
+              Margin="4" Background="#F8F8F8">
+    <Rectangle x:Name="NonFiniteProbe" Width="50" Height="50" Fill="#808080"/>
+  </StackPanel>
+</StackPanel>

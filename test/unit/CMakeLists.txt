@@ -1411,6 +1411,17 @@ add_executable(vaml-presentation-tests
     # DesiredSize pair is a recorded [WPF DIVERGENCE] RESOLVED BY S832 — asserted
     # nowhere as already-true.
     ViewerGrowth11ac_test.cpp
+    # 11ad (dep:S835) — VIEWER-GROWTH(11ad): ARRANGE-SQUEEZE + CLIPTOBOUNDS +
+    # ARRANGE-GUARDS RENDERED LIVE. sample.s11ad.vaml authors the 11ad closures
+    # (a Rectangle Width=200 squeezed into a 120-wide panel — S832 child-wins +
+    # needs_clip; a fitting ClipToBounds="True" panel vs a fitting
+    # ClipToBounds="False" panel — S833/S834 forced vs absent clip; a
+    # Visibility="Collapsed" sibling skipped at arrange — S835). Each must
+    # RESOLVE + RENDER via the generic renderer (the S222_1/11k-6 RELOAD
+    # re-demonstration). Compiles the seam viewer_growth_11ad.h (ADR-021) + links
+    # vaml-presentation (S212 encode_visual_slice render-plan + UiScene).
+    # [both-apps, not CI]: the LIVE WINDOW display is the on-machine local gate.
+    ViewerGrowth11ad_test.cpp
     # S440 (dep:S408) — the APP-SHELL: the authored MainView.vaml + the REAL
     # Window (re-based onto UIElement) + run_app_shell_plan, which Loads the
     # shell through a RETAINED VamlReader and calls finalize_visual_tree() — the
