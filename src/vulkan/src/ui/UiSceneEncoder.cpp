@@ -194,8 +194,12 @@ namespace {
 // clip RECT is the WPF GetLayoutClip rectangular result — the SLOT-CLIENT window
 // `{slot.x+ml, slot.y+mt, inset, inset}` (clip_rect()), NOT final_rect() (which
 // may EXCEED the slot; clipping it to itself would be a no-op for the overflow
-// case — exactly the bug S833 closes). S834 will OR a `ClipToBounds` DP into the
-// trigger; the math (which rect) is unchanged.
+// case — exactly the bug S833 closes). S834 (RESOLVED) OR's the real
+// `ClipToBounds` Bool DP into the trigger — the gate is now
+// `needs_clip() || clip_to_bounds()` (WPF `NeedsClipBounds || ClipToBounds`);
+// the math (which rect) is unchanged. A `ClipToBounds="true"` element whose
+// content FITS is therefore STILL clipped to its slot-client window (the
+// forced-mode case, FE.cs:4874/4917-4923).
 //
 // S823 — RenderTransformOrigin (Point, default (0,0), NOT inherited): the
 // transform operates about the normalized-fraction center. The WPF ArrangeCore
@@ -244,13 +248,15 @@ void apply_element_render_state(const vaml::UIElement& element, DrawItem& item) 
 
     item.model = model;
 
-    // S833 — the CONDITIONAL render-slot clip. Emit a scissor ONLY when the
-    // arrange reported NeedsClipBounds (S832). A fitting element leaves
-    // clipActive false (WPF GetLayoutClip returns null -> unchanged batching).
-    // The scissor target is the WPF GetLayoutClip rectangular result — the
-    // slot-client window (clip_rect()), NOT final_rect() (final_rect may exceed
-    // the slot, so clipping it to itself would clip nothing).
-    if (element.needs_clip())
+    // S833/S834 — the CONDITIONAL render-slot clip. Emit a scissor ONLY when the
+    // arrange reported NeedsClipBounds (S832) OR the element opted into the
+    // forced-mode ClipToBounds (S834) — WPF's `NeedsClipBounds || ClipToBounds`
+    // (FE.cs:4874). A fitting element with ClipToBounds false leaves clipActive
+    // false (WPF GetLayoutClip returns null -> unchanged batching). The scissor
+    // target is the WPF GetLayoutClip rectangular result — the slot-client
+    // window (clip_rect()), NOT final_rect() (final_rect may exceed the slot, so
+    // clipping it to itself would clip nothing).
+    if (element.needs_clip() || element.clip_to_bounds())
     {
         const vaml::Rect cr = element.clip_rect();
         if (cr.width > 0.0f && cr.height > 0.0f)

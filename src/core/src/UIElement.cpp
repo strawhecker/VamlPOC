@@ -145,6 +145,25 @@ void register_uielement_properties()
         "IsHitTestVisible", ValueType::Bool, "UIElement",
         PropertyMetadata::WithDefault(Value::Bool(true), PropertyFlags::None));
 
+    // ClipToBounds (S834 / dep:S833): WPF-faithful UIElement.ClipToBounds.
+    // Bool, default FALSE, NOT inherited, AffectsArrange. WPF ground truth —
+    // UIElement.cs:3338-3345 registers `"ClipToBounds"` (typeof(bool),
+    // typeof(UIElement), BooleanBoxes.FalseBox default); the change callback
+    // ClipToBounds_Changed (UIElement.cs:3347-3356) calls InvalidateArrange().
+    // There is NO FrameworkPropertyMetadata.Inherits and NO ValidateFunc — so
+    // this is a plain Bool DP with PropertyFlags::AffectsArrange, which the S818
+    // OnPropertyChanged engine turns into the exact WPF InvalidateArrange() on
+    // change. FrameworkElement.GetLayoutClip (FE.cs:4874 `NeedsClipBounds ||
+    // ClipToBounds`) FORCES the layout-slot clip EVEN IF the content fits (the
+    // forced-mode / closure-audit case, distinct from the S832 conditional
+    // overflow mode); the S833 render-slot clip gate becomes
+    // `needs_clip() || clip_to_bounds()`. Bool payload so the corpus authoring
+    // `ClipToBounds="true"/"false"` converts via the Bool converter. ZERO new
+    // locks.
+    (void)DependencyProperty::Register(
+        "ClipToBounds", ValueType::Bool, "UIElement",
+        PropertyMetadata::WithDefault(Value::Bool(false), PropertyFlags::AffectsArrange));
+
     // Tag (11j-8) has been MOVED to the FrameworkElement base (owner
     // "FrameworkElement", register_framework_element_properties) per the WPF
     // ground truth (FE.cs:3218). It is NOT a UIElement-owned DP.
@@ -403,6 +422,24 @@ VAML_CORE_EXPORT
 bool UIElement::is_hit_test_visible() const
 {
     return Get(PropertyId::of("IsHitTestVisible", "UIElement")).get<bool>();
+}
+
+// S834 — ClipToBounds (Bool DP, default false, NOT inherited, AffectsArrange).
+// Mirrors the set_is_hit_test_visible/is_hit_test_visible pattern; the Bool
+// payload (Value::Bool) keeps the typed accessors and the standard Set/Get path
+// on PropertyId("ClipToBounds") in agreement. WPF ground truth
+// UIElement.cs:3338-3356 (owner UIElement, default false, InvalidateArrange on
+// change, no Inherits, no ValidateFunc).
+VAML_CORE_EXPORT
+SetResult UIElement::set_clip_to_bounds(bool value)
+{
+    return Set(PropertyId::of("ClipToBounds", "UIElement"), Value::Bool(value));
+}
+
+VAML_CORE_EXPORT
+bool UIElement::clip_to_bounds() const
+{
+    return Get(PropertyId::of("ClipToBounds", "UIElement")).get<bool>();
 }
 
 VAML_CORE_EXPORT

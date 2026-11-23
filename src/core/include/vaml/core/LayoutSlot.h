@@ -71,9 +71,11 @@ struct arrange_result
     // (FE.cs:4862-4960) returns `Rect(-offset, clippingSize)` where
     // `clippingSize = layoutSlotSize - Margin`; WPF has the slot because
     // `ensureClip(finalRect.Size)` (UIElement.cs:884) hands it the arrange slot.
-    // Meaningful ONLY when `needs_clip` is true (a fitting element clips
-    // nothing); the renderer (S208) emits a scissor to THIS rect when
-    // needs_clip, never to `rect` (which would be a no-op for the overflow case).
+    // Meaningful when `needs_clip` is true OR the element's S834 `ClipToBounds`
+    // DP is true (the forced-mode case: the layout slot is clipped even when the
+    // content fits, WPF FE.cs:4874/4917-4923). The renderer (S208) emits a
+    // scissor to THIS rect when `needs_clip || ClipToBounds`, never to `rect`
+    // (which would be a no-op for the overflow case).
     Rect clip_rect;
 };
 
@@ -105,7 +107,9 @@ struct arrange_result
 //      reduce to `inset < innerDesired`.
 //   6. clip_rect = the slot-client window `{slot.x+ml, slot.y+mt, inset, inset}`
 //      — the WPF GetLayoutClip rectangular result (RESOLVED BY S833; see the
-//      arrange_result field doc). The trigger to APPLY it is needs_clip.
+//      arrange_result field doc). The trigger to APPLY it is `needs_clip` OR the
+//      S834 `ClipToBounds` DP (the renderer clips when `needs_clip ||
+//      ClipToBounds`, WPF FE.cs:4874).
 // S833 RESOLVED the deferred scissor: `arrange_result.clip_rect` is the value
 // the S208 renderer scissors to when `needs_clip`; the render slot `rect` is
 // NEVER clipped to itself (that would be a no-op for an overflowing child).

@@ -235,9 +235,10 @@ public:
     // reports the overflow (WPF NeedsClipBounds, FE.cs:4597-4606). S833
     // (RESOLVED) stores the GetLayoutClip rectangular result in clip_rect_ (the
     // slot-client window, FE.cs:4916-4929) and the S208 renderer scissors to it
-    // CONDITIONALLY — only when needs_clip() (a fitting element stays unclipped,
-    // unchanged batching). The base clip op the renderer + ScrollViewer (S405)
-    // consume remains vaml::clip_to_bounds (LayoutSlot.h). S127 (RESOLVED) added
+    // CONDITIONALLY — when `needs_clip() || clip_to_bounds()` (a fitting element
+    // stays unclipped unless the S834 ClipToBounds DP forces the slot clip,
+    // unchanged batching otherwise). The base clip op the renderer + ScrollViewer
+    // (S405) consume remains vaml::clip_to_bounds (LayoutSlot.h). S127 (RESOLVED) added
     // the ArrangeOverride virtual here, so Arrange now auto-invokes a panel's
     // ArrangeOverride and hands it the UNCLIPPED final_rect() (the child receives
     // the size it measured for, FE.cs:4651/4697). Do NOT extend this seam silently.
@@ -378,6 +379,21 @@ public:
     // the AllowsTransparency/Topmost precedent). ZERO new locks (ADR-018).
     [[nodiscard]] SetResult set_is_hit_test_visible(bool value);
     [[nodiscard]] bool is_hit_test_visible() const;
+
+    // --- ClipToBounds (REAL DP; S834) ------------------------------------
+    // Bool, default FALSE, NOT inherited, AffectsArrange. WPF-faithful
+    // UIElement.ClipToBounds (UIElement.cs:3338-3345: owner typeof(UIElement),
+    // default BooleanBoxes.FalseBox; ClipToBounds_Changed → InvalidateArrange,
+    // UIElement.cs:3347-3356; NO Inherits, NO ValidateFunc). When TRUE it FORCES
+    // the layout-slot clip even when the content fits — FrameworkElement
+    // .GetLayoutClip gates on `NeedsClipBounds || ClipToBounds` (FE.cs:4874), the
+    // forced-mode / closure-audit case DISTINCT from the S832 conditional
+    // overflow mode. The S833 render-slot clip gate is therefore
+    // `needs_clip() || clip_to_bounds()`. Exposed both via the typed accessor and
+    // Set/Get on PropertyId("ClipToBounds") (Bool — AllowsTransparency precedent).
+    // ZERO new locks (ADR-018).
+    [[nodiscard]] SetResult set_clip_to_bounds(bool value);
+    [[nodiscard]] bool clip_to_bounds() const;
 
     // --- Opacity (REAL DP; NOT inherited, NO [0,1] validation) ---------
     // Default 1.0. NOT inherited (PropertyFlags::None) — opacity() reads ONLY

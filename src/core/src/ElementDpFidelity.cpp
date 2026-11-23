@@ -89,9 +89,14 @@ void run_dp_fidelity_closure()
     dp_register_guard("AllowDrop",           ValueType::Int32,  "UIElement",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
-    dp_register_guard("ClipToBounds",        ValueType::Int32,  "UIElement",
-        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
-            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    // ClipToBounds is NOW a REAL UIElement-owned Bool DP registered at S834
+    // (UIElement.cpp: ValueType::Bool, default false, NOT inherited,
+    // PropertyFlags::AffectsArrange) — REMOVED from the fidelity table so the
+    // S834 editor surface owns the single canonical registration (the exact
+    // S595a IsHitTestVisible precedent above). The audited authoring
+    // `ClipToBounds="true"/"false"` resolves through the Bool converter onto
+    // that real DP, and FrameworkElement.GetLayoutClip (FE.cs:4874) ORs it into
+    // the layout-clip gate (`NeedsClipBounds || ClipToBounds`).
     dp_register_guard("SnapsToDevicePixels", ValueType::Int32,  "UIElement",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));

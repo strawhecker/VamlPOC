@@ -48,6 +48,7 @@ add_executable(vaml-core-tests
     LayoutSlot_test.cpp
     Measure_test.cpp
     Arrange_test.cpp
+    ArrangeClip_test.cpp   # S834 (dep:S833) — the ClipToBounds DP + forced-mode slot clip
     LeafPanelArchetype_test.cpp
     LayoutManager_test.cpp
     MeasureArrangeOverride_test.cpp

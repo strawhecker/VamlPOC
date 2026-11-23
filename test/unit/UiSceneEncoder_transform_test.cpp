@@ -289,6 +289,34 @@ TEST_CASE("S833 encoder: a fitting element produces NO clip (clipActive false)")
     CHECK(!out[0].clipActive);
 }
 
+TEST_CASE("S834 encoder: a fitting ClipToBounds element is STILL scissored to its slot-client window")
+{
+    // A leaf that FITS its 100x100 slot (natural 10x10, default Stretch fills):
+    // needs_clip() is false (no overflow), but ClipToBounds=true opts into the
+    // WPF forced-mode layout clip (FrameworkElement.GetLayoutClip gates on
+    // `NeedsClipBounds || ClipToBounds`, FE.cs:4874). The encoder must emit an
+    // ACTIVE scissor to the slot-client window even though nothing overflows —
+    // the closure-audit case, distinct from the S832 conditional overflow mode.
+    clear_visuals();
+    SolidLeaf leaf(10.0f, 10.0f);
+    (void)leaf.set_clip_to_bounds(true);
+    leaf.Measure(vaml::Size{ 100.0f, 100.0f });
+    leaf.Arrange(vaml::Rect{ 0.0f, 0.0f, 100.0f, 100.0f });
+
+    CHECK(!leaf.needs_clip());       // content fits — no overflow
+    CHECK(leaf.clip_to_bounds());    // but the forced-mode opt-in is on
+
+    assign_solid(leaf, { 0, 0, 1, 1 });
+
+    std::vector<DrawItem> out;
+    encode_visual_tree(leaf, visual_of, out);
+    REQUIRE(out.size() == 1u);
+    CHECK(out[0].clipActive);
+    // Scissored to the slot-client window (100x100 here, margin 0).
+    CHECK(out[0].clipW == doctest::Approx(100.0f));
+    CHECK(out[0].clipH == doctest::Approx(100.0f));
+}
+
 TEST_CASE("S823 encoder: a NaN-matrix Transform is accepted at Set and folded to identity at encode")
 {
     clear_visuals();

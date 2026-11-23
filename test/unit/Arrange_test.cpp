@@ -166,6 +166,30 @@ TEST_CASE("S124: final_rect() defaults 0 until Arrange — render slot == clip b
     SHOULD(ShouldlyString(clipped.height).ShouldBe(40.0f));
 }
 
+// --- S834 (dep:S833): ClipToBounds forced-mode at the Arrange seam --------------
+// WPF FrameworkElement.GetLayoutClip gates on `NeedsClipBounds || ClipToBounds`
+// (FE.cs:4874). Arrange itself never sets needs_clip from ClipToBounds (that is
+// the S832 conditional overflow mirror); ClipToBounds is a SEPARATE opt-in the
+// renderer ORs into the gate. So after Arrange of a FITTING element with
+// ClipToBounds=true, needs_clip()==false yet the clip gate `needs_clip() ||
+// clip_to_bounds()` is active and the scissor target is the slot-client rect.
+TEST_CASE("S834: Arrange of a fitting ClipToBounds element keeps needs_clip false but the clip gate fires")
+{
+    ContentLeaf leaf{ Size{ 10.0f, 10.0f } };
+    (void)leaf.set_clip_to_bounds(true);
+    leaf.Measure(Size{ 100.0f, 100.0f });
+    leaf.Arrange(rect_of(0.0f, 0.0f, 100.0f, 100.0f));
+
+    // Fitting content -> the S832 conditional mode stays OFF ...
+    SHOULD(ShouldlyString(leaf.needs_clip()).ShouldBe(false));
+    // ... but the S834 forced-mode gate is active.
+    SHOULD(ShouldlyString(leaf.clip_to_bounds()).ShouldBe(true));
+    SHOULD(ShouldlyString(leaf.needs_clip() || leaf.clip_to_bounds()).ShouldBe(true));
+    // The scissor target is the slot-client window (== the slot for margin 0).
+    SHOULD(ShouldlyString(leaf.clip_rect().width).ShouldBe(100.0f));
+    SHOULD(ShouldlyString(leaf.clip_rect().height).ShouldBe(100.0f));
+}
+
 // --- clip_to_bounds (pure value domain) -----------------------------------------
 
 TEST_CASE("S124: clip_to_bounds — content inside the clip is returned unchanged")
