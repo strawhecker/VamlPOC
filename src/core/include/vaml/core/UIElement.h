@@ -87,6 +87,7 @@
 #include <vector>
 
 namespace vaml {
+namespace detail { class LayoutContext; } // S844 (G3): internal fireSizeChangedEvents driver
 
 // Forward declaration (the full ResourceDictionary is defined in
 // ResourceDictionary.h; UIElement holds an owned unique_ptr to it, so a
@@ -115,6 +116,7 @@ enum class Visibility : std::uint8_t
 
 class VAML_CORE_EXPORT UIElement : public DependencyObject
 {
+    friend class vaml::detail::LayoutContext; // S844 (G3): may fire on_render_size_changed
 public:
     UIElement();
     // S121: the pimpl owns the visual children (unique_ptr<UIElement>), so the
@@ -795,6 +797,16 @@ protected:
     // HeightEverChanged bits on a change. Does NOT raise SizeChanged (that is a
     // later wiring step). Additive (unused this batch).
     bool mark_for_size_changed_if_needed(vaml::Size oldSize, vaml::Size newSize);
+
+    // S844 (G3): WPF SizeChanged routed-event args -- PreviousSize / NewSize.
+    struct SizeChangedEventArgs : RoutedEventArgs
+    {
+        vaml::Size previous_size{};
+        vaml::Size new_size{};
+    };
+    // WPF UIElement.OnRenderSizeChanged (UIElement.cs:1478-1516). Base empty;
+    // FrameworkElement overrides to update ActualWidth/ActualHeight + raise SizeChanged.
+    virtual void on_render_size_changed(vaml::Size previous, vaml::Size newSize);
 
 private:
     // --- S818 OnPropertyChanged override (the FE.cs Affects* engine) -------

@@ -482,6 +482,7 @@ TEST_CASE("S133 E17: re-measuring/re-arranging ONLY dirty children still holds w
 
     // Invalidate ONLY the SPAN child's arrange. Re-arrange.
     span->InvalidateArrange();
+    g.InvalidateArrange();
     g.Arrange(Rect{ 0.0f, 0.0f, 200.0f, 100.0f });
 
     // Span child re-arranged; clean single child NOT touched.

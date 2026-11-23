@@ -25,6 +25,12 @@ public:
     [[nodiscard]] bool has_arrange_work(UIElement* root) const noexcept;
     void update_layout(UIElement* root, const Size& rootConstraint,
                        const Rect& rootSlot, bool root_slot_from_desired);
+    // S844 (G3): WPF fireSizeChangedEvents - size-changed chain drained by
+    // update_layout each pass; each entry raises SizeChanged + updates
+    // ActualWidth/ActualHeight (UIElement::on_render_size_changed).
+    void add_size_changed(UIElement* e, const Size& previous, const Size& next);
+    void fire_size_changed();
+    [[nodiscard]] bool has_size_changed() const noexcept;
 private:
     LayoutContext() = default;
     LayoutContext(const LayoutContext&) = delete;
@@ -34,6 +40,8 @@ private:
     [[nodiscard]] UIElement* pop_top_arrange(UIElement* root);
     std::vector<UIElement*> measure_queue_;
     std::vector<UIElement*> arrange_queue_;
+    struct SizeChangedInfo { UIElement* element; Size previous; Size next; };
+    std::vector<SizeChangedInfo> size_changed_queue_;
 };
 } // namespace detail
 } // namespace vaml

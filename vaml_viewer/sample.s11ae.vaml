@@ -1,0 +1,30 @@
+<!-- vaml_viewer - Sprint 11ae VIEWER-GROWTH sample (dep:S843, Sprint 11ae):
+     THE S839/S840 + S841 + S842 LAYOUT CLOSURES RENDER LIVE, driven through
+     UIElement::UpdateLayout() (the S843 public layout entry). S222_1 RELOAD
+     re-demonstrated.
+
+     WideChild (Width=200) sits inside SqueezePanel (Width=120): its UNCLIPPED
+     desired (200) exceeds the offered slot (120), the panel arranges it at its
+     full 200 (child-wins -> RenderSize 200 distinct from the 120 slot), and the
+     G3 ActualWidth == 200 + SizeChanged fire. CleanSibling (Width=50) stays
+     measure-clean across the re-layout (no redundant re-measure; the element
+     constraint-cache short-circuits - S844/G1 removed the panel gate).
+
+     Ground truth (E:\GitRepos\wpf, read directly - quoted, not assumed):
+       * UIElement.cs:1478-1516 markForSizeChangedIfNeeded -> OnRenderSizeChanged
+         -> ActualWidth/ActualHeight + SizeChanged.
+       * FrameworkElement.cs:4597-4606 ArrangeCore - a child whose unclipped
+         desired exceeds its slot keeps its ink (child-wins-then-clip).
+       * StackPanel uses child.DesiredSize (Stack.cs:587); the offered slot is
+         the panel width - the panel measures EVERY child (no dirty gate).
+
+     NO MINIMAL REAL. ADR-018 ZERO new locks. -->
+
+<StackPanel xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            x:Name="Root" Width="640" Height="520" Margin="6" Background="#F0F0F0">
+  <StackPanel x:Name="SqueezePanel" Width="120" HorizontalAlignment="Left"
+              Margin="4" Background="#E0E0E0">
+    <Rectangle x:Name="WideChild" Width="200" Height="40" Fill="#FF0000"/>
+    <Rectangle x:Name="CleanSibling" Width="50" Height="40" Fill="#00AA00"/>
+  </StackPanel>
+</StackPanel>

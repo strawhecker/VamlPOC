@@ -1496,6 +1496,7 @@ add_executable(vaml-presentation-tests
     # (ADR-018) + the SURVIVOR gate. [both-apps, not CI]: the LIVE window display
     # stays the on-machine local gate (recorded NO-GAP).
     ViewerGrowthS11q_test.cpp
+    ViewerGrowth11ae_test.cpp   # S844 - S839/S840+S841+S842 closures via UpdateLayout
     # S640 (dep:S622) — Sprint 11r IMAGE + SOURCE (the driver's explicit FIRST
     # step — the exact thing that keeps failing transparent/black in the live
     # viewer): an authored `<Image Source="..."/>` loads through the REAL

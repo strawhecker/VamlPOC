@@ -868,7 +868,7 @@ Orientation WrapPanel::wrap_direction() const
 // instead of content-sized — defeating the "aligned rows" headline (row height
 // = tallest child, per-child alignment within that content row). This refines
 // the accepted S134 plan's "natural-width basis" to a "natural-extent basis".
-// Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
+// Dirty-respect (S128): re-measure all measure-invalid children; a clean
 // child reuses its stored desired_size(). Measure() (base) then finalizes this
 // natural extent via the S123 infinity-aware stretch-vs-wrap rule.
 VAML_CORE_EXPORT
@@ -887,10 +887,7 @@ Size WrapPanel::MeasureOverride(const Size& available)
         for (std::size_t i = 0; i < child_count(); ++i)
         {
             UIElement* child = child_at(i);
-            if (child->is_measure_dirty())
-            {
-                child->Measure(childAvail);
-            }
+            child->Measure(childAvail);
             const float cw = child->desired_size().width;
             const bool rowNonEmpty = (rowWidth > 0.0f);
             if (rowNonEmpty && rowWidth + cw > available.width)
@@ -920,10 +917,7 @@ Size WrapPanel::MeasureOverride(const Size& available)
         for (std::size_t i = 0; i < child_count(); ++i)
         {
             UIElement* child = child_at(i);
-            if (child->is_measure_dirty())
-            {
-                child->Measure(childAvail);
-            }
+            child->Measure(childAvail);
             const float ch = child->desired_size().height;
             const bool colNonEmpty = (colHeight > 0.0f);
             if (colNonEmpty && colHeight + ch > available.height)
@@ -960,7 +954,7 @@ Size WrapPanel::MeasureOverride(const Size& available)
 //     natural width (aligned row).
 //   * Vertical   — the mirror (columns lay left-to-right; column x advances by
 //     the column width; each child into {colX, cursor, colWidth, childDesiredH}).
-// Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children; clean
+// Dirty-respect (S128): re-arrange all arrange-invalid children; clean
 // children keep their final_rect untouched.
 VAML_CORE_EXPORT
 vaml::Size WrapPanel::ArrangeOverride(vaml::Size finalSize)
@@ -988,10 +982,7 @@ vaml::Size WrapPanel::ArrangeOverride(vaml::Size finalSize)
                 rowHeight = 0.0f;
             }
             rowHeight = (childH > rowHeight) ? childH : rowHeight;
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(Rect{ cursor, rowY, childW, rowHeight });
-            }
+            child->Arrange(Rect{ cursor, rowY, childW, rowHeight });
             cursor += childW;
         }
         return finalSize;
@@ -1014,10 +1005,7 @@ vaml::Size WrapPanel::ArrangeOverride(vaml::Size finalSize)
             colWidth = 0.0f;
         }
         colWidth = (childW > colWidth) ? childW : colWidth;
-        if (child->is_arrange_dirty())
-        {
-            child->Arrange(Rect{ colX, cursor, colWidth, childH });
-        }
+        child->Arrange(Rect{ colX, cursor, colWidth, childH });
         cursor += childH;
     }
     return finalSize;
@@ -1063,7 +1051,7 @@ double Canvas::top(const DependencyObject& obj)
 //   DesiredSize axis = max over children of that edge, clamped >= 0 (never
 //   negative, never NaN — NaN axes are zeroed BEFORE the max fold, so no NaN
 //   ever reaches the bounding math).
-// Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
+// Dirty-respect (S128): re-measure all measure-invalid children; a clean
 // child reuses its stored desired_size().
 VAML_CORE_EXPORT
 Size Canvas::MeasureOverride(const Size& available)
@@ -1076,10 +1064,7 @@ Size Canvas::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* child = child_at(i);
-        if (child->is_measure_dirty())
-        {
-            child->Measure(childAvail);
-        }
+        child->Measure(childAvail);
         const double l = left(*child);
         const double t = top(*child);
         const float effLeft = std::isnan(l) ? 0.0f : static_cast<float>(l);
@@ -1101,7 +1086,7 @@ Size Canvas::MeasureOverride(const Size& available)
 // child's OWN alignment + margin inside that slot through compute_final_rect
 // (S124/S130_1 contract). Children at distinct origins do NOT stack/flow — the
 // positions are absolute. Dirty-respect (S128): re-arrange ONLY
-// is_arrange_dirty() children; clean children keep their final_rect untouched.
+// arrange-invalid children; clean children keep their final_rect untouched.
 VAML_CORE_EXPORT
 vaml::Size Canvas::ArrangeOverride(vaml::Size finalSize)
 {
@@ -1111,10 +1096,7 @@ vaml::Size Canvas::ArrangeOverride(vaml::Size finalSize)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* child = child_at(i);
-        if (!child->is_arrange_dirty())
-        {
-            continue;
-        }
+        
         const double l = left(*child);
         const double t = top(*child);
         const float effLeft = std::isnan(l) ? 0.0f : static_cast<float>(l);
@@ -2557,7 +2539,7 @@ Orientation StackPanel::orientation() const
 //     natural extent = {max child width, Σ child heights}.
 //   * Horizontal — offer each child {∞width, available.height}, natural =
 //     {Σ child widths, max child height}.
-// Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
+// Dirty-respect (S128): re-measure all measure-invalid children; a clean
 // child reuses its stored desired_size() (the S128 dirty-only-subpass pattern
 // realized inside the real panel). Measure() (base) then finalizes this
 // natural extent via the S123 infinity-aware stretch-vs-wrap rule.
@@ -2573,10 +2555,7 @@ Size StackPanel::MeasureOverride(const Size& available)
         for (std::size_t i = 0; i < child_count(); ++i)
         {
             UIElement* child = child_at(i);
-            if (child->is_measure_dirty())
-            {
-                child->Measure(rowAvail);
-            }
+            child->Measure(rowAvail);
             width += child->desired_size().width;
             height = (child->desired_size().height > height)
                          ? child->desired_size().height
@@ -2590,10 +2569,7 @@ Size StackPanel::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* child = child_at(i);
-        if (child->is_measure_dirty())
-        {
-            child->Measure(columnAvail);
-        }
+        child->Measure(columnAvail);
         width = (child->desired_size().width > width)
                     ? child->desired_size().width
                     : width;
@@ -2614,7 +2590,7 @@ Size StackPanel::MeasureOverride(const Size& available)
 // its slot via child->Arrange (compute_final_rect), so a default-Stretch last
 // child takes the leftover track while a non-Stretch last child is pinned
 // within it (never over-fills). Dirty-respect (S128): re-arrange ONLY
-// is_arrange_dirty() children; clean children keep their final_rect untouched.
+// arrange-invalid children; clean children keep their final_rect untouched.
 //
 // [WPF DIVERGENCE] #4 - the `isLast ? remaining : desired` filler is NOT in
 // WPF: Stack.cs:738-757 (StackArrangeHelper) hands EVERY child
@@ -2646,10 +2622,7 @@ vaml::Size StackPanel::ArrangeOverride(vaml::Size finalSize)
             const bool isLast = (i + 1 == child_count());
             const float remaining = finalSlot.right() - x;
             const float slotWidth = isLast ? remaining : child->desired_size().width;
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
-            }
+            child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
             x += (isLast ? remaining : child->desired_size().width);
         }
         return finalSize;
@@ -2663,10 +2636,7 @@ vaml::Size StackPanel::ArrangeOverride(vaml::Size finalSize)
         const bool isLast = (i + 1 == child_count());
         const float remaining = finalSlot.bottom() - y;
         const float slotHeight = isLast ? remaining : child->desired_size().height;
-        if (child->is_arrange_dirty())
-        {
-            child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
-        }
+        child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
         y += (isLast ? remaining : child->desired_size().height);
     }
     return finalSize;
@@ -2699,10 +2669,7 @@ Size Grid::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* c = child_at(i);
-        if (c->is_measure_dirty())
-        {
-            c->Measure(Size{ Size::Infinite().width, available.height });
-        }
+        c->Measure(Size{ Size::Infinite().width, available.height });
     }
 
     const GridTrackResolution res =
@@ -2713,10 +2680,7 @@ Size Grid::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* c = child_at(i);
-        if (!c->is_measure_dirty())
-        {
-            continue;
-        }
+        
         const std::size_t col = static_cast<std::size_t>(
             std::min<std::int32_t>(std::max(Grid::column(*c), 0), static_cast<std::int32_t>(nCols) - 1));
         const std::size_t r = static_cast<std::size_t>(
@@ -2784,7 +2748,7 @@ Size Grid::MeasureOverride(const Size& available)
 // computes the cell ORIGINS as cumulative track sums, and places each child
 // into its MERGED span rect {anchor origin, Σ spanned extents} via child->Arrange
 // (honoring the child's own alignment + margin inside the merged cell).
-// Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children; clean
+// Dirty-respect (S128): re-arrange all arrange-invalid children; clean
 // children keep their final_rect untouched.
 VAML_CORE_EXPORT
 vaml::Size Grid::ArrangeOverride(vaml::Size finalSize)
@@ -2832,10 +2796,7 @@ vaml::Size Grid::ArrangeOverride(vaml::Size finalSize)
             colX[col + cspan] - colX[col],
             rowY[r + rspan] - rowY[r],
         };
-        if (c->is_arrange_dirty())
-        {
-            c->Arrange(cell);
-        }
+        c->Arrange(cell);
     }
     return finalSize;
 }
@@ -2868,7 +2829,7 @@ std::int32_t DockPanel::dock(const DependencyObject& obj)
 //   * Left/Right compute consume `child.desired.width` on the width axis.
 //   * Top/Bottom consume `child.desired.height` on the height axis.
 // The LAST child (Dock Fill) takes the REMAINING interior slot (WPF-faithful).
-// Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
+// Dirty-respect (S128): re-measure all measure-invalid children; a clean
 // child reuses its stored desired_size().
 VAML_CORE_EXPORT
 Size DockPanel::MeasureOverride(const Size& available)
@@ -2883,10 +2844,7 @@ Size DockPanel::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < n; ++i)
     {
         UIElement* child = child_at(i);
-        if (child->is_measure_dirty())
-        {
-            child->Measure(childAvail);
-        }
+        child->Measure(childAvail);
         const std::int32_t d = dock(*child);
         const bool isLast = (i + 1 == n);
         if (isLast)
@@ -2920,7 +2878,7 @@ Size DockPanel::MeasureOverride(const Size& available)
 // Children are placed at cumulative dock origins in document order; each child's
 // own alignment + margin is honored inside its slot via child->Arrange (S124
 // compute_final_rect). The LAST child (Fill) takes the REMAINING interior rect.
-// Dirty-respect (S128): re-arrange ONLY is_arrange_dirty() children.
+// Dirty-respect (S128): re-arrange all arrange-invalid children.
 VAML_CORE_EXPORT
 vaml::Size DockPanel::ArrangeOverride(vaml::Size finalSize)
 {
@@ -2943,54 +2901,36 @@ vaml::Size DockPanel::ArrangeOverride(vaml::Size finalSize)
         if (isLast)
         {
             // The last child fills the REMAINING interior rect (WPF-faithful).
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(slot);
-            }
+            child->Arrange(slot);
             continue;
         }
         switch (static_cast<Dock>(d))
         {
         case Dock::Left:
             slot = Rect{ left, top, child->desired_size().width, bottom - top };
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(slot);
-            }
+            child->Arrange(slot);
             left += child->desired_size().width;
             break;
         case Dock::Right:
             slot = Rect{ right - child->desired_size().width, top,
                          child->desired_size().width, bottom - top };
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(slot);
-            }
+            child->Arrange(slot);
             right -= child->desired_size().width;
             break;
         case Dock::Top:
             slot = Rect{ left, top, right - left, child->desired_size().height };
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(slot);
-            }
+            child->Arrange(slot);
             top += child->desired_size().height;
             break;
         case Dock::Bottom:
             slot = Rect{ left, bottom - child->desired_size().height,
                          right - left, child->desired_size().height };
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(slot);
-            }
+            child->Arrange(slot);
             bottom -= child->desired_size().height;
             break;
         default:
             // Unreachable with the WPF-faithful Dock values; defensive.
-            if (child->is_arrange_dirty())
-            {
-                child->Arrange(slot);
-            }
+            child->Arrange(slot);
             break;
         }
     }
@@ -6009,8 +5949,7 @@ Size StatusBar::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < n; ++i)
     {
         UIElement* child = child_at(i);
-        if (child->is_measure_dirty())
-            child->Measure(Size::Infinite());
+        child->Measure(Size::Infinite());
         if (dock(*child) == 0) // Left
             width += child->desired_size().width;
         maxH = std::max(maxH, child->desired_size().height);
@@ -6033,8 +5972,7 @@ vaml::Size StatusBar::ArrangeOverride(vaml::Size finalSize)
     for (std::size_t i = 0; i < n; ++i)
     {
         UIElement* child = child_at(i);
-        if (!child->is_arrange_dirty())
-            continue;
+        
         if (dock(*child) == 0) // Left — stack left-to-right
         {
             const float cw = child->desired_size().width;
@@ -6663,8 +6601,7 @@ Size ToolBar::MeasureOverride(const Size& available)
         for (std::size_t i = 0; i < child_count(); ++i)
         {
             UIElement* child = child_at(i);
-            if (child->is_measure_dirty())
-                child->Measure(rowAvail);
+            child->Measure(rowAvail);
             width += child->desired_size().width;
             height = (child->desired_size().height > height) ? child->desired_size().height : height;
         }
@@ -6674,8 +6611,7 @@ Size ToolBar::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* child = child_at(i);
-        if (child->is_measure_dirty())
-            child->Measure(columnAvail);
+        child->Measure(columnAvail);
         height += child->desired_size().height;
         width = (child->desired_size().width > width) ? child->desired_size().width : width;
     }
@@ -6707,8 +6643,7 @@ vaml::Size ToolBar::ArrangeOverride(vaml::Size finalSize)
             const bool isLast = (i + 1 == child_count());
             const float remaining = finalSlot.right() - x;
             const float slotWidth = isLast ? remaining : child->desired_size().width;
-            if (child->is_arrange_dirty())
-                child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
+            child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
             x += (isLast ? remaining : child->desired_size().width);
         }
         return finalSize;
@@ -6720,8 +6655,7 @@ vaml::Size ToolBar::ArrangeOverride(vaml::Size finalSize)
         const bool isLast = (i + 1 == child_count());
         const float remaining = finalSlot.bottom() - y;
         const float slotHeight = isLast ? remaining : child->desired_size().height;
-        if (child->is_arrange_dirty())
-            child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
+        child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
         y += (isLast ? remaining : child->desired_size().height);
     }
     return finalSize;
@@ -6809,8 +6743,7 @@ Size ToolBarTray::MeasureOverride(const Size& available)
         for (std::size_t i = 0; i < child_count(); ++i)
         {
             UIElement* child = child_at(i);
-            if (child->is_measure_dirty())
-                child->Measure(rowAvail);
+            child->Measure(rowAvail);
             width += child->desired_size().width;
             height = (child->desired_size().height > height) ? child->desired_size().height : height;
         }
@@ -6820,8 +6753,7 @@ Size ToolBarTray::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* child = child_at(i);
-        if (child->is_measure_dirty())
-            child->Measure(columnAvail);
+        child->Measure(columnAvail);
         height += child->desired_size().height;
         width = (child->desired_size().width > width) ? child->desired_size().width : width;
     }
@@ -6851,8 +6783,7 @@ vaml::Size ToolBarTray::ArrangeOverride(vaml::Size finalSize)
             const bool isLast = (i + 1 == child_count());
             const float remaining = finalSlot.right() - x;
             const float slotWidth = isLast ? remaining : child->desired_size().width;
-            if (child->is_arrange_dirty())
-                child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
+            child->Arrange(Rect{ x, finalSlot.y, slotWidth, finalSlot.height });
             x += (isLast ? remaining : child->desired_size().width);
         }
         return finalSize;
@@ -6864,8 +6795,7 @@ vaml::Size ToolBarTray::ArrangeOverride(vaml::Size finalSize)
         const bool isLast = (i + 1 == child_count());
         const float remaining = finalSlot.bottom() - y;
         const float slotHeight = isLast ? remaining : child->desired_size().height;
-        if (child->is_arrange_dirty())
-            child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
+        child->Arrange(Rect{ finalSlot.x, y, finalSlot.width, slotHeight });
         y += (isLast ? remaining : child->desired_size().height);
     }
     return finalSize;
@@ -7152,7 +7082,7 @@ Size TabControl::MeasureOverride(const Size& available)
             cw = std::max(cw, t->desired_size().width);
             ch = std::max(ch, t->desired_size().height);
         }
-        if (t && t->is_measure_dirty())
+        if (t)
             t->Measure(Size{ available.width, 20.0f });
     }
     return Size{ std::max(0.0f, cw), std::max(0.0f, ch) };
@@ -7175,8 +7105,7 @@ vaml::Size TabControl::ArrangeOverride(vaml::Size finalSize)
         TabItem* t = tab_at(i);
         if (!t)
             continue;
-        if (t->is_arrange_dirty())
-            t->Arrange(Rect{ finalSlot.x,
+        t->Arrange(Rect{ finalSlot.x,
                              finalSlot.y + (static_cast<std::int32_t>(i) == sel ? stripH : 0.0f),
                              finalSlot.width,
                              std::max(0.0f, finalSlot.height - stripH) });
@@ -7427,8 +7356,7 @@ Size MenuItem::MeasureOverride(const Size& available)
         for (std::size_t i = 0; i < child_count(); ++i)
         {
             UIElement* c = child_at(i);
-            if (c->is_measure_dirty())
-                c->Measure(Size{ available.width, 22.0f });
+            c->Measure(Size{ available.width, 22.0f });
             ch += c->desired_size().height;
         }
         return Size{ std::max(0.0f, w), std::max(0.0f, h + ch) };
@@ -7498,8 +7426,7 @@ Size Menu::MeasureOverride(const Size& available)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* c = child_at(i);
-        if (c->is_measure_dirty())
-            c->Measure(Size{ Size::Infinite().width, 24.0f });
+        c->Measure(Size{ Size::Infinite().width, 24.0f });
         w += c->desired_size().width;
         h = std::max(h, c->desired_size().height);
     }
@@ -7519,8 +7446,7 @@ vaml::Size Menu::ArrangeOverride(vaml::Size finalSize)
     for (std::size_t i = 0; i < child_count(); ++i)
     {
         UIElement* c = child_at(i);
-        if (c->is_arrange_dirty())
-            c->Arrange(Rect{ x, finalSlot.y, c->desired_size().width, finalSlot.height });
+        c->Arrange(Rect{ x, finalSlot.y, c->desired_size().width, finalSlot.height });
         x += c->desired_size().width;
     }
     return finalSize;
@@ -7680,8 +7606,7 @@ Size ContextMenu::MeasureOverride(const Size& available)
         for (std::size_t i = 0; i < child_count(); ++i)
         {
             UIElement* c = child_at(i);
-            if (c->is_measure_dirty())
-                c->Measure(Size{ std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f, 22.0f });
+            c->Measure(Size{ std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f, 22.0f });
             ch += c->desired_size().height;
             w = std::max(w, c->desired_size().width);
         }

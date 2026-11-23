@@ -170,6 +170,11 @@ public:
     // `override`.
     virtual vaml::Size MeasureOverride(const vaml::Size& available);
     virtual vaml::Size ArrangeOverride(vaml::Size finalSize);
+    // S844 (G3): WPF FrameworkElement OnRenderSizeChanged -- updates
+    // ActualWidth/ActualHeight and raises the SizeChanged routed event.
+    void on_render_size_changed(vaml::Size previous, vaml::Size newSize) override;
+    [[nodiscard]] float actual_width() const;
+    [[nodiscard]] float actual_height() const;
 
     // --- S842.6: GetLayoutClip (WPF FE.cs:4946-5105) ------------------------
     // The 5-branch slot-client clip (NeedsClipBounds||ClipToBounds → local/

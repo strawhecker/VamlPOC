@@ -412,6 +412,7 @@ TEST_CASE("S135: dirty-respect — an arrange-invalidated child is re-arranged b
 
     // Invalidate ONLY a's arrange. Re-run the arrange pass.
     a->InvalidateArrange();
+    panel.InvalidateArrange();
     panel.Arrange(Rect{ 0.0f, 0.0f, 400.0f, 200.0f });
 
     SHOULD(ShouldlyString(a->arrange_count()).ShouldBe(2));

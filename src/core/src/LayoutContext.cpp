@@ -76,6 +76,10 @@ void LayoutContext::detach(UIElement* e) noexcept
 {
     remove_measure(e);
     remove_arrange(e);
+    // S844 (G3): a destroyed element must not linger in the size-changed chain
+    // (WPF unlinks on element teardown) - prevents a stale-pointer fire later.
+    size_changed_queue_.erase(std::remove_if(size_changed_queue_.begin(), size_changed_queue_.end(),
+        [e](const SizeChangedInfo& i) { return i.element == e; }), size_changed_queue_.end());
 }
 bool LayoutContext::has_measure_work(UIElement* root) const noexcept
 {
@@ -137,9 +141,29 @@ void LayoutContext::update_layout(UIElement* root, const Size& rootConstraint, c
             } else { a->Arrange(a->arrange_slot()); }
             if (has_measure_work(root)) { break; }
         }
-        const bool more = root->is_measure_dirty() || root->is_arrange_dirty() || has_measure_work(root) || has_arrange_work(root);
+        if (has_size_changed()) { fire_size_changed(); }
+        const bool more = root->is_measure_dirty() || root->is_arrange_dirty() || has_measure_work(root) || has_arrange_work(root) || has_size_changed();
         if (!more) { break; }
     }
 }
+void LayoutContext::add_size_changed(UIElement* e, const Size& previous, const Size& next)
+{
+    if (e == nullptr) { return; }
+    size_changed_queue_.push_back(SizeChangedInfo{ e, previous, next });
+}
+bool LayoutContext::has_size_changed() const noexcept
+{
+    return !size_changed_queue_.empty();
+}
+void LayoutContext::fire_size_changed()
+{
+    std::vector<SizeChangedInfo> chain;
+    chain.swap(size_changed_queue_);
+    for (const SizeChangedInfo& info : chain)
+    {
+        if (info.element != nullptr) { info.element->on_render_size_changed(info.previous, info.next); }
+    }
+}
+
 } // namespace detail
 } // namespace vaml

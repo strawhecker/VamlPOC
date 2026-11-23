@@ -897,4 +897,23 @@ vaml::Matrix2D FrameworkElement::get_flow_direction_transform() const
     return vaml::Matrix2D{};
 }
 
+void FrameworkElement::on_render_size_changed(vaml::Size previous, vaml::Size newSize)
+{
+    UIElement::on_render_size_changed(previous, newSize);
+    SizeChangedEventArgs args;
+    args.previous_size = previous;
+    args.new_size = newSize;
+    args.source = this;
+    args.originalSource = this;
+    RaiseEvent(vaml::RoutedEvent::registered("SizeChanged", vaml::RouteEventDirection::Bubble), args);
+}
+float FrameworkElement::actual_width() const
+{
+    return has_width_ever_changed() ? render_size().width : 0.0f;
+}
+float FrameworkElement::actual_height() const
+{
+    return has_height_ever_changed() ? render_size().height : 0.0f;
+}
+
 } // namespace vaml

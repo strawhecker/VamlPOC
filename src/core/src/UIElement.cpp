@@ -1066,6 +1066,19 @@ void UIElement::Arrange(const Rect& arrangeSlot)
         }
     }
 
+    // S844: WPF arrange clean bypass (UIElement.cs:854-858) -- a clean
+    // (arrange-valid), previously-arranged element offered the SAME slot is a
+    // no-op; the element rect cache short-circuits, so a panel may call Arrange
+    // unconditionally without disturbing a clean sibling.
+    if (is_arrange_valid() && !never_arranged_ &&
+        sizes_close(arrangeSlot.x, arrange_slot_.x) &&
+        sizes_close(arrangeSlot.y, arrange_slot_.y) &&
+        sizes_close(arrangeSlot.width, arrange_slot_.width) &&
+        sizes_close(arrangeSlot.height, arrange_slot_.height))
+    {
+        return;
+    }
+
     // S842.6 seam split: the REAL arrange body (child-wins-then-clip
     // compute_final_rect + margin/alignment/ink/offset + the GetLayoutClip
     // slot-client rect) now lives on FrameworkElement::ArrangeCore (final),
@@ -1275,11 +1288,14 @@ void UIElement::publish_arrange_result(const vaml::Rect& finalRect,
 {
     // The WPF ArrangeCore state writes (RenderSize / SetLayoutOffset /
     // NeedsClipBounds / GetLayoutClip rect) applied atomically through one seam.
+    const vaml::Size oldRender = render_size_;
     final_rect_    = finalRect;
     layout_offset_ = layoutOffset;
     render_size_   = renderSize;
     needs_clip_    = needsClip;
     clip_rect_     = clipRect;
+    // S844 (G3): WPF markForSizeChangedIfNeeded -> enqueue the size-changed chain.
+    mark_for_size_changed_if_needed(oldRender, render_size_);
 }
 
 VAML_CORE_EXPORT
@@ -1299,7 +1315,16 @@ bool UIElement::mark_for_size_changed_if_needed(vaml::Size oldSize, vaml::Size n
     {
         has_height_ever_changed_ = true;
     }
-    return widthChanged || heightChanged;
+    if (!widthChanged && !heightChanged) { return false; }
+    // WPF fireSizeChangedEvents is deferred to the layout pass; enqueue so
+    // LayoutContext::fire_size_changed raises SizeChanged + updates Actual*.
+    vaml::detail::LayoutContext::current().add_size_changed(this, oldSize, newSize);
+    return true;
+}
+
+void UIElement::on_render_size_changed(vaml::Size /*previous*/, vaml::Size /*newSize*/)
+{
+    // WPF UIElement.OnRenderSizeChanged base is empty; FrameworkElement overrides.
 }
 
 // --- S840 distinct WPF bit accessors (UIElement.cs:108-109 / :225-240) ------

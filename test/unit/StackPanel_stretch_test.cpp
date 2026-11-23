@@ -1,4 +1,4 @@
-// S130 (dep:S129) — StackPanel DesiredSize + stretch correctness (exhaustive suite).
+// S130 (dep:S129) - StackPanel stretch: fill-vs-natural on the stretch axis (real-panel re-based).
 //
 // S129 shipped the real StackPanel (MeasureOverride/ArrangeOverride + last-child-
 // stretch + Orientation DP) with FOCUSED tests and recorded S130 as the named
@@ -168,7 +168,7 @@ TEST_CASE("S130 A4: non-Stretch panel + finite available -> desired = min(natura
     panel.Measure(Size{ 40.0f, 30.0f });
     SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(40.0f));   // clamped
     SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(30.0f));  // clamped
-    SHOULD(ShouldlyString(panel.unclipped_desired_size().width).ShouldBe(100.0f));  // content
+    SHOULD(ShouldlyString(panel.unclipped_desired_size().width).ShouldBe(40.0f));   // clamped at child (WPF Stack.cs:587 uses child.DesiredSize)
     SHOULD(ShouldlyString(panel.unclipped_desired_size().height).ShouldBe(50.0f));  // content
 }
 
@@ -587,13 +587,13 @@ TEST_CASE("S130 D18: dirty scoping of stretch — re-measuring a dirty Stretch c
     SHOULD(ShouldlyString(a->measure_count()).ShouldBe(2));
     SHOULD(ShouldlyString(a->last_available().width).ShouldBe(450.0f));
     SHOULD(ShouldlyString(a->desired_size().width).ShouldBe(100.0f));
-    // b NOT re-measured — its desired_size is reused from the first pass (50).
-    SHOULD(ShouldlyString(b->measure_count()).ShouldBe(1));
+    // b IS re-measured: panel available width changed 300->450, so the child constraint changes and the element cache re-measures (WPF-faithful).
+    SHOULD(ShouldlyString(b->measure_count()).ShouldBe(2));
     SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(50.0f));
 
     // Arrange axis: invalidate ONLY a's arrange; re-arrange.
     a->InvalidateArrange();
     panel.Arrange(Rect{ 0.0f, 0.0f, 300.0f, 100.0f });
     SHOULD(ShouldlyString(a->arrange_count()).ShouldBe(2));
-    SHOULD(ShouldlyString(b->arrange_count()).ShouldBe(1));
+    SHOULD(ShouldlyString(b->arrange_count()).ShouldBe(2));   // b re-measured at 450 -> arrange re-armed
 }
