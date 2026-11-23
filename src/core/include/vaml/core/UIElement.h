@@ -321,16 +321,35 @@ public:
     // or an AffectsRender change; consumed by the render-dirty seam).
     [[nodiscard]] bool is_render_dirty() const noexcept;
 
-    // True if this element needs a Measure pass (never measured, or re-
-    // invalidated since the last measure).
+    // True if this element NEEDS a Measure pass (never measured, or re-
+    // invalidated since the last measure). This is the "needs a pass" query the
+    // S128 panel/context gates consume: `measure_dirty_ || never_measured_`.
+    // [S840 NEEDS-PASS BRIDGE] — RETIRED BY S842 (panels call Measure()
+    // unconditionally per the WPF MeasureCore contract; this then reverts to the
+    // raw MeasureDirty bit).
     [[nodiscard]] bool is_measure_dirty() const noexcept;
 
-    // True if this element needs an Arrange pass (never arranged, or re-
-    // invalidated since the last arrange).
+    // True if this element NEEDS an Arrange pass (never arranged, or re-
+    // invalidated since the last arrange): `arrange_dirty_ || never_arranged_`.
+    // [S840 NEEDS-PASS BRIDGE] — RETIRED BY S842.
     [[nodiscard]] bool is_arrange_dirty() const noexcept;
 
-    // True if EITHER axis is dirty (needs a measure OR an arrange pass).
+    // True if EITHER axis needs a pass (measure OR arrange).
     [[nodiscard]] bool is_layout_dirty() const noexcept;
+
+    // --- S840 source-exact validity + fresh-element observables ------------
+    // WPF IsMeasureValid / IsArrangeValid (UIElement.cs:225-227 / 238-240):
+    // true when the RAW dirty bit is clear. NOTE: on a fresh element this is
+    // TRUE (WPF: fresh elements are "Clean"; the Never bits, not the dirty bits,
+    // force the first pass). Distinct from is_measure_dirty() above, which
+    // additionally reports never-measured elements as needing a pass.
+    [[nodiscard]] bool is_measure_valid() const noexcept;
+    [[nodiscard]] bool is_arrange_valid() const noexcept;
+    // WPF NeverMeasured / NeverArranged (UIElement.cs:108-109): true until the
+    // first real Measure/Arrange completes. Exposed so the distinct fresh-element
+    // bits are directly observable (S840 close-out).
+    [[nodiscard]] bool never_measured() const noexcept;
+    [[nodiscard]] bool never_arranged() const noexcept;
 
     // --- S839 layout-context accessors (WPF ContextLayoutManager support) ---
     // The previous measure constraint this element was measured at (WPF
@@ -702,8 +721,8 @@ private:
     // (where final_rect_ is NOT recomputed). Sibling of clip_rect_/final_rect_;
     // core arrangeResult state, not optional feature data (not a side-table).
     vaml::Rect arrange_slot_   = {};
-    bool       measure_dirty_  = true;                      // S126 layout-dirty flag (measure axis)
-    bool       arrange_dirty_  = true;                      // S126 layout-dirty flag (arrange axis)
+    bool       measure_dirty_  = false;                     // S126/S840 WPF MeasureDirty (CoreFlags default = clear; the NeverMeasured bit forces the first pass)
+    bool       arrange_dirty_  = false;                     // S126/S840 WPF ArrangeDirty (CoreFlags default = clear; the NeverArranged bit forces the first pass)
     // --- S832 NeedsClipBounds mirror -------------------------------------
     // True iff the last Arrange arranged this element LARGER than its slot on
     // an axis (the WPF FrameworkElement.NeedsClipBounds, FE.cs:4546/4596/4603).

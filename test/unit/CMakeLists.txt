@@ -47,6 +47,7 @@ add_executable(vaml-core-tests
     VisualTree_test.cpp
     LayoutSlot_test.cpp
     Measure_test.cpp
+    FreshElementReentrancy_test.cpp   # S840 - fresh-element / reentrancy / constraint-cache (D7+D1)
     Arrange_test.cpp
     ArrangeClip_test.cpp   # S834 (dep:S833) — the ClipToBounds DP + forced-mode slot clip
     LeafPanelArchetype_test.cpp

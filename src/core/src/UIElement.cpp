@@ -813,6 +813,11 @@ void UIElement::Measure(const Size& available)
     // This VOIDS the S126 claim that measure and arrange are independent axes:
     // an element that re-measures is always re-arranged. (The clean early-out
     // above has already returned, so this fires only on an actual measure.)
+    // S840 (WPF UIElement.cs:626): clear NeverMeasured BEFORE entering the
+    // MeasureCore body. Source order is bypass -> NeverMeasured=false ->
+    // InvalidateArrange -> MeasureInProgress=true, so a REENTRANT read during
+    // the pass already observes neverMeasured==false.
+    never_measured_ = false;
     InvalidateArrange();
 
     const MeasureReentrancyGuard reentrancy_guard(measure_in_progress_);
@@ -845,8 +850,8 @@ void UIElement::Measure(const Size& available)
     };
 
     previous_available_ = available;
-    never_measured_ = false;
     // A completed Measure pass clears this element's measure-dirty flag (S126).
+    // (NeverMeasured was already cleared BEFORE the body -- S840 / UIElement.cs:626.)
     measure_dirty_ = false;
     vaml::detail::LayoutContext::current().remove_measure(this);
     // S839: drop the pending measure queue slot now the pass completed (WPF
@@ -1062,9 +1067,13 @@ void UIElement::InvalidateMeasure()
     // DesiredSize actually changes. `!never_measured_` mirrors WPF: a fresh
     // element is not enqueued (the host measures it); its local bit is already
     // set from construction.
-    if (measure_dirty_)
+    // S840 (D1, WPF UIElement.cs:249-274): coalesce AND guard reentrancy — do
+    // NOT re-dirty / re-enqueue while a Measure pass is in progress on this
+    // element (the source guard is `if (!MeasureDirty && !MeasureInProgress)`;
+    // its negation is exactly this early-return).
+    if (measure_dirty_ || measure_in_progress_)
     {
-        return; // coalescing: already dirty (and already queued)
+        return; // already dirty/queued, or currently measuring (suppress)
     }
     measure_dirty_ = true;
     if (!never_measured_)
@@ -1079,7 +1088,10 @@ void UIElement::InvalidateArrange()
     // S839 (D1) — mirror of InvalidateMeasure on the arrange axis: local bit +
     // context enlist (WPF UIElement.cs:284-306). No parent walk. A fresh
     // (never-arranged) element is not enqueued (the host arranges it).
-    if (arrange_dirty_)
+    // S840 (D1, WPF UIElement.cs:283-299): mirror the measure-axis guard —
+    // coalesce AND suppress while an Arrange pass is in progress on this
+    // element (`if (!ArrangeDirty && !ArrangeInProgress)`).
+    if (arrange_dirty_ || arrange_in_progress_)
     {
         return;
     }
@@ -1093,19 +1105,58 @@ void UIElement::InvalidateArrange()
 VAML_CORE_EXPORT
 bool UIElement::is_measure_dirty() const noexcept
 {
-    return measure_dirty_;
+    // S840 NEEDS-PASS BRIDGE (RETIRED BY S842): the S128 panel/context gates
+    // consume this as "does this element need a Measure pass". A fresh element
+    // has a CLEAR raw MeasureDirty bit (WPF CoreFlags default) but its
+    // NeverMeasured bit is SET, so it DOES need a pass -- fold the never bit in
+    // so every existing gate stays correct until S842 measures unconditionally.
+    // (The raw `measure_dirty_` bit is still what Measure's clean early-out and
+    // the arrange backfill read -- WPF-faithful IsMeasureValid semantics.)
+    return measure_dirty_ || never_measured_;
 }
 
 VAML_CORE_EXPORT
 bool UIElement::is_arrange_dirty() const noexcept
 {
-    return arrange_dirty_;
+    // S840 NEEDS-PASS BRIDGE (RETIRED BY S842) -- arrange mirror of the above.
+    return arrange_dirty_ || never_arranged_;
 }
 
 VAML_CORE_EXPORT
 bool UIElement::is_layout_dirty() const noexcept
 {
-    return measure_dirty_ || arrange_dirty_;
+    return is_measure_dirty() || is_arrange_dirty();
+}
+
+// --- S840 distinct WPF bit accessors (UIElement.cs:108-109 / :225-240) ------
+//
+// The raw dirty bits and the never-* bits are DISTINCT states (WPF keeps them
+// in separate CoreFlags arms). `is_measure_valid()`/`is_arrange_valid()` mirror
+// WPF IsMeasureValid/IsArrangeValid exactly (`!MeasureDirty` / `!ArrangeDirty`):
+// a fresh element is "valid" yet never-measured -- the two are not the same.
+
+VAML_CORE_EXPORT
+bool UIElement::is_measure_valid() const noexcept
+{
+    return !measure_dirty_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_arrange_valid() const noexcept
+{
+    return !arrange_dirty_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::never_measured() const noexcept
+{
+    return never_measured_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::never_arranged() const noexcept
+{
+    return never_arranged_;
 }
 
 // --- S839 layout-context accessors -----------------------------------------
