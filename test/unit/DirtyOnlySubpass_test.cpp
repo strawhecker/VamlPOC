@@ -61,6 +61,12 @@ public:
     int measureCount() const { return measureCount_; }
     int arrangeCount() const { return arrangeCount_; }
 
+    // S839: a content mutator so a test can CHANGE this leaf's DesiredSize on the
+    // next Measure, exercising the measure-side waterfall (a changed child dirties
+    // its ancestor; an unchanged one does not).
+    void set_content(Size content) { content_ = content; }
+    Size content() const { return content_; }
+
 protected:
     Size MeasureOverride(const Size& available) const override
     {
@@ -191,13 +197,16 @@ TEST_CASE("S128: invalidating leaf A re-measures only A + its ancestors; a clean
     const int cBase = t.c->measureCount();
     const int dBase = t.d->measureCount();
 
-    t.a->InvalidateMeasure(); // only A (dirty propagates to P1, R)
+    t.a->InvalidateMeasure(); // S839: LOCAL — only A is dirtied/enqueued (no ancestor walk)
     lm.UpdateLayout();
 
-    // The measure subpass re-measures A + its TWO ancestors (A's subtree-influence).
+    // S839 waterfall: A re-measures but its FIXED content keeps DesiredSize
+    // UNCHANGED, so NO OnChildDesiredSizeChanged fires — P1, R (and every other
+    // node) stay CLEAN and are NOT re-measured. This is the WPF-faithful observable
+    // (a child whose DesiredSize did not change leaves ancestors clean).
     SHOULD(ShouldlyString(t.a->measureCount()).ShouldBe(aBase + 1));
-    SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Base + 1));
-    SHOULD(ShouldlyString(t.root.measureCount()).ShouldBe(rootBase + 1));
+    SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Base));
+    SHOULD(ShouldlyString(t.root.measureCount()).ShouldBe(rootBase));
     // B (clean sibling IN THE SAME subtree) is NOT re-measured.
     SHOULD(ShouldlyString(t.b->measureCount()).ShouldBe(bBase));
     // The friend branch P2 + its descendants are NOT re-measured.
@@ -225,11 +234,12 @@ TEST_CASE("S128: invalidating C under P2 re-measures only the P2 branch; the P1 
     const int cBase = t.c->measureCount();
     const int dBase = t.d->measureCount();
 
-    t.c->InvalidateMeasure(); // only C (under P2)
+    t.c->InvalidateMeasure(); // only C (under P2) — S839 local, no ancestor walk
     lm.UpdateLayout();
 
     SHOULD(ShouldlyString(t.c->measureCount()).ShouldBe(cBase + 1));
-    SHOULD(ShouldlyString(t.p2->measureCount()).ShouldBe(p2Base + 1));
+    // S839: C's unchanged DesiredSize -> P2 stays clean (NOT re-measured).
+    SHOULD(ShouldlyString(t.p2->measureCount()).ShouldBe(p2Base));
     SHOULD(ShouldlyString(t.d->measureCount()).ShouldBe(dBase)); // clean sibling under P2
     // The P1 branch is entirely untouched.
     SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Base));
@@ -256,9 +266,10 @@ TEST_CASE("S128: invalidating A AND B coalesces to ONE subpass over their subtre
     t.b->InvalidateMeasure();
     lm.UpdateLayout();
 
-    // Exactly ONE subpass: P1 + R each +1 (collapse), both dirty leaves +1.
-    SHOULD(ShouldlyString(t.root.measureCount()).ShouldBe(rootBase + 1));
-    SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Base + 1));
+    // S839: both dirty leaves re-measure once each; their FIXED content keeps
+    // DesiredSize unchanged -> NO waterfall -> P1 and R stay CLEAN (not re-measured).
+    SHOULD(ShouldlyString(t.root.measureCount()).ShouldBe(rootBase));
+    SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Base));
     SHOULD(ShouldlyString(t.a->measureCount()).ShouldBe(aBase + 1));
     SHOULD(ShouldlyString(t.b->measureCount()).ShouldBe(bBase + 1));
     // P2's subtree untouched.
@@ -354,4 +365,37 @@ TEST_CASE("S128: after a confined subpass, a clean UpdateLayout re-measures/re-a
     SHOULD(ShouldlyString(t.a->measureCount()).ShouldBe(aMeasure));
     SHOULD(ShouldlyString(t.root.arrangeCount()).ShouldBe(rootArrange));
     SHOULD(ShouldlyString(t.a->arrangeCount()).ShouldBe(aArrange));
+}
+
+// --- 7. S839 waterfall: a CHANGED DesiredSize dirties the ancestors -----------
+
+TEST_CASE("S839: a child whose DesiredSize CHANGES dirties its ancestors through the measure waterfall")
+{
+    TwoBranchTree t;
+    vaml::LayoutManager lm(&t.root);
+    lm.UpdateLayout();
+
+    const int p1Base = t.p1->measureCount();
+    const int rootBase = t.root.measureCount();
+    const int aBase = t.a->measureCount();
+    const int bBase = t.b->measureCount();
+    const int p2Base = t.p2->measureCount();
+
+    // GROW A's content, then invalidate its measure. A re-measures to a NEW
+    // DesiredSize -> OnChildDesiredSizeChanged dirties P1 -> P1 re-measures to a
+    // new DesiredSize -> the waterfall dirties R -> R re-measures. The clean
+    // sibling B (same subtree) and the whole P2 branch stay CLEAN.
+    t.a->set_content(Size{ 60.0f, 40.0f });
+    t.a->InvalidateMeasure();
+    lm.UpdateLayout();
+
+    SHOULD(ShouldlyString(t.a->measureCount()).ShouldBe(aBase + 1));       // changed leaf re-measured
+    SHOULD(ShouldlyString(t.p1->measureCount()).ShouldBe(p1Base + 1));     // waterfall dirties P1
+    SHOULD(ShouldlyString(t.root.measureCount()).ShouldBe(rootBase + 1));  // waterfall reaches root
+    SHOULD(ShouldlyString(t.b->measureCount()).ShouldBe(bBase));           // clean sibling untouched
+    SHOULD(ShouldlyString(t.p2->measureCount()).ShouldBe(p2Base));         // friend branch untouched
+    // The whole tree is measure-clean again.
+    SHOULD(ShouldlyString(t.a->is_measure_dirty()).ShouldBe(false));
+    SHOULD(ShouldlyString(t.p1->is_measure_dirty()).ShouldBe(false));
+    SHOULD(ShouldlyString(t.root.is_measure_dirty()).ShouldBe(false));
 }

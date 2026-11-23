@@ -14,6 +14,7 @@
 #include <vaml/presentation/VamlRenderer.h>
 
 #include <vaml/core/Element.h>              // Text (the S400 real control)
+#include <vaml/core/LayoutContext.h>        // S839 — the faithful layout drain
 #include <vaml/core/TextLayout.h>           // text_layout_plan / resolve_foreground_color
 #include <vaml/presentation/dpi.h>          // S213: dpi_render_plan (physical/logical)
 #include <vaml/vulkan/CommandBuffer.h>      // describe_command_buffer_begin, build_render_pass_begin
@@ -1057,10 +1058,16 @@ std::uint64_t VamlRenderer::invalidate()
         return 0;  // nothing to publish yet
 
     // Measure/Arrange the attached core tree at the frame size (the S123/S124
-    // final_rects the encoder reads). The root is measured against an unbounded
-    // offer; the arrange slot is the full frame.
-    root_->Measure(vaml::Size{ frameW_, vaml::Size::Infinite().height });
-    root_->Arrange(vaml::Rect{ 0.0f, 0.0f, frameW_, frameH_ });
+    // final_rects the encoder reads). S839: drive through the faithful layout
+    // context — measure the topmost dirty element at its PreviousConstraint then
+    // arrange the topmost dirty element. The root is measured against an
+    // unbounded offer and arranged into the full frame slot. A leaf-only
+    // invalidation is reached through the queue (the root's clean early-out no
+    // longer starves it), and a DesiredSize change waterfalls to the ancestors.
+    vaml::detail::LayoutContext::current().update_layout(
+        root_, vaml::Size{ frameW_, vaml::Size::Infinite().height },
+        vaml::Rect{ 0.0f, 0.0f, frameW_, frameH_ },
+        /*root_slot_from_desired=*/false);
 
     // CPU-encode the arranged tree into the S206 draw list (the S207 encoder via
     // the host's visualOf seam).

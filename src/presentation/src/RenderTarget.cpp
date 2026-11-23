@@ -6,6 +6,7 @@
 
 #include <vaml/presentation/RenderTarget.h>
 #include <vaml/presentation/VamlRenderer.h> // VisualOf + default_visual_of (the S212 seam)
+#include <vaml/core/LayoutContext.h>        // S839 — the faithful layout drain
 
 #include <vaml/vulkan/CommandBuffer.h>      // describe_command_buffer_begin, build_render_pass_begin
 #include <vaml/vulkan/RenderPass.h>         // RenderPass (offscreen, owned)
@@ -444,9 +445,13 @@ bool RenderTarget::invalidate()
         return false;
 
     // Measure/Arrange the attached core tree at the logical frame size (the
-    // S123/S124 final_rects the encoder reads).
-    root_->Measure(vaml::Size{ static_cast<float>(logicalW_), vaml::Size::Infinite().height });
-    root_->Arrange(vaml::Rect{ 0.0f, 0.0f, static_cast<float>(logicalW_), static_cast<float>(logicalH_) });
+    // S123/S124 final_rects the encoder reads). S839: drive through the faithful
+    // layout context — topmost dirty element at its PreviousConstraint then
+    // arranged; the root into the full logical frame slot.
+    vaml::detail::LayoutContext::current().update_layout(
+        root_, vaml::Size{ static_cast<float>(logicalW_), vaml::Size::Infinite().height },
+        vaml::Rect{ 0.0f, 0.0f, static_cast<float>(logicalW_), static_cast<float>(logicalH_) },
+        /*root_slot_from_desired=*/false);
 
     // CPU-encode the arranged tree into the S206 draw list (the S212 producer path).
     std::vector<vaml::vulkan::ui::DrawItem> items;

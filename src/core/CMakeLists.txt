@@ -34,6 +34,7 @@ vaml_add_library(core
     src/Transform.cpp
     src/LayoutSlot.cpp
     src/LayoutManager.cpp
+    src/LayoutContext.cpp     # S839 — the per-thread layout need-queue driver (WPF ContextLayoutManager analogue)
     src/ResourceDictionary.cpp    # S360 — ResourceDictionary + merged + three-scope lookup
     src/IconKey.cpp               # S360_1 — IconKey resource entry (ADR-015)
     src/ResourceMarkup.cpp        # S361 — {StaticResource}/{DynamicResource} parse + resolution seams

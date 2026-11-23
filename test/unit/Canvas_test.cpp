@@ -411,6 +411,7 @@ TEST_CASE("S137: dirty-respect — re-measuring an invalidated child does not to
 
     // Invalidate ONLY a's measure. Re-run both passes.
     a->InvalidateMeasure();
+    canvas.InvalidateMeasure(); // S839: local invalidation no longer dirties ancestors; drive the panel
     canvas.Measure(Size{ Size::Infinite().width, Size::Infinite().height });
     canvas.Arrange(Rect{ 0.0f, 0.0f, 500.0f, 200.0f });
 
@@ -419,10 +420,11 @@ TEST_CASE("S137: dirty-respect — re-measuring an invalidated child does not to
     SHOULD(ShouldlyString(a->measure_count()).ShouldBe(2));
     SHOULD(ShouldlyString(b->measure_count()).ShouldBe(1));
 
-    // Arrange: a is arrange-clean after the first pass and was not
-    // arrange-invalidated -> a is NOT re-arranged here; b also clean. Both stay
-    // at 1 arrange invocation.
-    SHOULD(ShouldlyString(a->arrange_count()).ShouldBe(1));
+    // S839 (D2): Measure re-arms arrange UNCONDITIONALLY, so re-measuring a also
+    // re-arms a's arrange -> a IS re-arranged here (2). b was not re-measured, so
+    // its arrange was not re-armed -> b stays at 1. (The old "measure/arrange are
+    // independent axes" property is VOID.)
+    SHOULD(ShouldlyString(a->arrange_count()).ShouldBe(2));
     SHOULD(ShouldlyString(b->arrange_count()).ShouldBe(1));
 }
 

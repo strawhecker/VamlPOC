@@ -154,8 +154,12 @@ TEST_CASE("S818: AffectsParentMeasure — a real child Set invalidates the NEARE
     SHOULD(ShouldlyString(grandchild->Set(id, Value::Int32(4))).ShouldBe(SetResult::APPLIED));
     // FE.cs:2219 — the nearest UIElement layout parent is the panel:
     SHOULD(ShouldlyString(panel->is_measure_dirty()).ShouldBe(true));
-    // The panel's InvalidateMeasure propagates up to the root (S126):
-    SHOULD(ShouldlyString(root.is_measure_dirty()).ShouldBe(true));
+    // S839 (D1): the panel's InvalidateMeasure is LOCAL (local bit + enqueue, NO
+    // ancestor walk) — the root is NOT dirtied here. It is dirtied only later,
+    // LAZILY, when a real Measure of the panel changes its DesiredSize (the
+    // OnChildDesiredSizeChanged waterfall). So with no measure pass run, the root
+    // stays clean — matching WPF, whose InvalidateMeasure does not walk up.
+    SHOULD(ShouldlyString(root.is_measure_dirty()).ShouldBe(false));
     // The GRANDCHILD's OWN measure axis is NOT dirtied (AffectsParent* only
     // targets the layout parent, not the changing element):
     SHOULD(ShouldlyString(grandchild->is_measure_dirty()).ShouldBe(false));

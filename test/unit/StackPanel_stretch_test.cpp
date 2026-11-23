@@ -542,6 +542,7 @@ TEST_CASE("S130 D17: child Margin ENTERS the panel's DesiredSize (WPF-faithful, 
     // DesiredSize (width max 100; height 30 + 30 = 60) — matching WPF.
     (void)b->set_margin(Thickness{ 10.0f, 5.0f, 10.0f, 5.0f });
     b->InvalidateMeasure();
+    panel.InvalidateMeasure(); // S839: local invalidation no longer dirties ancestors; drive the panel
     panel.Measure(Size::Infinite());
     SHOULD(ShouldlyString(b->desired_size().width).ShouldBe(70.0f));   // 50 + 10 + 10
     SHOULD(ShouldlyString(b->desired_size().height).ShouldBe(30.0f));  // 20 + 5 + 5

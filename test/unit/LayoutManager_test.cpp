@@ -202,16 +202,15 @@ TEST_CASE("S126: leaf InvalidateMeasure propagates up to the root; a sibling bra
     // Invalidate MEASURE on the deep leaf B only.
     deepB->InvalidateMeasure();
 
-    // The target + EVERY ancestor to the root go measure-dirty.
+    // S839 (D1): InvalidateMeasure is LOCAL — ONLY the leaf goes measure-dirty
+    // (local bit + enqueue). The ancestors are NOT walked/dirtied; they are
+    // dirtied LAZILY only when a real Measure changes DesiredSize (the waterfall).
     SHOULD(ShouldlyString(deepB->is_measure_dirty()).ShouldBe(true));
-    SHOULD(ShouldlyString(subP->is_measure_dirty()).ShouldBe(true));
-    SHOULD(ShouldlyString(rootPanel.is_measure_dirty()).ShouldBe(true));
+    SHOULD(ShouldlyString(subP->is_measure_dirty()).ShouldBe(false));
+    SHOULD(ShouldlyString(rootPanel.is_measure_dirty()).ShouldBe(false));
     // The unrelated sibling branch (A) is untouched.
     SHOULD(ShouldlyString(spreadA->is_measure_dirty()).ShouldBe(false));
-    // Arrange axis is NOT touched by a measure invalidation (the manager/panel
-    // prep only clears the arrange bits the manager and arrange_dirty actually
-    // reach — the ROOT's arrange bit stays clean; a measure invalidation does
-    // not dirty it).
+    // Arrange axis is NOT touched by a measure invalidation.
     SHOULD(ShouldlyString(rootPanel.is_arrange_dirty()).ShouldBe(false));
 }
 
@@ -237,8 +236,10 @@ TEST_CASE("S126: coalescing — two leaf invalidations before one UpdateLayout c
     b->InvalidateMeasure();
     lm.UpdateLayout();
 
-    // Exactly ONE panel measure pass (collapsed), each dirty leaf re-measured once.
-    SHOULD(ShouldlyString(rootPanel.measureCount()).ShouldBe(panelBaseline + 1));
+    // S839: both dirty leaves are re-measured once each. The panel itself is NOT
+    // re-measured — neither leaf's DesiredSize changed, so no waterfall dirties
+    // the panel (WPF-faithful; ancestor stays clean on an unchanged child).
+    SHOULD(ShouldlyString(rootPanel.measureCount()).ShouldBe(panelBaseline));
     SHOULD(ShouldlyString(a->measureCount()).ShouldBe(aBaseline + 1));
     SHOULD(ShouldlyString(b->measureCount()).ShouldBe(bBaseline + 1));
 }
@@ -268,7 +269,9 @@ TEST_CASE("S126: invalidating an already-dirty element does not re-walk / change
     lm.UpdateLayout();
     SHOULD(ShouldlyString(leaf->is_measure_dirty()).ShouldBe(false));
     SHOULD(ShouldlyString(rootPanel.is_measure_dirty()).ShouldBe(false));
-    SHOULD(ShouldlyString(rootPanel.measureCount()).ShouldBe(panelBaseline + 1));
+    // S839: the leaf re-measures (unchanged DesiredSize) -> no waterfall -> the
+    // panel itself is NOT re-measured.
+    SHOULD(ShouldlyString(rootPanel.measureCount()).ShouldBe(panelBaseline));
 }
 
 // --- 6. Dirty-aware panel: re-measure/re-arrange ONLY the dirty child -----------

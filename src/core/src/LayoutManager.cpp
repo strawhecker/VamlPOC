@@ -17,7 +17,8 @@
 
 #include "vaml/core/LayoutManager.h"
 
-#include "vaml/core/Geometry.h" // Size, Rect
+#include "vaml/core/Geometry.h"     // Size, Rect
+#include "vaml/core/LayoutContext.h" // S839 — the per-thread layout need-queue
 
 namespace vaml {
 
@@ -63,30 +64,17 @@ void LayoutManager::UpdateLayout()
         return; // no tree bound -> nothing to drive
     }
 
-    // Measure pass: gated on the root's measure-dirty bit. A clean root skips
-    // the pass entirely (no re-measure). The root is offered an UNBOUNDED
-    // available (Size::Infinite()) — a top-level element has no external slot;
-    // a panel resolves per-child offers + re-measures only its dirty children.
-    if (root->is_measure_dirty())
-    {
-        root->Measure(Size::Infinite());
-    }
-
-    // Arrange pass: gated on the root's arrange-dirty bit. The root is
-    // arranged into its OWN measured DesiredSize at origin 0 — a top-level
-    // element has no external slot (a real window viewport arrives at the
-    // window sprints, recorded NO-GAP). A panel re-arranges only its dirty
-    // children INTO their slots via root->Arrange.
-    if (root->is_arrange_dirty())
-    {
-        const vaml::Size d = root->desired_size();
-        root->Arrange(vaml::Rect{ 0.0f, 0.0f, d.width, d.height });
-    }
-
-    // Every flag is already cleared: the root's Measure/Arrange cleared its own
-    // bits, and each child visited by a panel's pass cleared its own bits via
-    // its own Measure/Arrange. The tree is wholly clean — a subsequent clean
-    // UpdateLayout is a true no-op (neither gate fires).
+    // S839: drive through the faithful per-thread layout context. The root is
+    // measured at an UNBOUNDED offer (a top-level element has no external slot)
+    // and arranged into its own measured DesiredSize at origin 0. The context
+    // drains the measure queue (topmost-first, at PreviousConstraint) then the
+    // arrange queue, so only DIRTY subgraphs re-run: a child whose DesiredSize
+    // did NOT change leaves its ancestors clean (no re-measure); one that DID
+    // change dirties the ancestor through the measure waterfall. A clean tree is
+    // a true no-op.
+    vaml::detail::LayoutContext::current().update_layout(
+        root, Size::Infinite(), vaml::Rect{ 0.0f, 0.0f, 0.0f, 0.0f },
+        /*root_slot_from_desired=*/true);
 }
 
 } // namespace vaml

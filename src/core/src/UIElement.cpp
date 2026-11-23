@@ -21,6 +21,7 @@
 
 #include "vaml/core/UIElement.h"
 #include "vaml/core/FrameworkElement.h"  // S824 — ensure_framework_element_properties_registered (the FE-owner slot DPs)
+#include "vaml/core/LayoutContext.h"      // S839 — the per-thread layout need-queue
 
 #include "vaml/core/BehaviorCollection.h"   // S502 — remove_element_behaviors (side-table teardown)
 #include "vaml/core/ResourceDictionary.h" // S360 — the complete Resources slot type (dtor + accessors)
@@ -320,6 +321,11 @@ UIElement::UIElement()
 VAML_CORE_EXPORT
 UIElement::~UIElement()
 {
+    // S839: drop this element from the per-thread layout need-queue so no
+    // dangling pointer survives a layout that drains later (the faithful
+    // "queue node cleared on teardown"). Done FIRST — before the other side
+    // tables — so a queued element never outlives its storage.
+    vaml::detail::LayoutContext::current().detach(this);
     // S360 lifetime: an element that owned a ResourceDictionary releases it on
     // destruction so the side-table holds no dangling key (the S245 detach-on-
     // destroy discipline applied to the resource side-table).
@@ -801,6 +807,14 @@ void UIElement::Measure(const Size& available)
         return;
     }
 
+    // S839 (D2 — RESOLVES the S126 "independent axes" property): a real Measure
+    // pass ALWAYS re-arms arrange — "we always want to be arranged, ensure
+    // arrange request" (WPF UIElement.cs:629-631, issued before MeasureCore).
+    // This VOIDS the S126 claim that measure and arrange are independent axes:
+    // an element that re-measures is always re-arranged. (The clean early-out
+    // above has already returned, so this fires only on an actual measure.)
+    InvalidateArrange();
+
     const MeasureReentrancyGuard reentrancy_guard(measure_in_progress_);
 
     const Thickness m = margin();
@@ -834,6 +848,10 @@ void UIElement::Measure(const Size& available)
     never_measured_ = false;
     // A completed Measure pass clears this element's measure-dirty flag (S126).
     measure_dirty_ = false;
+    vaml::detail::LayoutContext::current().remove_measure(this);
+    // S839: drop the pending measure queue slot now the pass completed (WPF
+    // MeasureQueue.Remove(this)). A no-op when not queued (a host-driven
+    // measure). The unconditional InvalidateArrange() above re-queued arrange.
 
     // S830 (WPF UIElement.cs:687-700 — "notify parent if our desired size
     // changed (waterfall effect)"): a Measure that CHANGED the DesiredSize must
@@ -848,21 +866,12 @@ void UIElement::Measure(const Size& available)
     // The comparison is WPF's `!DoubleUtil.AreClose(prevSize, desiredSize)`.
     if (!sizes_close(prevSize, desired_size_))
     {
-        // S830 — the ARRANGE request that a changed DesiredSize implies.
-        // [WPF DIVERGENCE] WPF issues `InvalidateArrange()` on EVERY real
-        // Measure pass ("we always want to be arranged, ensure arrange
-        // request", UIElement.cs:626); VAML issues it only when the DesiredSize
-        // actually CHANGED, because the S128/S129/S135/S137 dirty-respect
-        // contract pins an arrange-skip for an unchanged re-measured child
-        // (WPF's panels arrange unconditionally — Stack.cs:757 — so WPF has no
-        // such skip). Without this call a revealed Collapsed child would
-        // measure to 40 and keep a STALE zero-height final_rect (never
-        // re-arranged, never drawn); with it the reveal renders. The
-        // unconditional form ("Measure re-arms arrange", UIElement.cs:629-631)
-        // belongs to the invalidation-fidelity closure —
-        // RESOLVED BY S839 (Sprint 11ae, D2). Do NOT backfill silently.
-        InvalidateArrange();
-
+        // S839: the ARRANGE request that a changed DesiredSize implies is now
+        // issued UNCONDITIONALLY above (before MeasureOverride) — the S126
+        // conditional InvalidateArrange that lived here is REMOVED (D2 voided;
+        // the arrange re-arm is no longer gated on a size change). What remains
+        // here is ONLY the measure-side waterfall: notify the nearest UIElement
+        // ancestor so its own DesiredSize recomputes (UIElement.cs:686-700).
         for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
         {
             auto* ue = dynamic_cast<UIElement*>(p);
@@ -957,6 +966,11 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     //     degenerates to a 0-size slot client in compute_final_rect because the
     //     inset clamps >= 0, so no -Inf escapes the extent). Named property +
     //     offending value per the S810_1 disposition.
+    // S839: ArrangeInProgress reentrancy guard (RAII — resets on every return /
+    // throw path). Mirrors WPF ArrangeInProgress; consumed by the arrange-axis
+    // canRelyOnParentRecalc in LayoutContext.
+    const MeasureReentrancyGuard arrange_guard(arrange_in_progress_);
+
     if (std::isnan(arrangeSlot.width) || (std::isinf(arrangeSlot.width) && arrangeSlot.width > 0.0f) ||
         std::isnan(arrangeSlot.height) || (std::isinf(arrangeSlot.height) && arrangeSlot.height > 0.0f))
     {
@@ -1019,6 +1033,10 @@ void UIElement::Arrange(const Rect& arrangeSlot)
     // WPF tail: `_finalRect = finalRect; ArrangeDirty = false;`.
     arrange_slot_ = arrangeSlot;
     arrange_dirty_ = false;
+    // S839: clear the NeverArranged flag + drop the pending arrange queue slot
+    // (WPF ArrangeQueue.Remove(this)). A no-op when not queued (host-driven).
+    never_arranged_ = false;
+    vaml::detail::LayoutContext::current().remove_arrange(this);
 }
 
 VAML_CORE_EXPORT
@@ -1037,59 +1055,38 @@ void UIElement::ensure_clip(const vaml::Rect& clipRect)
 VAML_CORE_EXPORT
 void UIElement::InvalidateMeasure()
 {
-    // Short-circuit: an already-measure-dirty element needs no re-walk (the
-    // whole chain above it is already dirty from when it was first dirtied).
+    // S839 (D1 — RESOLVES the S126 unconditional ancestor walk): set ONLY the
+    // local dirty bit and enlist in the per-thread layout context (WPF
+    // UIElement.cs:255-266). There is NO parent walk here. Ancestors are dirtied
+    // lazily by the measure waterfall (OnChildDesiredSizeChanged) when a child's
+    // DesiredSize actually changes. `!never_measured_` mirrors WPF: a fresh
+    // element is not enqueued (the host measures it); its local bit is already
+    // set from construction.
     if (measure_dirty_)
     {
-        return;
+        return; // coalescing: already dirty (and already queued)
     }
     measure_dirty_ = true;
-    // Propagate to the root: a parent's DesiredSize derives from its children,
-    // so a child invalidation dirties every ancestor's measure pass. Walk the
-    // S039/S041 parent link; stop at the root (parent() == nullptr). Each
-    // ancestor is marked unconditionally here (the local short-circuit prevents
-    // a redundant walk, but the chain must stay dirty for the manager's pass).
-    for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
+    if (!never_measured_)
     {
-        auto* ue = dynamic_cast<UIElement*>(p);
-        if (ue == nullptr)
-        {
-            // A non-UIElement ancestor cannot own a measure pass (only
-            // UIElement subclasses participate in the visual tree / layout);
-            // nothing to mark above it — stop.
-            break;
-        }
-        if (ue->measure_dirty_)
-        {
-            // Already dirty: the chain above this ancestor is already dirty
-            // from an earlier invalidation — no need to keep walking.
-            break;
-        }
-        ue->measure_dirty_ = true;
+        vaml::detail::LayoutContext::current().add_measure(this);
     }
 }
 
 VAML_CORE_EXPORT
 void UIElement::InvalidateArrange()
 {
-    // Mirror of InvalidateMeasure on the arrange axis.
+    // S839 (D1) — mirror of InvalidateMeasure on the arrange axis: local bit +
+    // context enlist (WPF UIElement.cs:284-306). No parent walk. A fresh
+    // (never-arranged) element is not enqueued (the host arranges it).
     if (arrange_dirty_)
     {
         return;
     }
     arrange_dirty_ = true;
-    for (DependencyObject* p = parent(); p != nullptr; p = p->parent())
+    if (!never_arranged_)
     {
-        auto* ue = dynamic_cast<UIElement*>(p);
-        if (ue == nullptr)
-        {
-            break;
-        }
-        if (ue->arrange_dirty_)
-        {
-            break;
-        }
-        ue->arrange_dirty_ = true;
+        vaml::detail::LayoutContext::current().add_arrange(this);
     }
 }
 
@@ -1109,6 +1106,32 @@ VAML_CORE_EXPORT
 bool UIElement::is_layout_dirty() const noexcept
 {
     return measure_dirty_ || arrange_dirty_;
+}
+
+// --- S839 layout-context accessors -----------------------------------------
+
+VAML_CORE_EXPORT
+const vaml::Size& UIElement::previous_available() const noexcept
+{
+    return previous_available_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_measure_in_progress() const noexcept
+{
+    return measure_in_progress_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_arrange_in_progress() const noexcept
+{
+    return arrange_in_progress_;
+}
+
+VAML_CORE_EXPORT
+int UIElement::tree_level() const noexcept
+{
+    return tree_level_;
 }
 
 // --- S818 render invalidation (InvalidateVisual) ----------------------------
@@ -1268,6 +1291,9 @@ void UIElement::attach_child(std::unique_ptr<UIElement> child)
     // opacity PRODUCT; the DP itself never cascades.
     raw->set_parent(this);
     children_.push_back(std::move(child));
+    // S839: assign the child subtree's TreeLevel (WPF Visual.TreeLevel at
+    // connect) so the layout drain can select the TOPMOST dirty element.
+    raw->set_subtree_tree_level(tree_level_ + 1);
     // S829 (WPF AffectsMeasure/Arrange): adding a visual child changes this
     // element's DesiredSize + layout, so invalidate. Required for the S829
     // clean-element early-out to be correct — without it, a re-measure at an
@@ -1275,6 +1301,16 @@ void UIElement::attach_child(std::unique_ptr<UIElement> child)
     // Panel.Children.Add invalidates measure the same way).
     InvalidateMeasure();
     InvalidateArrange();
+}
+
+VAML_CORE_EXPORT
+void UIElement::set_subtree_tree_level(int level) noexcept
+{
+    tree_level_ = level;
+    for (auto& c : children_)
+    {
+        c->set_subtree_tree_level(level + 1);
+    }
 }
 
 VAML_CORE_EXPORT

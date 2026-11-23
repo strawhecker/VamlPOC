@@ -43,6 +43,7 @@
 #include "vaml/core/DependencyProperty.h"
 #include "vaml/core/Element.h"        // StackPanel / Rectangle / TextBlock (FrameworkElement-branch)
 #include "vaml/core/UIElement.h"      // Visibility / OnChildDesiredSizeChanged
+#include "vaml/core/LayoutContext.h"  // S839 — the faithful layout drain
 #include "vaml/core/Geometry.h"       // Size / Rect
 #include "vaml/core/LayoutSlot.h"     // compute_measured_desired (the S827/S828 finalizer)
 #include "vaml/core/Value.h"
@@ -203,11 +204,22 @@ run_viewer_growth_11ac_plan(const std::string& text)
         // → parent->OnChildDesiredSizeChanged (UIElement.cs:323-330). This call
         // is the ONLY trigger: no InvalidateMeasure() appears in this seam.
         (void)r.collapsedSibling->set_visibility(vaml::Visibility::Visible);
-        r.revealSignalled = rootUi->is_measure_dirty() &&
-                            r.togglePanel->is_measure_dirty();
+        // S839: the Visibility transition signals the NEAREST layout parent
+        // (togglePanel) LOCALLY (local bit + enqueue, NO ancestor walk). rootUi is
+        // dirtied LAZILY by the measure waterfall during the drain below — so the
+        // faithful observable of "the reveal signalled layout" is the parent's
+        // local invalidation.
+        r.revealSignalled = r.togglePanel->is_measure_dirty();
 
-        rootUi->Measure(viewport);
-        rootUi->Arrange(vaml::Rect{ 0.0f, 0.0f, viewport.width, viewport.height });
+        // S839: drive the re-layout through the faithful layout context (WPF
+        // ContextLayoutManager.UpdateLayout): it measures the topmost dirty element
+        // (togglePanel) at its PreviousConstraint, re-measures the now-visible child,
+        // and lets the DesiredSize change waterfall up to rootUi. A raw
+        // rootUi->Measure() would early-out (rootUi itself is not dirty).
+        vaml::detail::LayoutContext::current().update_layout(
+            rootUi, viewport,
+            vaml::Rect{ 0.0f, 0.0f, viewport.width, viewport.height },
+            /*root_slot_from_desired=*/false);
 
         r.collapsedHeightAfter = r.collapsedSibling->desired_size().height;
         r.toggleHeightAfter    = r.togglePanel->desired_size().height;

@@ -282,29 +282,29 @@ public:
     // children arranged).
     virtual void ArrangeOverride(const vaml::Rect& finalSlot);
 
-    // --- Layout invalidation (S126) ----------------------------------------
+    // --- Layout invalidation (S839 — WPF-faithful, supersedes the S126 walk) --
     // WPF-faithful dirty flags: each element knows whether it needs a Measure
-    // pass (measureDirty) and/or an Arrange pass (arrangeDirty). A fresh
-    // element starts dirty on BOTH axes (never laid out -> measured/arranged
-    // on its first pass). InvalidateMeasure/InvalidateArrange SET the local
-    // flag (short-circuited when already set, so a redundant invalidation does
-    // NOT re-walk the chain) and PROPAGATE it up the parent chain: a parent's
-    // DesiredSize is a function of its children, so a child invalidation
-    // dirties every ancestor to the root. The S126 LayoutManager consumes these
-    // gates (UpdateLayout runs a measure pass iff the root is measure-dirty, an
-    // arrange pass iff the root is arrange-dirty) so a clean UpdateLayout is a
-    // true no-op, and a panel re-measures/re-arranges only its DIRTY children.
+    // pass (measureDirty) and/or an Arrange pass (arrangeDirty). A fresh element
+    // starts dirty on BOTH axes (never laid out -> measured/arranged on its
+    // first pass).
+    //
+    // S839 (RESOLVES the S126 "unconditional ancestor walk" drift, D1): the
+    // invalidation sets ONLY the local bit and enlists the element in the
+    // per-thread LayoutContext measure/arrange QUEUE (UIElement.cs:249-306). It
+    // does NOT walk the parent chain. Ancestors become dirty LAZILY, only when a
+    // child's real Measure CHANGES its DesiredSize (the OnChildDesiredSizeChanged
+    // waterfall, UIElement.cs:686-700). The dirty/clean observables therefore
+    // match WPF exactly.
 
-    // Marks this element (and every ancestor to the root) as needing a Measure
-    // pass. No-op if this element is already measure-dirty (coalescing: many
-    // invalidations collapse to one pass). Wiring: the S123/S124 contract writes
-    // the S122 DesiredSize/final rect; dirty flags are the change-driven trigger
-    // that lets the LayoutManager (and panels) skip clean subgraphs.
+    // Marks THIS element as needing a Measure pass (sets the local bit + enqueues
+    // it in the LayoutContext — no parent walk). No-op if already measure-dirty
+    // (coalescing: many invalidations collapse to one pass).
     void InvalidateMeasure();
 
-    // Marks this element (and every ancestor to the root) as needing an Arrange
-    // pass. Independent of the measure axis (see tests). No-op if already
-    // arrange-dirty.
+    // Marks THIS element as needing an Arrange pass (local bit + enqueue — no
+    // parent walk). No-op if already arrange-dirty. NOTE (S839/D2): a real
+    // Measure pass also re-arms arrange unconditionally, so measure and arrange
+    // are NOT independent axes (the S126 independence property is VOID).
     void InvalidateArrange();
 
     // --- S818 render invalidation (InvalidateVisual) ---------------------
@@ -331,6 +331,20 @@ public:
 
     // True if EITHER axis is dirty (needs a measure OR an arrange pass).
     [[nodiscard]] bool is_layout_dirty() const noexcept;
+
+    // --- S839 layout-context accessors (WPF ContextLayoutManager support) ---
+    // The previous measure constraint this element was measured at (WPF
+    // `_previousAvailableSize` / `PreviousConstraint`). The drain measures a
+    // dirty element at this constraint. Default { NaN, NaN } (never measured).
+    [[nodiscard]] const vaml::Size& previous_available() const noexcept;
+    // True while this element is inside a Measure pass (WPF MeasureInProgress).
+    [[nodiscard]] bool is_measure_in_progress() const noexcept;
+    // True while this element is inside an Arrange pass (WPF ArrangeInProgress).
+    [[nodiscard]] bool is_arrange_in_progress() const noexcept;
+    // This element's depth in the UIElement tree (WPF Visual.TreeLevel). Root 0;
+    // a child = parent + 1. Maintained on attach; the drain uses it to select
+    // the TOPMOST (min TreeLevel) dirty element.
+    [[nodiscard]] int tree_level() const noexcept;
 
     // --- Margin (REAL DP) --------------------------------------------------
     // Default 0. The child's outer inset removed from its parent's available
@@ -629,6 +643,10 @@ private:
 
     void attach_child(std::unique_ptr<UIElement> child);
 
+    // S839: recursively set this element's (and its descendants') tree_level_
+    // to `level` (called when a subtree is attached at a known depth).
+    void set_subtree_tree_level(int level) noexcept;
+
     // --- S835: ensureClip (WPF UIElement.ensureClip analogue) --------------
     // Called at the END of Arrange (after ArrangeOverride, WPF UIElement.cs:884
     // ensureClip(finalRect.Size)) to REFRESH the render-slot clip window from
@@ -707,6 +725,18 @@ private:
     bool       measure_in_progress_ = false;                // S829 reentrancy guard
     bool       never_measured_      = true;                 // S829 WPF NeverMeasured
     vaml::Size previous_available_  = {};                   // S829 WPF _previousAvailableSize
+    // --- S839 arrange-side fidelity (WPF ArrangeInProgress / NeverArranged) --
+    // arrange_in_progress_: reentrancy guard for Arrange (WPF ArrangeInProgress)
+    //   consumed by LayoutContext::canRelyOnParentRecalc on the arrange axis.
+    // never_arranged_: WPF NeverArranged — true until the first real Arrange
+    //   completes; InvalidateArrange skips enqueueing a never-arranged element
+    //   (the host will arrange it). Paired with arrange_dirty_ == true at start.
+    bool       arrange_in_progress_ = false;                // S839 WPF ArrangeInProgress
+    bool       never_arranged_      = true;                 // S839 WPF NeverArranged
+    // --- S839 WPF Visual.TreeLevel (depth in the UIElement tree) ------------
+    // Root 0; a child = parent + 1. Maintained on attach; the drain selects the
+    // topmost (min tree_level_) dirty element (WPF GetTopMost).
+    int        tree_level_          = 0;                    // S839 WPF TreeLevel
     // S818: render-dirty flag (InvalidateVisual / AffectsRender). Default
     // FALSE — a fresh element is not render-dirty until its first
     // InvalidateVisual or an AffectsRender change (unlike measure/arrange,
