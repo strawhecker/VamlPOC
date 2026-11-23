@@ -239,7 +239,7 @@ SetResult Viewport3D::set_camera(std::shared_ptr<Camera> camera)
 }
 
 VAML_CORE_EXPORT
-vaml::Size Viewport3D::MeasureOverride(const vaml::Size& available) const
+vaml::Size Viewport3D::MeasureOverride(const vaml::Size& available)
 {
     // The isolatable host fills its available bound (the FrameworkElement
     // contract — WPF Viewport3D fills its final rect).

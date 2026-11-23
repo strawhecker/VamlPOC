@@ -26,6 +26,7 @@
 #include "vaml/core/GridLength.h"
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 using vaml::ColumnDefinition;
 using vaml::Grid;
@@ -42,7 +43,7 @@ namespace {
 // Test-local RecorderLeaf (S125/S130 pattern): configured content extent +
 // RECORDS the measure offer + arrange slot on both axes. Track/span extents are
 // inferred from children's arranged slots (position-based, deterministic).
-class RecordLeaf : public UIElement
+class RecordLeaf : public vaml::FrameworkElement
 {
 public:
     explicit RecordLeaf(Size content) : content_(content) {}
@@ -53,7 +54,7 @@ public:
     int arrange_count() const noexcept { return arrangeCalls; }
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         lastAvailable = available;
         ++measureCalls;

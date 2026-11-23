@@ -114,6 +114,81 @@ public:
     // contract). The typed accessor reads the stored Value BY TAG.
     [[nodiscard]] SetResult set_tag(const std::string& value);
     [[nodiscard]] std::string tag() const;
+
+    // --- S842a layout DPs (WPF FE.cs:3452-3665; owner "FrameworkElement") ---
+    // The Min/Max size DPs + UseLayoutRounding + LayoutTransform. Width/Height
+    // already live on UIElement (default auto/NaN, owner "FrameworkElement",
+    // now AffectsMeasure + IsWidthHeightValid per S842a). These accessors read/
+    // write the FE-owned DPs (the single canonical registration). Registered in
+    // register_framework_element_properties().
+    [[nodiscard]] SetResult set_min_width(double value);
+    [[nodiscard]] double min_width() const;
+    [[nodiscard]] SetResult set_min_height(double value);
+    [[nodiscard]] double min_height() const;
+    [[nodiscard]] SetResult set_max_width(double value);
+    [[nodiscard]] double max_width() const;
+    [[nodiscard]] SetResult set_max_height(double value);
+    [[nodiscard]] double max_height() const;
+    [[nodiscard]] SetResult set_use_layout_rounding(bool value);
+    [[nodiscard]] bool use_layout_rounding() const;
+    [[nodiscard]] SetResult set_layout_transform(const std::shared_ptr<vaml::Transform>& value);
+    [[nodiscard]] std::shared_ptr<vaml::Transform> layout_transform() const;
+
+    // WPF `new MinMax(this)` (FE.cs:4036-4066): the folded min/max derived from
+    // the six layout DPs (Width/Height NaN => auto). Returns the S842a MinMax.
+    [[nodiscard]] vaml::MinMax min_max() const;
+
+    // --- S842.3/7 internal layout switches (WPF BypassLayoutPolicies /
+    //     DoNotApplyLayoutRoundingToMarginsAndBorderThickness) ----------------
+    // Read the internal Bool DPs registered in register_framework_element_
+    // properties(). Consumed by MeasureCore/ArrangeCore (FE.cs:4305/4523/4315).
+    [[nodiscard]] bool bypass_layout_policies() const;
+    [[nodiscard]] bool do_not_apply_layout_rounding_to_margins_border() const;
+
+    // --- S842.6 OVERRIDE-SEAM (WPF FE.cs:4284 MeasureCore / :4507 ArrangeCore) -
+    // WPF places the REAL measure/arrange bodies on FrameworkElement, NOT
+    // UIElement (UIElement.MeasureCore returns new Size(); UIElement.ArrangeCore
+    // writes only the RenderSize/offset). These are the FE cores, `final` (no
+    // further override — a derived element customizes MeasureOverride/
+    // ArrangeOverride, never the core). UIElement::Measure/Arrange run the pass
+    // protocol and delegate to these.
+    //
+    // Behavior note (S842.6): the FE cores reproduce, 1:1, the logic relocated
+    // from the former UIElement inline bodies + compute_final_rect — the
+    // 22-leg/23-leg WPF-exact rewrite + the DesiredSize clamp-pair (Unclipped-
+    // DesiredSize separate) is the NEXT atomic body sub-chunk, tracked in
+    // session-context; landing it flips DesiredSize to clamped and re-baselines
+    // the measure tests. This pass is behavior-preserving.
+    vaml::Size MeasureCore(const vaml::Size& availableSize) final;
+    void ArrangeCore(const vaml::Rect& finalRect) final;
+
+    // The element's CONTENT seams (relocated from UIElement — WPF has no
+    // UIElement.MeasureOverride/ArrangeOverride). Base MeasureOverride {0,0};
+    // base ArrangeOverride returns the passed size (ink == slot). Panels/Text
+    // override these. NEW virtuals on FrameworkElement (there is no UIElement
+    // base to override — WPF-faithful placement), so they carry `virtual`, not
+    // `override`.
+    virtual vaml::Size MeasureOverride(const vaml::Size& available);
+    virtual vaml::Size ArrangeOverride(vaml::Size finalSize);
+
+    // --- S842.6: GetLayoutClip (WPF FE.cs:4946-5105) ------------------------
+    // The 5-branch slot-client clip (NeedsClipBounds||ClipToBounds → local/
+    // slot/combined, RTL mirror, ltd inverse intersect). Behavior-preserving
+    // this pass (reproduces the S833 slot-client rect the S208 renderer
+    // scissors to).
+    bool get_layout_clip(const vaml::Size& layoutSlotSize, vaml::Rect& clipRect) override;
+
+    // --- [MINIMAL REAL] forward hooks (S842.6) ------------------------------
+    // ApplyTemplate (WPF FE.ApplyTemplate, FE.cs:~) and
+    // GetFlowDirectionTransform (WPF FE.cs:~). Both default to exactly WPF's
+    // no-template / LTR behaviour and are SEEDED here for the template (S847)
+    // and flow-direction (S846) features to extend at their own resolution
+    // steps. They are permanent virtual hooks, NOT throwaway stubs.
+    //
+    // [MINIMAL REAL] FrameworkElement::apply_template — RESOLVED BY S847. Do NOT extend silently; do NOT backfill.
+    // [MINIMAL REAL] get_flow_direction_transform — RESOLVED BY S846. Do NOT extend silently; do NOT backfill.
+    virtual bool apply_template();
+    [[nodiscard]] virtual vaml::Matrix2D get_flow_direction_transform() const;
 };
 
 } // namespace vaml

@@ -36,6 +36,7 @@
 #include "vaml/core/Geometry.h"
 #include "vaml/core/LayoutManager.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 #include <cstddef>
 
@@ -53,7 +54,7 @@ Rect rect_of(float x, float y, float w, float h)
 // A leaf with real content extent, counting BOTH MeasureOverride (mutable; the
 // S127 seam is const-protected) and ArrangeOverride (non-const) invocations so
 // a test can assert exactly which leaves were re-measured / re-arranged.
-class DirtyLeaf : public UIElement
+class DirtyLeaf : public vaml::FrameworkElement
 {
 public:
     explicit DirtyLeaf(Size content) : content_(content) {}
@@ -68,7 +69,7 @@ public:
     Size content() const { return content_; }
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measureCount_;
         (void)available;
@@ -96,14 +97,14 @@ private:
 // ONLY dirty children (a clean child's final_rect is left untouched) — the S126
 // dirty-respect realized inside the S127 auto-drive. Counters let a test
 // assert the subpass touches exactly the subtree under change.
-class DirtyStack : public UIElement
+class DirtyStack : public vaml::FrameworkElement
 {
 public:
     int measureCount() const { return measureCount_; }
     int arrangeCount() const { return arrangeCount_; }
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measureCount_;
         float width = 0.0f;

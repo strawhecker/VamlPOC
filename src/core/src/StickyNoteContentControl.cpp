@@ -105,7 +105,7 @@ bool StickyNoteRichTextBox::Load(const std::string& body)
     return true;
 }
 
-vaml::Size StickyNoteRichTextBox::MeasureOverride(const vaml::Size& available) const
+vaml::Size StickyNoteRichTextBox::MeasureOverride(const vaml::Size& available)
 {
     // The S400 wrap basis: the text body wraps at `available` and the host
     // sizes to its wrapped line extent (the TextBox/TextBlock precedent).
@@ -198,7 +198,7 @@ bool StickyNoteInkCanvas::Load(const std::string& body)
     return true;
 }
 
-vaml::Size StickyNoteInkCanvas::MeasureOverride(const vaml::Size& available) const
+vaml::Size StickyNoteInkCanvas::MeasureOverride(const vaml::Size& available)
 {
     // The S554 InkCanvas basis: a fixed note-body box (the ink surface).
     float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 200.0f;

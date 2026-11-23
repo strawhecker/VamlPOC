@@ -41,6 +41,7 @@
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 using vaml::HorizontalAlignment;
 using vaml::Rect;
@@ -60,13 +61,13 @@ Rect rect_of(float x, float y, float w, float h)
 // ARCHETYPE 1 — a leaf whose content is a real extent ("Text measures to content").
 // MeasureOverride() returns the content extent; the S123 Measure finalizes it
 // (stretch-vs-wrap, infinity-aware) and S124 Arrange aligns it inside a slot.
-class TextLikeLeaf : public UIElement
+class TextLikeLeaf : public vaml::FrameworkElement
 {
 public:
     explicit TextLikeLeaf(Size content) : content_(content) {}
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         return content_;
@@ -84,7 +85,7 @@ private:
 // child->Arrange, so each child's own alignment is honored within its slot. (S127's
 // ArrangeOverride auto-drive is proven in MeasureArrangeOverride_test.cpp; this archetype's
 // manual arrange is retained unmodified as the zero-semantic-change rename target.)
-class ChildMeasuringPanel : public UIElement
+class ChildMeasuringPanel : public vaml::FrameworkElement
 {
 public:
     // Places each child into its column slot, advancing y by the child's measured desired
@@ -117,7 +118,7 @@ protected:
     // The panel's own content is its children: measure each child against a column offer
     // (available width, unbounded height — a vertical stack lets each child wrap to content
     // vertically), then derive width = max of children, height = sum of children.
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         float width = 0.0f;
         float height = 0.0f;
@@ -207,20 +208,23 @@ TEST_CASE("S125: leaf — Margin + alignment interplay (origin advances; content
     SHOULD(ShouldlyString(leaf.final_rect().bottom() <= 100.0f).ShouldBe(true));
 }
 
-TEST_CASE("S832: leaf — oversized content is UN-CLAMPED at Measure AND child-wins at Arrange")
+TEST_CASE("S832/S842: leaf — clamped DesiredSize + UnclippedDesiredSize, child-wins at Arrange")
 {
-    // S827/S832: a non-Stretch leaf whose content (100x50) exceeds a smaller
-    // offered bound (60x40) reports its CONTENT {100,50} at Measure (DesiredSize
-    // may exceed the offer) AND is arranged at that FULL unclipped size at
-    // Arrange — the child is never shrunk below what it measured for
-    // (WPF ArrangeCore FE.cs:4617-4623), reporting needs_clip so the deferred
-    // S833 scissor trims the overflow against the 60x40 slot.
+    // S842.7 (WPF MeasureCore clamp-pair, FE.cs:4452-4461/4489-4500): a non-Stretch
+    // leaf whose content (100x50) exceeds a smaller offered bound (60x40) now reports
+    // a CLAMPED DesiredSize {60,40} to its parent, while keeping the true content
+    // extent in unclipped_desired_size() {100,50}. At Arrange the child-wins math
+    // (FE.cs:4596-4607) restores the FULL unclipped size and reports needs_clip so
+    // the S833 scissor trims the overflow against the 60x40 slot.
     TextLikeLeaf leaf{ Size{ 100.0f, 50.0f } };
     (void)leaf.set_horizontal_alignment(HorizontalAlignment::Left);
     (void)leaf.set_vertical_alignment(VerticalAlignment::Top);
     leaf.Measure(Size{ 60.0f, 40.0f });
-    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(100.0f));
-    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(50.0f));
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(60.0f));    // clamped
+    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(40.0f));   // clamped
+    SHOULD(ShouldlyString(leaf.unclipped_desired_size().width).ShouldBe(100.0f));  // content
+    SHOULD(ShouldlyString(leaf.unclipped_desired_size().height).ShouldBe(50.0f));  // content
+    SHOULD(ShouldlyString(leaf.has_unclipped_desired_size()).ShouldBe(true));
     // Arrange into a slot smaller than the content -> child-wins: final rect is
     // the full 100x50 content (may exceed the 60x40 slot), needs_clip is true.
     leaf.Arrange(rect_of(0.0f, 0.0f, 60.0f, 40.0f));

@@ -41,6 +41,7 @@
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 #include "vaml/core/Value.h"
 
 #include <cmath>
@@ -64,7 +65,7 @@ constexpr float kInf = std::numeric_limits<float>::infinity();
 // A test-local leaf with a real content extent (the S125/S130 RecorderLeaf
 // pattern), recording the MEASURE OFFER + the ARRANGE SLOT on every invoke so
 // both the natural-extent offer and the final arranged origin are observable.
-class RecorderLeaf : public UIElement
+class RecorderLeaf : public vaml::FrameworkElement
 {
 public:
     explicit RecorderLeaf(Size content) : content_(content) {}
@@ -76,7 +77,7 @@ public:
     int arrange_count() const noexcept { return arrangeCalls; }
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         lastOfferM = available;
         ++measureCalls;

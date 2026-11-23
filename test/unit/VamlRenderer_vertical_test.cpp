@@ -51,13 +51,13 @@ const char* kSliceDoc = R"(
 // A test-local content leaf (a UIElement with a real MeasureOverride content extent)
 // so a hand-built panel tree has NON-degenerate final_rects for the multi-node slice
 // proof. Not a control seed — test/POC-local, mirroring PocLeaf/RecordLeaf.
-class ContentLeaf : public vaml::UIElement
+class ContentLeaf : public vaml::FrameworkElement
 {
 public:
     explicit ContentLeaf(float w, float h) : extent_{ w, h } {}
 
 protected:
-    vaml::Size MeasureOverride(const vaml::Size& /*available*/) const override
+    vaml::Size MeasureOverride(const vaml::Size& /*available*/) override
     {
         return extent_;
     }

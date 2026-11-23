@@ -141,9 +141,12 @@ void run_dp_fidelity_closure()
         PropertyMetadata::WithDefault(Value::String(std::string{}), PropertyFlags::None));
     dp_register_guard("FlowDirection",       ValueType::Int32,  "FrameworkElement",
         PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None));
-    dp_register_guard("UseLayoutRounding",   ValueType::Int32,  "FrameworkElement",
-        std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
-            .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));
+    // UseLayoutRounding is NOW a REAL FrameworkElement-owned Bool DP registered
+    // at S842a (FrameworkElement.cpp: ValueType::Bool, default false,
+    // Inherits|AffectsMeasure, no Validate) — REMOVED from the fidelity table so
+    // the S842a registration owns the single canonical row (the S595a/S834
+    // precedent). The audited authoring `UseLayoutRounding="true"/"false"`
+    // resolves through the Bool converter onto that real DP.
     dp_register_guard("OverridesDefaultStyle", ValueType::Int32, "FrameworkElement",
         std::move(PropertyMetadata::WithDefault(Value::Int32(0), PropertyFlags::None))
             .with_validate([](const Value& v) { const int x = v.get<int>(); return x == 0 || x == 1; }));

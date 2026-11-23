@@ -31,7 +31,7 @@ AdornerLayer* AdornerDecorator::GetAdornerLayer(const UIElement* visual) noexcep
 }
 
 VAML_CORE_EXPORT
-vaml::Size AdornerDecorator::MeasureOverride(const vaml::Size& available) const
+vaml::Size AdornerDecorator::MeasureOverride(const vaml::Size& available)
 {
     // The S550 Decorator policy: measure the single content child + report its
     // extent. The layer is the decorator's overlay — its box tracks the

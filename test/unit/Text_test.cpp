@@ -1,5 +1,5 @@
 // S400 (dep:S368) — TextBlock control tests (vaml::core). 11k-1 re-binds the
-// S087-invented `Text` onto the WPF-true `TextBlock` (TextBlock : FrameworkElement,
+// S087-invented `Text` onto the WPF-true `TextBlock` (TextBlock : vaml::FrameworkElement,
 // in VAML the UIElement branch). Headless proof of the S400 TextBlock control +
 // the pure TextLayout seam (the CORE half; the RENDER half — the vulkan
 // TextGlyphPlan + the material classifiers — lives in its own test target,

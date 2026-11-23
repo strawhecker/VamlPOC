@@ -57,7 +57,7 @@ bool Adorner::is_clip_enabled() const
 }
 
 VAML_CORE_EXPORT
-vaml::Size Adorner::MeasureOverride(const vaml::Size& /*available*/) const
+vaml::Size Adorner::MeasureOverride(const vaml::Size& /*available*/)
 {
     // The WPF adorner measure default: measure to the ADORNED element's extent
     // (an overlay matches its decorated box). Null / un-arranged adorned ->

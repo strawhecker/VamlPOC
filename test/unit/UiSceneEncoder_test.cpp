@@ -47,14 +47,14 @@ namespace {
 
 // A real solid leaf: a UIElement with a content extent (so Measure/Arrange give
 // it a real final_rect to emit from).
-struct SolidLeaf : vaml::UIElement
+struct SolidLeaf : vaml::FrameworkElement
 {
     explicit SolidLeaf(float w, float h) : extent{ w, h } {}
 
     vaml::Size extent;
 
 protected:
-    vaml::Size MeasureOverride(const vaml::Size& available) const override
+    vaml::Size MeasureOverride(const vaml::Size& available) override
     {
         (void)available;
         return extent;

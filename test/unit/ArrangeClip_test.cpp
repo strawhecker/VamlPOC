@@ -43,6 +43,7 @@
 #include "vaml/core/PropertyFlags.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 #include "vaml/core/Value.h"
 
 using vaml::DependencyObject;
@@ -65,13 +66,13 @@ Rect rect_of(float x, float y, float w, float h)
 
 // A leaf carrying a real content extent through the S123/S124 seam so the
 // Arrange pairing (desired vs slot) is concrete — the S124 Arrange_test pattern.
-class ContentLeaf : public UIElement
+class ContentLeaf : public vaml::FrameworkElement
 {
 public:
     explicit ContentLeaf(Size natural) : natural_(natural) {}
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         return natural_;

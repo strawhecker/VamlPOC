@@ -405,7 +405,7 @@ bool StickyNote::UpdateAnnotation(Annotation& annotation) const
     return true;
 }
 
-vaml::Size StickyNote::MeasureOverride(const vaml::Size& available) const
+vaml::Size StickyNote::MeasureOverride(const vaml::Size& available)
 {
     // The framework-element branch: the note sizes to its authored box
     // (Width/Height DPs; NaN = auto -> a nominal default note box, the WPF

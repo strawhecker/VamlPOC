@@ -37,6 +37,7 @@
 
 #include "vaml/core/Geometry.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 using vaml::Rect;
 using vaml::Size;
@@ -52,7 +53,7 @@ Rect rect_of(float x, float y, float w, float h)
 // An element whose ArrangeOverride returns HALF the arrange slot — a distinct,
 // SMALLER ink over an unchanged slot (the "ink inside the slot" case; content
 // fits, so needs_clip stays false).
-class ShrinkInkLeaf : public UIElement
+class ShrinkInkLeaf : public vaml::FrameworkElement
 {
 protected:
     Size ArrangeOverride(Size finalSize) override
@@ -64,7 +65,7 @@ protected:
 // An element whose ArrangeOverride returns the slot GROWN by a fixed extent — an
 // ink LARGER than the slot. WPF forces a clip when clientSize < inkSize
 // (FE.cs:4917-4923), so needs_clip() must fire from the ink leg.
-class GrowInkLeaf : public UIElement
+class GrowInkLeaf : public vaml::FrameworkElement
 {
 protected:
     Size ArrangeOverride(Size finalSize) override

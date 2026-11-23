@@ -39,7 +39,7 @@ VAML_CORE_EXPORT
 Panel::~Panel() = default;
 
 VAML_CORE_EXPORT
-Size Panel::MeasureOverride(const Size& available) const
+Size Panel::MeasureOverride(const Size& available)
 {
     // The base panel: measure each child at the offered box, report the max
     // child desired size (the common panel fallback). Concrete panels override.
@@ -101,7 +101,7 @@ VAML_CORE_EXPORT
 UIElement* Decorator::content() const noexcept { return content_; }
 
 VAML_CORE_EXPORT
-Size Decorator::MeasureOverride(const Size& available) const
+Size Decorator::MeasureOverride(const Size& available)
 {
     if (content_)
     {
@@ -181,7 +181,7 @@ void ComboBoxItem::set_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* ComboBoxItem::content() const noexcept { return content_; }
 VAML_CORE_EXPORT
-Size ComboBoxItem::MeasureOverride(const Size& available) const
+Size ComboBoxItem::MeasureOverride(const Size& available)
 {
     if (content_) { content_->Measure(available); return content_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -253,7 +253,7 @@ void ListBoxItem::set_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* ListBoxItem::content() const noexcept { return content_; }
 VAML_CORE_EXPORT
-Size ListBoxItem::MeasureOverride(const Size& available) const
+Size ListBoxItem::MeasureOverride(const Size& available)
 {
     if (content_) { content_->Measure(available); return content_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -295,7 +295,7 @@ void StatusBarItem::set_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* StatusBarItem::content() const noexcept { return content_; }
 VAML_CORE_EXPORT
-Size StatusBarItem::MeasureOverride(const Size& available) const
+Size StatusBarItem::MeasureOverride(const Size& available)
 {
     if (content_) { content_->Measure(available); return content_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -354,7 +354,7 @@ void GroupItem::set_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* GroupItem::content() const noexcept { return content_; }
 VAML_CORE_EXPORT
-Size GroupItem::MeasureOverride(const Size& available) const
+Size GroupItem::MeasureOverride(const Size& available)
 {
     if (content_) { content_->Measure(available); return content_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -390,7 +390,7 @@ void DataGridRow::set_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* DataGridRow::content() const noexcept { return content_; }
 VAML_CORE_EXPORT
-Size DataGridRow::MeasureOverride(const Size& available) const
+Size DataGridRow::MeasureOverride(const Size& available)
 {
     if (content_) { content_->Measure(available); return content_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -423,7 +423,7 @@ void DataGridCell::set_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* DataGridCell::content() const noexcept { return content_; }
 VAML_CORE_EXPORT
-Size DataGridCell::MeasureOverride(const Size& available) const
+Size DataGridCell::MeasureOverride(const Size& available)
 {
     if (content_) { content_->Measure(available); return content_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -459,7 +459,7 @@ void ItemsPresenter::set_items_host(std::unique_ptr<UIElement> host)
 VAML_CORE_EXPORT
 UIElement* ItemsPresenter::items_host() const noexcept { return host_; }
 VAML_CORE_EXPORT
-Size ItemsPresenter::MeasureOverride(const Size& available) const
+Size ItemsPresenter::MeasureOverride(const Size& available)
 {
     if (host_) { host_->Measure(available); return host_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -533,7 +533,7 @@ const GridViewColumnCollection& GridViewRowPresenterBase::columns() const noexce
 VAML_CORE_EXPORT
 GridViewRowPresenter::GridViewRowPresenter() = default;
 VAML_CORE_EXPORT
-Size GridViewRowPresenter::MeasureOverride(const Size& available) const
+Size GridViewRowPresenter::MeasureOverride(const Size& available)
 {
     // The data-row presenter measures as wide as the sum of its columns (within
     // the offered width). No per-cell children here (cells are authored under
@@ -550,7 +550,7 @@ Size GridViewRowPresenter::MeasureOverride(const Size& available) const
 VAML_CORE_EXPORT
 GridViewHeaderRowPresenter::GridViewHeaderRowPresenter() = default;
 VAML_CORE_EXPORT
-Size GridViewHeaderRowPresenter::MeasureOverride(const Size& available) const
+Size GridViewHeaderRowPresenter::MeasureOverride(const Size& available)
 {
     float w = 0.0f;
     for (std::size_t i = 0; i < cols_.size(); ++i)
@@ -603,7 +603,7 @@ void GridViewColumnHeader::set_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* GridViewColumnHeader::content() const noexcept { return content_; }
 VAML_CORE_EXPORT
-Size GridViewColumnHeader::MeasureOverride(const Size& available) const
+Size GridViewColumnHeader::MeasureOverride(const Size& available)
 {
     if (content_) { content_->Measure(available); return content_->desired_size(); }
     return Size{ 0.0f, 0.0f };
@@ -683,7 +683,7 @@ bool VirtualizingStackPanel::is_virtualizing() const
     return Get(PropertyId::of("IsVirtualizing","VirtualizingStackPanel")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
-Size VirtualizingStackPanel::MeasureOverride(const Size& available) const
+Size VirtualizingStackPanel::MeasureOverride(const Size& available)
 {
     // WPF-faithful: a vertical stack (the default VIP). Real measure + arrange
     // so the ItemsHost surfaces the children; the recycler (S556) drives the

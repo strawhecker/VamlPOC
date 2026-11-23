@@ -78,7 +78,12 @@ public:
     // current element is Grid (1376 in the msvc-debug lane after S835, the worst
     // case). If a future control exceeds this, RAISE it (compile-time constant,
     // cheap).
-    static constexpr std::size_t kLargestElement = 1376;
+    // S842a (dep:S841) note: the UIElement pass-scaffolding bools (S842.2 — six
+    // flag mirrors) grow sizeof(Grid) by a small, cache-line-padded amount; the
+    // S833/S835 1408 slot still holds it (the ObjectPool_test static_asserts are
+    // the gate). kLargestElement tracks the current worst case for the guard
+    // comment; kSlotSize is the allocation unit.
+    static constexpr std::size_t kLargestElement = 1408;
 
     ObjectPool() = default;
     ~ObjectPool();

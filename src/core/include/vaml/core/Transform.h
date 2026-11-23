@@ -9,7 +9,9 @@
 // backfill (NO-GAP). Matrix2D remains the composable resolved-value seam.
 
 #include "vaml/core/export.h"
+#include "vaml/core/Geometry.h" // S842a — Rect (Matrix2D::rect_transform)
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 //
@@ -87,6 +89,60 @@ struct Matrix2D
     // space (the renderer's y-flip makes screen-visible rotation clockwise for
     // a positive angle, matching WPF's RenderTransform). Precomputed affine.
     [[nodiscard]] static Matrix2D rotation(float degrees) noexcept;
+
+    // --- S842a additive helpers (WPF Matrix.Value surface; the existing
+    //     Matrix2D surface is UNCHANGED — these are new members only) ---------
+
+    // WPF `Matrix.HasInverse` (determinant != 0).
+    [[nodiscard]] bool has_inverse() const noexcept
+    {
+        return (m11 * m22 - m12 * m21) != 0.0f;
+    }
+
+    // True iff this is (exactly) the identity affine.
+    [[nodiscard]] bool is_identity() const noexcept
+    {
+        return m11 == 1.0f && m12 == 0.0f && m21 == 0.0f &&
+               m22 == 1.0f && dx == 0.0f && dy == 0.0f;
+    }
+
+    // WPF `Matrix.Invert()`: the inverse affine. On a singular matrix (no
+    // inverse) returns the identity (callers gate on has_inverse() first).
+    [[nodiscard]] Matrix2D invert() const noexcept
+    {
+        const float det = m11 * m22 - m12 * m21;
+        if (det == 0.0f)
+        {
+            return identity();
+        }
+        const float inv = 1.0f / det;
+        Matrix2D r;
+        r.m11 =  m22 * inv;
+        r.m12 = -m12 * inv;
+        r.m21 = -m21 * inv;
+        r.m22 =  m11 * inv;
+        r.dx  = -(r.m11 * dx + r.m12 * dy);
+        r.dy  = -(r.m21 * dx + r.m22 * dy);
+        return r;
+    }
+
+    // WPF `Rect.Transform(rect, matrix)` (the bounding box of the four
+    // transformed corners).
+    [[nodiscard]] Rect rect_transform(const Rect& r) const noexcept
+    {
+        const float x0 = r.x, y0 = r.y, x1 = r.x + r.width, y1 = r.y + r.height;
+        const auto tx = [&](float px, float py) { return m11 * px + m12 * py + dx; };
+        const auto ty = [&](float px, float py) { return m21 * px + m22 * py + dy; };
+        const float ax = tx(x0, y0), ay = ty(x0, y0);
+        const float bx = tx(x1, y0), by = ty(x1, y0);
+        const float cx = tx(x0, y1), cy = ty(x0, y1);
+        const float ex = tx(x1, y1), ey = ty(x1, y1);
+        const float minx = std::min(std::min(ax, bx), std::min(cx, ex));
+        const float maxx = std::max(std::max(ax, bx), std::max(cx, ex));
+        const float miny = std::min(std::min(ay, by), std::min(cy, ey));
+        const float maxy = std::max(std::max(ay, by), std::max(cy, ey));
+        return Rect{ minx, miny, maxx - minx, maxy - miny };
+    }
 };
 
 // ---------------------------------------------------------------------------

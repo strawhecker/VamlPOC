@@ -698,7 +698,7 @@ std::string Button::visual_state() const
 }
 
 VAML_CORE_EXPORT
-Size Button::MeasureOverride(const Size& available) const
+Size Button::MeasureOverride(const Size& available)
 {
     // The S401 real Button algorithm: a Button reports a bounded default box
     // (its nominal slot) at its natural (content) size. It defers to its
@@ -872,7 +872,7 @@ Orientation WrapPanel::wrap_direction() const
 // child reuses its stored desired_size(). Measure() (base) then finalizes this
 // natural extent via the S123 infinity-aware stretch-vs-wrap rule.
 VAML_CORE_EXPORT
-Size WrapPanel::MeasureOverride(const Size& available) const
+Size WrapPanel::MeasureOverride(const Size& available)
 {
     float width  = 0.0f;   // running max (Horizontal) / Σ (Vertical) — finalized below
     float height = 0.0f;
@@ -1066,7 +1066,7 @@ double Canvas::top(const DependencyObject& obj)
 // Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
 // child reuses its stored desired_size().
 VAML_CORE_EXPORT
-Size Canvas::MeasureOverride(const Size& available) const
+Size Canvas::MeasureOverride(const Size& available)
 {
     (void)available; // Canvas never constrains children on either axis.
     const Size childAvail = Size::Infinite();
@@ -1322,7 +1322,7 @@ std::shared_ptr<Brush> TextBlock::foreground() const
 }
 
 VAML_CORE_EXPORT
-Size TextBlock::MeasureOverride(const Size& available) const
+Size TextBlock::MeasureOverride(const Size& available)
 {
     // The S400 real TextBlock algorithm: run the CPU text-LAYOUT + WRAP engine
     // (text_layout_plan) with the default metrics (a fontSize-based estimate —
@@ -1504,7 +1504,7 @@ std::int32_t Icon::stretch() const
 }
 
 VAML_CORE_EXPORT
-Size Icon::MeasureOverride(const Size& available) const
+Size Icon::MeasureOverride(const Size& available)
 {
     // The S400_1 real Icon algorithm: the icon's measured box is driven by the
     // Width/Height DPs (0 = auto) → the authored asset's natural extent (when
@@ -1777,7 +1777,7 @@ bool TextBox::handle_key(vaml::KeyCode key, bool isDown, bool shift)
 }
 
 VAML_CORE_EXPORT
-Size TextBox::MeasureOverride(const Size& available) const
+Size TextBox::MeasureOverride(const Size& available)
 {
     // The S402 real TextBox algorithm: wrap the Text content at `available` via
     // the S400 text_layout_plan (multi-line growth when AcceptsReturn); report a
@@ -1931,7 +1931,7 @@ double Slider::set_value_from_ratio(double ratio)
 }
 
 VAML_CORE_EXPORT
-Size Slider::MeasureOverride(const Size& available) const
+Size Slider::MeasureOverride(const Size& available)
 {
     // The S403 real Slider algorithm: the default track box at the arranged
     // extent; the S123 finalizer applies the stretch-vs-wrap. The rendered
@@ -2042,7 +2042,7 @@ std::int32_t CheckBox::toggle()
 }
 
 VAML_CORE_EXPORT
-Size CheckBox::MeasureOverride(const Size& available) const
+Size CheckBox::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 14.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 14.0f;
@@ -2143,7 +2143,7 @@ VAML_CORE_EXPORT
 void ScrollViewer::apply_offset(double /*newV*/, double /*newH*/) {}
 
 VAML_CORE_EXPORT
-Size ScrollViewer::MeasureOverride(const Size& available) const
+Size ScrollViewer::MeasureOverride(const Size& available)
 {
     // The S405 real ScrollViewer algorithm: the viewport is the arranged box
     // (the scrollable content beyond it is the S409_1 viewer draw). A
@@ -2257,7 +2257,7 @@ UIElement* Window::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size Window::MeasureOverride(const Size& available) const
+Size Window::MeasureOverride(const Size& available)
 {
     // The S440 real Window algorithm: a Window sizes to its single content
     // child within the offered box. Measure the content (if present) at the
@@ -2400,7 +2400,7 @@ UIElement* UserControl::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size UserControl::MeasureOverride(const Size& available) const
+Size UserControl::MeasureOverride(const Size& available)
 {
     if (content_)
     {
@@ -2562,7 +2562,7 @@ Orientation StackPanel::orientation() const
 // realized inside the real panel). Measure() (base) then finalizes this
 // natural extent via the S123 infinity-aware stretch-vs-wrap rule.
 VAML_CORE_EXPORT
-Size StackPanel::MeasureOverride(const Size& available) const
+Size StackPanel::MeasureOverride(const Size& available)
 {
     float width  = 0.0f;
     float height = 0.0f;
@@ -2689,7 +2689,7 @@ vaml::Size StackPanel::ArrangeOverride(vaml::Size finalSize)
 // The panel's own DesiredSize = Σ(non-star resolved) + Σ(star content-minima)
 // — the content-natural extent a parent should offer the panel.
 VAML_CORE_EXPORT
-Size Grid::MeasureOverride(const Size& available) const
+Size Grid::MeasureOverride(const Size& available)
 {
     const std::size_t nRows = rows_.size();
     const std::size_t nCols = cols_.size();
@@ -2871,7 +2871,7 @@ std::int32_t DockPanel::dock(const DependencyObject& obj)
 // Dirty-respect (S128): re-measure ONLY is_measure_dirty() children; a clean
 // child reuses its stored desired_size().
 VAML_CORE_EXPORT
-Size DockPanel::MeasureOverride(const Size& available) const
+Size DockPanel::MeasureOverride(const Size& available)
 {
     (void)available;
     const Size childAvail = Size::Infinite();
@@ -3064,7 +3064,7 @@ bool RadioButton::is_checked() const
 }
 
 VAML_CORE_EXPORT
-Size RadioButton::MeasureOverride(const Size& available) const
+Size RadioButton::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 16.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 16.0f;
@@ -3215,7 +3215,7 @@ bool ComboBox::select_item(const std::string& display)
 }
 
 VAML_CORE_EXPORT
-Size ComboBox::MeasureOverride(const Size& available) const
+Size ComboBox::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 22.0f;
@@ -3435,7 +3435,7 @@ std::size_t ListBox::render_items()
 }
 
 VAML_CORE_EXPORT
-Size ListBox::MeasureOverride(const Size& available) const
+Size ListBox::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 80.0f;
@@ -3579,7 +3579,7 @@ std::size_t TreeView::item_count() const
     return child_count();
 }
 VAML_CORE_EXPORT
-Size TreeView::MeasureOverride(const Size& available) const
+Size TreeView::MeasureOverride(const Size& available)
 {
     // The root items host: measure the child TreeViewItems (a collapsed child
     // with no visible items reports a zero extent); report the widest/accumulated
@@ -3661,7 +3661,7 @@ void TreeViewItem::set_header_content(std::unique_ptr<UIElement> child)
 VAML_CORE_EXPORT
 UIElement* TreeViewItem::header_content() const noexcept { return headerContent_; }
 VAML_CORE_EXPORT
-Size TreeViewItem::MeasureOverride(const Size& available) const
+Size TreeViewItem::MeasureOverride(const Size& available)
 {
     // The item: a header row (the header content slot, defaulting to a line at
     // the Header string) + the nested child items, which only contribute when
@@ -3832,7 +3832,7 @@ SetResult CalendarDayButton::set_day_number(std::int32_t v) { return Set(Propert
 VAML_CORE_EXPORT
 std::int32_t CalendarDayButton::day_number() const { return Get(PropertyId::of("DayNumber","CalendarDayButton")).get<int>(); }
 VAML_CORE_EXPORT
-Size CalendarDayButton::MeasureOverride(const Size& available) const
+Size CalendarDayButton::MeasureOverride(const Size& available)
 {
     const float w = available.width > 0.0f ? std::min(available.width, 28.0f) : 28.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 28.0f) : 28.0f;
@@ -3850,7 +3850,7 @@ SetResult CalendarButton::set_is_selected(bool v) { return Set(PropertyId::of("I
 VAML_CORE_EXPORT
 bool CalendarButton::is_selected() const { return Get(PropertyId::of("IsSelected","CalendarButton")).get<int>() != 0; }
 VAML_CORE_EXPORT
-Size CalendarButton::MeasureOverride(const Size& available) const
+Size CalendarButton::MeasureOverride(const Size& available)
 {
     const float w = available.width > 0.0f ? std::min(available.width, 40.0f) : 40.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 24.0f) : 24.0f;
@@ -3868,7 +3868,7 @@ SetResult CalendarItem::set_display_date(std::int64_t v) { return Set(PropertyId
 VAML_CORE_EXPORT
 std::int64_t CalendarItem::display_date() const { return Get(PropertyId::of("DisplayDate","CalendarItem")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
-Size CalendarItem::MeasureOverride(const Size& available) const
+Size CalendarItem::MeasureOverride(const Size& available)
 {
     const float w = available.width > 0.0f ? std::min(available.width, 240.0f) : 240.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 200.0f) : 200.0f;
@@ -3905,7 +3905,7 @@ void Calendar::set_blackout_dates(CalendarBlackoutDatesCollection dates) { black
 VAML_CORE_EXPORT
 const CalendarBlackoutDatesCollection& Calendar::blackout_dates() const noexcept { return blackout_; }
 VAML_CORE_EXPORT
-Size Calendar::MeasureOverride(const Size& available) const
+Size Calendar::MeasureOverride(const Size& available)
 {
     const float w = available.width > 0.0f ? std::min(available.width, 260.0f) : 260.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 220.0f) : 220.0f;
@@ -3923,7 +3923,7 @@ SetResult DatePickerTextBox::set_selected_date(std::int64_t v) { return Set(Prop
 VAML_CORE_EXPORT
 std::int64_t DatePickerTextBox::selected_date() const { return Get(PropertyId::of("SelectedDate","DatePickerTextBox")).get<std::int64_t>(); }
 VAML_CORE_EXPORT
-Size DatePickerTextBox::MeasureOverride(const Size& available) const
+Size DatePickerTextBox::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 24.0f) : 24.0f;
@@ -3949,7 +3949,7 @@ SetResult DatePicker::set_is_drop_down_open(bool v) { return Set(PropertyId::of(
 VAML_CORE_EXPORT
 bool DatePicker::is_drop_down_open() const { return Get(PropertyId::of("IsDropDownOpen","DatePicker")).get<int>() != 0; }
 VAML_CORE_EXPORT
-Size DatePicker::MeasureOverride(const Size& available) const
+Size DatePicker::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 140.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 28.0f) : 28.0f;
@@ -4046,7 +4046,7 @@ std::shared_ptr<Brush> InkCanvas::background() const
     return default_black_brush();
 }
 VAML_CORE_EXPORT
-Size InkCanvas::MeasureOverride(const Size& available) const
+Size InkCanvas::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 80.0f;
@@ -4060,7 +4060,7 @@ SetResult InkPresenter::set_strokes(std::string v) { return Set(PropertyId::of("
 VAML_CORE_EXPORT
 std::string InkPresenter::strokes() const { return Get(PropertyId::of("Strokes","InkPresenter")).get<std::string>(); }
 VAML_CORE_EXPORT
-Size InkPresenter::MeasureOverride(const Size& available) const
+Size InkPresenter::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 120.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 80.0f;
@@ -4082,7 +4082,7 @@ SetResult MediaElement::set_muted(bool v) { return Set(PropertyId::of("Muted","M
 VAML_CORE_EXPORT
 bool MediaElement::muted() const { return Get(PropertyId::of("Muted","MediaElement")).get<int>() != 0; }
 VAML_CORE_EXPORT
-Size MediaElement::MeasureOverride(const Size& available) const
+Size MediaElement::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 320.0f;
     const float h = available.height > 0.0f ? std::min(available.height, 180.0f) : 180.0f;
@@ -4156,7 +4156,7 @@ SetResult Page::set_content(std::string v) { return Set(PropertyId::of("Content"
 VAML_CORE_EXPORT
 std::string Page::content() const { return Get(PropertyId::of("Content","Page")).get<std::string>(); }
 VAML_CORE_EXPORT
-Size Page::MeasureOverride(const Size& available) const
+Size Page::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 240.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 180.0f;
@@ -4174,7 +4174,7 @@ SetResult Frame::set_navigate_uri(std::string v) { return Set(PropertyId::of("Na
 VAML_CORE_EXPORT
 std::string Frame::navigate_uri() const { return Get(PropertyId::of("NavigateUri","Frame")).get<std::string>(); }
 VAML_CORE_EXPORT
-Size Frame::MeasureOverride(const Size& available) const
+Size Frame::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 300.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 200.0f;
@@ -4190,7 +4190,7 @@ SetResult DocumentViewerBase::set_document(std::string v) { return Set(PropertyI
 VAML_CORE_EXPORT
 std::string DocumentViewerBase::document() const { return Get(PropertyId::of("Document","DocumentViewerBase")).get<std::string>(); }
 VAML_CORE_EXPORT
-Size DocumentViewerBase::MeasureOverride(const Size& available) const
+Size DocumentViewerBase::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 260.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 220.0f;
@@ -4211,7 +4211,7 @@ SetResult SinglePageViewer::set_document(std::string v) { return Set(PropertyId:
 VAML_CORE_EXPORT
 std::string SinglePageViewer::document() const { return Get(PropertyId::of("Document","SinglePageViewer")).get<std::string>(); }
 VAML_CORE_EXPORT
-Size SinglePageViewer::MeasureOverride(const Size& available) const
+Size SinglePageViewer::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 260.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 220.0f;
@@ -4337,7 +4337,7 @@ std::int32_t Label::horizontal_content_alignment() const
 }
 
 VAML_CORE_EXPORT
-Size Label::MeasureOverride(const Size& available) const
+Size Label::MeasureOverride(const Size& available)
 {
     // The S480 real Label algorithm: wrap the Content through the S400
     // text_layout_plan (the S400 basis — same wrap rule S400 Text uses). The
@@ -4489,7 +4489,7 @@ UIElement* Border::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size Border::MeasureOverride(const Size& available) const
+Size Border::MeasureOverride(const Size& available)
 {
     // The S481 real Border algorithm: measure the single content child within
     // the offered box minus the Padding + BorderThickness insets; report the
@@ -4609,7 +4609,7 @@ double Rectangle::stroke_thickness() const
 }
 
 VAML_CORE_EXPORT
-Size Rectangle::MeasureOverride(const Size& available) const
+Size Rectangle::MeasureOverride(const Size& available)
 {
     // The S482 Rectangle measure: a nominal intrinsic box. The base S123
     // reconciler applies the WPF-style Width/Height (auto/NaN) + the
@@ -4699,7 +4699,7 @@ double Ellipse::stroke_thickness() const
 }
 
 VAML_CORE_EXPORT
-Size Ellipse::MeasureOverride(const Size& available) const
+Size Ellipse::MeasureOverride(const Size& available)
 {
     // The S482 Ellipse measure: a nominal intrinsic box; the base S123
     // reconciler applies the CPI-style Width/Height + stretch-vs-wrap.
@@ -4786,7 +4786,7 @@ double Line::stroke_thickness() const
 }
 
 VAML_CORE_EXPORT
-Size Line::MeasureOverride(const Size& available) const
+Size Line::MeasureOverride(const Size& available)
 {
     // A Line renders as a thin stroke rect along its axis: default a rule at
     // the offered width with the stroke-thickness cross extent (a zero-length
@@ -5075,7 +5075,7 @@ std::int32_t Path::fill_rule() const
     return Get(PropertyId::of("FillRule","Path")).get<int>();
 }
 VAML_CORE_EXPORT
-Size Path::MeasureOverride(const Size& available) const
+Size Path::MeasureOverride(const Size& available)
 {
     return MeasureShape(available);
 }
@@ -5129,7 +5129,7 @@ std::int32_t Polygon::fill_rule() const
     return Get(PropertyId::of("FillRule","Polygon")).get<int>();
 }
 VAML_CORE_EXPORT
-Size Polygon::MeasureOverride(const Size& available) const
+Size Polygon::MeasureOverride(const Size& available)
 {
     return MeasureShape(available);
 }
@@ -5173,7 +5173,7 @@ bool Polyline::parsed() const noexcept
     return st ? st->parsed : false;
 }
 VAML_CORE_EXPORT
-Size Polyline::MeasureOverride(const Size& available) const
+Size Polyline::MeasureOverride(const Size& available)
 {
     return MeasureShape(available);
 }
@@ -5215,7 +5215,7 @@ double Track::value() const
     return Get(PropertyId::of("Value","Track")).get<double>();
 }
 VAML_CORE_EXPORT
-Size Track::MeasureOverride(const Size& available) const
+Size Track::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 6.0f;
@@ -5269,7 +5269,7 @@ bool TickBar::is_direction_reversed() const
     return Get(PropertyId::of("IsDirectionReversed","TickBar")).get<int>() != 0;
 }
 VAML_CORE_EXPORT
-Size TickBar::MeasureOverride(const Size& available) const
+Size TickBar::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 4.0f;
@@ -5387,7 +5387,7 @@ std::int32_t Image::stretch() const
 }
 
 VAML_CORE_EXPORT
-Size Image::MeasureOverride(const Size& available) const
+Size Image::MeasureOverride(const Size& available)
 {
     // The S483 real Image algorithm: a nominal box; the base S123 reconciler
     // applies the WPF-style Width/Height (auto/NaN) — a bounded default stands
@@ -5497,7 +5497,7 @@ void ProgressBar::apply_change(double newValue)
 }
 
 VAML_CORE_EXPORT
-Size ProgressBar::MeasureOverride(const Size& available) const
+Size ProgressBar::MeasureOverride(const Size& available)
 {
     // The S484 real ProgressBar algorithm: a bounded horizontal track box (the
     // S123 finalizer applies the stretch-vs-wrap). The determinate fill is the
@@ -5655,7 +5655,7 @@ bool PasswordBox::handle_key(vaml::KeyCode key, bool isDown, bool shift)
 }
 
 VAML_CORE_EXPORT
-Size PasswordBox::MeasureOverride(const Size& available) const
+Size PasswordBox::MeasureOverride(const Size& available)
 {
     // The S485 real PasswordBox algorithm: the masked edit field box (a bounded
     // default; the S123 finalizer applies the stretch-vs-wrap). The masked
@@ -5739,7 +5739,7 @@ UIElement* GroupBox::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size GroupBox::MeasureOverride(const Size& available) const
+Size GroupBox::MeasureOverride(const Size& available)
 {
     // The S485 real GroupBox: the content child + a header band. Measure the
     // content within the offered box (minus a nominal header band) and report
@@ -5869,7 +5869,7 @@ UIElement* Expander::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size Expander::MeasureOverride(const Size& available) const
+Size Expander::MeasureOverride(const Size& available)
 {
     // The S485 real Expander: when IsExpanded, measure the content child below
     // the header band; when collapsed, only the header (content hidden). The
@@ -5943,7 +5943,7 @@ double Separator::thickness() const
 }
 
 VAML_CORE_EXPORT
-Size Separator::MeasureOverride(const Size& available) const
+Size Separator::MeasureOverride(const Size& available)
 {
     // The S485 real Separator: a thin rule — default full width × the thickness
     // (1px). The classifier draws the thin line (Solid).
@@ -5996,7 +5996,7 @@ std::int32_t StatusBar::dock(const DependencyObject& obj)
 }
 
 VAML_CORE_EXPORT
-Size StatusBar::MeasureOverride(const Size& available) const
+Size StatusBar::MeasureOverride(const Size& available)
 {
     // The S485 real StatusBar: a docking host that lays out its children along
     // the bar. Measure each child unbounded; report the max cross extent (the
@@ -6213,7 +6213,7 @@ double ScrollBar::set_value_from_ratio(double ratio)
 }
 
 VAML_CORE_EXPORT
-Size ScrollBar::MeasureOverride(const Size& available) const
+Size ScrollBar::MeasureOverride(const Size& available)
 {
     // 11k-2 real ScrollBar algorithm: a default track box (the scrollbar slot).
     // Vertical default (a narrow column); a horizontal scrollbar is a strip.
@@ -6393,7 +6393,7 @@ bool RepeatButton::is_pressed() const
 }
 
 VAML_CORE_EXPORT
-Size RepeatButton::MeasureOverride(const Size& available) const
+Size RepeatButton::MeasureOverride(const Size& available)
 {
     // 11k-2 real RepeatButton algorithm: a bounded default button box (its
     // nominal slot); the S123 finalizer applies the stretch-vs-wrap.
@@ -6500,7 +6500,7 @@ UIElement* Viewbox::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size Viewbox::MeasureOverride(const Size& available) const
+Size Viewbox::MeasureOverride(const Size& available)
 {
     // 11k-2 real Viewbox algorithm: measure the single content child at the
     // offered box and report its desired size (a scale-contain decorator sizes
@@ -6650,7 +6650,7 @@ bool ToolBar::has_overflow_items() const
 }
 
 VAML_CORE_EXPORT
-Size ToolBar::MeasureOverride(const Size& available) const
+Size ToolBar::MeasureOverride(const Size& available)
 {
     // 11k-2 real ToolBar algorithm: a dock-like strip layout along the
     // orientation (children stack along the flow axis). Mirrors the S129
@@ -6797,7 +6797,7 @@ bool ToolBarTray::is_locked() const
 }
 
 VAML_CORE_EXPORT
-Size ToolBarTray::MeasureOverride(const Size& available) const
+Size ToolBarTray::MeasureOverride(const Size& available)
 {
     // 11k-2 real ToolBarTray algorithm: a StackPanel-style host laying its
     // ToolBar children along the tray orientation. Dirty-respect (S128).
@@ -6979,7 +6979,7 @@ UIElement* TabItem::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size TabItem::MeasureOverride(const Size& available) const
+Size TabItem::MeasureOverride(const Size& available)
 {
     // A TabItem measures its content below the header band (roughly);
     // the TabControl places it in the strip. The header drives a nominal band.
@@ -7137,7 +7137,7 @@ void TabControl::apply_selection(std::int32_t newIndex)
 }
 
 VAML_CORE_EXPORT
-Size TabControl::MeasureOverride(const Size& available) const
+Size TabControl::MeasureOverride(const Size& available)
 {
     // Measure the selected TabItem (the content track) + a nominal strip band.
     float cw = 0.0f;
@@ -7416,7 +7416,7 @@ bool MenuItem::raise_click()
 }
 
 VAML_CORE_EXPORT
-Size MenuItem::MeasureOverride(const Size& available) const
+Size MenuItem::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 100.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 22.0f;
@@ -7490,7 +7490,7 @@ std::size_t Menu::item_count() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size Menu::MeasureOverride(const Size& available) const
+Size Menu::MeasureOverride(const Size& available)
 {
     // The menu bar stacks its top-level items horizontally.
     float w = 0.0f;
@@ -7670,7 +7670,7 @@ std::size_t ContextMenu::item_count() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size ContextMenu::MeasureOverride(const Size& available) const
+Size ContextMenu::MeasureOverride(const Size& available)
 {
     float w = 120.0f;
     float h = 60.0f;
@@ -7841,7 +7841,7 @@ UIElement* ToolTip::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size ToolTip::MeasureOverride(const Size& available) const
+Size ToolTip::MeasureOverride(const Size& available)
 {
     if (content_)
         content_->Measure(available);
@@ -8030,7 +8030,7 @@ UIElement* Popup::content() const noexcept
 }
 
 VAML_CORE_EXPORT
-Size Popup::MeasureOverride(const Size& available) const
+Size Popup::MeasureOverride(const Size& available)
 {
     if (content_)
         content_->Measure(available);
@@ -8147,7 +8147,7 @@ vaml::GridLength GridSplitter::drag_resize_track(vaml::GridLength current, doubl
 }
 
 VAML_CORE_EXPORT
-Size GridSplitter::MeasureOverride(const Size& available) const
+Size GridSplitter::MeasureOverride(const Size& available)
 {
     const float w = std::isfinite(available.width) && available.width > 0.0f ? available.width : 6.0f;
     const float h = std::isfinite(available.height) && available.height > 0.0f ? available.height : 6.0f;
@@ -8395,7 +8395,7 @@ void DataGrid::apply_selection(std::int32_t newIndex)
 }
 
 VAML_CORE_EXPORT
-Size DataGrid::MeasureOverride(const Size& available) const
+Size DataGrid::MeasureOverride(const Size& available)
 {
     const std::string itemSource = items().empty() ? items_source() : items();
     const auto itemList = split_datagrid_items(itemSource);
@@ -8560,7 +8560,7 @@ std::int32_t RichTextBox::max_length() const
 }
 
 VAML_CORE_EXPORT
-Size RichTextBox::MeasureOverride(const Size& available) const
+Size RichTextBox::MeasureOverride(const Size& available)
 {
     // 11k_12 real RichTextBox algorithm: the default edit-field box (the
     // TextBox precedent); the S123 finalizer applies the stretch-vs-wrap. The

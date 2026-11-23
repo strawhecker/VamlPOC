@@ -22,6 +22,7 @@
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/PropertyRegistry.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 #include "vaml/core/Value.h"
 #include "vaml/core/VamlReader.h"
 
@@ -48,13 +49,13 @@ using vaml::intern;
 namespace {
 
 // A test-local leaf with a real content extent (the S125 TextLikeLeaf pattern).
-class ContentLeaf : public UIElement
+class ContentLeaf : public vaml::FrameworkElement
 {
 public:
     explicit ContentLeaf(Size content) : content_(content) {}
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         return content_;

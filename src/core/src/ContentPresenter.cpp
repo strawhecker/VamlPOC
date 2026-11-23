@@ -78,7 +78,7 @@ std::size_t ContentPresenter::prepare_content(UIElement* /*item*/,
 }
 
 VAML_CORE_EXPORT
-Size ContentPresenter::MeasureOverride(const Size& available) const
+Size ContentPresenter::MeasureOverride(const Size& available)
 {
     // The per-item host measures its applied template content at the offered
     // box and reports the content's desired size (the ContentPresenter sizes

@@ -25,6 +25,7 @@
 #include "vaml/core/Element.h"     // DockPanel, Dock, register_builtin_elements, TextBlock, Button
 #include "vaml/core/ElementFactoryRegistry.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 #include "vaml/core/Geometry.h"
 #include "vaml/core/LayoutSlot.h"   // HorizontalAlignment / VerticalAlignment
 
@@ -40,13 +41,13 @@ namespace {
 
 // A test-local leaf with a real content extent (the S125 TextLikeLeaf pattern)
 // so the docked tracks are deterministic (content-sized, not default-boxed).
-class DockLeaf : public UIElement
+class DockLeaf : public vaml::FrameworkElement
 {
 public:
     explicit DockLeaf(vaml::Size content) : content_(content) {}
 
 protected:
-    vaml::Size MeasureOverride(const vaml::Size& available) const override
+    vaml::Size MeasureOverride(const vaml::Size& available) override
     {
         (void)available;
         return content_;

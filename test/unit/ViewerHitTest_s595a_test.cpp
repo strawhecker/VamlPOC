@@ -10,6 +10,7 @@
 // TU ViewerHitTest_s595a_pres_test.cpp.)
 
 #include <vaml/core/UIElement.h>
+#include "vaml/core/FrameworkElement.h"
 #include <vaml/core/Element.h>     // StackPanel (a real UIElement + a content leaf)
 #include <vaml/core/VamlReader.h>  // corpus-shaped authoring proof (Bool DP)
 
@@ -23,12 +24,12 @@ namespace {
 
 // A content-bearing leaf so a hand-built tree has a NON-degenerate final_rect
 // (the S593 alpha-test precedent: test-local, not a control seed).
-class Leaf : public UIElement
+class Leaf : public vaml::FrameworkElement
 {
 public:
     explicit Leaf(float w, float h) : extent_{ w, h } {}
 protected:
-    vaml::Size MeasureOverride(const vaml::Size& /*available*/) const override { return extent_; }
+    vaml::Size MeasureOverride(const vaml::Size& /*available*/) override { return extent_; }
 private:
     vaml::Size extent_;
 };

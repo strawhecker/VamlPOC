@@ -90,7 +90,7 @@ public:
     [[nodiscard]] bool IsEmpty() const noexcept override { return text_.empty(); }
 
     // --- Measure (the framework-element branch) ------------------------
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     // The value-domain body cargo the Save surface produces (the host's owned
@@ -122,7 +122,7 @@ public:
     [[nodiscard]] bool IsEmpty() const noexcept override { return strokes_.empty(); }
 
     // --- Measure (the framework-element branch) ------------------------
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     std::string strokes_;

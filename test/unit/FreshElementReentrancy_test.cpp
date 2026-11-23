@@ -27,6 +27,7 @@
 
 #include "vaml/core/Geometry.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 using vaml::Rect;
 using vaml::Size;
@@ -35,7 +36,7 @@ using vaml::UIElement;
 namespace {
 
 // Counts MeasureOverride / ArrangeOverride calls so a re-run is observable.
-class CountingLeaf : public UIElement
+class CountingLeaf : public vaml::FrameworkElement
 {
 public:
     explicit CountingLeaf(Size natural) : natural_(natural) {}
@@ -43,7 +44,7 @@ public:
     mutable int arrange_calls = 0;
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measure_calls;
         (void)available;
@@ -62,13 +63,13 @@ private:
 
 // Invalidates ITSELF from inside MeasureOverride -- the !MeasureInProgress guard
 // must suppress that invalidation (element ends clean, no recursion).
-class SelfInvalidatingLeaf : public UIElement
+class SelfInvalidatingLeaf : public vaml::FrameworkElement
 {
 public:
     mutable int measure_calls = 0;
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measure_calls;
         (void)available;
@@ -79,13 +80,13 @@ protected:
 
 // Invalidates ITSELF from inside ArrangeOverride -- the !ArrangeInProgress guard
 // must suppress that invalidation.
-class SelfInvalidatingArrangeLeaf : public UIElement
+class SelfInvalidatingArrangeLeaf : public vaml::FrameworkElement
 {
 public:
     mutable int arrange_calls = 0;
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         return Size{ 5.0f, 5.0f };

@@ -46,7 +46,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept { return child_count() ? child_at(0) : nullptr; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 

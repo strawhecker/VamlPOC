@@ -10,7 +10,7 @@
 //       WPF-true name).
 //
 // 11k-1 RETIRES the S087-invented `Text` name; the WPF-true `TextBlock`
-// (TextBlock : FrameworkElement; in VAML the UIElement branch) is the authored
+// (TextBlock : vaml::FrameworkElement; in VAML the UIElement branch) is the authored
 // text leaf. S167_1 corrective convention: the S400 `Text` history is preserved
 // (never edited to hide the error), SUPERSEDED BY 11k-1. NO-GAP: the general
 // content→DP routing + mixed/interleaved ordering is 11k-11's in-11k step —

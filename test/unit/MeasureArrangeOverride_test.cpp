@@ -36,6 +36,7 @@
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 #include <cstddef>
 
@@ -58,13 +59,13 @@ Rect rect_of(float x, float y, float w, float h)
 // (S129/400): MeasureOverride reports the natural extent; the S123 Measure
 // finalizes it (stretch-vs-wrap, infinity-aware) and S124 Arrange aligns it
 // inside a slot.
-class TextLikeLeaf : public UIElement
+class TextLikeLeaf : public vaml::FrameworkElement
 {
 public:
     explicit TextLikeLeaf(Size content) : content_(content) {}
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         return content_;
@@ -81,7 +82,7 @@ private:
 // the panel's children are arranged AUTOMATICALLY — the real StackPanel (S129)
 // adopts this exact pattern. measureCount_/arrangeCount_ let tests verify the
 // virtuals are actually invoked (the rename/auto-drive is live, not dead).
-class AutoDrivePanel : public UIElement
+class AutoDrivePanel : public vaml::FrameworkElement
 {
 public:
     int measureCount() const { return measureCount_; }
@@ -92,7 +93,7 @@ protected:
     // column offer (available width, unbounded height — a vertical stack lets
     // each child wrap to content vertically), then derive width = max of
     // children, height = sum of children.
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measureCount_;
         float width = 0.0f;

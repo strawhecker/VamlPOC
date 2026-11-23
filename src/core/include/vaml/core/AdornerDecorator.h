@@ -61,7 +61,7 @@ protected:
     // AdornerDecorator layout: MEASURE the Single content child (the S550
     // Decorator policy — the layer's box tracks the content, so the decorator
     // measures to the content's extent) + report the content's desired size.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
     // AdornerDecorator ARRANGE: arrange the content child to fill (the S550
     // policy) AND update the owned layer OVER the content's arranged box (the

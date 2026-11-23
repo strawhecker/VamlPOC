@@ -9,8 +9,250 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace vaml {
+
+namespace {
+
+// --- WPF DoubleUtil (RELATIVE epsilon) — a faithful port used by RoundLayoutValue
+//     (UIElement.cs:1079) and FindMaximalAreaLocalSpaceRect (FE.cs:4099-4282).
+//     Distinct from LayoutDoubleUtil (fixed epsilon, exposed in the header). ---
+constexpr double kDblEpsilon = 2.2204460492503131E-16; // Double.Epsilon analog
+
+bool du_are_close(double value1, double value2) noexcept
+{
+    if (value1 == value2)
+    {
+        return true;
+    }
+    const double eps = ((std::fabs(value1) + std::fabs(value2)) + 10.0) * kDblEpsilon;
+    const double delta = value1 - value2;
+    return (-eps < delta) && (eps > delta);
+}
+
+bool du_is_zero(double value) noexcept
+{
+    return std::fabs(value) < 2.22044604925031E-15;
+}
+
+bool du_greater_than_or_close(double value1, double value2) noexcept
+{
+    return (value1 > value2) || du_are_close(value1, value2);
+}
+
+bool du_less_than_or_close(double value1, double value2) noexcept
+{
+    return (value1 < value2) || du_are_close(value1, value2);
+}
+
+} // namespace
+
+// --- S842a MinMax (WPF FE.cs:4036-4066) -------------------------------------
+MinMax::MinMax(double feWidth, double feHeight,
+               double feMinWidth, double feMinHeight,
+               double feMaxWidth, double feMaxHeight) noexcept
+{
+    // Translate the WPF `new MinMax(FrameworkElement e)` folds exactly, with the
+    // DP values passed in place of the accessors.
+    maxHeight = feMaxHeight;
+    minHeight = feMinHeight;
+    double l = feHeight;
+
+    double height = std::isnan(l) ? std::numeric_limits<double>::infinity() : l;
+    maxHeight = std::max(std::min(height, maxHeight), minHeight);
+
+    height = std::isnan(l) ? 0.0 : l;
+    minHeight = std::max(std::min(maxHeight, height), minHeight);
+
+    maxWidth = feMaxWidth;
+    minWidth = feMinWidth;
+    l = feWidth;
+
+    double width = std::isnan(l) ? std::numeric_limits<double>::infinity() : l;
+    maxWidth = std::max(std::min(width, maxWidth), minWidth);
+
+    width = std::isnan(l) ? 0.0 : l;
+    minWidth = std::max(std::min(maxWidth, width), minWidth);
+}
+
+// --- S842a RoundLayoutValue / Size / Rect (WPF UIElement.cs:1079-1116) ------
+VAML_CORE_EXPORT
+double round_layout_value(double value, double dpiScale) noexcept
+{
+    double newValue;
+    if (!du_are_close(dpiScale, 1.0))
+    {
+        // std::nearbyint uses the current rounding mode (round-half-to-even by
+        // default) — matching .NET Math.Round(value*dpi).
+        newValue = std::nearbyint(value * dpiScale) / dpiScale;
+        // If rounding produces a value unacceptable to layout (NaN, Infinity,
+        // or MaxValue), use the original value.
+        if (std::isnan(newValue) || std::isinf(newValue) ||
+            du_are_close(newValue, std::numeric_limits<double>::max()))
+        {
+            newValue = value;
+        }
+    }
+    else
+    {
+        newValue = std::nearbyint(value);
+    }
+    return newValue;
+}
+
+VAML_CORE_EXPORT
+Size round_layout_size(Size size, DpiScale dpi) noexcept
+{
+    return Size{ static_cast<float>(round_layout_value(size.width, dpi.dpiScaleX)),
+                 static_cast<float>(round_layout_value(size.height, dpi.dpiScaleY)) };
+}
+
+VAML_CORE_EXPORT
+Rect round_layout_rect(Rect rect, DpiScale dpi) noexcept
+{
+    return Rect{ static_cast<float>(round_layout_value(rect.x, dpi.dpiScaleX)),
+                 static_cast<float>(round_layout_value(rect.y, dpi.dpiScaleY)),
+                 static_cast<float>(round_layout_value(rect.width, dpi.dpiScaleX)),
+                 static_cast<float>(round_layout_value(rect.height, dpi.dpiScaleY)) };
+}
+
+// --- S842a FindMaximalAreaLocalSpaceRect (WPF FE.cs:4099-4282) --------------
+VAML_CORE_EXPORT
+Size find_maximal_area_local_space_rect(const Matrix2D& transform,
+                                        Size transformSpaceBounds) noexcept
+{
+    // X (width) and Y (height) constraints for the axis-aligned bounding box in
+    // dest (transform) space.
+    double xConstr = transformSpaceBounds.width;
+    double yConstr = transformSpaceBounds.height;
+
+    // If either size is 0, return 0,0 to avoid math on an empty rect.
+    if (du_is_zero(xConstr) || du_is_zero(yConstr))
+    {
+        return Size{ 0.0f, 0.0f };
+    }
+
+    bool xConstrInfinite = std::isinf(xConstr);
+    bool yConstrInfinite = std::isinf(yConstr);
+
+    if (xConstrInfinite && yConstrInfinite)
+    {
+        return Size{ std::numeric_limits<float>::infinity(),
+                     std::numeric_limits<float>::infinity() };
+    }
+    else if (xConstrInfinite) // assume square for a one-dimensional constraint
+    {
+        xConstr = yConstr;
+    }
+    else if (yConstrInfinite)
+    {
+        yConstr = xConstr;
+    }
+
+    // Nonsingular matrices only (HasInverse <=> determinant != 0).
+    if (!transform.has_inverse())
+    {
+        return Size{ 0.0f, 0.0f };
+    }
+
+    const double a = transform.m11;
+    const double b = transform.m12;
+    const double c = transform.m21;
+    const double d = transform.m22;
+
+    double w = 0.0, h = 0.0;
+
+    if (du_is_zero(b) || du_is_zero(c))
+    {
+        // (b==0 || c==0) => a!=0 && d!=0
+        const double yCoverD = yConstrInfinite ? std::numeric_limits<double>::infinity()
+                                               : std::fabs(yConstr / d);
+        const double xCoverA = xConstrInfinite ? std::numeric_limits<double>::infinity()
+                                               : std::fabs(xConstr / a);
+        if (du_is_zero(b))
+        {
+            if (du_is_zero(c))
+            {
+                // b=0, c=0, a!=0, d!=0 — no constraint relation; maximal w, h.
+                h = yCoverD;
+                w = xCoverA;
+            }
+            else
+            {
+                // b==0, a!=0, c!=0, d!=0.
+                h = std::min(0.5 * std::fabs(xConstr / c), yCoverD);
+                w = xCoverA - ((c * h) / a);
+            }
+        }
+        else
+        {
+            // c==0, a!=0, b!=0, d!=0.
+            w = std::min(0.5 * std::fabs(yConstr / b), xCoverA);
+            h = yCoverD - ((b * w) / d);
+        }
+    }
+    else if (du_is_zero(a) || du_is_zero(d))
+    {
+        // (a==0 || d==0) => b!=0 && c!=0
+        const double yCoverB = std::fabs(yConstr / b);
+        const double xCoverC = std::fabs(xConstr / c);
+        if (du_is_zero(a))
+        {
+            if (du_is_zero(d))
+            {
+                // a=0, d=0, b!=0, c!=0 — no constraint relation.
+                h = xCoverC;
+                w = yCoverB;
+            }
+            else
+            {
+                // a==0, b!=0, c!=0, d!=0.
+                h = std::min(0.5 * std::fabs(yConstr / d), xCoverC);
+                w = yCoverB - ((d * h) / b);
+            }
+        }
+        else
+        {
+            // d==0, a!=0, b!=0, c!=0.
+            w = std::min(0.5 * std::fabs(xConstr / a), yCoverB);
+            h = xCoverC - ((a * w) / c);
+        }
+    }
+    else
+    {
+        const double xCoverA = std::fabs(xConstr / a); // w-intercept of x-constraint line
+        const double xCoverC = std::fabs(xConstr / c); // h-intercept of x-constraint line
+        const double yCoverB = std::fabs(yConstr / b); // w-intercept of y-constraint line
+        const double yCoverD = std::fabs(yConstr / d); // h-intercept of y-constraint line
+
+        // The optimal point (w,h) maximizing Area=w*h occurs halfway to each
+        // intercept.
+        w = std::min(yCoverB, xCoverA) * 0.5;
+        h = std::min(xCoverC, yCoverD) * 0.5;
+
+        if ((du_greater_than_or_close(xCoverA, yCoverB) &&
+             du_less_than_or_close(xCoverC, yCoverD)) ||
+            (du_less_than_or_close(xCoverA, yCoverB) &&
+             du_greater_than_or_close(xCoverC, yCoverD)))
+        {
+            // Constraint lines cross; maximize w*h under the line segment from
+            // the two smallest endpoints, then scale up until it uses all the
+            // available area in at least one dimension.
+            const Rect childBoundsTr = transform.rect_transform(
+                Rect{ 0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h) });
+            const double expandFactor = std::min(xConstr / childBoundsTr.width,
+                                                 yConstr / childBoundsTr.height);
+            if (!std::isnan(expandFactor) && !std::isinf(expandFactor))
+            {
+                w *= expandFactor;
+                h *= expandFactor;
+            }
+        }
+    }
+
+    return Size{ static_cast<float>(w), static_cast<float>(h) };
+}
 
 VAML_CORE_EXPORT
 arrange_result compute_final_rect(const LayoutSlot& slot,

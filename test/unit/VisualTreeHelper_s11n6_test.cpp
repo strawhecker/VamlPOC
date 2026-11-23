@@ -6,7 +6,7 @@
 //   - Media\VisualTreeHelper.cs: static GetChildrenCount(Visual),
 //     GetChild(Visual,int), GetParent(DependencyObject) — all walk the visual
 //     children/parent.
-//   - Documents\Adorner.cs: `Adorner : FrameworkElement`, AdornedElement
+//   - Documents\Adorner.cs: `Adorner : vaml::FrameworkElement`, AdornedElement
 //     (read-only), MeasureOverride defaults to the adorned element's
 //     RenderSize, GetDesiredTransform virtual filter, IsClipEnabled default
 //     false.

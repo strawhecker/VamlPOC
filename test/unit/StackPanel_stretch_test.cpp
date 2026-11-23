@@ -35,6 +35,7 @@
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 using vaml::HorizontalAlignment;
 using vaml::Orientation;
@@ -51,7 +52,7 @@ namespace {
 // offer (MeasureOverride) + final slot (ArrangeOverride) it receives. The S125
 // TextLikeLeaf + S128 DirtyLeaf pattern: both axes observable per leaf, and the
 // cross-axis/stack-axis offers the panel actually makes are provable.
-class RecorderLeaf : public UIElement
+class RecorderLeaf : public vaml::FrameworkElement
 {
 public:
     explicit RecorderLeaf(Size content) : content_(content) {}
@@ -62,7 +63,7 @@ public:
     Rect last_slot() const noexcept { return lastSlot; }
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         lastAvailable = available;
         ++measureCalls;
@@ -159,13 +160,16 @@ TEST_CASE("S130 A4: non-Stretch panel + finite available -> desired = min(natura
     SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
     SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
 
-    // S827: content is UN-CLAMPED to the offer even here. A smaller offer does
-    // not shrink the DesiredSize — children (Left) still report their content,
-    // so panel natural stays {maxW=100, Σh=50}; the render slot is bounded at
-    // Arrange, not Measure.
+    // S842.7 (WPF MeasureCore clamp-pair): a SMALLER offer now CLAMPS the panel's
+    // parent-facing DesiredSize to the offer (100,50 content -> 40,30). The true
+    // content extent is kept in unclipped_desired_size() for the arrange child-wins
+    // math (WPF FE.cs:4452-4461 / 4489-4500) — the render slot is restored at
+    // Arrange, but Measure's parent-facing size is clamped.
     panel.Measure(Size{ 40.0f, 30.0f });
-    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(100.0f));
-    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(50.0f));
+    SHOULD(ShouldlyString(panel.desired_size().width).ShouldBe(40.0f));   // clamped
+    SHOULD(ShouldlyString(panel.desired_size().height).ShouldBe(30.0f));  // clamped
+    SHOULD(ShouldlyString(panel.unclipped_desired_size().width).ShouldBe(100.0f));  // content
+    SHOULD(ShouldlyString(panel.unclipped_desired_size().height).ShouldBe(50.0f));  // content
 }
 
 TEST_CASE("S130 A4h: horizontal mirror of the non-Stretch desired rule")

@@ -65,7 +65,7 @@ public:
     ~Panel() override;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -87,7 +87,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -113,7 +113,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -140,7 +140,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -171,7 +171,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -204,7 +204,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -225,7 +225,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -245,7 +245,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -268,7 +268,7 @@ public:
     [[nodiscard]] UIElement* items_host() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -385,7 +385,7 @@ public:
     GridViewRowPresenter();
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT GridViewHeaderRowPresenter final : public GridViewRowPresenterBase
@@ -394,7 +394,7 @@ public:
     GridViewHeaderRowPresenter();
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT GridViewColumnHeader final : public FrameworkElement
@@ -411,7 +411,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -460,7 +460,7 @@ public:
     [[nodiscard]] bool is_virtualizing() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 

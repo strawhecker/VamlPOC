@@ -35,6 +35,7 @@
 #include "vaml/core/Geometry.h"
 #include "vaml/core/LayoutManager.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 using vaml::Rect;
 using vaml::Size;
@@ -51,7 +52,7 @@ Rect rect_of(float x, float y, float w, float h)
 // MeasureOverride seam is virtual, so a leaf can observe how many times it is
 // measured) and to carry a per-instance desired size. Arrange dirty-respect is
 // observed via final_rect() changes, not a per-instance arrange counter.
-class CountingLeaf : public UIElement
+class CountingLeaf : public vaml::FrameworkElement
 {
 public:
     explicit CountingLeaf(Size content) : content_(content) {}
@@ -59,7 +60,7 @@ public:
     int measureCount() const { return measureCount_; }
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measureCount_;
         (void)available;
@@ -77,7 +78,7 @@ private:
 // is NOT re-measured); a dirty-aware arrange re-arranges ONLY dirty children
 // (a clean child's final_rect is left untouched). measureCount_ lets a test
 // assert exactly one measure pass collapses many invalidations.
-class DirtyAwarePanel : public UIElement
+class DirtyAwarePanel : public vaml::FrameworkElement
 {
 public:
     int measureCount() const { return measureCount_; }
@@ -107,7 +108,7 @@ protected:
     // The panel's own content is its children: re-measure ONLY dirty children
     // against a column offer (available width, unbounded height), reuse clean
     // children's stored desired_size(), derive width = max + height = sum.
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measureCount_;
         float width = 0.0f;

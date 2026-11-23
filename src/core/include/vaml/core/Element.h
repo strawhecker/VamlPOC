@@ -159,7 +159,7 @@ protected:
     // reports a bounded default box (the S400_1 nominal 20x16 button slot). The
     // base ArrangeOverride is the no-op (a leaf places nothing); the default
     // fill quad is emitted by the vulkan classifier (MaterialKind::Solid).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     // The default implicit Button template's VisualState set (built once, S363/
@@ -210,7 +210,7 @@ protected:
     // {Σ child w, max child h}) and re-measures ONLY dirty children (S128);
     // ArrangeOverride stacks children and gives the LAST child the remaining
     // track (last-child-stretch), re-arranging ONLY dirty children (S128).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -285,7 +285,7 @@ protected:
     // cell, re-measuring ONLY dirty children (S128); ArrangeOverride places
     // each cell child at its cell origin + size, re-arranging ONLY dirty
     // children (S128). Basic no-span scope: spans are S132's named step.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -334,7 +334,7 @@ protected:
     // height} (Vertical); arrange lays children into row/column slots honoring
     // each child's own alignment within the row extent. Dirty-respect (S128):
     // re-measure/re-arrange ONLY dirty children.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -390,7 +390,7 @@ protected:
     // origin {eff_Left, eff_Top} at its measured natural size, honoring the
     // child's own alignment + margin (compute_final_rect, S124/S130_1),
     // re-arranging ONLY dirty children (S128).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -441,7 +441,7 @@ protected:
     // children unbounded + accumulates the consumed dock tracks; the last
     // (Fill) child takes the remaining slot. ArrangeOverride places children
     // at cumulative dock origins. Dirty-respect (S128).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -530,7 +530,7 @@ protected:
     // base no-op (a leaf places nothing). The render-time glyph emitter
     // (build_text_glyph_items, vulkan) re-runs the same wrap rule with the REAL
     // atlas advances.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // S400_1 (dep:S400) — the REAL Icon control (per ADR-015). Re-based onto
@@ -639,7 +639,7 @@ protected:
     // a bounded offer wraps to the DP extent or the natural size). The base
     // ArrangeOverride is the no-op (a leaf places nothing); the render quad is
     // emitted by the vulkan classifier.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // TextBox — REAL control (S402). RESOLVES the S087 MINIMAL REAL seed at its own
@@ -745,7 +745,7 @@ protected:
     // `available` via the S400 text_layout_plan (multi-line growth when
     // AcceptsReturn) and reports a bounded default box; the caret/selection
     // dictate the edit model. The base ArrangeOverride is the no-op.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     // The caret + selection (inline member state — a small, real model).
@@ -813,7 +813,7 @@ public:
 protected:
     // S404 real CheckBox algorithm: the default check-box slot box; the rendered
     // glyph is the vulkan classifier. The S123 finalizer applies the rule.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onCheckedChanged_;
@@ -859,7 +859,7 @@ public:
 protected:
     // S471 real RadioButton algorithm: the default check-box slot box; the
     // rendered glyph is the vulkan classifier.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onCheckedChanged_;
@@ -927,7 +927,7 @@ protected:
     // S403 real Slider algorithm: the default track box at the arranged extent;
     // the S123 finalizer applies the stretch-vs-wrap rule. The rendered track +
     // thumb is the vulkan classifier (deferred to S409_1 for the live draw).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onValueChanged_;
@@ -997,7 +997,7 @@ protected:
     // S405 real ScrollViewer algorithm: MeasureOverride reports the viewport
     // (the arranged box); the S123 finalizer applies the rule. The rendered
     // scrollbar + clip is the vulkan classifier (deferred to S409_1).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     double vertical_   = 0.0;
@@ -1064,7 +1064,7 @@ public:
 protected:
     // S472 real ComboBox algorithm: the default combo box slot; the rendered
     // field + arrow is the vulkan classifier.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onSelectionChanged_;
@@ -1126,7 +1126,7 @@ public:
 
 protected:
     // S473 real ListBox algorithm: the default list box slot.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onSelectionChanged_;
@@ -1186,7 +1186,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onSelectionChanged_;
@@ -1215,7 +1215,7 @@ public:
     [[nodiscard]] bool children_visible() const noexcept { return is_expanded(); }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     UIElement* headerContent_ = nullptr;
@@ -1301,7 +1301,7 @@ public:
     [[nodiscard]] std::int32_t day_number() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // CalendarButton — a month/year navigation cell (DisplayDate surface).
@@ -1315,7 +1315,7 @@ public:
     [[nodiscard]] bool is_selected() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // CalendarItem — the calendar's month-grid host (display day-mode + the
@@ -1330,7 +1330,7 @@ public:
     [[nodiscard]] std::int64_t display_date() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // Calendar — the full calendar control (DisplayDate/SelectedDate/
@@ -1357,7 +1357,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& selected_dates_changed() { return onSelectedDatesChanged_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     CalendarBlackoutDatesCollection blackout_;
@@ -1375,7 +1375,7 @@ public:
     [[nodiscard]] std::int64_t selected_date() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // DatePicker — the full date-picker control (SelectedDate/DisplayDate/
@@ -1395,7 +1395,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& selected_date_changed() { return onSelectedDateChanged_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onSelectedDateChanged_;
@@ -1428,7 +1428,7 @@ public:
     [[nodiscard]] std::shared_ptr<Brush> background() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT InkPresenter final : public FrameworkElement
@@ -1442,7 +1442,7 @@ public:
     [[nodiscard]] std::string strokes() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // MediaElement — REAL (S554). Media surface + the Media* routed identities.
@@ -1464,7 +1464,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& media_failed() { return onMediaFailed_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onMediaOpened_;
@@ -1489,7 +1489,7 @@ public:
     [[nodiscard]] std::string content() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT Frame final : public FrameworkElement
@@ -1505,7 +1505,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& navigation_completed() { return onNavCompleted_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onNavCompleted_;
@@ -1522,7 +1522,7 @@ public:
     [[nodiscard]] std::string document() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT DocumentViewer final : public DocumentViewerBase
@@ -1551,7 +1551,7 @@ public:
     [[nodiscard]] std::string document() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT Window final : public FrameworkElement
@@ -1583,7 +1583,7 @@ protected:
     // arranges the content child to fill the Window's final rect (implicit
     // single-child layout). The base clip (LayoutSlot clip_to_bounds) clips
     // content to the window box.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -1635,7 +1635,7 @@ protected:
     // UserControl sizes to its content within the offered bounds); ArrangeOverride
     // arranges the content child to FILL its final rect (implicit single-child
     // layout — a UserControl root RENDERS its content).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -1768,7 +1768,7 @@ public:
     [[nodiscard]] std::int32_t horizontal_content_alignment() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // Border — REAL control (S481). A WPF-faithful single-content decorator that
@@ -1817,7 +1817,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -1858,7 +1858,7 @@ public:
     // is the inherited base Width/Height + the S123 stretch-vs-wrap finalizer.
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT Ellipse final : public FrameworkElement
@@ -1874,7 +1874,7 @@ public:
     [[nodiscard]] double stroke_thickness() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT Line final : public FrameworkElement
@@ -1893,7 +1893,7 @@ public:
     // thickness drives the cross-axis rule height.
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // ===========================================================================
@@ -1952,7 +1952,7 @@ public:
     [[nodiscard]] std::int32_t fill_rule() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     std::shared_ptr<void> state_; // owned parsed figure stream (S039 opaque state slot)
@@ -1978,7 +1978,7 @@ public:
     [[nodiscard]] std::int32_t fill_rule() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     std::shared_ptr<void> state_;
@@ -1995,7 +1995,7 @@ public:
     [[nodiscard]] bool parsed() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     std::shared_ptr<void> state_;
@@ -2022,7 +2022,7 @@ public:
     [[nodiscard]] double value() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 class VAML_CORE_EXPORT TickBar : public FrameworkElement
@@ -2042,7 +2042,7 @@ public:
     [[nodiscard]] bool is_direction_reversed() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // Image — REAL control (S483). Rides the S400_1/S202_1 icon asset pipeline: it
@@ -2075,7 +2075,7 @@ public:
     // S123 reconciler applies them, recorded NO-GAP not silent).
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // ProgressBar — REAL control (S484). A determinate progress indicator: Value
@@ -2108,7 +2108,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& value_changed() { return onValueChanged_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onValueChanged_;
@@ -2143,7 +2143,7 @@ public:
     [[nodiscard]] bool handle_key(vaml::KeyCode key, bool isDown, bool shift);
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     std::size_t caret_ = 0;
@@ -2166,7 +2166,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -2186,7 +2186,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -2203,7 +2203,7 @@ public:
     [[nodiscard]] double thickness() const;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // StatusBar — REAL control (S485). A docking item host that lays out its
@@ -2221,7 +2221,7 @@ public:
     [[nodiscard]] static std::int32_t dock(const DependencyObject& obj);
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -2286,7 +2286,7 @@ protected:
     // 11k-2 real ScrollBar algorithm: a default track box (the scrollbar slot);
     // the S123 finalizer applies the stretch-vs-wrap rule. The thumb + the
     // page-up/down chrome is the S649 continuation.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onScrollChanged_;
@@ -2336,7 +2336,7 @@ protected:
     // 11k-2 real RepeatButton algorithm: a bounded default button box; the
     // S123 finalizer applies the stretch-vs-wrap. The repeat timer loop is the
     // S649 continuation.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // Viewbox — REAL control (11k-2). The scale-contain single-child container
@@ -2370,7 +2370,7 @@ protected:
     // offered box and report its desired size; the scale-contain to the box is
     // the S123 finalizer + the stretch policy (the content child fills the
     // viewbox box via the decorator layout).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -2407,7 +2407,7 @@ protected:
     // orientation (children stack along the flow axis — the StackPanel-style
     // strip). The S123 finalizer applies the stretch-vs-wrap. The overflow
     // chrome is the S649 continuation.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -2431,7 +2431,7 @@ protected:
     // 11k-2 real ToolBarTray algorithm: lays its ToolBar children along the
     // tray orientation (a StackPanel-style host). The S123 finalizer applies
     // the stretch-vs-wrap.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -2476,7 +2476,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -2513,7 +2513,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 
 private:
@@ -2586,7 +2586,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& checked_changed() { return onCheckedChanged_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onCheckedChanged_;
@@ -2607,7 +2607,7 @@ public:
     [[nodiscard]] std::size_t item_count() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
     vaml::Size ArrangeOverride(vaml::Size finalSize) override;
 };
 
@@ -2644,7 +2644,7 @@ public:
     [[nodiscard]] std::size_t item_count() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onOpened_;
@@ -2685,7 +2685,7 @@ public:
     [[nodiscard]] UIElement* content() const noexcept;
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onOpened_;
@@ -2722,7 +2722,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& closed() { return onClosed_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onOpened_;
@@ -2765,7 +2765,7 @@ public:
     [[nodiscard]] vaml::GridLength drag_resize_track(vaml::GridLength current, double delta);
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 };
 
 // DataGrid — REAL control (S494). A NATIVE VAML analog (NOT a 3rd-party clone):
@@ -2847,7 +2847,7 @@ public:
     [[nodiscard]] vaml::Signal<void()>& selection_changed() { return onSelectionChanged_; }
 
 protected:
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     vaml::Signal<void()> onSelectionChanged_;
@@ -2920,7 +2920,7 @@ protected:
     // TextBox precedent); the S123 finalizer applies the stretch-vs-wrap. The
     // rendered chrome is the vulkan classifier (Solid); the document text via
     // the SDF glyph path is the S409_1/S400 render lane (recorded NO-GAP).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     std::unique_ptr<FlowDocument> doc_;   // the OWNED single content (Document)

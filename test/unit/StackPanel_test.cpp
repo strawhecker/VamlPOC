@@ -39,6 +39,7 @@
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/PropertyId.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 #include "vaml/core/Value.h"
 
 using vaml::DependencyObject;
@@ -57,7 +58,7 @@ namespace {
 // counting BOTH MeasureOverride + ArrangeOverride so both axes are observable
 // per leaf (the S128 DirtyLeaf discipline). MeasureOverride is const, so the
 // measure counter is mutable; ArrangeOverride is non-const.
-class CountingLeaf : public UIElement
+class CountingLeaf : public vaml::FrameworkElement
 {
 public:
     explicit CountingLeaf(Size content) : content_(content) {}
@@ -66,7 +67,7 @@ public:
     int arrange_count() const noexcept { return arrangeCalls; }
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         ++measureCalls;

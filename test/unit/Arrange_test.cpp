@@ -27,6 +27,7 @@
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/Thickness.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 #include <limits>     // S835 — std::numeric_limits (Inf/NaN slot literals)
 #include <stdexcept>  // S835 — std::invalid_argument (the arrange-entry guard)
@@ -51,13 +52,13 @@ Rect rect_of(float x, float y, float w, float h)
 // seam — the exact pattern S129/400's panel/Text overrides will use. Its
 // Measured DesiredSize drives the Arrange slot so the pairing is concrete,
 // not trivial.
-class ContentLeaf : public UIElement
+class ContentLeaf : public vaml::FrameworkElement
 {
 public:
     explicit ContentLeaf(Size natural) : natural_(natural) {}
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         return natural_;
@@ -70,13 +71,13 @@ private:
 // S835 — a leaf whose natural extent == the offered size, so the CONSTRAINT the
 // Measure backfill used (the slot size vs the previous constraint) is
 // observable in the resulting desired_size()/final_rect().
-class AvailLeaf : public UIElement
+class AvailLeaf : public vaml::FrameworkElement
 {
 public:
     AvailLeaf() = default;
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         return available;
     }
@@ -116,7 +117,7 @@ TEST_CASE("S124: Arrange writes final_rect() — non-Stretch alignment pins insi
 
 TEST_CASE("S124: Arrange honors Margin (origin advances; slot shrinks)")
 {
-    UIElement el;
+    vaml::FrameworkElement el;
     (void)el.set_margin(Thickness{ 10.0f, 20.0f, 5.0f, 5.0f });
     // Slot 100x50 at origin, margins 10/20/5/5: available = 85x25, origin
     // advances to (10,20); Stretch fills the remaining.

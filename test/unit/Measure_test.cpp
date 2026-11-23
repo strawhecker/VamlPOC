@@ -25,6 +25,7 @@
 #include "vaml/core/Geometry.h"
 #include "vaml/core/LayoutSlot.h"
 #include "vaml/core/UIElement.h"
+#include "vaml/core/FrameworkElement.h"
 
 #include <limits>
 
@@ -40,13 +41,13 @@ namespace {
 // A test-local leaf that carries a real content extent through the S127 seam.
 // Mirrors what S129/400 Text/panel overrides do: MeasureOverride reports the
 // un-finalized content size for the given available bound.
-class ContentLeaf : public UIElement
+class ContentLeaf : public vaml::FrameworkElement
 {
 public:
     explicit ContentLeaf(Size natural) : natural_(natural) {}
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         // S127 content seam: ignore `available` for a fixed-extent leaf and
         // report the natural extent (proves Measure is alignment/offer
@@ -60,14 +61,14 @@ private:
 };
 
 // A leaf that counts MeasureOverride invocations (for the S829 clean early-out).
-class CountingLeaf : public UIElement
+class CountingLeaf : public vaml::FrameworkElement
 {
 public:
     explicit CountingLeaf(Size natural) : natural_(natural) {}
     mutable int measure_calls = 0;
 
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         ++measure_calls;
         (void)available;
@@ -80,10 +81,10 @@ private:
 
 // A leaf whose MeasureOverride re-enters Measure on ITSELF — the S829 reentrancy
 // guard must make that a no-op (never infinite recursion / stack overflow).
-class RecursiveLeaf : public UIElement
+class RecursiveLeaf : public vaml::FrameworkElement
 {
 protected:
-    Size MeasureOverride(const Size& available) const override
+    Size MeasureOverride(const Size& available) override
     {
         (void)available;
         const_cast<RecursiveLeaf*>(this)->Measure(Size{ 10.0f, 10.0f });
@@ -148,13 +149,18 @@ TEST_CASE("S828: content leaf on a finite offer reports its CONTENT, not the off
     SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(20.0f));
 }
 
-TEST_CASE("S827: content leaf DesiredSize MAY EXCEED the offer (un-clamped content)")
+TEST_CASE("S842: DesiredSize is CLAMPED to the offer; UnclippedDesiredSize keeps the content")
 {
     ContentLeaf leaf{ Size{ 500.0f, 300.0f } };
     leaf.Measure(Size{ 100.0f, 50.0f });
-    // The signal WPF's measure contract must carry: the child needs 500x300.
-    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(500.0f));
-    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(300.0f));
+    // S842.7 (WPF MeasureCore clamp-pair, FE.cs:4452-4461): the parent-facing
+    // DesiredSize is CLAMPED to the offer; the true content extent is retained in
+    // UnclippedDesiredSize (the SizeBox, FE.cs:4489-4500) for the ArrangeCore
+    // child-wins math.
+    SHOULD(ShouldlyString(leaf.desired_size().width).ShouldBe(100.0f));   // clamped
+    SHOULD(ShouldlyString(leaf.desired_size().height).ShouldBe(50.0f));   // clamped
+    SHOULD(ShouldlyString(leaf.unclipped_desired_size().width).ShouldBe(500.0f));   // content
+    SHOULD(ShouldlyString(leaf.unclipped_desired_size().height).ShouldBe(300.0f));  // content
 }
 
 TEST_CASE("S832: the arrange-side render slot is child-wins — the child keeps its unclipped size + needs_clip")

@@ -583,6 +583,32 @@ const vaml::Size& UIElement::desired_size() const noexcept
     return desired_size_;
 }
 
+// --- S842.7 UnclippedDesiredSize (the clamp-pair) ---------------------------
+
+VAML_CORE_EXPORT
+const vaml::Size& UIElement::unclipped_desired_size() const noexcept
+{
+    return unclipped_desired_size_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::has_unclipped_desired_size() const noexcept
+{
+    return has_unclipped_desired_size_;
+}
+
+VAML_CORE_EXPORT
+void UIElement::publish_measure_result(const vaml::Size& desired,
+                                       const vaml::Size& unclipped,
+                                       bool hasUnclipped)
+{
+    // The WPF MeasureCore writes: the clamped DesiredSize + the UnclippedDesired
+    // SizeBox. FrameworkElement::MeasureCore (final) is the only caller.
+    desired_size_              = desired;
+    unclipped_desired_size_    = unclipped;
+    has_unclipped_desired_size_ = hasUnclipped;
+}
+
 VAML_CORE_EXPORT
 const vaml::Rect& UIElement::final_rect() const noexcept
 {
@@ -713,32 +739,21 @@ double UIElement::height() const
     return Get(PropertyId::of("Height", "FrameworkElement")).get<double>();
 }
 
-// Applies an EXPLICIT Width/Height to an axis's natural measured extent.
-// WPF-faithful (an explicit FrameworkElement.Width is a hard constraint,
-// clamped to the offer — never negative): returns the explicit value when it is
-// a POSITIVE double, otherwise the natural extent unchanged. NaN or 0 = auto.
-constexpr float reconcile_axis(double explicitValue, float natural) noexcept
-{
-    if (explicitValue > 0.0)
-    {
-        // Clamp explicit >= 0 (never negative geometry). NaN never slips in:
-        // `explicitValue > 0.0` is false for NaN.
-        return std::max(0.0f, static_cast<float>(explicitValue));
-    }
-    return natural;
-}
+// --- S842.6: reconcile_axis MOVED to FrameworkElement.cpp (the FE::MeasureCore
+// body consumes it; UIElement no longer measures content — its core returns
+// {0,0}). ---
 
 // --- S123 Measure contract ------------------------------------------------
 
 VAML_CORE_EXPORT
-Size UIElement::MeasureOverride(const Size& available) const
+Size UIElement::MeasureCore(const Size& availableSize)
 {
-    // Base UIElement has no content; a leaf with content (Text) or a panel
-    // with children measures its content in its S129/S131/S400 override. This
-    // is the S127 MeasureOverride seam (upgraded from S123's
-    // measure_natural_size). `available` is unused by the base (no content),
-    // so silence the unused-parameter diagnostic.
-    (void)available;
+    // S842.6 seam split (WPF UIElement.cs:1030-1033): the UIElement base
+    // MeasureCore returns `new Size()` — the element has no content. The REAL
+    // measure body (margin strip + Width/Height/Min/Max reconcile + the
+    // finalizer) lives on FrameworkElement::MeasureCore (final), which every
+    // concrete element derives. Measure() is the pass protocol that calls this.
+    (void)availableSize;
     return Size{ 0.0f, 0.0f };
 }
 
@@ -852,32 +867,16 @@ void UIElement::Measure(const Size& available)
 
     const MeasureReentrancyGuard reentrancy_guard(measure_in_progress_);
 
-    const Thickness m = margin();
-    const float innerAvailW = std::max(0.0f, available.width - m.left - m.right);
-    const float innerAvailH = std::max(0.0f, available.height - m.top - m.bottom);
-    const Size inner{ innerAvailW, innerAvailH };
-
-    const Size natural0 = MeasureOverride(inner);
-    // WPF-style explicit Width/Height: an explicit POSITIVE value becomes the
-    // axis's natural extent (a hard constraint); NaN/0 leave the content extent
-    // unchanged (auto). Never negative.
-    const Size natural = {
-        reconcile_axis(width(), natural0.width),
-        reconcile_axis(height(), natural0.height),
-    };
-    Size d = vaml::compute_measured_desired(natural);
-
-    d.width += m.left + m.right;
-    d.height += m.top + m.bottom;
-    // S830: the DesiredSize BEFORE this pass — the WPF `Size prevSize =
-    // _desiredSize;` capture (UIElement.cs:620) that feeds the measure-side
-    // waterfall below.
+    // S842.7: capture the DesiredSize BEFORE this pass — the WPF `Size prevSize =
+    // _desiredSize;` (UIElement.cs:620) that feeds the measure-side waterfall.
+    // MUST be read before MeasureCore (which publishes the new clamped size).
     const Size prevSize = desired_size_;
-    // S827: NOT clamped to the offered size — DesiredSize may exceed it.
-    desired_size_ = {
-        std::max(0.0f, d.width),
-        std::max(0.0f, d.height),
-    };
+
+    // S842.6 seam split: the REAL measure body (the 22-leg WPF MeasureCore) now
+    // lives on FrameworkElement::MeasureCore (final). UIElement::Measure runs the
+    // WPF pass protocol (guards above) and delegates here. MeasureCore publishes
+    // the clamped DesiredSize + the UnclippedDesiredSize SizeBox (S842.7).
+    (void)MeasureCore(available);
 
     previous_available_ = available;
     // A completed Measure pass clears this element's measure-dirty flag (S126).
@@ -963,14 +962,38 @@ void UIElement::signal_desired_size_change()
 // --- S124 Arrange contract --------------------------------------------------
 
 VAML_CORE_EXPORT
-Size UIElement::ArrangeOverride(Size finalSize)
+void UIElement::ArrangeCore(const Rect& finalRect)
 {
-    // S841 (WPF FrameworkElement.cs:5111-5113): the base ArrangeOverride RETURNS
-    // the passed size — the ink (RenderSize) equals the arrange slot by default,
-    // so a line-for-line element renders identically (the backward-compatible
-    // safety net). A panel overrides this to lay out children AND may return a
-    // differing ink; its world slot is recovered from layout_offset() + finalSize.
-    return finalSize;
+    // S842.6 seam split (WPF UIElement.cs ArrangeCore base): the UIElement base
+    // arrange writes only the minimal RenderSize/offset state — the element
+    // fills its slot by default. The REAL arrange body (child-wins-then-clip
+    // final-rect math + margin/alignment/ink/offset) lives on
+    // FrameworkElement::ArrangeCore (final), which every concrete element
+    // derives. Behavior preserved 1:1 for a bare UIElement (== the old
+    // compute_final_rect result for a zero-desired Stretch element: fills the
+    // slot, no clip).
+    final_rect_    = finalRect;
+    layout_offset_ = vaml::Point{ finalRect.x, finalRect.y };
+    render_size_   = vaml::Size{ finalRect.width, finalRect.height };
+    needs_clip_    = false;
+    clip_rect_     = vaml::Rect{};
+}
+
+VAML_CORE_EXPORT
+bool UIElement::get_layout_clip(const vaml::Size& layoutSlotSize, vaml::Rect& clipRect)
+{
+    // S842.6 seam split (WPF UIElement.GetLayoutClip, UIElement.cs:3322-3333):
+    //   if (ClipToBounds) return new RectangleGeometry(new Rect(RenderSize));
+    //   else return null;
+    // The FrameworkElement override (FE.cs:4946-5105) supplies the 5-branch
+    // slot-client clip. Base produces a clip only under ClipToBounds.
+    (void)layoutSlotSize;
+    if (clip_to_bounds())
+    {
+        clipRect = vaml::Rect{ 0.0f, 0.0f, render_size_.width, render_size_.height };
+        return true;
+    }
+    return false;
 }
 
 VAML_CORE_EXPORT
@@ -1042,37 +1065,19 @@ void UIElement::Arrange(const Rect& arrangeSlot)
         }
     }
 
-    // (d-pre) ArrangeCore analogue: consume the (now fresh) desired_size_ +
-    //         margin + alignments; child-wins-then-clip (S832).
-    const LayoutSlot slot{ arrangeSlot };
-    const vaml::arrange_result ar = vaml::compute_final_rect(
-        slot, desired_size(), margin(), horizontal_alignment(), vertical_alignment());
-    // S832: the arranged rect MAY exceed the slot (child-wins); store the
-    // UNCLIPPED final_rect_ (= the ARRANGE SLOT) + the NeedsClipBounds mirror.
-    final_rect_ = ar.rect;
-    // S841: the ANCHOR (layout offset) = the arrange-rect origin, tracked
-    // distinct from the ink (SetLayoutOffset analogue, FE.cs:4788).
-    layout_offset_ = vaml::Point{ ar.rect.x, ar.rect.y };
-    needs_clip_ = ar.needs_clip;
+    // S842.6 seam split: the REAL arrange body (child-wins-then-clip
+    // compute_final_rect + margin/alignment/ink/offset + the GetLayoutClip
+    // slot-client rect) now lives on FrameworkElement::ArrangeCore (final),
+    // which publishes final_rect_/layout_offset_/render_size_/needs_clip_/
+    // clip_rect_ atomically. UIElement::Arrange runs the WPF pass protocol
+    // (guards above + tail below) and delegates. Behavior preserved 1:1.
+    ArrangeCore(arrangeSlot);
 
-    // S841/S127/S832: hand the element its ARRANGE SIZE (the slot's size) so a
-    // panel arranges its children into it, and store the INK it returns (WPF
-    // FrameworkElement.cs:4697/4720-4721 `RenderSize = ArrangeOverride(...)`).
-    // Base returns the passed size ⇒ ink == slot (existing elements identical).
-    const vaml::Size ink = ArrangeOverride(vaml::Size{ ar.rect.width, ar.rect.height });
-    render_size_ = ink;
-    // S841: re-base the NeedsClipBounds ink leg onto the INK (WPF
-    // `clientSize < clippedInkSize`, FE.cs:4776-4785). Reduces to ar.needs_clip
-    // when ink == arrange (the default), so a fitting element on a matching ink
-    // produces no clip.
-    needs_clip_ = ar.needs_clip
-               || (ar.clip_rect.width  < ink.width)
-               || (ar.clip_rect.height < ink.height);
-
-    // (d) ensureClip (WPF UIElement.cs:884 -> 3056): refresh the render-slot
-    //     clip from the slot-client window. Applied by the S208 renderer only
-    //     when `needs_clip() || clip_to_bounds()` (S833/S834 gate).
-    ensure_clip(ar.clip_rect);
+    // (d) ensureClip (WPF UIElement.cs:884 -> 3056): ArrangeCore already
+    //     published the slot-client clip into clip_rect_; this refresh keeps the
+    //     WPF "ensureClip(finalRect.Size)" call site in Arrange (idempotent). The
+    //     S208 renderer applies it only when needs_clip() || clip_to_bounds().
+    ensure_clip(clip_rect());
 
     // WPF tail: `_finalRect = finalRect; ArrangeDirty = false;`.
     arrange_slot_ = arrangeSlot;
@@ -1165,6 +1170,135 @@ VAML_CORE_EXPORT
 bool UIElement::is_layout_dirty() const noexcept
 {
     return is_measure_dirty() || is_arrange_dirty();
+}
+
+// --- S842a pass scaffolding (WPF UIElement/FrameworkElement) ----------------
+
+VAML_CORE_EXPORT
+const vaml::Size& UIElement::previous_constraint() const noexcept
+{
+    // WPF PreviousConstraint == _previousAvailableSize (the same store as
+    // previous_available()); exposed under the WPF name for the ArrangeCore
+    // backfill (S842b).
+    return previous_available_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::is_renderable() const
+{
+    // WPF UIElement.IsRenderable (UIElement.cs:1080-1099): a fresh element has no
+    // accumulated state to draw; a Collapsed element reports RenderSize (0,0);
+    // otherwise require BOTH axes valid.
+    if (never_measured_ || never_arranged_)
+    {
+        return false;
+    }
+    if (visibility() == Visibility::Collapsed)
+    {
+        return false;
+    }
+    return is_measure_valid() && is_arrange_valid();
+}
+
+VAML_CORE_EXPORT
+bool UIElement::rendering_invalidated() const noexcept
+{
+    return rendering_invalidated_;
+}
+
+VAML_CORE_EXPORT
+void UIElement::invalidate_render()
+{
+    // WPF RenderingInvalidated set (the "repaint requested" half of InvalidateVisual).
+    rendering_invalidated_ = true;
+}
+
+VAML_CORE_EXPORT
+void UIElement::on_child_desired_size_changed(UIElement& child)
+{
+    // WPF OnChildDesiredSizeChanged base body is empty; a FrameworkElement may
+    // override to invalidate its measure. Base no-op (the S842b waterfall calls it).
+    (void)child;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::use_layout_rounding_flag() const noexcept
+{
+    return use_layout_rounding_;
+}
+
+VAML_CORE_EXPORT
+void UIElement::set_use_layout_rounding_flag(bool value) noexcept
+{
+    use_layout_rounding_ = value;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::are_transforms_clean() const noexcept
+{
+    return are_transforms_clean_;
+}
+
+VAML_CORE_EXPORT
+void UIElement::set_are_transforms_clean(bool value) noexcept
+{
+    are_transforms_clean_ = value;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::measure_during_arrange() const noexcept
+{
+    return measure_during_arrange_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::has_width_ever_changed() const noexcept
+{
+    return has_width_ever_changed_;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::has_height_ever_changed() const noexcept
+{
+    return has_height_ever_changed_;
+}
+
+// --- S842a arrange-state publish seam --------------------------------------
+
+VAML_CORE_EXPORT
+void UIElement::publish_arrange_result(const vaml::Rect& finalRect,
+                                       vaml::Point layoutOffset,
+                                       vaml::Size renderSize,
+                                       bool needsClip,
+                                       const vaml::Rect& clipRect)
+{
+    // The WPF ArrangeCore state writes (RenderSize / SetLayoutOffset /
+    // NeedsClipBounds / GetLayoutClip rect) applied atomically through one seam.
+    final_rect_    = finalRect;
+    layout_offset_ = layoutOffset;
+    render_size_   = renderSize;
+    needs_clip_    = needsClip;
+    clip_rect_     = clipRect;
+}
+
+VAML_CORE_EXPORT
+bool UIElement::mark_for_size_changed_if_needed(vaml::Size oldSize, vaml::Size newSize)
+{
+    // WPF UIElement.markForSizeChangedIfNeeded (UIElement.cs:1478-1516):
+    // widthChanged/heightChanged via DoubleUtil.AreClose. Sets the
+    // HasWidth/HeightEverChanged bits (the OnRenderSizeChanged side-effect that
+    // drives ActualWidth/ActualHeight) but does NOT raise SizeChanged here.
+    const bool widthChanged  = !sizes_close(oldSize.width, newSize.width);
+    const bool heightChanged = !sizes_close(oldSize.height, newSize.height);
+    if (widthChanged)
+    {
+        has_width_ever_changed_ = true;
+    }
+    if (heightChanged)
+    {
+        has_height_ever_changed_ = true;
+    }
+    return widthChanged || heightChanged;
 }
 
 // --- S840 distinct WPF bit accessors (UIElement.cs:108-109 / :225-240) ------
@@ -1350,6 +1484,31 @@ void UIElement::OnPropertyChanged(
     if (has_flag(flags, PropertyFlags::AffectsRender))
     {
         InvalidateVisual();
+    }
+
+    // 5) S842a (WPF FrameworkElement invalidation callbacks, FE.cs:3423-3429 /
+    //    UIElement.cs:1064-1083): the LayoutTransform + Width/Height/Min*/Max*
+    //    change callbacks (OnTransformDirty / OnLayoutTransformChanged) and the
+    //    RenderTransformOrigin callback all set AreTransformsClean = false (the
+    //    transform/geometry must be recomputed at the next arrange). The
+    //    UseLayoutRounding change handler (OnUseLayoutRoundingChanged) mirrors
+    //    the value into the VisualFlags.UseLayoutRounding bit. Recorded state;
+    //    the flags' AffectsMeasure/AffectsArrange arms above already drive the
+    //    invalidation, so this is the WPF-faithful ADDITIONAL bookkeeping.
+    if (id == PropertyId::of("LayoutTransform", "FrameworkElement") ||
+        id == PropertyId::of("Width",   "FrameworkElement") ||
+        id == PropertyId::of("Height",  "FrameworkElement") ||
+        id == PropertyId::of("MinWidth",  "FrameworkElement") ||
+        id == PropertyId::of("MaxWidth",  "FrameworkElement") ||
+        id == PropertyId::of("MinHeight", "FrameworkElement") ||
+        id == PropertyId::of("MaxHeight", "FrameworkElement") ||
+        id == PropertyId::of("RenderTransformOrigin", "UIElement"))
+    {
+        are_transforms_clean_ = false;
+    }
+    if (id == PropertyId::of("UseLayoutRounding", "FrameworkElement"))
+    {
+        use_layout_rounding_ = newValue.get<bool>();
     }
 }
 

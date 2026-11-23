@@ -3,7 +3,7 @@
 //
 // WPF ground truth (E:\GitRepos\wpf — the authority):
 //   - FrameworkElement.cs:93 — `public partial class FrameworkElement : UIElement`
-//   - Control.cs:20 — `public class Control : FrameworkElement`
+//   - Control.cs:20 — `public class Control : vaml::FrameworkElement`
 //   - The LAYOUT SLOT (Margin/H/VAlignment/Width/Height) + the FE surface
 //     (Name/DataContext/Tag/FlowDirection/...) live on FrameworkElement
 //     (FE.cs:3466+ / FE.cs:3218), NOT on UIElement.
@@ -52,7 +52,7 @@ TEST_CASE("S824: dynamic_cast<FrameworkElement> holds for BOTH branches")
     StackPanel sp;
     CHECK(dynamic_cast<FrameworkElement*>(&sp) != nullptr);
 
-    // Control-branch controls — `Control : FrameworkElement` in WPF, so a
+    // Control-branch controls — `Control : vaml::FrameworkElement` in WPF, so a
     // Button is also FrameworkElement-derived.
     Button btn;
     CHECK(dynamic_cast<FrameworkElement*>(&btn) != nullptr);
@@ -135,7 +135,7 @@ TEST_CASE("S824: DataContext inheritance (S500) works through the FrameworkEleme
     CHECK(child->effective_data_context(nullptr) == ctx);
 }
 
-TEST_CASE("S824: FrameworkElement is a base TYPE, not a registered built-in element")
+TEST_CASE("S824: vaml::FrameworkElement is a base TYPE, not a registered built-in element")
 {
     // The built-in registration surface is unchanged (FrameworkElement is a
     // base type, not a registrable element). A Button still resolves as a

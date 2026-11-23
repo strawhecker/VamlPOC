@@ -165,10 +165,12 @@ run_viewer_growth_11ac_plan(const std::string& text)
         }
 
         // Measure WideText at a NARROW offer — the offered slot a 120-wide panel
-        // would hand it. The content (one 40-char unbreakable token) exceeds it
-        // and the report must NOT be clamped to the offer.
+        // would hand it. S842.7 (WPF MeasureCore clamp-pair): the parent-facing
+        // DesiredSize is now CLAMPED to the offer (120); the wide CONTENT extent
+        // (288) lives in unclipped_desired_size() (the WPF UnclippedDesiredSize
+        // SizeBox, FE.cs:4489-4500) — still proving the content exceeds the offer.
         r.wideText->Measure(vaml::Size{ 120.0f, vaml::Size::Infinite().height });
-        r.wideTextDesiredWidth = r.wideText->desired_size().width;
+        r.wideTextDesiredWidth = r.wideText->unclipped_desired_size().width;
         r.desiredExceedsOffer  = r.wideTextDesiredWidth > 120.0f;
 
         // --- The S123/S124 pass over the live tree --------------------------

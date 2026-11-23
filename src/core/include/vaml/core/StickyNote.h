@@ -279,7 +279,7 @@ public:
     // --- Measure (the framework-element branch) ---------------------------
     // The note measures to its authored box (Width/Height DPs; NaN = auto ->
     // a nominal default note box — WPF StickyNoteControl sizes to content).
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     // The mirror guard: the annotation<->SNC reentrancy guard (the WPF

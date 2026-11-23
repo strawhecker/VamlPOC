@@ -12,9 +12,11 @@
 
 #include "vaml/core/Geometry.h"
 #include "vaml/core/Thickness.h"
+#include "vaml/core/Transform.h"  // S842a — Matrix2D (find_maximal_area_local_space_rect)
 #include "vaml/core/export.h"
 
 #include <cstdint>
+#include <limits>
 
 namespace vaml {
 
@@ -47,6 +49,86 @@ enum class VerticalAlignment : std::uint8_t
     Bottom  = 2, // child sits at the bottom; height = desired (may overflow + clip)
     Stretch = 3, // child fills the slot, but keeps desired (clips) if larger
 };
+
+// ===========================================================================
+// S842a — OVERRIDE-SEAM FOUNDATION supporting value types (WPF-faithful)
+// ===========================================================================
+// These are the WPF FrameworkElement/UIElement layout helpers the seam split
+// (S842b) consumes. Purely additive: nothing here is wired into Measure/Arrange
+// yet. Ground truth = E:\GitRepos\wpf (FrameworkElement.cs / UIElement.cs).
+
+// WPF `DpiScale` (UIElement/Visual DpiScale): the ratio of the screen DPI to
+// the layout DPI on each axis. Headless VAML is 96-DPI => {1.0, 1.0}.
+struct DpiScale
+{
+    double dpiScaleX = 1.0;
+    double dpiScaleY = 1.0;
+};
+
+// The WPF `GetDpi()` analogue: headless layout is always 1:1 (96 DPI). A future
+// real-DPI host overrides the value handed to RoundLayout*; the algorithm is
+// unchanged.
+[[nodiscard]] inline DpiScale get_dpi() noexcept { return {}; }
+
+// WPF `FrameworkElement.MinMax` (FE.cs:4036-4066) — the four derived folds that
+// combine Width/Height (NaN=>auto) with Min/MaxWidth/Height. Built from the six
+// FE layout DPs (the caller passes the resolved DP values). The derived fields
+// (minWidth/maxWidth/minHeight/maxHeight) are the folded result.
+struct MinMax
+{
+    MinMax(double feWidth, double feHeight,
+           double feMinWidth, double feMinHeight,
+           double feMaxWidth, double feMaxHeight) noexcept;
+
+    double minWidth  = 0.0;
+    double maxWidth  = std::numeric_limits<double>::infinity();
+    double minHeight = 0.0;
+    double maxHeight = std::numeric_limits<double>::infinity();
+};
+
+// WPF `UIElement.RoundLayoutValue` (UIElement.cs:1079-1104): DPI-aware rounding
+// for UseLayoutRounding. If dpiScale is not ~1.0, round(value*dpi)/dpi and
+// RESTORE the original on NaN/±Inf/MaxValue; otherwise round to the nearest
+// integer (round-half-to-even, matching .NET Math.Round).
+[[nodiscard]] VAML_CORE_EXPORT double round_layout_value(double value, double dpiScale) noexcept;
+
+// WPF `RoundLayoutSize` (per-component, X uses dpiScaleX, Y uses dpiScaleY).
+[[nodiscard]] VAML_CORE_EXPORT Size round_layout_size(Size size, DpiScale dpi) noexcept;
+
+// WPF `RoundLayoutRect` (UIElement.cs:1106-1116): round X/Width with dpiScaleX,
+// Y/Height with dpiScaleY.
+[[nodiscard]] VAML_CORE_EXPORT Rect round_layout_rect(Rect rect, DpiScale dpi) noexcept;
+
+// WPF `LayoutDoubleUtil` (FE.cs:4649-4665 area) — the FIXED-epsilon (0.00000153)
+// layout compares, distinct from the relative DoubleUtil. `less_than` is the
+// WPF `LessThan` used by ArrangeCore (FE.cs:4645 `LayoutDoubleUtil.LessThan`).
+namespace layout_double_util
+{
+[[nodiscard]] inline bool are_close(double value1, double value2) noexcept
+{
+    constexpr double eps = 0.00000153; // WPF LayoutDoubleUtil.eps
+    if (value1 == value2)
+    {
+        return true;
+    }
+    const double diff = value1 - value2;
+    return (diff < eps) && (diff > -eps);
+}
+
+[[nodiscard]] inline bool less_than(double value1, double value2) noexcept
+{
+    return (value1 < value2) && !are_close(value1, value2);
+}
+} // namespace layout_double_util
+
+// WPF `FrameworkElement.FindMaximalAreaLocalSpaceRect` (FE.cs:4099-4282) — used
+// only when a non-identity LayoutTransform is set. Given the transform applied
+// to the child, finds (in axis-aligned LOCAL space) the largest rectangle that,
+// after transform, fits within `transformSpaceBounds`. Full faithful port: zero
+// guard, +∞ guard, HasInverse guard, the b/c-zero branch, the a/d-zero branch,
+// and the general branch with intercept-halving + the expandFactor correction.
+[[nodiscard]] VAML_CORE_EXPORT Size find_maximal_area_local_space_rect(
+    const Matrix2D& transform, Size transformSpaceBounds) noexcept;
 
 // The arrange slot a parent allocates to a child, AFTER margins (WPF-faithful:
 // the slot is what remains once the child's Margin is removed from the

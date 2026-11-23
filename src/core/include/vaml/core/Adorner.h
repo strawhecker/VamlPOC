@@ -87,7 +87,7 @@ protected:
     // RenderSize — the overlay matches its decorated box). A derived adorner
     // overrides to shape itself. When the adorned element is null / not yet
     // arranged, returns {0,0}.
-    [[nodiscard]] vaml::Size MeasureOverride(const vaml::Size& available) const override;
+    vaml::Size MeasureOverride(const vaml::Size& available) override;
 
 private:
     UIElement* adorned_ = nullptr; // NON-OWNING decorated element (lifecycle: the owner)
